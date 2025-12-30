@@ -1,0 +1,16 @@
+project('zet-mockup', 'vala', version: '0.1.0')
+
+gnome = import('gnome')
+
+deps = [
+  dependency('gtk4'),
+  dependency('libadwaita-1'),
+  dependency('gio-2.0'),
+]
+
+executable(
+  'zet-mockup',
+  'main.vala',
+  dependencies: deps,
+  install: false
+)
