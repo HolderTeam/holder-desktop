@@ -15,6 +15,7 @@ public class ZetMockup : Adw.Application {
 
         // Root split: left sidebar + main content
         var root_split = new Adw.OverlaySplitView();
+        root_split.set_sidebar_position(Gtk.PackType.START);
         win.set_content(root_split);
 
         // ----- Sidebar (left) -----
@@ -54,6 +55,7 @@ public class ZetMockup : Adw.Application {
 
         // Main work area: center + right AI panel
         var work_split = new Adw.OverlaySplitView();
+        work_split.set_sidebar_position(Gtk.PackType.END);
         content_vbox.append(work_split);
 
         // ViewStack in the center: editor vs corkboard
