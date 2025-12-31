@@ -21,6 +21,7 @@ public class ZetMockup : Adw.Application {
 
         // ----- Sidebar (left) -----
         var sidebar_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+        sidebar_box.add_css_class("navigation-sidebar");
 
         var sidebar_header = new Adw.HeaderBar();
         sidebar_header.set_title_widget(new Gtk.Label("Navigation"));
@@ -46,8 +47,12 @@ public class ZetMockup : Adw.Application {
         int next_note_id = 31;
 
         var nav_stack = new Gtk.Stack();
-        nav_stack.add_titled(new Gtk.Label("New Card"), "new-card", "New Card");
-        nav_stack.add_titled(new Gtk.Label("Search"), "search", "Search");
+        var new_card_page = new Gtk.Label("New Card");
+        var search_page = new Gtk.Label("Search");
+        nav_stack.add_titled(new_card_page, "new-card", "New Card");
+        nav_stack.add_titled(search_page, "search", "Search");
+        nav_stack.get_page(new_card_page).set_icon_name("document-new-symbolic");
+        nav_stack.get_page(search_page).set_icon_name("system-search-symbolic");
 
         var nav_sidebar = new Gtk.StackSidebar();
         nav_sidebar.set_stack(nav_stack);
@@ -79,19 +84,28 @@ public class ZetMockup : Adw.Application {
         var project_factory = new Gtk.SignalListItemFactory();
         project_factory.setup.connect((obj) => {
             var li = (Gtk.ListItem) obj;
+            var row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+            var icon = new Gtk.Image.from_icon_name("folder-symbolic");
             var label = new Gtk.Label("") { xalign = 0.0f };
             label.add_css_class("title-4");
-            li.set_child(label);
+            row.append(icon);
+            row.append(label);
+            li.set_child(row);
         });
         project_factory.bind.connect((obj) => {
             var li = (Gtk.ListItem) obj;
             var item = li.get_item() as ProjectItem;
-            var label = li.get_child() as Gtk.Label;
+            var row = li.get_child() as Gtk.Box;
+            var label = row.get_last_child() as Gtk.Label;
             label.set_text(item.name);
         });
 
         var project_list = new Gtk.ListView(project_selection, project_factory);
+        project_list.add_css_class("navigation-sidebar");
         sidebar_content.append(project_list);
+
+        var separator = new Gtk.Separator(Gtk.Orientation.HORIZONTAL);
+        sidebar_content.append(separator);
 
         var cards_label = new Gtk.Label("Your Cards") { xalign = 0.0f };
         cards_label.add_css_class("heading");
@@ -101,6 +115,8 @@ public class ZetMockup : Adw.Application {
         var card_factory = new Gtk.SignalListItemFactory();
         card_factory.setup.connect((obj) => {
             var li = (Gtk.ListItem) obj;
+            var row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+            var icon = new Gtk.Image.from_icon_name("text-x-generic-symbolic");
             var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
             var title = new Gtk.Label("") { xalign = 0.0f };
             title.add_css_class("title-4");
@@ -110,12 +126,15 @@ public class ZetMockup : Adw.Application {
             preview.set_max_width_chars(22);
             box.append(title);
             box.append(preview);
-            li.set_child(box);
+            row.append(icon);
+            row.append(box);
+            li.set_child(row);
         });
         card_factory.bind.connect((obj) => {
             var li = (Gtk.ListItem) obj;
             var item = li.get_item() as MockItem;
-            var box = li.get_child() as Gtk.Box;
+            var row = li.get_child() as Gtk.Box;
+            var box = row.get_last_child() as Gtk.Box;
             var title = box.get_first_child() as Gtk.Label;
             var preview = title.get_next_sibling() as Gtk.Label;
             title.set_text(item.title);
@@ -123,6 +142,7 @@ public class ZetMockup : Adw.Application {
         });
 
         var card_list = new Gtk.ListView(card_selection, card_factory);
+        card_list.add_css_class("navigation-sidebar");
         sidebar_content.append(card_list);
 
         root_split.set_sidebar(sidebar_box);
