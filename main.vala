@@ -1,7 +1,6 @@
 using Gtk;
 using Adw;
 using GtkSource;
-using Gdk;
 
 public class ZetMockup : Adw.Application {
     public ZetMockup () {
@@ -14,18 +13,6 @@ public class ZetMockup : Adw.Application {
             default_height = 800,
             title = "Zet Mockup"
         };
-
-        var css = new Gtk.CssProvider();
-        css.load_from_string(
-            ".nav-actions row { min-height: 48px; padding: 10px 10px; }\n" +
-            ".nav-actions list row { min-height: 48px; padding: 10px 10px; }\n" +
-            ".nav-actions row > box { margin-top: 2px; margin-bottom: 2px; }"
-        );
-        Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(),
-            css,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        );
 
         // Root split: left sidebar + main content
         var root_split = new Adw.OverlaySplitView();
@@ -58,28 +45,6 @@ public class ZetMockup : Adw.Application {
         }
 
         int next_note_id = 31;
-
-        var nav_stack = new Gtk.Stack();
-        var new_card_page = new Gtk.Label("New Card");
-        nav_stack.add_titled(new_card_page, "new-card", "New Card");
-        nav_stack.get_page(new_card_page).set_icon_name("document-new-symbolic");
-
-        var nav_sidebar = new Gtk.StackSidebar();
-        nav_sidebar.set_stack(nav_stack);
-        nav_sidebar.add_css_class("navigation-sidebar");
-        nav_sidebar.add_css_class("nav-actions");
-        nav_sidebar.set_margin_top(6);
-        nav_sidebar.set_margin_bottom(6);
-        nav_sidebar.set_margin_start(6);
-        nav_sidebar.set_margin_end(6);
-
-        var nav_separator = new Gtk.Separator(Gtk.Orientation.HORIZONTAL);
-
-        var nav_actions_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
-        nav_actions_box.append(nav_sidebar);
-        nav_actions_box.append(nav_separator);
-        nav_actions_box.set_vexpand(false);
-        sidebar_box.append(nav_actions_box);
 
         var sidebar_scroll = new Gtk.ScrolledWindow();
         sidebar_scroll.set_vexpand(true);
@@ -182,12 +147,15 @@ public class ZetMockup : Adw.Application {
         var btn_editor = new Gtk.Button.with_label("Editor");
         var btn_board  = new Gtk.Button.with_label("Corkboard");
         var btn_search = new Gtk.Button.with_label("Search");
+        var btn_new = new Gtk.Button.from_icon_name("list-add-symbolic");
+        btn_new.set_tooltip_text("New Card");
         var btn_ai     = new Gtk.ToggleButton.with_label("AI");
         var btn_tools  = new Gtk.ToggleButton.with_label("Tools");
 
         header.pack_start(btn_editor);
         header.pack_start(btn_board);
         header.pack_start(btn_search);
+        header.pack_start(btn_new);
         header.pack_end(btn_tools);
         header.pack_end(btn_ai);
 
@@ -419,10 +387,21 @@ public class ZetMockup : Adw.Application {
             stack.set_visible_child_name("editor");
         }
 
+        void create_new_card() {
+            var title = "Note " + next_note_id.to_string();
+            next_note_id++;
+            var preview = "New card created...";
+            var body = "# " + title + "\n\nStart writing here.\n";
+            var item = new MockItem(title, preview, body);
+            note_store.append(item);
+            card_selection.set_selected(note_store.get_n_items() - 1);
+        }
+
         // Wiring buttons
         btn_editor.clicked.connect(() => stack.set_visible_child_name("editor"));
         btn_board.clicked.connect(() => stack.set_visible_child_name("board"));
         btn_search.clicked.connect(() => show_search());
+        btn_new.clicked.connect(() => create_new_card());
 
         btn_ai.toggled.connect(() => {
             work_split.set_show_sidebar(btn_ai.active);
@@ -453,20 +432,6 @@ public class ZetMockup : Adw.Application {
             }
         });
 
-        nav_stack.notify["visible-child-name"].connect(() => {
-            var name = nav_stack.get_visible_child_name();
-            if (name == "new-card") {
-                var title = "Note " + next_note_id.to_string();
-                next_note_id++;
-                var preview = "New card created...";
-                var body = "# " + title + "\n\nStart writing here.\n";
-                var item = new MockItem(title, preview, body);
-                note_store.append(item);
-                card_selection.set_selected(note_store.get_n_items() - 1);
-            }
-        });
-
-        nav_stack.set_visible_child_name("new-card");
         card_selection.set_selected(0);
 
         win.present();
