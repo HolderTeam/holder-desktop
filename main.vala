@@ -3,6 +3,15 @@ using Adw;
 using GtkSource;
 
 public class ZetMockup : Adw.Application {
+    private GtkSource.Buffer? editor_buffer;
+    private GtkSource.Language? markdown_language;
+    private GtkSource.StyleScheme? scheme;
+    private Adw.ViewStack? view_stack;
+    private FenceHighlighter? fence_highlighter;
+    private GLib.ListStore? note_store;
+    private Gtk.SingleSelection? card_selection;
+    private int next_note_id = 1;
+
     public ZetMockup () {
         Object(application_id: "com.example.ZetMockup");
     }
@@ -28,6 +37,7 @@ public class ZetMockup : Adw.Application {
         sidebar_box.append(sidebar_header);
 
         var note_store = new GLib.ListStore(typeof(MockItem));
+        this.note_store = note_store;
         for (int i = 1; i <= 30; i++) {
             var title = "Note " + i.to_string();
             var preview = "A short preview line...";
@@ -44,7 +54,7 @@ public class ZetMockup : Adw.Application {
             note_store.append(new MockItem(title, preview, body));
         }
 
-        int next_note_id = 31;
+        next_note_id = 31;
 
         var sidebar_scroll = new Gtk.ScrolledWindow();
         sidebar_scroll.set_vexpand(true);
@@ -100,6 +110,7 @@ public class ZetMockup : Adw.Application {
         sidebar_content.append(cards_label);
 
         var card_selection = new Gtk.SingleSelection(note_store);
+        this.card_selection = card_selection;
         var card_factory = new Gtk.SignalListItemFactory();
         card_factory.setup.connect((obj) => {
             var li = (Gtk.ListItem) obj;
@@ -168,11 +179,13 @@ public class ZetMockup : Adw.Application {
         // ViewStack in the center: editor vs corkboard
         var stack = new Adw.ViewStack();
         work_split.set_content(stack);
+        view_stack = stack;
 
         // Editor view
         var editor_buffer = new GtkSource.Buffer(null);
         editor_buffer.set_highlight_syntax(true);
         editor_buffer.set_highlight_matching_brackets(true);
+        this.editor_buffer = editor_buffer;
 
         var lang_manager = GtkSource.LanguageManager.get_default();
         var markdown_language = lang_manager.get_language("markdown");
@@ -188,6 +201,7 @@ public class ZetMockup : Adw.Application {
         if (markdown_language != null) {
             editor_buffer.set_language(markdown_language);
         }
+        this.markdown_language = markdown_language;
         var scheme_manager = GtkSource.StyleSchemeManager.get_default();
 
         var scheme = scheme_manager.get_scheme("cobalt");
@@ -211,6 +225,7 @@ public class ZetMockup : Adw.Application {
         if (scheme != null) {
             editor_buffer.set_style_scheme(scheme);
         }
+        this.scheme = scheme;
 
         var editor = new GtkSource.View.with_buffer(editor_buffer);
         editor.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
@@ -355,47 +370,10 @@ public class ZetMockup : Adw.Application {
         workspace_vbox.append(tools_revealer);
 
         var fence_highlighter = new FenceHighlighter(editor_buffer, lang_manager, scheme);
+        this.fence_highlighter = fence_highlighter;
         editor_buffer.changed.connect(() => {
             fence_highlighter.schedule_update();
         });
-
-        void set_editor_from_note(MockItem item) {
-            editor_buffer.set_text(item.body, -1);
-            if (markdown_language != null) {
-                editor_buffer.set_language(markdown_language);
-            }
-            if (scheme != null) {
-                editor_buffer.set_style_scheme(scheme);
-            }
-            editor_buffer.set_highlight_syntax(true);
-            GLib.Idle.add(() => {
-                Gtk.TextIter idle_start;
-                Gtk.TextIter idle_end;
-                editor_buffer.get_bounds(out idle_start, out idle_end);
-                editor_buffer.ensure_highlight(idle_start, idle_end);
-                fence_highlighter.schedule_update();
-                return GLib.Source.REMOVE;
-            });
-            stack.set_visible_child_name("editor");
-        }
-
-        void show_search() {
-            editor_buffer.set_text("# Search\n\nType to search your notes.\n", -1);
-            if (markdown_language != null) {
-                editor_buffer.set_language(markdown_language);
-            }
-            stack.set_visible_child_name("editor");
-        }
-
-        void create_new_card() {
-            var title = "Note " + next_note_id.to_string();
-            next_note_id++;
-            var preview = "New card created...";
-            var body = "# " + title + "\n\nStart writing here.\n";
-            var item = new MockItem(title, preview, body);
-            note_store.append(item);
-            card_selection.set_selected(note_store.get_n_items() - 1);
-        }
 
         // Wiring buttons
         btn_editor.clicked.connect(() => stack.set_visible_child_name("editor"));
@@ -441,6 +419,57 @@ public class ZetMockup : Adw.Application {
         Adw.init();
         GtkSource.init();
         return new ZetMockup().run(args);
+    }
+
+    private void set_editor_from_note(MockItem item) {
+        if (editor_buffer == null || view_stack == null) {
+            return;
+        }
+        editor_buffer.set_text(item.body, -1);
+        if (markdown_language != null) {
+            editor_buffer.set_language(markdown_language);
+        }
+        if (scheme != null) {
+            editor_buffer.set_style_scheme(scheme);
+        }
+        editor_buffer.set_highlight_syntax(true);
+        var local_buffer = editor_buffer;
+        var local_highlighter = fence_highlighter;
+        GLib.Idle.add(() => {
+            Gtk.TextIter idle_start;
+            Gtk.TextIter idle_end;
+            local_buffer.get_bounds(out idle_start, out idle_end);
+            local_buffer.ensure_highlight(idle_start, idle_end);
+            if (local_highlighter != null) {
+                local_highlighter.schedule_update();
+            }
+            return GLib.Source.REMOVE;
+        });
+        view_stack.set_visible_child_name("editor");
+    }
+
+    private void show_search() {
+        if (editor_buffer == null || view_stack == null) {
+            return;
+        }
+        editor_buffer.set_text("# Search\n\nType to search your notes.\n", -1);
+        if (markdown_language != null) {
+            editor_buffer.set_language(markdown_language);
+        }
+        view_stack.set_visible_child_name("editor");
+    }
+
+    private void create_new_card() {
+        if (note_store == null || card_selection == null) {
+            return;
+        }
+        var title = "Note " + next_note_id.to_string();
+        next_note_id++;
+        var preview = "New card created...";
+        var body = "# " + title + "\n\nStart writing here.\n";
+        var item = new MockItem(title, preview, body);
+        note_store.append(item);
+        card_selection.set_selected(note_store.get_n_items() - 1);
     }
 }
 
