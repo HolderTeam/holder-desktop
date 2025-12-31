@@ -16,7 +16,11 @@ public class ZetMockup : Adw.Application {
         };
 
         var css = new Gtk.CssProvider();
-        css.load_from_string(".nav-actions row { min-height: 42px; padding: 6px 10px; }");
+        css.load_from_string(
+            ".nav-actions row { min-height: 48px; padding: 10px 10px; }\n" +
+            ".nav-actions list row { min-height: 48px; padding: 10px 10px; }\n" +
+            ".nav-actions row > box { margin-top: 2px; margin-bottom: 2px; }"
+        );
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(),
             css,
@@ -57,11 +61,8 @@ public class ZetMockup : Adw.Application {
 
         var nav_stack = new Gtk.Stack();
         var new_card_page = new Gtk.Label("New Card");
-        var search_page = new Gtk.Label("Search");
         nav_stack.add_titled(new_card_page, "new-card", "New Card");
-        nav_stack.add_titled(search_page, "search", "Search");
         nav_stack.get_page(new_card_page).set_icon_name("document-new-symbolic");
-        nav_stack.get_page(search_page).set_icon_name("system-search-symbolic");
 
         var nav_sidebar = new Gtk.StackSidebar();
         nav_sidebar.set_stack(nav_stack);
@@ -180,11 +181,13 @@ public class ZetMockup : Adw.Application {
 
         var btn_editor = new Gtk.Button.with_label("Editor");
         var btn_board  = new Gtk.Button.with_label("Corkboard");
+        var btn_search = new Gtk.Button.with_label("Search");
         var btn_ai     = new Gtk.ToggleButton.with_label("AI");
         var btn_tools  = new Gtk.ToggleButton.with_label("Tools");
 
         header.pack_start(btn_editor);
         header.pack_start(btn_board);
+        header.pack_start(btn_search);
         header.pack_end(btn_tools);
         header.pack_end(btn_ai);
 
@@ -383,18 +386,6 @@ public class ZetMockup : Adw.Application {
         tools_revealer.set_child(tools_frame);
         workspace_vbox.append(tools_revealer);
 
-        // Wiring buttons
-        btn_editor.clicked.connect(() => stack.set_visible_child_name("editor"));
-        btn_board.clicked.connect(() => stack.set_visible_child_name("board"));
-
-        btn_ai.toggled.connect(() => {
-            work_split.set_show_sidebar(btn_ai.active);
-        });
-
-        btn_tools.toggled.connect(() => {
-            tools_revealer.set_reveal_child(btn_tools.active);
-        });
-
         var fence_highlighter = new FenceHighlighter(editor_buffer, lang_manager, scheme);
         editor_buffer.changed.connect(() => {
             fence_highlighter.schedule_update();
@@ -419,6 +410,27 @@ public class ZetMockup : Adw.Application {
             });
             stack.set_visible_child_name("editor");
         }
+
+        void show_search() {
+            editor_buffer.set_text("# Search\n\nType to search your notes.\n", -1);
+            if (markdown_language != null) {
+                editor_buffer.set_language(markdown_language);
+            }
+            stack.set_visible_child_name("editor");
+        }
+
+        // Wiring buttons
+        btn_editor.clicked.connect(() => stack.set_visible_child_name("editor"));
+        btn_board.clicked.connect(() => stack.set_visible_child_name("board"));
+        btn_search.clicked.connect(() => show_search());
+
+        btn_ai.toggled.connect(() => {
+            work_split.set_show_sidebar(btn_ai.active);
+        });
+
+        btn_tools.toggled.connect(() => {
+            tools_revealer.set_reveal_child(btn_tools.active);
+        });
 
         card_selection.notify["selected"].connect(() => {
             var item = card_selection.get_selected_item() as MockItem;
@@ -451,17 +463,10 @@ public class ZetMockup : Adw.Application {
                 var item = new MockItem(title, preview, body);
                 note_store.append(item);
                 card_selection.set_selected(note_store.get_n_items() - 1);
-                nav_stack.set_visible_child_name("search");
-            } else if (name == "search") {
-                editor_buffer.set_text("# Search\n\nType to search your notes.\n", -1);
-                if (markdown_language != null) {
-                    editor_buffer.set_language(markdown_language);
-                }
-                stack.set_visible_child_name("editor");
             }
         });
 
-        nav_stack.set_visible_child_name("search");
+        nav_stack.set_visible_child_name("new-card");
         card_selection.set_selected(0);
 
         win.present();
