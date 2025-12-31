@@ -11,7 +11,7 @@ public class ZetMockup : Adw.Application {
         var win = new Adw.ApplicationWindow(this) {
             default_width = 1200,
             default_height = 800,
-            title = "Zet Mockup"
+            title = "Current thing title here"
         };
 
         // Root split: left sidebar + main content
@@ -24,7 +24,7 @@ public class ZetMockup : Adw.Application {
         sidebar_box.add_css_class("navigation-sidebar");
 
         var sidebar_header = new Adw.HeaderBar();
-        sidebar_header.set_title_widget(new Gtk.Label("Navigation"));
+        sidebar_header.set_title_widget(new Gtk.Label("Zet"));
         sidebar_box.append(sidebar_header);
 
         var note_store = new GLib.ListStore(typeof(MockItem));
