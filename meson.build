@@ -5,6 +5,7 @@ gnome = import('gnome')
 deps = [
   dependency('gtk4'),
   dependency('libadwaita-1'),
+  dependency('gtksourceview-5'),
   dependency('gio-2.0'),
 ]
 
