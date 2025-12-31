@@ -11,6 +11,8 @@ public class ZetMockup : Adw.Application {
     private GLib.ListStore? note_store;
     private Gtk.SingleSelection? card_selection;
     private int next_note_id = 1;
+    private Gtk.Label? header_title_label;
+    private Adw.ApplicationWindow? main_window;
 
     public ZetMockup () {
         Object(application_id: "com.example.ZetMockup");
@@ -20,8 +22,9 @@ public class ZetMockup : Adw.Application {
         var win = new Adw.ApplicationWindow(this) {
             default_width = 1200,
             default_height = 800,
-            title = "Current thing title here"
+            title = "Zet Mockup"
         };
+        main_window = win;
 
         // Root split: left sidebar + main content
         var root_split = new Adw.OverlaySplitView();
@@ -153,6 +156,9 @@ public class ZetMockup : Adw.Application {
 
         // Top header bar (toolbar)
         var header = new Adw.HeaderBar();
+        var header_title = new Gtk.Label("Search");
+        header.set_title_widget(header_title);
+        header_title_label = header_title;
         workspace_vbox.append(header);
 
         var btn_editor = new Gtk.Button.with_label("Editor");
@@ -425,6 +431,7 @@ public class ZetMockup : Adw.Application {
         if (editor_buffer == null || view_stack == null) {
             return;
         }
+        update_current_title(title_from_body(item.body));
         editor_buffer.set_text(item.body, -1);
         if (markdown_language != null) {
             editor_buffer.set_language(markdown_language);
@@ -452,6 +459,7 @@ public class ZetMockup : Adw.Application {
         if (editor_buffer == null || view_stack == null) {
             return;
         }
+        update_current_title("Search");
         editor_buffer.set_text("# Search\n\nType to search your notes.\n", -1);
         if (markdown_language != null) {
             editor_buffer.set_language(markdown_language);
@@ -470,6 +478,44 @@ public class ZetMockup : Adw.Application {
         var item = new MockItem(title, preview, body);
         note_store.append(item);
         card_selection.set_selected(note_store.get_n_items() - 1);
+    }
+
+    private void update_current_title(string title) {
+        if (header_title_label != null) {
+            header_title_label.set_text(title);
+        }
+        if (main_window != null) {
+            main_window.set_title(title);
+        }
+    }
+
+    private string title_from_body(string body) {
+        if (body == null) {
+            return "Untitled";
+        }
+        string first_line = body;
+        int newline_index = body.index_of_char('\n');
+        if (newline_index >= 0) {
+            first_line = body.substring(0, newline_index);
+        }
+        var trimmed = first_line.strip();
+        if (trimmed.has_prefix("#")) {
+            trimmed = trimmed.substring(1).strip();
+        }
+        if (trimmed.length == 0) {
+            trimmed = "Untitled";
+        }
+        return ellipsize(trimmed, 33);
+    }
+
+    private string ellipsize(string text, int max_len) {
+        if (text.length <= max_len) {
+            return text;
+        }
+        if (max_len <= 3) {
+            return text.substring(0, max_len);
+        }
+        return text.substring(0, max_len - 3) + "...";
     }
 }
 
