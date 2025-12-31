@@ -1,6 +1,7 @@
 using Gtk;
 using Adw;
 using GtkSource;
+using Gdk;
 
 public class ZetMockup : Adw.Application {
     public ZetMockup () {
@@ -13,6 +14,14 @@ public class ZetMockup : Adw.Application {
             default_height = 800,
             title = "Zet Mockup"
         };
+
+        var css = new Gtk.CssProvider();
+        css.load_from_string(".nav-actions row { min-height: 42px; padding: 6px 10px; }");
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            css,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
 
         // Root split: left sidebar + main content
         var root_split = new Adw.OverlaySplitView();
@@ -57,10 +66,23 @@ public class ZetMockup : Adw.Application {
         var nav_sidebar = new Gtk.StackSidebar();
         nav_sidebar.set_stack(nav_stack);
         nav_sidebar.add_css_class("navigation-sidebar");
-        sidebar_box.append(nav_sidebar);
+        nav_sidebar.add_css_class("nav-actions");
+        nav_sidebar.set_margin_top(6);
+        nav_sidebar.set_margin_bottom(6);
+        nav_sidebar.set_margin_start(6);
+        nav_sidebar.set_margin_end(6);
+
+        var nav_separator = new Gtk.Separator(Gtk.Orientation.HORIZONTAL);
+
+        var nav_actions_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+        nav_actions_box.append(nav_sidebar);
+        nav_actions_box.append(nav_separator);
+        nav_actions_box.set_vexpand(false);
+        sidebar_box.append(nav_actions_box);
 
         var sidebar_scroll = new Gtk.ScrolledWindow();
         sidebar_scroll.set_vexpand(true);
+        sidebar_scroll.set_margin_top(6);
         sidebar_box.append(sidebar_scroll);
 
         var sidebar_content = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
