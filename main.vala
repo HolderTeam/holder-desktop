@@ -296,6 +296,11 @@ public class ZetMockup : Adw.Application {
             tools_revealer.set_reveal_child(btn_tools.active);
         });
 
+        var fence_highlighter = new FenceHighlighter(editor_buffer, lang_manager, scheme);
+        editor_buffer.changed.connect(() => {
+            fence_highlighter.schedule_update();
+        });
+
         nav_selection.notify["selected"].connect(() => {
             var item = nav_selection.get_selected_item() as MockItem;
             if (item != null) {
@@ -312,6 +317,7 @@ public class ZetMockup : Adw.Application {
                     Gtk.TextIter idle_end;
                     editor_buffer.get_bounds(out idle_start, out idle_end);
                     editor_buffer.ensure_highlight(idle_start, idle_end);
+                    fence_highlighter.schedule_update();
                     return GLib.Source.REMOVE;
                 });
                 stack.set_visible_child_name("editor");
@@ -336,5 +342,309 @@ public class MockItem : Object {
 
     public MockItem(string title, string preview, string body) {
         Object(title: title, preview: preview, body: body);
+    }
+}
+
+public class FenceHighlighter : Object {
+    private GtkSource.Buffer buffer;
+    private GtkSource.LanguageManager lang_manager;
+    private GtkSource.StyleScheme? scheme;
+    private uint update_id = 0;
+    private Gee.ArrayList<Gtk.TextTag> fence_tags = new Gee.ArrayList<Gtk.TextTag>();
+    private int tag_serial = 0;
+
+    public FenceHighlighter(GtkSource.Buffer buffer,
+                            GtkSource.LanguageManager lang_manager,
+                            GtkSource.StyleScheme? scheme) {
+        this.buffer = buffer;
+        this.lang_manager = lang_manager;
+        this.scheme = scheme;
+    }
+
+    public void schedule_update() {
+        if (update_id != 0) {
+            return;
+        }
+        update_id = GLib.Timeout.add(150, () => {
+            update_id = 0;
+            update_highlighting();
+            return GLib.Source.REMOVE;
+        });
+    }
+
+    private void update_highlighting() {
+        Gtk.TextIter buf_start;
+        Gtk.TextIter buf_end;
+        buffer.get_bounds(out buf_start, out buf_end);
+
+        remove_previous_tags(buf_start, buf_end);
+
+        var text = buffer.get_text(buf_start, buf_end, false);
+        tag_serial = 0;
+
+        bool in_fence = false;
+        string? fence_lang = null;
+        int fence_content_start = 0;
+
+        int line_start = 0;
+        for (int i = 0; i <= text.length; i++) {
+            bool line_end = (i == text.length) || (text.get_char(i) == '\n');
+            if (!line_end) {
+                continue;
+            }
+
+            string line = text.substring(line_start, i - line_start);
+            string trimmed = line.strip();
+
+            if (trimmed.has_prefix("```")) {
+                if (!in_fence) {
+                    in_fence = true;
+                    fence_lang = parse_fence_language(trimmed);
+                    fence_content_start = i + 1;
+                } else {
+                    int fence_content_end = line_start;
+                    if (fence_content_end >= fence_content_start) {
+                        var language = resolve_fence_language(fence_lang);
+                        if (language != null) {
+                            var code = text.substring(
+                                fence_content_start,
+                                fence_content_end - fence_content_start
+                            );
+                            apply_language_tags(code, fence_content_start, language);
+                        }
+                    }
+                    in_fence = false;
+                    fence_lang = null;
+                }
+            }
+
+            line_start = i + 1;
+        }
+    }
+
+    private void remove_previous_tags(Gtk.TextIter buf_start, Gtk.TextIter buf_end) {
+        var tag_table = buffer.get_tag_table();
+        foreach (var tag in fence_tags) {
+            if (tag != null) {
+                buffer.remove_tag(tag, buf_start, buf_end);
+                tag_table.remove(tag);
+            }
+        }
+        fence_tags.clear();
+    }
+
+    private string? parse_fence_language(string trimmed) {
+        if (!trimmed.has_prefix("```")) {
+            return null;
+        }
+        var after = trimmed.substring(3).strip();
+        if (after.length == 0) {
+            return null;
+        }
+        var parts = after.split(" ");
+        return parts.length > 0 ? parts[0].down() : null;
+    }
+
+    private GtkSource.Language? resolve_fence_language(string? fence_lang) {
+        if (fence_lang == null || fence_lang.strip().length == 0) {
+            return null;
+        }
+        var id = fence_lang.down();
+        switch (id) {
+            case "js":
+            case "javascript":
+                id = "js";
+                break;
+            case "ts":
+            case "typescript":
+                id = "typescript";
+                break;
+            case "py":
+                id = "python";
+                break;
+            case "c++":
+            case "cpp":
+                id = "cpp";
+                break;
+            case "c#":
+            case "csharp":
+                id = "c-sharp";
+                break;
+            case "bash":
+            case "shell":
+                id = "sh";
+                break;
+            case "yml":
+                id = "yaml";
+                break;
+            case "md":
+                id = "markdown";
+                break;
+        }
+
+        var lang = lang_manager.get_language(id);
+        if (lang != null) {
+            return lang;
+        }
+        return lang_manager.guess_language("file." + id, null);
+    }
+
+    private void apply_language_tags(string code,
+                                     int start_offset,
+                                     GtkSource.Language language) {
+        var code_buffer = new GtkSource.Buffer(null);
+        code_buffer.set_highlight_syntax(true);
+        code_buffer.set_language(language);
+        if (scheme != null) {
+            code_buffer.set_style_scheme(scheme);
+        }
+        code_buffer.set_text(code, -1);
+
+        Gtk.TextIter code_start;
+        Gtk.TextIter code_end;
+        code_buffer.get_bounds(out code_start, out code_end);
+        code_buffer.ensure_highlight(code_start, code_end);
+
+        var code_table = code_buffer.get_tag_table();
+        code_table.foreach((tag) => {
+            apply_tag_ranges(tag, code_buffer, start_offset);
+        });
+    }
+
+    private void apply_tag_ranges(Gtk.TextTag source_tag,
+                                  GtkSource.Buffer code_buffer,
+                                  int start_offset) {
+        Gtk.TextIter iter;
+        code_buffer.get_start_iter(out iter);
+
+        bool in_tag = iter.has_tag(source_tag);
+        Gtk.TextIter range_start = iter;
+
+        while (iter.forward_to_tag_toggle(source_tag)) {
+            if (in_tag) {
+                apply_tag_range(source_tag, range_start, iter, start_offset);
+            }
+            in_tag = iter.has_tag(source_tag);
+            if (in_tag) {
+                range_start = iter;
+            }
+        }
+
+        if (in_tag) {
+            Gtk.TextIter end_iter;
+            code_buffer.get_end_iter(out end_iter);
+            apply_tag_range(source_tag, range_start, end_iter, start_offset);
+        }
+    }
+
+    private void apply_tag_range(Gtk.TextTag source_tag,
+                                 Gtk.TextIter range_start,
+                                 Gtk.TextIter range_end,
+                                 int start_offset) {
+        int range_start_offset = range_start.get_offset();
+        int range_end_offset = range_end.get_offset();
+        if (range_end_offset <= range_start_offset) {
+            return;
+        }
+
+        string tag_name = "fence-tag-" + tag_serial.to_string();
+        tag_serial++;
+
+        var tag_table = buffer.get_tag_table();
+        var dest_tag = tag_table.lookup(tag_name);
+        if (dest_tag == null) {
+            dest_tag = new Gtk.TextTag(tag_name);
+            copy_tag_style(source_tag, dest_tag);
+            tag_table.add(dest_tag);
+            fence_tags.add(dest_tag);
+        }
+
+        Gtk.TextIter main_start;
+        Gtk.TextIter main_end;
+        buffer.get_iter_at_offset(out main_start, start_offset + range_start_offset);
+        buffer.get_iter_at_offset(out main_end, start_offset + range_end_offset);
+        buffer.apply_tag(dest_tag, main_start, main_end);
+    }
+
+    private void copy_tag_style(Gtk.TextTag source_tag, Gtk.TextTag dest_tag) {
+        copy_rgba_property(source_tag, dest_tag, "foreground-rgba", "foreground-set");
+        copy_rgba_property(source_tag, dest_tag, "background-rgba", "background-set");
+        copy_enum_property(source_tag, dest_tag, "style", "style-set", typeof(Pango.Style));
+        copy_enum_property(source_tag, dest_tag, "underline", "underline-set", typeof(Pango.Underline));
+        copy_int_property(source_tag, dest_tag, "weight", "weight-set");
+        copy_bool_property(source_tag, dest_tag, "strikethrough", "strikethrough-set");
+        copy_double_property(source_tag, dest_tag, "scale", "scale-set");
+    }
+
+    private bool get_bool_property(Gtk.TextTag tag, string name) {
+        GLib.Value val = GLib.Value(typeof(bool));
+        tag.get_property(name, ref val);
+        return (bool) val;
+    }
+
+    private void copy_rgba_property(Gtk.TextTag source_tag,
+                                    Gtk.TextTag dest_tag,
+                                    string value_prop,
+                                    string set_prop) {
+        if (!get_bool_property(source_tag, set_prop)) {
+            return;
+        }
+        GLib.Value val = GLib.Value(typeof(Gdk.RGBA));
+        source_tag.get_property(value_prop, ref val);
+        dest_tag.set_property(value_prop, val);
+        dest_tag.set_property(set_prop, true);
+    }
+
+    private void copy_int_property(Gtk.TextTag source_tag,
+                                   Gtk.TextTag dest_tag,
+                                   string value_prop,
+                                   string set_prop) {
+        if (!get_bool_property(source_tag, set_prop)) {
+            return;
+        }
+        GLib.Value val = GLib.Value(typeof(int));
+        source_tag.get_property(value_prop, ref val);
+        dest_tag.set_property(value_prop, val);
+        dest_tag.set_property(set_prop, true);
+    }
+
+    private void copy_enum_property(Gtk.TextTag source_tag,
+                                    Gtk.TextTag dest_tag,
+                                    string value_prop,
+                                    string set_prop,
+                                    Type enum_type) {
+        if (!get_bool_property(source_tag, set_prop)) {
+            return;
+        }
+        GLib.Value val = GLib.Value(enum_type);
+        source_tag.get_property(value_prop, ref val);
+        dest_tag.set_property(value_prop, val);
+        dest_tag.set_property(set_prop, true);
+    }
+
+    private void copy_double_property(Gtk.TextTag source_tag,
+                                      Gtk.TextTag dest_tag,
+                                      string value_prop,
+                                      string set_prop) {
+        if (!get_bool_property(source_tag, set_prop)) {
+            return;
+        }
+        GLib.Value val = GLib.Value(typeof(double));
+        source_tag.get_property(value_prop, ref val);
+        dest_tag.set_property(value_prop, val);
+        dest_tag.set_property(set_prop, true);
+    }
+
+    private void copy_bool_property(Gtk.TextTag source_tag,
+                                    Gtk.TextTag dest_tag,
+                                    string value_prop,
+                                    string set_prop) {
+        if (!get_bool_property(source_tag, set_prop)) {
+            return;
+        }
+        GLib.Value val = GLib.Value(typeof(bool));
+        source_tag.get_property(value_prop, ref val);
+        dest_tag.set_property(value_prop, val);
+        dest_tag.set_property(set_prop, true);
     }
 }

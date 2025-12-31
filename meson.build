@@ -7,6 +7,7 @@ deps = [
   dependency('libadwaita-1'),
   dependency('gtksourceview-5'),
   dependency('gio-2.0'),
+  dependency('gee-0.8'),
 ]
 
 executable(
