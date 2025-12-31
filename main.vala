@@ -18,6 +18,11 @@ public class ZetMockup : Adw.Application {
         root_split.set_sidebar_position(Gtk.PackType.START);
         win.set_content(root_split);
 
+        // Main stack: pages that the sidebar controls
+        var main_stack = new Gtk.Stack();
+        main_stack.set_vexpand(true);
+        root_split.set_content(main_stack);
+
         // ----- Sidebar (left) -----
         var sidebar_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
 
@@ -25,23 +30,26 @@ public class ZetMockup : Adw.Application {
         sidebar_header.set_title_widget(new Gtk.Label("Navigation"));
         sidebar_box.append(sidebar_header);
 
-        var nav_list = new Gtk.ListBox();
-        nav_list.append(make_row("Recents"));
-        nav_list.append(make_row("Inbox"));
-        nav_list.append(make_row("Projects"));
-        nav_list.append(make_row("Search"));
-        sidebar_box.append(nav_list);
+        var sidebar = new Gtk.StackSidebar();
+        sidebar.set_stack(main_stack);
+        sidebar.add_css_class("navigation-sidebar");
+        sidebar_box.append(sidebar);
+
+        main_stack.add_titled(new Gtk.Label("Recents (mock)"), "recents", "Recents");
+        main_stack.add_titled(new Gtk.Label("Inbox (mock)"),   "inbox",   "Inbox");
+        main_stack.add_titled(new Gtk.Label("Projects (mock)"),"projects","Projects");
+        main_stack.add_titled(new Gtk.Label("Search (mock)"),  "search",  "Search");
 
         root_split.set_sidebar(sidebar_box);
         root_split.set_show_sidebar(true);
 
-        // ----- Main content (right) -----
-        var content_vbox = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
-        root_split.set_content(content_vbox);
+        // ----- Workspace page (this is your existing app UI) -----
+        var workspace_vbox = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+        workspace_vbox.set_vexpand(true);
 
         // Top header bar (toolbar)
         var header = new Adw.HeaderBar();
-        content_vbox.append(header);
+        workspace_vbox.append(header);
 
         var btn_editor = new Gtk.Button.with_label("Editor");
         var btn_board  = new Gtk.Button.with_label("Corkboard");
@@ -57,7 +65,7 @@ public class ZetMockup : Adw.Application {
         var work_split = new Adw.OverlaySplitView();
         work_split.set_vexpand(true);
         work_split.set_sidebar_position(Gtk.PackType.END);
-        content_vbox.append(work_split);
+        workspace_vbox.append(work_split);
 
         // ViewStack in the center: editor vs corkboard
         var stack = new Adw.ViewStack();
@@ -165,6 +173,10 @@ public class ZetMockup : Adw.Application {
         tools_revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_UP);
         tools_revealer.set_reveal_child(false);
 
+        main_stack.add_titled(workspace_vbox, "workspace", "Home");
+        main_stack.set_visible_child_name("workspace");
+
+
         // Frame-ish container
         var tools_frame = new Adw.Clamp();
 
@@ -204,7 +216,7 @@ public class ZetMockup : Adw.Application {
         tools_frame.set_child(tools_box);
 
         tools_revealer.set_child(tools_frame);
-        content_vbox.append(tools_revealer);
+        workspace_vbox.append(tools_revealer);
 
         // Wiring buttons
         btn_editor.clicked.connect(() => stack.set_visible_child_name("editor"));
@@ -219,20 +231,6 @@ public class ZetMockup : Adw.Application {
         });
 
         win.present();
-    }
-
-    private static Gtk.ListBoxRow make_row(string text) {
-        var row = new Gtk.ListBoxRow();
-        var box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 10);
-        box.set_margin_top(8);
-        box.set_margin_bottom(8);
-        box.set_margin_start(10);
-        box.set_margin_end(10);
-
-        var label = new Gtk.Label(text) { xalign = 0.0f };
-        box.append(label);
-        row.set_child(box);
-        return row;
     }
 
     public static int main (string[] args) {
