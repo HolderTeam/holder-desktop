@@ -55,6 +55,7 @@ public class ZetMockup : Adw.Application {
 
         // Main work area: center + right AI panel
         var work_split = new Adw.OverlaySplitView();
+        work_split.set_vexpand(true);
         work_split.set_sidebar_position(Gtk.PackType.END);
         content_vbox.append(work_split);
 
@@ -158,12 +159,15 @@ public class ZetMockup : Adw.Application {
         work_split.set_sidebar(ai_box);
         work_split.set_show_sidebar(false); // starts hidden
 
-        // Bottom toolbox (simple mock)
+
+        // Bottom toolbox (24 lines-ish)
         var tools_revealer = new Gtk.Revealer();
         tools_revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_UP);
         tools_revealer.set_reveal_child(false);
 
+        // Frame-ish container
         var tools_frame = new Adw.Clamp();
+
         var tools_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
         tools_box.set_margin_top(10);
         tools_box.set_margin_bottom(10);
@@ -172,13 +176,31 @@ public class ZetMockup : Adw.Application {
 
         var tools_title = new Gtk.Label("Toolbox") { xalign = 0.0f };
         tools_title.add_css_class("title-3");
-
-        var tools_label = new Gtk.Label("Terminal / logs / model output could live here.")
-            { xalign = 0.0f };
-        tools_label.set_wrap(true);
-
         tools_box.append(tools_title);
-        tools_box.append(tools_label);
+
+        // Text view + scroller
+        var tools_text = new Gtk.TextView();
+        tools_text.set_monospace(true);
+        tools_text.set_editable(false);
+        tools_text.set_wrap_mode(Gtk.WrapMode.NONE);
+
+        var tools_scroll = new Gtk.ScrolledWindow();
+        tools_scroll.set_child(tools_text);
+
+        // Populate text
+
+        var buf = tools_text.get_buffer();
+        string demo = "";
+        for (int i = 1; i <= 24; i++) {
+            demo += "tool line " + i.to_string() + "\n";
+        }
+        buf.set_text(demo, -1);
+
+        // Approx height for 24 lines. Tweak this number to taste.
+        tools_scroll.set_min_content_height(24 * 18);  // ~18px per line
+        tools_scroll.set_vexpand(false);
+
+        tools_box.append(tools_scroll);
         tools_frame.set_child(tools_box);
 
         tools_revealer.set_child(tools_frame);
