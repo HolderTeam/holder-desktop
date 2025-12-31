@@ -23,7 +23,7 @@ public class ZetMockup : Adw.Application {
         var sidebar_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
 
         var sidebar_header = new Adw.HeaderBar();
-        sidebar_header.set_title_widget(new Gtk.Label("Notes"));
+        sidebar_header.set_title_widget(new Gtk.Label("Navigation"));
         sidebar_box.append(sidebar_header);
 
         var note_store = new GLib.ListStore(typeof(MockItem));
@@ -43,30 +43,87 @@ public class ZetMockup : Adw.Application {
             note_store.append(new MockItem(title, preview, body));
         }
 
-        var nav_selection = new Gtk.SingleSelection(note_store);
-        var nav_factory = new Gtk.SignalListItemFactory();
-        nav_factory.setup.connect((obj) => {
+        int next_note_id = 31;
+
+        var nav_stack = new Gtk.Stack();
+        nav_stack.add_titled(new Gtk.Label("New Card"), "new-card", "New Card");
+        nav_stack.add_titled(new Gtk.Label("Search"), "search", "Search");
+
+        var nav_sidebar = new Gtk.StackSidebar();
+        nav_sidebar.set_stack(nav_stack);
+        nav_sidebar.add_css_class("navigation-sidebar");
+        sidebar_box.append(nav_sidebar);
+
+        var sidebar_scroll = new Gtk.ScrolledWindow();
+        sidebar_scroll.set_vexpand(true);
+        sidebar_box.append(sidebar_scroll);
+
+        var sidebar_content = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        sidebar_content.set_margin_top(6);
+        sidebar_content.set_margin_bottom(6);
+        sidebar_content.set_margin_start(6);
+        sidebar_content.set_margin_end(6);
+        sidebar_scroll.set_child(sidebar_content);
+
+        var projects_label = new Gtk.Label("Projects") { xalign = 0.0f };
+        projects_label.add_css_class("heading");
+        sidebar_content.append(projects_label);
+
+        var project_store = new GLib.ListStore(typeof(ProjectItem));
+        project_store.append(new ProjectItem("Zettel Core"));
+        project_store.append(new ProjectItem("Design Notes"));
+        project_store.append(new ProjectItem("Research Drafts"));
+        project_store.append(new ProjectItem("Code Experiments"));
+
+        var project_selection = new Gtk.SingleSelection(project_store);
+        var project_factory = new Gtk.SignalListItemFactory();
+        project_factory.setup.connect((obj) => {
             var li = (Gtk.ListItem) obj;
             var label = new Gtk.Label("") { xalign = 0.0f };
-            label.set_margin_top(8);
-            label.set_margin_bottom(8);
-            label.set_margin_start(12);
-            label.set_margin_end(12);
             label.add_css_class("title-4");
             li.set_child(label);
         });
-        nav_factory.bind.connect((obj) => {
+        project_factory.bind.connect((obj) => {
             var li = (Gtk.ListItem) obj;
-            var item = li.get_item() as MockItem;
+            var item = li.get_item() as ProjectItem;
             var label = li.get_child() as Gtk.Label;
-            label.set_text(item.title);
+            label.set_text(item.name);
         });
 
-        var nav_list = new Gtk.ListView(nav_selection, nav_factory);
-        var nav_scroll = new Gtk.ScrolledWindow();
-        nav_scroll.set_child(nav_list);
-        nav_scroll.set_vexpand(true);
-        sidebar_box.append(nav_scroll);
+        var project_list = new Gtk.ListView(project_selection, project_factory);
+        sidebar_content.append(project_list);
+
+        var cards_label = new Gtk.Label("Your Cards") { xalign = 0.0f };
+        cards_label.add_css_class("heading");
+        sidebar_content.append(cards_label);
+
+        var card_selection = new Gtk.SingleSelection(note_store);
+        var card_factory = new Gtk.SignalListItemFactory();
+        card_factory.setup.connect((obj) => {
+            var li = (Gtk.ListItem) obj;
+            var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
+            var title = new Gtk.Label("") { xalign = 0.0f };
+            title.add_css_class("title-4");
+            var preview = new Gtk.Label("") { xalign = 0.0f };
+            preview.add_css_class("dim-label");
+            preview.set_wrap(true);
+            preview.set_max_width_chars(22);
+            box.append(title);
+            box.append(preview);
+            li.set_child(box);
+        });
+        card_factory.bind.connect((obj) => {
+            var li = (Gtk.ListItem) obj;
+            var item = li.get_item() as MockItem;
+            var box = li.get_child() as Gtk.Box;
+            var title = box.get_first_child() as Gtk.Label;
+            var preview = title.get_next_sibling() as Gtk.Label;
+            title.set_text(item.title);
+            preview.set_text(item.preview);
+        });
+
+        var card_list = new Gtk.ListView(card_selection, card_factory);
+        sidebar_content.append(card_list);
 
         root_split.set_sidebar(sidebar_box);
         root_split.set_show_sidebar(true);
@@ -301,29 +358,69 @@ public class ZetMockup : Adw.Application {
             fence_highlighter.schedule_update();
         });
 
-        nav_selection.notify["selected"].connect(() => {
-            var item = nav_selection.get_selected_item() as MockItem;
+        void set_editor_from_note(MockItem item) {
+            editor_buffer.set_text(item.body, -1);
+            if (markdown_language != null) {
+                editor_buffer.set_language(markdown_language);
+            }
+            if (scheme != null) {
+                editor_buffer.set_style_scheme(scheme);
+            }
+            editor_buffer.set_highlight_syntax(true);
+            GLib.Idle.add(() => {
+                Gtk.TextIter idle_start;
+                Gtk.TextIter idle_end;
+                editor_buffer.get_bounds(out idle_start, out idle_end);
+                editor_buffer.ensure_highlight(idle_start, idle_end);
+                fence_highlighter.schedule_update();
+                return GLib.Source.REMOVE;
+            });
+            stack.set_visible_child_name("editor");
+        }
+
+        card_selection.notify["selected"].connect(() => {
+            var item = card_selection.get_selected_item() as MockItem;
             if (item != null) {
-                editor_buffer.set_text(item.body, -1);
+                set_editor_from_note(item);
+            }
+        });
+
+        project_selection.notify["selected"].connect(() => {
+            var item = project_selection.get_selected_item() as ProjectItem;
+            if (item != null) {
+                editor_buffer.set_text(
+                    "# Project: " + item.name + "\n\nRecent activity (mock)...\n",
+                    -1
+                );
                 if (markdown_language != null) {
                     editor_buffer.set_language(markdown_language);
                 }
-                if (scheme != null) {
-                    editor_buffer.set_style_scheme(scheme);
-                }
-                editor_buffer.set_highlight_syntax(true);
-                GLib.Idle.add(() => {
-                    Gtk.TextIter idle_start;
-                    Gtk.TextIter idle_end;
-                    editor_buffer.get_bounds(out idle_start, out idle_end);
-                    editor_buffer.ensure_highlight(idle_start, idle_end);
-                    fence_highlighter.schedule_update();
-                    return GLib.Source.REMOVE;
-                });
                 stack.set_visible_child_name("editor");
             }
         });
-        nav_selection.set_selected(0);
+
+        nav_stack.notify["visible-child-name"].connect(() => {
+            var name = nav_stack.get_visible_child_name();
+            if (name == "new-card") {
+                var title = "Note " + next_note_id.to_string();
+                next_note_id++;
+                var preview = "New card created...";
+                var body = "# " + title + "\n\nStart writing here.\n";
+                var item = new MockItem(title, preview, body);
+                note_store.append(item);
+                card_selection.set_selected(note_store.get_n_items() - 1);
+                nav_stack.set_visible_child_name("search");
+            } else if (name == "search") {
+                editor_buffer.set_text("# Search\n\nType to search your notes.\n", -1);
+                if (markdown_language != null) {
+                    editor_buffer.set_language(markdown_language);
+                }
+                stack.set_visible_child_name("editor");
+            }
+        });
+
+        nav_stack.set_visible_child_name("search");
+        card_selection.set_selected(0);
 
         win.present();
     }
@@ -342,6 +439,14 @@ public class MockItem : Object {
 
     public MockItem(string title, string preview, string body) {
         Object(title: title, preview: preview, body: body);
+    }
+}
+
+public class ProjectItem : Object {
+    public string name { get; construct; }
+
+    public ProjectItem(string name) {
+        Object(name: name);
     }
 }
 
