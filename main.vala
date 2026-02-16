@@ -22,7 +22,7 @@ public class ZetMockup : Adw.Application {
         var win = new Adw.ApplicationWindow(this) {
             default_width = 1200,
             default_height = 800,
-            title = "Zet Mockup"
+            title = "Cards"
         };
         main_window = win;
 
@@ -36,7 +36,7 @@ public class ZetMockup : Adw.Application {
         sidebar_box.add_css_class("navigation-sidebar");
 
         var sidebar_header = new Adw.HeaderBar();
-        sidebar_header.set_title_widget(new Gtk.Label("Zet"));
+        sidebar_header.set_title_widget(new Gtk.Label("Cards"));
         sidebar_box.append(sidebar_header);
 
         var note_store = new GLib.ListStore(typeof(MockItem));
