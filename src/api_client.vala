@@ -65,6 +65,36 @@ public class ApiClient : Object {
         return parse_search_cards(root);
     }
 
+    public async AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error {
+        HashTable<string, string>? query = null;
+        if (project_id != null && project_id.length > 0) {
+            query = new HashTable<string, string>(str_hash, str_equal);
+            query.insert("project_id", project_id);
+        }
+        var root = yield request_json("GET", "/ai/capabilities", null, query);
+        return parse_ai_capabilities(root);
+    }
+
+    public async AiStatusInfo get_ai_status() throws Error {
+        var root = yield request_json("GET", "/ai/status", null, null);
+        return parse_ai_status(root);
+    }
+
+    public async string start_ai_runner_pull(string model_tag) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("model");
+        body.add_string_value(model_tag);
+        body.end_object();
+
+        var root = yield request_json("POST", "/ai/runner/pull", json_string_from_builder(body), null);
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for runner pull response");
+        }
+        var data = root.get_object_member("data");
+        return data.has_member("job_id") ? data.get_string_member("job_id") : "";
+    }
+
     public async string create_card(string project_id,
                                     string title,
                                     string content) throws Error {
@@ -279,6 +309,108 @@ public class ApiClient : Object {
             ));
         }
         return out_list;
+    }
+
+    private AiCapabilitiesInfo parse_ai_capabilities(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai capabilities response");
+        }
+
+        var data = root.get_object_member("data");
+        var models = new Gee.ArrayList<string>();
+        if (data.has_member("models")) {
+            var items = data.get_array_member("models");
+            for (uint i = 0; i < items.get_length(); i++) {
+                var model = items.get_object_element(i);
+                if (model.has_member("name")) {
+                    models.add(model.get_string_member("name"));
+                }
+            }
+        }
+
+        var recommended_install = new Gee.ArrayList<string>();
+        if (data.has_member("recommended_install")) {
+            var items = data.get_array_member("recommended_install");
+            for (uint i = 0; i < items.get_length(); i++) {
+                var rec = items.get_object_element(i);
+                if (rec.has_member("tag")) {
+                    recommended_install.add(rec.get_string_member("tag"));
+                }
+            }
+        }
+
+        string caste_name = "";
+        var caste = object_member_or_null(data, "caste");
+        if (caste != null) {
+            caste_name = string_member_or_empty(caste, "name");
+        }
+
+        return new AiCapabilitiesInfo(
+            data.has_member("runner_available") ? data.get_boolean_member("runner_available") : false,
+            string_member_or_empty(data, "error"),
+            data.has_member("last_checked") ? data.get_int_member("last_checked") : 0,
+            string_member_or_empty(data, "version"),
+            caste_name,
+            models,
+            recommended_install
+        );
+    }
+
+    private AiStatusInfo parse_ai_status(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai status response");
+        }
+
+        var data = root.get_object_member("data");
+        var pull_jobs = new Gee.ArrayList<string>();
+        if (data.has_member("pulls")) {
+            var pulls = data.get_array_member("pulls");
+            for (uint i = 0; i < pulls.get_length(); i++) {
+                var pull = pulls.get_object_element(i);
+                var model = pull.has_member("model") ? pull.get_string_member("model") : "unknown";
+                var status = pull.has_member("status") ? pull.get_string_member("status") : "unknown";
+                double percent = 0.0;
+                if (pull.has_member("progress")) {
+                    var progress = pull.get_object_member("progress");
+                    if (progress != null && progress.has_member("percent")) {
+                        percent = progress.get_double_member("percent");
+                    }
+                }
+                pull_jobs.add("%s (%s, %.1f%%)".printf(model, status, percent));
+            }
+        }
+
+        return new AiStatusInfo(
+            data.has_member("checked_at") ? data.get_int_member("checked_at") : 0,
+            data.has_member("runner_available") ? data.get_boolean_member("runner_available") : false,
+            string_member_or_empty(data, "runner_error"),
+            data.has_member("active_runs") ? data.get_int_member("active_runs") : 0,
+            data.has_member("active_pull_jobs") ? data.get_int_member("active_pull_jobs") : 0,
+            data.has_member("cloud_configured_providers") ? data.get_int_member("cloud_configured_providers") : 0,
+            pull_jobs
+        );
+    }
+
+    private string string_member_or_empty(Json.Object obj, string key) {
+        if (!obj.has_member(key)) {
+            return "";
+        }
+        var node = obj.get_member(key);
+        if (node == null || node.get_node_type() == Json.NodeType.NULL) {
+            return "";
+        }
+        return obj.get_string_member(key);
+    }
+
+    private Json.Object? object_member_or_null(Json.Object obj, string key) {
+        if (!obj.has_member(key)) {
+            return null;
+        }
+        var node = obj.get_member(key);
+        if (node == null || node.get_node_type() == Json.NodeType.NULL) {
+            return null;
+        }
+        return obj.get_object_member(key);
     }
 }
 

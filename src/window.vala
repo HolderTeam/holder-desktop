@@ -18,6 +18,13 @@ public class MainWindow : Adw.ApplicationWindow {
     private Gtk.Label search_summary_label;
     private Gtk.SingleSelection search_selection;
     private Gtk.ListView search_list;
+    private Adw.OverlaySplitView ai_split;
+    private Gtk.Label ai_summary_label;
+    private Gtk.Label ai_models_label;
+    private Gtk.Label ai_recommended_label;
+    private Gtk.Box ai_recommended_buttons_box;
+    private Gtk.Label ai_runtime_label;
+    private Gtk.Label ai_pulls_label;
     private ApiClient? api;
 
     private Project? current_project;
@@ -26,8 +33,11 @@ public class MainWindow : Adw.ApplicationWindow {
     private bool suppress_editor_events = false;
     private bool suppress_project_selection_events = false;
     private bool suppress_card_selection_events = false;
+    private bool create_card_in_flight = false;
     private uint autosave_id = 0;
     private uint search_debounce_id = 0;
+    private uint ai_poll_id = 0;
+    private const uint AI_POLL_INTERVAL_MS = 2000;
 
     public MainWindow(Adw.Application app) {
         Object(
@@ -196,23 +206,30 @@ public class MainWindow : Adw.ApplicationWindow {
 
         var refresh_btn = new Gtk.Button.from_icon_name("view-refresh-symbolic");
         refresh_btn.set_tooltip_text("Refresh projects and cards");
-        refresh_btn.clicked.connect(() => {
-            activate_action("win.refresh", null);
-        });
+        refresh_btn.set_action_name("win.refresh");
 
         var new_project_btn = new Gtk.Button.from_icon_name("folder-new-symbolic");
         new_project_btn.set_tooltip_text("Create a new project");
-        new_project_btn.clicked.connect(() => {
-            activate_action("win.new-project", null);
-        });
+        new_project_btn.set_action_name("win.new-project");
 
         var new_card_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
         new_card_btn.set_tooltip_text("Create a new card");
-        new_card_btn.clicked.connect(() => {
-            activate_action("win.new-card", null);
+        new_card_btn.set_action_name("win.new-card");
+
+        var ai_toggle_btn = new Gtk.ToggleButton();
+        ai_toggle_btn.set_icon_name("utilities-terminal-symbolic");
+        ai_toggle_btn.set_tooltip_text("Toggle AI status panel");
+        ai_toggle_btn.toggled.connect(() => {
+            ai_split.set_show_sidebar(ai_toggle_btn.get_active());
+            if (ai_toggle_btn.get_active()) {
+                refresh_ai_panel.begin();
+            } else {
+                stop_ai_polling();
+            }
         });
 
         header.pack_start(refresh_btn);
+        header.pack_end(ai_toggle_btn);
         header.pack_end(new_project_btn);
         header.pack_end(new_card_btn);
         outer.append(header);
@@ -303,7 +320,58 @@ public class MainWindow : Adw.ApplicationWindow {
         content_stack.set_visible_child_name("editor");
 
         outer.append(content_stack);
-        return outer;
+
+        ai_split = new Adw.OverlaySplitView();
+        ai_split.set_sidebar_position(Gtk.PackType.END);
+        ai_split.set_content(outer);
+        ai_split.set_sidebar(build_ai_panel());
+        ai_split.set_show_sidebar(false);
+        return ai_split;
+    }
+
+    private Gtk.Widget build_ai_panel() {
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
+        box.set_margin_top(8);
+        box.set_margin_bottom(8);
+        box.set_margin_start(8);
+        box.set_margin_end(8);
+
+        var header = new Adw.HeaderBar();
+        header.set_title_widget(new Gtk.Label("AI Status"));
+        var refresh = new Gtk.Button.from_icon_name("view-refresh-symbolic");
+        refresh.set_tooltip_text("Refresh AI status");
+        refresh.clicked.connect(() => {
+            refresh_ai_panel.begin();
+        });
+        header.pack_end(refresh);
+        box.append(header);
+
+        var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
+        ai_summary_label = new Gtk.Label("Not loaded") { xalign = 0.0f };
+        ai_summary_label.set_wrap(true);
+        ai_models_label = new Gtk.Label("") { xalign = 0.0f };
+        ai_models_label.set_wrap(true);
+        ai_recommended_label = new Gtk.Label("") { xalign = 0.0f };
+        ai_recommended_label.set_wrap(true);
+        ai_recommended_buttons_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        ai_runtime_label = new Gtk.Label("") { xalign = 0.0f };
+        ai_runtime_label.set_wrap(true);
+        ai_pulls_label = new Gtk.Label("") { xalign = 0.0f };
+        ai_pulls_label.set_wrap(true);
+
+        content.append(ai_summary_label);
+        content.append(ai_models_label);
+        content.append(ai_recommended_label);
+        content.append(ai_recommended_buttons_box);
+        content.append(ai_runtime_label);
+        content.append(ai_pulls_label);
+
+        var scroll = new Gtk.ScrolledWindow();
+        scroll.set_vexpand(true);
+        scroll.set_child(content);
+        box.append(scroll);
+
+        return box;
     }
 
     private Gtk.Widget build_search_page() {
@@ -401,6 +469,7 @@ public class MainWindow : Adw.ApplicationWindow {
         set_status("Connected to %s:%d (API %s)".printf(info.bind, info.port, info.api_version));
         yield ensure_first_project();
         yield reload_everything();
+        refresh_ai_panel.begin();
     }
 
     private async void ensure_first_project() {
@@ -452,6 +521,7 @@ public class MainWindow : Adw.ApplicationWindow {
                 suppress_project_selection_events = false;
             }
             yield reload_cards_for_selected_project(preferred_card_id);
+            refresh_ai_panel.begin();
         } catch (Error e) {
             show_error("Failed to refresh", e.message);
         }
@@ -539,13 +609,31 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private async void create_card() {
-        if (api == null || current_project == null) {
+        if (create_card_in_flight) {
+            set_status("Create card already in progress...");
+            return;
+        }
+        if (api == null) {
+            show_error("Create card unavailable", "API client is not connected.");
+            return;
+        }
+
+        if (current_project == null) {
+            var selected = project_selection.get_selected_item() as Project;
+            if (selected != null) {
+                current_project = selected;
+            }
+        }
+        if (current_project == null) {
+            show_error("No project selected", "Select or create a project first.");
             return;
         }
 
         var initial_title = "Untitled";
         var initial_body = "# Untitled\n\n";
 
+        create_card_in_flight = true;
+        set_status("Creating new card...");
         try {
             var new_id = yield api.create_card(current_project.project_id, initial_title, initial_body);
             var cards = yield api.list_cards(current_project.project_id);
@@ -563,6 +651,8 @@ public class MainWindow : Adw.ApplicationWindow {
             set_status("Created new card");
         } catch (Error e) {
             show_error("Failed to create card", e.message);
+        } finally {
+            create_card_in_flight = false;
         }
     }
 
@@ -592,6 +682,59 @@ public class MainWindow : Adw.ApplicationWindow {
         } catch (Error e) {
             show_error("Search failed", e.message);
         }
+    }
+
+    private async void refresh_ai_panel() {
+        if (api == null) {
+            return;
+        }
+
+        var project_id = selected_project_id();
+        try {
+            var capabilities = yield api.get_ai_capabilities(project_id);
+            var status = yield api.get_ai_status();
+            render_ai_panel(capabilities, status);
+            update_ai_polling(status.active_pull_jobs > 0);
+        } catch (Error e) {
+            ai_summary_label.set_text("AI status unavailable");
+            ai_models_label.set_text("");
+            ai_recommended_label.set_text("");
+            ai_runtime_label.set_text(e.message);
+            ai_pulls_label.set_text("");
+            stop_ai_polling();
+        }
+    }
+
+    private void render_ai_panel(AiCapabilitiesInfo capabilities, AiStatusInfo status) {
+        ai_summary_label.set_text(
+            "Runner: %s | Caste: %s | Version: %s".printf(
+                capabilities.runner_available ? "available" : "unavailable",
+                capabilities.caste_name.length > 0 ? capabilities.caste_name : "unknown",
+                capabilities.runner_version.length > 0 ? capabilities.runner_version : "unknown"
+            )
+        );
+        if (capabilities.runner_error.length > 0) {
+            ai_summary_label.set_text(ai_summary_label.get_text() + "\nError: " + capabilities.runner_error);
+        }
+
+        ai_models_label.set_text(
+            "Installed models (%d): %s".printf(
+                capabilities.models.size,
+                join_list(capabilities.models)
+            )
+        );
+        ai_recommended_label.set_text(
+            "Recommended install: %s".printf(join_list(capabilities.recommended_install))
+        );
+        rebuild_recommended_pull_buttons(capabilities.recommended_install);
+        ai_runtime_label.set_text(
+            "Active runs: %lld | Active pulls: %lld | Cloud providers configured: %lld".printf(
+                status.active_runs,
+                status.active_pull_jobs,
+                status.cloud_configured_providers
+            )
+        );
+        ai_pulls_label.set_text("Pull jobs: %s".printf(join_list(status.pull_jobs)));
     }
 
     private void schedule_search() {
@@ -777,6 +920,45 @@ public class MainWindow : Adw.ApplicationWindow {
         content_stack.set_visible_child_name("search");
     }
 
+    private void update_ai_polling(bool should_poll) {
+        if (!ai_split.get_show_sidebar()) {
+            stop_ai_polling();
+            return;
+        }
+        if (should_poll) {
+            start_ai_polling();
+        } else {
+            stop_ai_polling();
+        }
+    }
+
+    private void start_ai_polling() {
+        if (ai_poll_id != 0) {
+            return;
+        }
+        ai_poll_id = Timeout.add(AI_POLL_INTERVAL_MS, () => {
+            if (!ai_split.get_show_sidebar()) {
+                ai_poll_id = 0;
+                return Source.REMOVE;
+            }
+            refresh_ai_panel.begin();
+            return Source.CONTINUE;
+        });
+    }
+
+    private void stop_ai_polling() {
+        if (ai_poll_id == 0) {
+            return;
+        }
+        Source.remove(ai_poll_id);
+        ai_poll_id = 0;
+    }
+
+    protected override void dispose() {
+        stop_ai_polling();
+        base.dispose();
+    }
+
     private string? selected_project_id() {
         var selected = project_selection.get_selected_item() as Project;
         if (selected == null) {
@@ -845,6 +1027,66 @@ public class MainWindow : Adw.ApplicationWindow {
                 suppress_card_selection_events = false;
             }
             break;
+        }
+    }
+
+    private string join_list(Gee.ArrayList<string> values) {
+        if (values.size == 0) {
+            return "none";
+        }
+        var builder = new StringBuilder();
+        for (int i = 0; i < values.size; i++) {
+            if (i > 0) {
+                builder.append(", ");
+            }
+            builder.append(values[i]);
+        }
+        return builder.str;
+    }
+
+    private void rebuild_recommended_pull_buttons(Gee.ArrayList<string> recommended_models) {
+        Gtk.Widget? child = ai_recommended_buttons_box.get_first_child();
+        while (child != null) {
+            var next = child.get_next_sibling();
+            ai_recommended_buttons_box.remove(child);
+            child = next;
+        }
+
+        if (recommended_models.size == 0) {
+            var label = new Gtk.Label("No recommended model pulls right now.") { xalign = 0.0f };
+            label.add_css_class("dim-label");
+            ai_recommended_buttons_box.append(label);
+            return;
+        }
+
+        for (int i = 0; i < recommended_models.size; i++) {
+            var model_tag = recommended_models[i];
+            var btn = new Gtk.Button.with_label("Pull %s".printf(model_tag));
+            btn.set_halign(Gtk.Align.START);
+            btn.clicked.connect(() => {
+                start_model_pull.begin(model_tag);
+            });
+            ai_recommended_buttons_box.append(btn);
+        }
+    }
+
+    private async void start_model_pull(string model_tag) {
+        if (api == null) {
+            return;
+        }
+
+        set_status("Starting pull for %s...".printf(model_tag));
+        try {
+            var job_id = yield api.start_ai_runner_pull(model_tag);
+            add_toast("Started pull: %s".printf(model_tag));
+            if (job_id.length > 0) {
+                set_status("Pull job started: %s".printf(job_id));
+            } else {
+                set_status("Pull started: %s".printf(model_tag));
+            }
+            refresh_ai_panel.begin();
+        } catch (Error e) {
+            show_error("Failed to start model pull", e.message);
         }
     }
 
