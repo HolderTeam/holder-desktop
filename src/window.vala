@@ -9,9 +9,15 @@ public class MainWindow : Adw.ApplicationWindow {
     private Gtk.SingleSelection project_selection;
     private GLib.ListStore card_store;
     private Gtk.SingleSelection card_selection;
+    private GLib.ListStore search_store;
 
     private GtkSource.Buffer editor_buffer;
     private GtkSource.View editor_view;
+    private Gtk.SearchEntry search_entry;
+    private Gtk.Stack content_stack;
+    private Gtk.Label search_summary_label;
+    private Gtk.SingleSelection search_selection;
+    private Gtk.ListView search_list;
     private ApiClient? api;
 
     private Project? current_project;
@@ -21,6 +27,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private bool suppress_project_selection_events = false;
     private bool suppress_card_selection_events = false;
     private uint autosave_id = 0;
+    private uint search_debounce_id = 0;
 
     public MainWindow(Adw.Application app) {
         Object(
@@ -35,6 +42,7 @@ public class MainWindow : Adw.ApplicationWindow {
 
         card_store = new GLib.ListStore(typeof(CardSummary));
         card_selection = new Gtk.SingleSelection(card_store);
+        search_store = new GLib.ListStore(typeof(SearchCardResult));
 
         var root_split = new Adw.OverlaySplitView();
         root_split.set_sidebar_position(Gtk.PackType.START);
@@ -69,6 +77,26 @@ public class MainWindow : Adw.ApplicationWindow {
         });
 
         bootstrap.begin();
+    }
+
+    construct {
+        var refresh_action = new SimpleAction("refresh", null);
+        refresh_action.activate.connect(() => {
+            reload_everything.begin();
+        });
+        add_action(refresh_action);
+
+        var new_project_action = new SimpleAction("new-project", null);
+        new_project_action.activate.connect(() => {
+            show_new_project_dialog();
+        });
+        add_action(new_project_action);
+
+        var new_card_action = new SimpleAction("new-card", null);
+        new_card_action.activate.connect(() => {
+            create_card.begin();
+        });
+        add_action(new_card_action);
     }
 
     private Gtk.Widget build_sidebar() {
@@ -169,25 +197,77 @@ public class MainWindow : Adw.ApplicationWindow {
         var refresh_btn = new Gtk.Button.from_icon_name("view-refresh-symbolic");
         refresh_btn.set_tooltip_text("Refresh projects and cards");
         refresh_btn.clicked.connect(() => {
-            reload_everything.begin();
+            activate_action("win.refresh", null);
         });
 
         var new_project_btn = new Gtk.Button.from_icon_name("folder-new-symbolic");
         new_project_btn.set_tooltip_text("Create a new project");
         new_project_btn.clicked.connect(() => {
-            show_new_project_dialog();
+            activate_action("win.new-project", null);
         });
 
         var new_card_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
         new_card_btn.set_tooltip_text("Create a new card");
         new_card_btn.clicked.connect(() => {
-            create_card.begin();
+            activate_action("win.new-card", null);
         });
 
         header.pack_start(refresh_btn);
         header.pack_end(new_project_btn);
         header.pack_end(new_card_btn);
         outer.append(header);
+
+        var search_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        search_row.set_margin_top(8);
+        search_row.set_margin_bottom(8);
+        search_row.set_margin_start(8);
+        search_row.set_margin_end(8);
+
+        search_entry = new Gtk.SearchEntry();
+        search_entry.set_placeholder_text("Search cards in current project...");
+        search_entry.set_hexpand(true);
+        search_entry.activate.connect(() => {
+            cancel_pending_search();
+            run_search.begin();
+        });
+        search_entry.search_changed.connect(() => {
+            var q = search_entry.get_text().strip();
+            if (q.length == 0) {
+                cancel_pending_search();
+                clear_search_results();
+                show_editor_mode();
+                return;
+            }
+            schedule_search();
+        });
+
+        var search_key = new Gtk.EventControllerKey();
+        search_key.key_pressed.connect((keyval, keycode, state) => {
+            if (keyval == Gdk.Key.Down) {
+                if (search_store.get_n_items() > 0) {
+                    show_search_mode();
+                    if (search_selection.get_selected() == Gtk.INVALID_LIST_POSITION) {
+                        search_selection.set_selected(0);
+                    }
+                    search_list.grab_focus();
+                    return true;
+                }
+            }
+            return false;
+        });
+        search_entry.add_controller(search_key);
+
+        var clear_search_btn = new Gtk.Button.from_icon_name("edit-clear-symbolic");
+        clear_search_btn.set_tooltip_text("Clear search");
+        clear_search_btn.clicked.connect(() => {
+            search_entry.set_text("");
+            clear_search_results();
+            show_editor_mode();
+        });
+
+        search_row.append(search_entry);
+        search_row.append(clear_search_btn);
+        outer.append(search_row);
 
         editor_buffer = new GtkSource.Buffer(null);
         editor_buffer.set_highlight_syntax(true);
@@ -213,8 +293,73 @@ public class MainWindow : Adw.ApplicationWindow {
         editor_scroll.set_child(editor_view);
         editor_scroll.set_vexpand(true);
 
-        outer.append(editor_scroll);
+        var search_page = build_search_page();
+
+        content_stack = new Gtk.Stack();
+        content_stack.set_vexpand(true);
+        content_stack.set_hexpand(true);
+        content_stack.add_named(editor_scroll, "editor");
+        content_stack.add_named(search_page, "search");
+        content_stack.set_visible_child_name("editor");
+
+        outer.append(content_stack);
         return outer;
+    }
+
+    private Gtk.Widget build_search_page() {
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        box.set_margin_top(8);
+        box.set_margin_bottom(8);
+        box.set_margin_start(8);
+        box.set_margin_end(8);
+
+        search_summary_label = new Gtk.Label("Search results will appear here.") { xalign = 0.0f };
+        search_summary_label.add_css_class("dim-label");
+        box.append(search_summary_label);
+
+        search_selection = new Gtk.SingleSelection(search_store);
+        var search_factory = new Gtk.SignalListItemFactory();
+        search_factory.setup.connect((item) => {
+            var list_item = (Gtk.ListItem) item;
+            var row = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
+            var title = new Gtk.Label("") { xalign = 0.0f };
+            title.add_css_class("title-5");
+            title.set_ellipsize(Pango.EllipsizeMode.END);
+            var snippet = new Gtk.Label("") { xalign = 0.0f };
+            snippet.add_css_class("dim-label");
+            snippet.set_wrap(true);
+            snippet.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+            snippet.set_max_width_chars(80);
+            row.append(title);
+            row.append(snippet);
+            list_item.set_child(row);
+        });
+        search_factory.bind.connect((item) => {
+            var list_item = (Gtk.ListItem) item;
+            var result = list_item.get_item() as SearchCardResult;
+            var row = list_item.get_child() as Gtk.Box;
+            var title = row.get_first_child() as Gtk.Label;
+            var snippet = title.get_next_sibling() as Gtk.Label;
+            if (result == null) {
+                title.set_text("");
+                snippet.set_text("");
+                return;
+            }
+            title.set_text(result.title);
+            snippet.set_text(result.snippet);
+        });
+
+        search_list = new Gtk.ListView(search_selection, search_factory);
+        search_list.activate.connect((position) => {
+            open_search_result_at.begin((uint) position);
+        });
+
+        var scroll = new Gtk.ScrolledWindow();
+        scroll.set_vexpand(true);
+        scroll.set_child(search_list);
+        box.append(scroll);
+
+        return box;
     }
 
     private async void bootstrap() {
@@ -381,6 +526,7 @@ public class MainWindow : Adw.ApplicationWindow {
             var card = yield api.get_card(selected.card_id);
             current_card = card;
             set_editor_state(card.content, true);
+            show_editor_mode();
             update_window_title(card.title);
             set_status("Loaded %s".printf(card.title));
         } catch (Error e) {
@@ -417,6 +563,66 @@ public class MainWindow : Adw.ApplicationWindow {
             set_status("Created new card");
         } catch (Error e) {
             show_error("Failed to create card", e.message);
+        }
+    }
+
+    private async void run_search() {
+        if (api == null) {
+            return;
+        }
+        if (current_project == null) {
+            show_error("Search unavailable", "No project selected.");
+            return;
+        }
+
+        var query_text = search_entry.get_text().strip();
+        if (query_text.length == 0) {
+            clear_search_results();
+            show_editor_mode();
+            return;
+        }
+
+        set_status("Searching for \"%s\"...".printf(query_text));
+        try {
+            var results = yield api.search_cards(current_project.project_id, query_text);
+            replace_search_results(results);
+            search_summary_label.set_text("%d result(s) for \"%s\"".printf(results.size, query_text));
+            show_search_mode();
+            set_status("Search complete");
+        } catch (Error e) {
+            show_error("Search failed", e.message);
+        }
+    }
+
+    private void schedule_search() {
+        if (search_debounce_id != 0) {
+            Source.remove(search_debounce_id);
+        }
+        search_debounce_id = Timeout.add(300, () => {
+            search_debounce_id = 0;
+            run_search.begin();
+            return Source.REMOVE;
+        });
+    }
+
+    private void cancel_pending_search() {
+        if (search_debounce_id == 0) {
+            return;
+        }
+        Source.remove(search_debounce_id);
+        search_debounce_id = 0;
+    }
+
+    private async void open_search_result_at(uint position) {
+        var item = search_store.get_item(position) as SearchCardResult;
+        if (item == null) {
+            return;
+        }
+
+        if (!select_card_by_id(item.card_id)) {
+            yield reload_cards_for_selected_project(item.card_id);
+        } else {
+            load_selected_card.begin();
         }
     }
 
@@ -523,6 +729,21 @@ public class MainWindow : Adw.ApplicationWindow {
         current_card = null;
     }
 
+    private void replace_search_results(Gee.ArrayList<SearchCardResult> results) {
+        search_store.remove_all();
+        foreach (var result in results) {
+            search_store.append(result);
+        }
+        if (results.size > 0) {
+            search_selection.set_selected(0);
+        }
+    }
+
+    private void clear_search_results() {
+        search_store.remove_all();
+        search_summary_label.set_text("Search results will appear here.");
+    }
+
     private void set_status(string text) {
         status_label.set_text(text);
     }
@@ -546,6 +767,14 @@ public class MainWindow : Adw.ApplicationWindow {
     private void show_error(string title_text, string details) {
         set_status("%s: %s".printf(title_text, details));
         add_toast("%s".printf(title_text));
+    }
+
+    private void show_editor_mode() {
+        content_stack.set_visible_child_name("editor");
+    }
+
+    private void show_search_mode() {
+        content_stack.set_visible_child_name("search");
     }
 
     private string? selected_project_id() {

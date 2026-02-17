@@ -6,6 +6,17 @@ public class App : Adw.Application {
             application_id: "io.holder.linux",
             flags: ApplicationFlags.DEFAULT_FLAGS
         );
+
+        var quit_action = new SimpleAction("quit", null);
+        quit_action.activate.connect(() => {
+            quit();
+        });
+        add_action(quit_action);
+
+        set_accels_for_action("win.new-card", {"<Primary>n"});
+        set_accels_for_action("win.new-project", {"<Primary><Shift>n"});
+        set_accels_for_action("win.refresh", {"<Primary>r"});
+        set_accels_for_action("app.quit", {"<Primary>q"});
     }
 
     protected override void activate() {

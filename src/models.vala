@@ -101,4 +101,29 @@ public class CardDetail : Object {
     }
 }
 
+public class SearchCardResult : Object {
+    public string card_id { get; construct; }
+    public string title { get; construct; }
+    public int64 updated_at { get; construct; }
+    public int64 created_at { get; construct; }
+    public string snippet { get; construct; }
+    public double rank { get; construct; }
+
+    public SearchCardResult(string card_id,
+                            string title,
+                            int64 updated_at,
+                            int64 created_at,
+                            string snippet,
+                            double rank) {
+        Object(
+            card_id: card_id,
+            title: title,
+            updated_at: updated_at,
+            created_at: created_at,
+            snippet: snippet,
+            rank: rank
+        );
+    }
+}
+
 }
