@@ -258,12 +258,112 @@ When targeting newer runtimes (e.g. Ubuntu 26.04 or Flatpak):
 ### Design principles
 
 * Prefer **explicit structure over cleverness**
-* Keep navigation and layout **separable**
-* Avoid tying app logic to transient GNOME UI trends
-* Optimize for *maintainability over novelty*
 
-If something looks “more manual” than a newer widget would allow, that is intentional.
+---
 
-### Ubuntu Development
+## Restart Playbook (Current State)
 
-sudo install libgtksourceview-5-dev libgee-0.8-dev
+Last updated: February 17, 2026
+
+### Repo + Build Conventions
+
+* Git repo root for Linux client work: `frontends/linux`
+* Build directory: `frontends/linux/build`
+* One-command build script: `frontends/linux/make.sh`
+
+Build command:
+
+```bash
+cd frontends/linux
+./make.sh
+```
+
+Binary path:
+
+* `frontends/linux/build/holder-linux`
+
+Run command:
+
+```bash
+cd frontends/linux
+./build/holder-linux
+```
+
+### Required Ubuntu Packages
+
+Core packages currently used by the client:
+
+* `meson`
+* `ninja-build`
+* `valac`
+* `libgtk-4-dev`
+* `libadwaita-1-dev`
+* `libgtksourceview-5-dev`
+* `libsoup-3.0-dev`
+* `libgee-0.8-dev`
+* `libjson-glib-dev`
+
+### Current Linux Client Architecture
+
+Source layout:
+
+* `frontends/linux/main.vala` - thin entrypoint
+* `frontends/linux/src/app.vala` - `Adw.Application`
+* `frontends/linux/src/window.vala` - main window/UI flow
+* `frontends/linux/src/api_client.vala` - authenticated Holder API client
+* `frontends/linux/src/discovery.vala` - backend discovery via `holder.json`
+* `frontends/linux/src/models.vala` - typed app models
+
+### Backend Discovery + Auth
+
+Client reads server info from:
+
+* `~/.local/share/holder/server/holder.json`
+
+Expected fields:
+
+* `bind`
+* `port`
+* `auth_token`
+* (plus metadata like `pid`, `api_version`, `server_version`)
+
+All requests use:
+
+* `Authorization: Bearer <auth_token>`
+
+### API Endpoints Wired Right Now
+
+* `GET /health`
+* `GET /projects`
+* `POST /projects`
+* `GET /cards?project_id=...`
+* `POST /cards`
+* `GET /cards/{card_id}`
+* `PATCH /cards/{card_id}`
+
+### Current Behavior Implemented
+
+* App boots and discovers Holder backend from `holder.json`
+* Health check on startup
+* First-run bootstrap:
+  * if no projects exist, create `"My Project"`
+* Sidebar project list + card list
+* Editor loads selected card content
+* New card button creates an initial card
+* Debounced autosave (~900ms) sends card updates to backend
+
+### Known Gaps / Next Work
+
+* No AI panel integration yet (`/ai/*` not wired)
+* No search UI yet (`/search/cards`, `/search/ai` not wired)
+* No resource/project metadata management UI yet
+* No GActions/keyboard shortcuts yet
+* No Flatpak packaging/app-id integration pass yet
+
+### Notes For Future Edits
+
+* Keep frontend thin: no local persistence/indexing logic in client
+* Backend contract reference:
+  * `holder/openapi.yaml`
+  * `holder/docs/CLIENTS.md`
+  * `holder/docs/SWAGGER_TUTORIAL.md`

@@ -11,12 +11,15 @@ public class MainWindow : Adw.ApplicationWindow {
     private Gtk.SingleSelection card_selection;
 
     private GtkSource.Buffer editor_buffer;
+    private GtkSource.View editor_view;
     private ApiClient? api;
 
     private Project? current_project;
     private CardDetail? current_card;
 
     private bool suppress_editor_events = false;
+    private bool suppress_project_selection_events = false;
+    private bool suppress_card_selection_events = false;
     private uint autosave_id = 0;
 
     public MainWindow(Adw.Application app) {
@@ -45,10 +48,16 @@ public class MainWindow : Adw.ApplicationWindow {
         root_split.set_show_sidebar(true);
 
         project_selection.notify["selected"].connect(() => {
+            if (suppress_project_selection_events) {
+                return;
+            }
             on_project_selected();
         });
 
         card_selection.notify["selected"].connect(() => {
+            if (suppress_card_selection_events) {
+                return;
+            }
             on_card_selected();
         });
 
@@ -163,6 +172,12 @@ public class MainWindow : Adw.ApplicationWindow {
             reload_everything.begin();
         });
 
+        var new_project_btn = new Gtk.Button.from_icon_name("folder-new-symbolic");
+        new_project_btn.set_tooltip_text("Create a new project");
+        new_project_btn.clicked.connect(() => {
+            show_new_project_dialog();
+        });
+
         var new_card_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
         new_card_btn.set_tooltip_text("Create a new card");
         new_card_btn.clicked.connect(() => {
@@ -170,6 +185,7 @@ public class MainWindow : Adw.ApplicationWindow {
         });
 
         header.pack_start(refresh_btn);
+        header.pack_end(new_project_btn);
         header.pack_end(new_card_btn);
         outer.append(header);
 
@@ -186,7 +202,7 @@ public class MainWindow : Adw.ApplicationWindow {
             editor_buffer.set_language(markdown);
         }
 
-        var editor_view = new GtkSource.View.with_buffer(editor_buffer);
+        editor_view = new GtkSource.View.with_buffer(editor_buffer);
         editor_view.set_monospace(true);
         editor_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
         editor_view.set_show_line_numbers(true);
@@ -203,26 +219,36 @@ public class MainWindow : Adw.ApplicationWindow {
 
     private async void bootstrap() {
         set_status("Discovering local server...");
+        set_editor_state("# Loading\n\nDiscovering local server...", false);
 
         ServerInfo info;
         try {
             info = Discovery.discover_server();
         } catch (Error e) {
             set_status(e.message);
-            set_editor_message(
+            set_editor_state(
                 "# Holder Not Found\n\n" +
                 "Start the backend first, then reopen this app.\n\n" +
                 "Expected file:\n`%s`\n".printf(Discovery.holder_info_path())
+                ,
+                false
             );
             return;
         }
 
         api = new ApiClient(info.base_url(), info.auth_token);
         set_status("Checking API health...");
+        set_editor_state("# Loading\n\nChecking API health...", false);
         try {
             yield api.health_check();
         } catch (Error e) {
             set_status("Health check failed");
+            set_editor_state(
+                "# Health Check Failed\n\n" +
+                "Could not connect to the Holder API.\n\n" +
+                e.message,
+                false
+            );
             show_error("Health check failed", e.message);
             return;
         }
@@ -249,25 +275,38 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private async void reload_everything() {
+        var preferred_project_id = selected_project_id();
+        var preferred_card_id = selected_card_id();
+        yield reload_everything_with_selection(preferred_project_id, preferred_card_id);
+    }
+
+    private async void reload_everything_with_selection(string? preferred_project_id,
+                                                        string? preferred_card_id) {
         if (api == null) {
             return;
         }
 
+        set_status("Refreshing projects...");
         try {
             var projects = yield api.list_projects();
             replace_projects(projects);
             if (project_store.get_n_items() == 0) {
                 current_project = null;
                 clear_cards();
-                set_editor_message("# No Projects\n\nCreate a project to start writing.");
+                set_editor_state("# No Projects\n\nCreate a project to start writing.", false);
                 return;
             }
 
-            if (project_selection.get_selected() == Gtk.INVALID_LIST_POSITION) {
-                project_selection.set_selected(0);
-            } else {
-                yield reload_cards_for_selected_project();
+            var selected = false;
+            if (preferred_project_id != null) {
+                selected = select_project_by_id(preferred_project_id);
             }
+            if (!selected) {
+                suppress_project_selection_events = true;
+                project_selection.set_selected(0);
+                suppress_project_selection_events = false;
+            }
+            yield reload_cards_for_selected_project(preferred_card_id);
         } catch (Error e) {
             show_error("Failed to refresh", e.message);
         }
@@ -277,7 +316,7 @@ public class MainWindow : Adw.ApplicationWindow {
         reload_cards_for_selected_project.begin();
     }
 
-    private async void reload_cards_for_selected_project() {
+    private async void reload_cards_for_selected_project(string? preferred_card_id = null) {
         if (api == null) {
             return;
         }
@@ -291,16 +330,30 @@ public class MainWindow : Adw.ApplicationWindow {
 
         current_project = selected;
         update_window_title(selected.name);
+        set_status("Loading cards for %s...".printf(selected.name));
 
         try {
             var cards = yield api.list_cards(selected.project_id);
             replace_cards(cards);
             if (card_store.get_n_items() == 0) {
                 current_card = null;
-                set_editor_message("# %s\n\nNo cards yet. Create one with the + button.".printf(selected.name));
+                set_editor_state(
+                    "# %s\n\nNo cards yet. Create one with the + button.".printf(selected.name),
+                    false
+                );
                 return;
             }
-            card_selection.set_selected(0);
+
+            var selected_card = false;
+            if (preferred_card_id != null) {
+                selected_card = select_card_by_id(preferred_card_id);
+            }
+            if (!selected_card) {
+                suppress_card_selection_events = true;
+                card_selection.set_selected(0);
+                suppress_card_selection_events = false;
+            }
+            load_selected_card.begin();
         } catch (Error e) {
             show_error("Failed to load cards", e.message);
         }
@@ -318,17 +371,23 @@ public class MainWindow : Adw.ApplicationWindow {
         var selected = card_selection.get_selected_item() as CardSummary;
         if (selected == null) {
             current_card = null;
+            set_editor_state("# No Card Selected\n\nSelect a card from the sidebar.", false);
             return;
         }
 
+        set_status("Loading card...");
+        set_editor_state("Loading card...", false);
         try {
             var card = yield api.get_card(selected.card_id);
             current_card = card;
-            suppress_editor_events = true;
-            editor_buffer.set_text(card.content, -1);
-            suppress_editor_events = false;
+            set_editor_state(card.content, true);
             update_window_title(card.title);
+            set_status("Loaded %s".printf(card.title));
         } catch (Error e) {
+            set_editor_state(
+                "# Error\n\nFailed to load card `%s`.\n\n%s".printf(selected.card_id, e.message),
+                false
+            );
             show_error("Failed to load card", e.message);
         }
     }
@@ -355,6 +414,7 @@ public class MainWindow : Adw.ApplicationWindow {
             }
 
             add_toast("New card created");
+            set_status("Created new card");
         } catch (Error e) {
             show_error("Failed to create card", e.message);
         }
@@ -389,9 +449,58 @@ public class MainWindow : Adw.ApplicationWindow {
             current_card.title = title;
             current_card.content = text;
             current_card.updated_at = updated_at;
+            update_selected_card_summary(title, updated_at);
+            update_window_title(title);
             set_status("Saved %s".printf(format_relative_time(updated_at)));
         } catch (Error e) {
             show_error("Autosave failed", e.message);
+        }
+    }
+
+    private void show_new_project_dialog() {
+        var dialog = new Adw.MessageDialog(
+            this,
+            "New Project",
+            "Enter a project name."
+        );
+        dialog.add_response("cancel", "Cancel");
+        dialog.add_response("create", "Create");
+        dialog.set_response_appearance("create", Adw.ResponseAppearance.SUGGESTED);
+        dialog.set_default_response("create");
+        dialog.set_close_response("cancel");
+
+        var entry = new Gtk.Entry();
+        entry.set_placeholder_text("Project name");
+        dialog.set_extra_child(entry);
+
+        dialog.response.connect((response) => {
+            if (response == "create") {
+                var name = entry.get_text().strip();
+                if (name.length == 0) {
+                    show_error("Project name required", "Please enter a non-empty project name.");
+                } else {
+                    create_project_named.begin(name);
+                }
+            }
+            dialog.close();
+        });
+
+        dialog.present();
+    }
+
+    private async void create_project_named(string name) {
+        if (api == null) {
+            return;
+        }
+
+        set_status("Creating project...");
+        try {
+            var project_id = yield api.create_project(name);
+            add_toast("Created project: %s".printf(name));
+            set_status("Project created");
+            yield reload_everything_with_selection(project_id, null);
+        } catch (Error e) {
+            show_error("Failed to create project", e.message);
         }
     }
 
@@ -418,9 +527,10 @@ public class MainWindow : Adw.ApplicationWindow {
         status_label.set_text(text);
     }
 
-    private void set_editor_message(string text) {
+    private void set_editor_state(string text, bool editable) {
         suppress_editor_events = true;
         editor_buffer.set_text(text, -1);
+        editor_view.set_editable(editable);
         suppress_editor_events = false;
     }
 
@@ -436,6 +546,77 @@ public class MainWindow : Adw.ApplicationWindow {
     private void show_error(string title_text, string details) {
         set_status("%s: %s".printf(title_text, details));
         add_toast("%s".printf(title_text));
+    }
+
+    private string? selected_project_id() {
+        var selected = project_selection.get_selected_item() as Project;
+        if (selected == null) {
+            return null;
+        }
+        return selected.project_id;
+    }
+
+    private string? selected_card_id() {
+        var selected = card_selection.get_selected_item() as CardSummary;
+        if (selected == null) {
+            return null;
+        }
+        return selected.card_id;
+    }
+
+    private bool select_project_by_id(string project_id) {
+        for (uint i = 0; i < project_store.get_n_items(); i++) {
+            var project = project_store.get_item(i) as Project;
+            if (project != null && project.project_id == project_id) {
+                suppress_project_selection_events = true;
+                project_selection.set_selected(i);
+                suppress_project_selection_events = false;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private bool select_card_by_id(string card_id) {
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card != null && card.card_id == card_id) {
+                suppress_card_selection_events = true;
+                card_selection.set_selected(i);
+                suppress_card_selection_events = false;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void update_selected_card_summary(string title, int64 updated_at) {
+        if (current_card == null) {
+            return;
+        }
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null || card.card_id != current_card.card_id) {
+                continue;
+            }
+            var replacement = new CardSummary(
+                card.card_id,
+                card.project_id,
+                title,
+                card.rel_path,
+                card.created_at,
+                updated_at
+            );
+            var selected_pos = card_selection.get_selected();
+            card_store.remove(i);
+            card_store.insert(i, replacement);
+            if (selected_pos == i) {
+                suppress_card_selection_events = true;
+                card_selection.set_selected(i);
+                suppress_card_selection_events = false;
+            }
+            break;
+        }
     }
 
     private int64 now_epoch_seconds() {
