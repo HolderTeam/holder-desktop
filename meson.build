@@ -16,6 +16,7 @@ sources = [
   'main.vala',
   'src/app.vala',
   'src/models.vala',
+  'src/text_utils.vala',
   'src/discovery.vala',
   'src/api_client.vala',
   'src/window.vala',
@@ -30,3 +31,20 @@ executable(
   ],
   install: false,
 )
+
+test_exe = executable(
+  'holder-linux-tests',
+  [
+    'src/text_utils.vala',
+    'tests/text_utils_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-tests', test_exe)
