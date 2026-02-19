@@ -71,6 +71,10 @@ public class MainController : Object, IAiRunContext {
         return suppress_card_selection_events;
     }
 
+    public void set_api_client_for_tests(IHolderApi api) {
+        this.api = api;
+    }
+
     public IHolderApi? get_api_client() {
         return api;
     }
