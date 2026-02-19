@@ -21,24 +21,8 @@ public class MainWindow : Adw.ApplicationWindow {
     private Gtk.SingleSelection search_selection;
     private Gtk.ListView search_list;
     private Adw.OverlaySplitView ai_split;
-    private Gtk.Label ai_summary_label;
-    private Gtk.Label ai_models_label;
-    private Gtk.Label ai_recommended_label;
-    private Gtk.Box ai_recommended_buttons_box;
-    private Gtk.Label ai_runtime_label;
-    private Gtk.Label ai_pulls_label;
-    private Gtk.TextBuffer ai_output_buffer;
-    private Gtk.TextView ai_output_view;
-    private Gtk.TextView ai_prompt_view;
-    private Gtk.Label ai_assistant_thread_label;
-    private Gtk.Revealer toolbox_revealer;
-    private Gtk.Stack toolbox_stack;
-    private Gtk.TextBuffer debug_buffer;
-    private Gtk.ListBox ai_catalog_list;
-    private Gtk.Notebook terminal_notebook;
-    private int next_terminal_index = 1;
-    private Gtk.Entry git_remote_entry;
-    private Gtk.Entry git_branch_entry;
+    private AiPanel ai_panel;
+    private ToolboxPane toolbox;
     private ApiClient? api;
 
     private Project? current_project;
@@ -295,12 +279,12 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox_toggle_btn.set_icon_name("view-bottom-pane-symbolic");
         toolbox_toggle_btn.set_tooltip_text("Toggle toolbox panel");
         toolbox_toggle_btn.toggled.connect(() => {
-            toolbox_revealer.set_reveal_child(toolbox_toggle_btn.get_active());
+            toolbox.set_reveal_child(toolbox_toggle_btn.get_active());
             if (toolbox_toggle_btn.get_active()) {
-                append_debug_line("Toolbox opened");
-                refresh_ai_catalog.begin();
+                toolbox.log_debug("Toolbox opened");
+                toolbox.refresh_ai_catalog.begin();
             } else {
-                append_debug_line("Toolbox closed");
+                toolbox.log_debug("Toolbox closed");
             }
         });
 
@@ -396,263 +380,38 @@ public class MainWindow : Adw.ApplicationWindow {
         content_stack.add_named(search_page, "search");
         content_stack.set_visible_child_name("editor");
 
+        ai_panel = new AiPanel();
+        ai_panel.send_requested.connect(() => {
+            on_ai_send_clicked();
+        });
+        ai_panel.new_thread_requested.connect(() => {
+            create_ai_thread_from_prompt.begin();
+        });
+        ai_panel.status_refresh_requested.connect(() => {
+            refresh_ai_panel.begin();
+        });
+        ai_panel.pull_model_requested.connect((model_tag) => {
+            start_model_pull.begin(model_tag);
+        });
+
         ai_split = new Adw.OverlaySplitView();
         ai_split.set_sidebar_position(Gtk.PackType.END);
         ai_split.set_content(content_stack);
-        ai_split.set_sidebar(build_ai_panel());
+        ai_split.set_sidebar(ai_panel.widget);
         ai_split.set_show_sidebar(false);
         ai_split.set_vexpand(true);
 
+        toolbox = new ToolboxPane();
+        toolbox.error_reported.connect((title, details) => {
+            show_error(title, details);
+        });
+        toolbox.toast_requested.connect((message) => {
+            add_toast(message);
+        });
+
         outer.append(ai_split);
-        outer.append(build_toolbox_panel());
+        outer.append(toolbox.widget);
         return outer;
-    }
-
-    private Gtk.Widget build_ai_panel() {
-        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
-        box.set_margin_top(8);
-        box.set_margin_bottom(8);
-        box.set_margin_start(8);
-        box.set_margin_end(8);
-
-        var header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var title = new Gtk.Label("AI Status");
-        title.add_css_class("title-4");
-        title.set_halign(Gtk.Align.START);
-        title.set_hexpand(true);
-        var refresh = new Gtk.Button.from_icon_name("view-refresh-symbolic");
-        refresh.set_tooltip_text("Refresh AI status");
-        refresh.clicked.connect(() => {
-            refresh_ai_panel.begin();
-        });
-        header.append(title);
-        header.append(refresh);
-        box.append(header);
-
-        var stack = new Gtk.Stack();
-        stack.set_vexpand(true);
-        stack.set_hexpand(true);
-        var switcher = new Gtk.StackSwitcher();
-        switcher.set_stack(stack);
-        switcher.set_halign(Gtk.Align.START);
-        box.append(switcher);
-
-        var assistant = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
-        ai_assistant_thread_label = new Gtk.Label("Thread: none selected") { xalign = 0.0f };
-        ai_assistant_thread_label.add_css_class("dim-label");
-        assistant.append(ai_assistant_thread_label);
-
-        ai_output_buffer = new Gtk.TextBuffer(null);
-        ai_output_view = new Gtk.TextView.with_buffer(ai_output_buffer);
-        ai_output_view.set_editable(false);
-        ai_output_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
-        ai_output_view.set_vexpand(true);
-
-        var output_scroll = new Gtk.ScrolledWindow();
-        output_scroll.set_vexpand(true);
-        output_scroll.set_child(ai_output_view);
-        assistant.append(output_scroll);
-
-        ai_prompt_view = new Gtk.TextView();
-        ai_prompt_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
-        ai_prompt_view.set_vexpand(false);
-        ai_prompt_view.set_size_request(-1, 96);
-
-        var prompt_scroll = new Gtk.ScrolledWindow();
-        prompt_scroll.set_vexpand(false);
-        prompt_scroll.set_child(ai_prompt_view);
-        assistant.append(prompt_scroll);
-
-        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var send_btn = new Gtk.Button.with_label("Send");
-        send_btn.clicked.connect(() => {
-            on_ai_send_clicked();
-        });
-        var new_thread_btn = new Gtk.Button.with_label("New Thread");
-        new_thread_btn.clicked.connect(() => {
-            create_ai_thread_from_prompt.begin();
-        });
-        actions.append(send_btn);
-        actions.append(new_thread_btn);
-        assistant.append(actions);
-
-        var status_page = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
-        ai_summary_label = new Gtk.Label("Not loaded") { xalign = 0.0f };
-        ai_summary_label.set_wrap(true);
-        ai_models_label = new Gtk.Label("") { xalign = 0.0f };
-        ai_models_label.set_wrap(true);
-        ai_recommended_label = new Gtk.Label("") { xalign = 0.0f };
-        ai_recommended_label.set_wrap(true);
-        ai_recommended_buttons_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
-        ai_runtime_label = new Gtk.Label("") { xalign = 0.0f };
-        ai_runtime_label.set_wrap(true);
-        ai_pulls_label = new Gtk.Label("") { xalign = 0.0f };
-        ai_pulls_label.set_wrap(true);
-
-        status_page.append(ai_summary_label);
-        status_page.append(ai_models_label);
-        status_page.append(ai_recommended_label);
-        status_page.append(ai_recommended_buttons_box);
-        status_page.append(ai_runtime_label);
-        status_page.append(ai_pulls_label);
-
-        stack.add_titled(assistant, "assistant", "Assistant");
-        stack.add_titled(status_page, "status", "Status");
-        stack.set_visible_child_name("assistant");
-
-        var scroll = new Gtk.ScrolledWindow();
-        scroll.set_vexpand(true);
-        scroll.set_child(stack);
-        box.append(scroll);
-
-        return box;
-    }
-
-    private Gtk.Widget build_toolbox_panel() {
-        toolbox_revealer = new Gtk.Revealer();
-        toolbox_revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_UP);
-        toolbox_revealer.set_reveal_child(false);
-
-        var frame = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
-        frame.set_margin_top(6);
-        frame.set_margin_bottom(6);
-        frame.set_margin_start(6);
-        frame.set_margin_end(6);
-        frame.add_css_class("toolbar");
-
-        var header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var title = new Gtk.Label("Toolbox");
-        title.add_css_class("title-5");
-        title.set_halign(Gtk.Align.START);
-        title.set_hexpand(true);
-        var switcher = new Gtk.StackSwitcher();
-        header.append(title);
-        header.append(switcher);
-        frame.append(header);
-
-        toolbox_stack = new Gtk.Stack();
-        toolbox_stack.set_vexpand(true);
-        toolbox_stack.set_hexpand(true);
-        switcher.set_stack(toolbox_stack);
-
-        toolbox_stack.add_titled(build_debug_tab(), "debug", "Debug");
-        toolbox_stack.add_titled(build_ai_catalog_tab(), "catalog", "AI Catalog");
-        toolbox_stack.add_titled(build_terminal_tab(), "terminals", "Terminals");
-        toolbox_stack.add_titled(build_git_sync_tab(), "git", "Git Sync");
-        toolbox_stack.set_visible_child_name("debug");
-
-        var scroller = new Gtk.ScrolledWindow();
-        scroller.set_vexpand(false);
-        scroller.set_min_content_height(230);
-        scroller.set_max_content_height(320);
-        scroller.set_child(toolbox_stack);
-        frame.append(scroller);
-
-        toolbox_revealer.set_child(frame);
-        return toolbox_revealer;
-    }
-
-    private Gtk.Widget build_debug_tab() {
-        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
-        debug_buffer = new Gtk.TextBuffer(null);
-        var view = new Gtk.TextView.with_buffer(debug_buffer);
-        view.set_editable(false);
-        view.set_monospace(true);
-        view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
-        view.set_vexpand(true);
-
-        var controls = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var clear = new Gtk.Button.with_label("Clear");
-        clear.clicked.connect(() => {
-            debug_buffer.set_text("", -1);
-        });
-        controls.append(clear);
-        box.append(controls);
-
-        var scroll = new Gtk.ScrolledWindow();
-        scroll.set_vexpand(true);
-        scroll.set_child(view);
-        box.append(scroll);
-        return box;
-    }
-
-    private Gtk.Widget build_ai_catalog_tab() {
-        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
-        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var refresh_btn = new Gtk.Button.with_label("Refresh Catalog");
-        refresh_btn.clicked.connect(() => {
-            refresh_ai_catalog.begin();
-        });
-        actions.append(refresh_btn);
-        box.append(actions);
-
-        ai_catalog_list = new Gtk.ListBox();
-        ai_catalog_list.set_selection_mode(Gtk.SelectionMode.NONE);
-
-        var scroll = new Gtk.ScrolledWindow();
-        scroll.set_vexpand(true);
-        scroll.set_child(ai_catalog_list);
-        box.append(scroll);
-        return box;
-    }
-
-    private Gtk.Widget build_terminal_tab() {
-        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
-        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var add_btn = new Gtk.Button.with_label("New Terminal");
-        add_btn.clicked.connect(() => {
-            add_terminal_tab();
-        });
-        actions.append(add_btn);
-        box.append(actions);
-
-        terminal_notebook = new Gtk.Notebook();
-        terminal_notebook.set_vexpand(true);
-        terminal_notebook.set_hexpand(true);
-        box.append(terminal_notebook);
-
-        add_terminal_tab();
-        return box;
-    }
-
-    private Gtk.Widget build_git_sync_tab() {
-        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
-
-        var remote_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var remote_label = new Gtk.Label("Remote URL") { xalign = 0.0f };
-        remote_label.set_size_request(100, -1);
-        git_remote_entry = new Gtk.Entry();
-        git_remote_entry.set_hexpand(true);
-        git_remote_entry.set_placeholder_text("https://example.com/repo.git");
-        remote_row.append(remote_label);
-        remote_row.append(git_remote_entry);
-        box.append(remote_row);
-
-        var branch_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var branch_label = new Gtk.Label("Branch") { xalign = 0.0f };
-        branch_label.set_size_request(100, -1);
-        git_branch_entry = new Gtk.Entry();
-        git_branch_entry.set_placeholder_text("main");
-        branch_row.append(branch_label);
-        branch_row.append(git_branch_entry);
-        box.append(branch_row);
-
-        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var save_btn = new Gtk.Button.with_label("Save (Planned)");
-        save_btn.clicked.connect(() => {
-            append_debug_line("Git config save requested (not wired)");
-            add_toast("Git sync config wiring planned.");
-        });
-        actions.append(save_btn);
-        box.append(actions);
-
-        var help = new Gtk.Label(
-            "This tab is scaffolded. It will map to project git configuration and sync actions."
-        ) { xalign = 0.0f };
-        help.add_css_class("dim-label");
-        help.set_wrap(true);
-        box.append(help);
-        return box;
     }
 
     private Gtk.Widget build_search_page() {
@@ -731,6 +490,7 @@ public class MainWindow : Adw.ApplicationWindow {
         }
 
         api = new ApiClient(info.base_url(), info.auth_token);
+        toolbox.set_api_client(api);
         set_status("Checking API health...");
         set_editor_state("# Loading\n\nChecking API health...", false);
         try {
@@ -864,10 +624,10 @@ public class MainWindow : Adw.ApplicationWindow {
         var selected = ai_thread_selection.get_selected_item() as AiThreadSummary;
         current_ai_thread = selected;
         if (selected == null) {
-            ai_assistant_thread_label.set_text("Thread: none selected");
+            ai_panel.set_thread_title(null);
             return;
         }
-        ai_assistant_thread_label.set_text("Thread: %s".printf(selected.title));
+        ai_panel.set_thread_title(selected.title);
     }
 
     private async void load_selected_card() {
@@ -985,14 +745,10 @@ public class MainWindow : Adw.ApplicationWindow {
         try {
             var capabilities = yield api.get_ai_capabilities(project_id);
             var status = yield api.get_ai_status();
-            render_ai_panel(capabilities, status);
+            ai_panel.render_status(capabilities, status);
             update_ai_polling(status.active_pull_jobs > 0);
         } catch (Error e) {
-            ai_summary_label.set_text("AI status unavailable");
-            ai_models_label.set_text("");
-            ai_recommended_label.set_text("");
-            ai_runtime_label.set_text(e.message);
-            ai_pulls_label.set_text("");
+            ai_panel.render_status_error(e.message);
             stop_ai_polling();
         }
     }
@@ -1002,7 +758,7 @@ public class MainWindow : Adw.ApplicationWindow {
             set_status("AI run already in progress...");
             return;
         }
-        var prompt = ai_prompt_text().strip();
+        var prompt = ai_panel.get_prompt_text().strip();
         if (prompt.length == 0) {
             show_error("Prompt required", "Type a prompt before sending.");
             return;
@@ -1025,11 +781,12 @@ public class MainWindow : Adw.ApplicationWindow {
             return;
         }
 
-        append_ai_output("You", prompt);
-        clear_ai_prompt();
-        append_ai_output("Assistant", "");
+        ai_panel.append_output("You", prompt);
+        ai_panel.clear_prompt();
+        ai_panel.append_output("Assistant", "");
 
         ai_run_in_flight = true;
+        ai_panel.set_send_enabled(false);
         set_status("Running AI...");
         try {
             var context_card_id = current_card != null ? current_card.card_id : null;
@@ -1046,13 +803,14 @@ public class MainWindow : Adw.ApplicationWindow {
                     handle_ai_run_event(event_name, data);
                 }
             );
-            append_ai_output_chunk("\n");
+            ai_panel.append_output_chunk("\n");
             set_status("AI run complete");
         } catch (Error e) {
-            append_ai_output("System", "AI run failed: %s".printf(e.message));
+            ai_panel.append_output("System", "AI run failed: %s".printf(e.message));
             show_error("AI run failed", e.message);
         } finally {
             ai_run_in_flight = false;
+            ai_panel.set_send_enabled(true);
             refresh_ai_panel.begin();
         }
     }
@@ -1079,38 +837,6 @@ public class MainWindow : Adw.ApplicationWindow {
         } catch (Error e) {
             show_error("Failed to create AI thread", e.message);
         }
-    }
-
-    private void render_ai_panel(AiCapabilitiesInfo capabilities, AiStatusInfo status) {
-        ai_summary_label.set_text(
-            "Runner: %s | Caste: %s | Version: %s".printf(
-                capabilities.runner_available ? "available" : "unavailable",
-                capabilities.caste_name.length > 0 ? capabilities.caste_name : "unknown",
-                capabilities.runner_version.length > 0 ? capabilities.runner_version : "unknown"
-            )
-        );
-        if (capabilities.runner_error.length > 0) {
-            ai_summary_label.set_text(ai_summary_label.get_text() + "\nError: " + capabilities.runner_error);
-        }
-
-        ai_models_label.set_text(
-            "Installed models (%d): %s".printf(
-                capabilities.models.size,
-                join_list(capabilities.models)
-            )
-        );
-        ai_recommended_label.set_text(
-            "Recommended install: %s".printf(join_list(capabilities.recommended_install))
-        );
-        rebuild_recommended_pull_buttons(capabilities.recommended_install);
-        ai_runtime_label.set_text(
-            "Active runs: %lld | Active pulls: %lld | Cloud providers configured: %lld".printf(
-                status.active_runs,
-                status.active_pull_jobs,
-                status.cloud_configured_providers
-            )
-        );
-        ai_pulls_label.set_text("Pull jobs: %s".printf(join_list(status.pull_jobs)));
     }
 
     private void schedule_search() {
@@ -1240,53 +966,10 @@ public class MainWindow : Adw.ApplicationWindow {
                 ai_thread_selection.set_selected(0);
             } else {
                 current_ai_thread = null;
-                ai_assistant_thread_label.set_text("Thread: none selected");
+                ai_panel.set_thread_title(null);
             }
         } catch (Error e) {
             show_error("Failed to load AI threads", e.message);
-        }
-    }
-
-    private async void refresh_ai_catalog() {
-        if (api == null) {
-            return;
-        }
-        clear_list_box(ai_catalog_list);
-        try {
-            var providers = yield api.list_ai_provider_catalog();
-            if (providers.size == 0) {
-                ai_catalog_list.append(new Gtk.Label("No providers in catalog.") { xalign = 0.0f });
-                return;
-            }
-            foreach (var provider in providers) {
-                var row = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
-                var title = "%s (%s)".printf(provider.display_name, provider.id);
-                var title_label = new Gtk.Label(title) { xalign = 0.0f };
-                title_label.add_css_class("title-5");
-                var detail = "enabled=%s configured=%s".printf(
-                    provider.enabled ? "yes" : "no",
-                    provider.configured ? "yes" : "no"
-                );
-                var detail_label = new Gtk.Label(detail) { xalign = 0.0f };
-                detail_label.add_css_class("dim-label");
-                detail_label.set_wrap(true);
-                row.append(title_label);
-                row.append(detail_label);
-                if (provider.setup_url.length > 0 || provider.docs_url.length > 0) {
-                    var urls = new Gtk.Label(
-                        "setup: %s\ndocs: %s".printf(provider.setup_url, provider.docs_url)
-                    ) { xalign = 0.0f };
-                    urls.add_css_class("caption");
-                    urls.add_css_class("dim-label");
-                    urls.set_wrap(true);
-                    row.append(urls);
-                }
-                ai_catalog_list.append(row);
-            }
-            append_debug_line("AI catalog refreshed: %d providers".printf(providers.size));
-        } catch (Error e) {
-            append_debug_line("AI catalog refresh failed: %s".printf(e.message));
-            show_error("AI catalog refresh failed", e.message);
         }
     }
 
@@ -1294,51 +977,6 @@ public class MainWindow : Adw.ApplicationWindow {
         project_store.remove_all();
         foreach (var project in projects) {
             project_store.append(project);
-        }
-    }
-
-    private void add_terminal_tab() {
-        var terminal = new Vte.Terminal();
-        terminal.set_vexpand(true);
-        terminal.set_hexpand(true);
-        terminal.set_scrollback_lines(10000);
-
-        var shell = Environment.get_variable("SHELL");
-        if (shell == null || shell.strip().length == 0) {
-            shell = "/bin/bash";
-        }
-        string[] argv = {shell, null};
-        terminal.spawn_async(
-            Vte.PtyFlags.DEFAULT,
-            null,
-            argv,
-            null,
-            SpawnFlags.SEARCH_PATH,
-            null,
-            -1,
-            null,
-            (term, pid, error) => {
-                if (error != null) {
-                    append_debug_line("Terminal spawn failed: %s".printf(error.message));
-                } else {
-                    append_debug_line("Terminal spawned (pid=%d)".printf((int) pid));
-                }
-            }
-        );
-
-        var tab_label = new Gtk.Label("Term %d".printf(next_terminal_index));
-        next_terminal_index++;
-        terminal_notebook.append_page(terminal, tab_label);
-        terminal_notebook.set_tab_reorderable(terminal, true);
-        terminal_notebook.set_current_page(terminal_notebook.get_n_pages() - 1);
-    }
-
-    private void clear_list_box(Gtk.ListBox list) {
-        Gtk.Widget? child = list.get_first_child();
-        while (child != null) {
-            var next = child.get_next_sibling();
-            list.remove(child);
-            child = next;
         }
     }
 
@@ -1361,7 +999,7 @@ public class MainWindow : Adw.ApplicationWindow {
         current_card = null;
         ai_thread_store.remove_all();
         current_ai_thread = null;
-        ai_assistant_thread_label.set_text("Thread: none selected");
+        ai_panel.set_thread_title(null);
     }
 
     private void replace_search_results(Gee.ArrayList<SearchCardResult> results) {
@@ -1381,7 +1019,9 @@ public class MainWindow : Adw.ApplicationWindow {
 
     private void set_status(string text) {
         status_label.set_text(text);
-        append_debug_line("STATUS: %s".printf(text));
+        if (toolbox != null) {
+            toolbox.log_debug("STATUS: %s".printf(text));
+        }
     }
 
     private void set_editor_state(string text, bool editable) {
@@ -1403,7 +1043,9 @@ public class MainWindow : Adw.ApplicationWindow {
     private void show_error(string title_text, string details) {
         set_status("%s: %s".printf(title_text, details));
         add_toast("%s".printf(title_text));
-        append_debug_line("ERROR: %s | %s".printf(title_text, details));
+        if (toolbox != null) {
+            toolbox.log_debug("ERROR: %s | %s".printf(title_text, details));
+        }
     }
 
     private void show_editor_mode() {
@@ -1535,68 +1177,15 @@ public class MainWindow : Adw.ApplicationWindow {
         }
     }
 
-    private string join_list(Gee.ArrayList<string> values) {
-        if (values.size == 0) {
-            return "none";
-        }
-        var builder = new StringBuilder();
-        for (int i = 0; i < values.size; i++) {
-            if (i > 0) {
-                builder.append(", ");
-            }
-            builder.append(values[i]);
-        }
-        return builder.str;
-    }
-
-    private string ai_prompt_text() {
-        var buffer = ai_prompt_view.get_buffer();
-        Gtk.TextIter start;
-        Gtk.TextIter end;
-        buffer.get_bounds(out start, out end);
-        return buffer.get_text(start, end, false);
-    }
-
-    private void append_debug_line(string line) {
-        if (debug_buffer == null) {
-            return;
-        }
-        Gtk.TextIter end;
-        debug_buffer.get_end_iter(out end);
-        var stamp = new DateTime.now_local().format("%H:%M:%S");
-        debug_buffer.insert(ref end, "[%s] %s\n".printf(stamp, line), -1);
-    }
-
-    private void clear_ai_prompt() {
-        var buffer = ai_prompt_view.get_buffer();
-        buffer.set_text("", -1);
-    }
-
-    private void append_ai_output(string role, string text) {
-        Gtk.TextIter start;
-        Gtk.TextIter end;
-        ai_output_buffer.get_bounds(out start, out end);
-        var existing = ai_output_buffer.get_text(start, end, false);
-        var prefix = existing.length > 0 ? "\n\n" : "";
-        var next = "%s%s:\n%s".printf(prefix, role, text);
-        ai_output_buffer.insert(ref end, next, -1);
-    }
-
-    private void append_ai_output_chunk(string text) {
-        Gtk.TextIter end;
-        ai_output_buffer.get_end_iter(out end);
-        ai_output_buffer.insert(ref end, text, -1);
-    }
-
     private void handle_ai_run_event(string event_name, Json.Object data) {
         switch (event_name) {
             case "chunk":
-                append_ai_output_chunk(json_string_member_or_empty(data, "delta"));
+                ai_panel.append_output_chunk(json_string_member_or_empty(data, "delta"));
                 break;
             case "progress":
                 var message = json_string_member_or_empty(data, "message");
                 if (message.length > 0) {
-                    append_ai_output("System", message);
+                    ai_panel.append_output("System", message);
                 }
                 break;
             case "fallback":
@@ -1606,16 +1195,16 @@ public class MainWindow : Adw.ApplicationWindow {
                 if (error.length > 0) {
                     detail += ": " + error;
                 }
-                append_ai_output("System", detail);
+                ai_panel.append_output("System", detail);
                 break;
             case "failed":
                 var failed = json_string_member_or_empty(data, "error");
-                append_ai_output("System", failed.length > 0 ? failed : "Run failed.");
+                ai_panel.append_output("System", failed.length > 0 ? failed : "Run failed.");
                 break;
             case "done":
                 var model_done = json_string_member_or_empty(data, "model");
                 if (model_done.length > 0) {
-                    append_ai_output("System", "Completed with %s".printf(model_done));
+                    ai_panel.append_output("System", "Completed with %s".printf(model_done));
                 }
                 break;
             default:
@@ -1632,32 +1221,6 @@ public class MainWindow : Adw.ApplicationWindow {
             return "";
         }
         return obj.get_string_member(key);
-    }
-
-    private void rebuild_recommended_pull_buttons(Gee.ArrayList<string> recommended_models) {
-        Gtk.Widget? child = ai_recommended_buttons_box.get_first_child();
-        while (child != null) {
-            var next = child.get_next_sibling();
-            ai_recommended_buttons_box.remove(child);
-            child = next;
-        }
-
-        if (recommended_models.size == 0) {
-            var label = new Gtk.Label("No recommended model pulls right now.") { xalign = 0.0f };
-            label.add_css_class("dim-label");
-            ai_recommended_buttons_box.append(label);
-            return;
-        }
-
-        for (int i = 0; i < recommended_models.size; i++) {
-            var model_tag = recommended_models[i];
-            var btn = new Gtk.Button.with_label("Pull %s".printf(model_tag));
-            btn.set_halign(Gtk.Align.START);
-            btn.clicked.connect(() => {
-                start_model_pull.begin(model_tag);
-            });
-            ai_recommended_buttons_box.append(btn);
-        }
     }
 
     private async void start_model_pull(string model_tag) {
