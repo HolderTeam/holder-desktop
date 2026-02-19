@@ -601,4 +601,10 @@ public class ApiClient : Object, IHolderApi {
     }
 }
 
+public class DefaultApiFactory : Object, IApiFactory {
+    public IHolderApi create(string base_url, string auth_token) {
+        return new ApiClient(base_url, auth_token);
+    }
+}
+
 }

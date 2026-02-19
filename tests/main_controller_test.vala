@@ -206,10 +206,11 @@ private HolderLinux.MainController make_controller(FakeApi api,
         new StoreSelectionState(search_store),
         search_text,
         editor_text,
+        null,
         clock,
-        scheduler
+        scheduler,
+        api
     );
-    controller.set_api_client_for_tests(api);
     return controller;
 }
 

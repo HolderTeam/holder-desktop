@@ -13,6 +13,7 @@ public class MainController : Object, IAiRunContext {
     private ITextProvider editor_text;
 
     private IHolderApi? api;
+    private IApiFactory api_factory;
     private IClock clock;
     private IScheduler scheduler;
     private Project? current_project;
@@ -47,8 +48,10 @@ public class MainController : Object, IAiRunContext {
                           ISelectionState search_selection,
                           ITextProvider search_text,
                           ITextProvider editor_text,
+                          IApiFactory? api_factory = null,
                           IClock? clock = null,
-                          IScheduler? scheduler = null) {
+                          IScheduler? scheduler = null,
+                          IHolderApi? initial_api = null) {
         this.project_store = project_store;
         this.project_selection = project_selection;
         this.card_store = card_store;
@@ -59,8 +62,10 @@ public class MainController : Object, IAiRunContext {
         this.search_selection = search_selection;
         this.search_text = search_text;
         this.editor_text = editor_text;
+        this.api_factory = api_factory ?? new DefaultApiFactory();
         this.clock = clock ?? new SystemClock();
         this.scheduler = scheduler ?? new MainLoopScheduler();
+        this.api = initial_api;
     }
 
     public bool should_ignore_project_selection_events() {
@@ -69,10 +74,6 @@ public class MainController : Object, IAiRunContext {
 
     public bool should_ignore_card_selection_events() {
         return suppress_card_selection_events;
-    }
-
-    public void set_api_client_for_tests(IHolderApi api) {
-        this.api = api;
     }
 
     public IHolderApi? get_api_client() {
@@ -147,7 +148,7 @@ public class MainController : Object, IAiRunContext {
             return;
         }
 
-        api = new ApiClient(info.base_url(), info.auth_token);
+        api = api_factory.create(info.base_url(), info.auth_token);
         api_client_ready(api);
 
         status_changed("Checking API health...");
