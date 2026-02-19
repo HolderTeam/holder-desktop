@@ -18,6 +18,7 @@ sources = [
   'src/app.vala',
   'src/models.vala',
   'src/text_utils.vala',
+  'src/sidebar.vala',
   'src/ai_panel.vala',
   'src/toolbox.vala',
   'src/discovery.vala',
