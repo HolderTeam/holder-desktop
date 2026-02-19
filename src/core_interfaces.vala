@@ -49,6 +49,16 @@ public interface IScheduler : Object {
     public abstract bool cancel(uint source_id);
 }
 
+public interface ISelectionState : Object {
+    public abstract Object? get_selected_item();
+    public abstract uint get_selected_index();
+    public abstract void set_selected_index(uint index);
+}
+
+public interface ITextProvider : Object {
+    public abstract string get_text();
+}
+
 public class MainLoopScheduler : Object, IScheduler {
     public uint schedule_once(uint delay_ms, owned SourceFunc callback) {
         return Timeout.add(delay_ms, () => {

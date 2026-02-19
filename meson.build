@@ -22,6 +22,7 @@ sources = [
   'src/sidebar.vala',
   'src/ai_panel.vala',
   'src/toolbox.vala',
+  'src/ui_adapters.vala',
   'src/workspace_pane.vala',
   'src/main_controller.vala',
   'src/ai_run_controller.vala',

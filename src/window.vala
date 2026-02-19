@@ -61,15 +61,15 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox = workspace.toolbox;
         controller = new MainController(
             project_store,
-            project_selection,
+            new GtkSingleSelectionState(project_selection),
             card_store,
-            card_selection,
+            new GtkSingleSelectionState(card_selection),
             ai_thread_store,
-            ai_thread_selection,
+            new GtkSingleSelectionState(ai_thread_selection),
             search_store,
-            search_selection,
-            search_entry,
-            editor_buffer
+            new GtkSingleSelectionState(search_selection),
+            new SearchEntryTextProvider(search_entry),
+            new SourceBufferTextProvider(editor_buffer)
         );
         ai_run_controller = new AiRunController(controller);
 

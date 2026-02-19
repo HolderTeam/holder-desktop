@@ -2,15 +2,15 @@ namespace HolderLinux {
 
 public class MainController : Object, IAiRunContext {
     private GLib.ListStore project_store;
-    private Gtk.SingleSelection project_selection;
+    private ISelectionState project_selection;
     private GLib.ListStore card_store;
-    private Gtk.SingleSelection card_selection;
+    private ISelectionState card_selection;
     private GLib.ListStore ai_thread_store;
-    private Gtk.SingleSelection ai_thread_selection;
+    private ISelectionState ai_thread_selection;
     private GLib.ListStore search_store;
-    private Gtk.SingleSelection search_selection;
-    private Gtk.SearchEntry search_entry;
-    private GtkSource.Buffer editor_buffer;
+    private ISelectionState search_selection;
+    private ITextProvider search_text;
+    private ITextProvider editor_text;
 
     private IHolderApi? api;
     private IClock clock;
@@ -38,15 +38,15 @@ public class MainController : Object, IAiRunContext {
     public signal void api_client_ready(IHolderApi api);
 
     public MainController(GLib.ListStore project_store,
-                          Gtk.SingleSelection project_selection,
+                          ISelectionState project_selection,
                           GLib.ListStore card_store,
-                          Gtk.SingleSelection card_selection,
+                          ISelectionState card_selection,
                           GLib.ListStore ai_thread_store,
-                          Gtk.SingleSelection ai_thread_selection,
+                          ISelectionState ai_thread_selection,
                           GLib.ListStore search_store,
-                          Gtk.SingleSelection search_selection,
-                          Gtk.SearchEntry search_entry,
-                          GtkSource.Buffer editor_buffer,
+                          ISelectionState search_selection,
+                          ITextProvider search_text,
+                          ITextProvider editor_text,
                           IClock? clock = null,
                           IScheduler? scheduler = null) {
         this.project_store = project_store;
@@ -57,8 +57,8 @@ public class MainController : Object, IAiRunContext {
         this.ai_thread_selection = ai_thread_selection;
         this.search_store = search_store;
         this.search_selection = search_selection;
-        this.search_entry = search_entry;
-        this.editor_buffer = editor_buffer;
+        this.search_text = search_text;
+        this.editor_text = editor_text;
         this.clock = clock ?? new SystemClock();
         this.scheduler = scheduler ?? new MainLoopScheduler();
     }
@@ -111,7 +111,7 @@ public class MainController : Object, IAiRunContext {
         for (uint i = 0; i < ai_thread_store.get_n_items(); i++) {
             var thread = ai_thread_store.get_item(i) as AiThreadSummary;
             if (thread != null && thread.thread_id == thread_id) {
-                ai_thread_selection.set_selected(i);
+                ai_thread_selection.set_selected_index(i);
                 return true;
             }
         }
@@ -223,7 +223,7 @@ public class MainController : Object, IAiRunContext {
             for (uint i = 0; i < card_store.get_n_items(); i++) {
                 var item = card_store.get_item(i) as CardSummary;
                 if (item != null && item.card_id == new_id) {
-                    card_selection.set_selected(i);
+                    card_selection.set_selected_index(i);
                     break;
                 }
             }
@@ -246,7 +246,7 @@ public class MainController : Object, IAiRunContext {
             return;
         }
 
-        var query_text = search_entry.get_text().strip();
+        var query_text = search_text.get_text().strip();
         if (query_text.length == 0) {
             clear_search_results();
             show_editor_requested();
@@ -319,10 +319,7 @@ public class MainController : Object, IAiRunContext {
             return;
         }
 
-        Gtk.TextIter start;
-        Gtk.TextIter end;
-        editor_buffer.get_bounds(out start, out end);
-        var text = editor_buffer.get_text(start, end, false);
+        var text = editor_text.get_text();
         var title = TextUtils.title_from_content(text);
         var updated_at = now_epoch_seconds();
 
@@ -363,7 +360,7 @@ public class MainController : Object, IAiRunContext {
             var threads = yield api.list_ai_threads(project_id);
             replace_ai_threads(threads);
             if (ai_thread_store.get_n_items() > 0) {
-                ai_thread_selection.set_selected(0);
+                ai_thread_selection.set_selected_index(0);
             } else {
                 current_ai_thread = null;
                 ai_thread_title_changed(null);
@@ -412,7 +409,7 @@ public class MainController : Object, IAiRunContext {
             }
             if (!selected) {
                 suppress_project_selection_events = true;
-                project_selection.set_selected(0);
+                project_selection.set_selected_index(0);
                 suppress_project_selection_events = false;
             }
             yield reload_cards_for_selected_project(preferred_card_id);
@@ -457,7 +454,7 @@ public class MainController : Object, IAiRunContext {
             }
             if (!selected_card) {
                 suppress_card_selection_events = true;
-                card_selection.set_selected(0);
+                card_selection.set_selected_index(0);
                 suppress_card_selection_events = false;
             }
             load_selected_card.begin();
@@ -531,7 +528,7 @@ public class MainController : Object, IAiRunContext {
             search_store.append(result);
         }
         if (results.size > 0) {
-            search_selection.set_selected(0);
+            search_selection.set_selected_index(0);
         }
     }
 
@@ -540,7 +537,7 @@ public class MainController : Object, IAiRunContext {
             var project = project_store.get_item(i) as Project;
             if (project != null && project.project_id == project_id) {
                 suppress_project_selection_events = true;
-                project_selection.set_selected(i);
+                project_selection.set_selected_index(i);
                 suppress_project_selection_events = false;
                 return true;
             }
@@ -553,7 +550,7 @@ public class MainController : Object, IAiRunContext {
             var card = card_store.get_item(i) as CardSummary;
             if (card != null && card.card_id == card_id) {
                 suppress_card_selection_events = true;
-                card_selection.set_selected(i);
+                card_selection.set_selected_index(i);
                 suppress_card_selection_events = false;
                 return true;
             }
@@ -578,12 +575,12 @@ public class MainController : Object, IAiRunContext {
                 card.created_at,
                 updated_at
             );
-            var selected_pos = card_selection.get_selected();
+            var selected_pos = card_selection.get_selected_index();
             card_store.remove(i);
             card_store.insert(i, replacement);
             if (selected_pos == i) {
                 suppress_card_selection_events = true;
-                card_selection.set_selected(i);
+                card_selection.set_selected_index(i);
                 suppress_card_selection_events = false;
             }
             break;
