@@ -7,7 +7,7 @@ public class ToolboxPane : Object {
     private int next_terminal_index = 1;
     private Gtk.Entry git_remote_entry;
     private Gtk.Entry git_branch_entry;
-    private ApiClient? api;
+    private IHolderApi? api;
     public Gtk.Revealer widget { get; private set; }
 
     public signal void error_reported(string title, string details);
@@ -20,7 +20,7 @@ public class ToolboxPane : Object {
         widget.set_child(build_ui());
     }
 
-    public void set_api_client(ApiClient? api) {
+    public void set_api_client(IHolderApi? api) {
         this.api = api;
     }
 

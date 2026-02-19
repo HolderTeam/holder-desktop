@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-public class MainController : Object {
+public class MainController : Object, IAiRunContext {
     private GLib.ListStore project_store;
     private Gtk.SingleSelection project_selection;
     private GLib.ListStore card_store;
@@ -12,7 +12,9 @@ public class MainController : Object {
     private Gtk.SearchEntry search_entry;
     private GtkSource.Buffer editor_buffer;
 
-    private ApiClient? api;
+    private IHolderApi? api;
+    private IClock clock;
+    private IScheduler scheduler;
     private Project? current_project;
     private CardDetail? current_card;
     private AiThreadSummary? current_ai_thread;
@@ -33,7 +35,7 @@ public class MainController : Object {
     public signal void search_summary_changed(string text);
     public signal void ai_status_refresh_requested();
     public signal void ai_thread_title_changed(string? title);
-    public signal void api_client_ready(ApiClient api);
+    public signal void api_client_ready(IHolderApi api);
 
     public MainController(GLib.ListStore project_store,
                           Gtk.SingleSelection project_selection,
@@ -44,7 +46,9 @@ public class MainController : Object {
                           GLib.ListStore search_store,
                           Gtk.SingleSelection search_selection,
                           Gtk.SearchEntry search_entry,
-                          GtkSource.Buffer editor_buffer) {
+                          GtkSource.Buffer editor_buffer,
+                          IClock? clock = null,
+                          IScheduler? scheduler = null) {
         this.project_store = project_store;
         this.project_selection = project_selection;
         this.card_store = card_store;
@@ -55,6 +59,8 @@ public class MainController : Object {
         this.search_selection = search_selection;
         this.search_entry = search_entry;
         this.editor_buffer = editor_buffer;
+        this.clock = clock ?? new SystemClock();
+        this.scheduler = scheduler ?? new MainLoopScheduler();
     }
 
     public bool should_ignore_project_selection_events() {
@@ -65,7 +71,7 @@ public class MainController : Object {
         return suppress_card_selection_events;
     }
 
-    public ApiClient? get_api_client() {
+    public IHolderApi? get_api_client() {
         return api;
     }
 
@@ -82,7 +88,7 @@ public class MainController : Object {
     }
 
     public int64 now_epoch_seconds() {
-        return new DateTime.now_utc().to_unix();
+        return clock.now_epoch_seconds();
     }
 
     public string? selected_project_id() {
@@ -261,9 +267,9 @@ public class MainController : Object {
 
     public void schedule_search() {
         if (search_debounce_id != 0) {
-            Source.remove(search_debounce_id);
+            scheduler.cancel(search_debounce_id);
         }
-        search_debounce_id = Timeout.add(300, () => {
+        search_debounce_id = scheduler.schedule_once(300, () => {
             search_debounce_id = 0;
             run_search.begin();
             return Source.REMOVE;
@@ -274,7 +280,7 @@ public class MainController : Object {
         if (search_debounce_id == 0) {
             return;
         }
-        Source.remove(search_debounce_id);
+        scheduler.cancel(search_debounce_id);
         search_debounce_id = 0;
     }
 
@@ -298,10 +304,10 @@ public class MainController : Object {
 
     public void schedule_autosave() {
         if (autosave_id != 0) {
-            Source.remove(autosave_id);
+            scheduler.cancel(autosave_id);
         }
 
-        autosave_id = Timeout.add(900, () => {
+        autosave_id = scheduler.schedule_once(900, () => {
             autosave_id = 0;
             autosave_current_card.begin();
             return Source.REMOVE;

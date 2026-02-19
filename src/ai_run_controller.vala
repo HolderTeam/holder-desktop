@@ -1,7 +1,8 @@
 namespace HolderLinux {
 
 public class AiRunController : Object {
-    private MainController main_controller;
+    private IAiRunContext main_controller;
+    private IScheduler scheduler;
     private bool ai_run_in_flight = false;
     private bool panel_visible = false;
     private uint ai_poll_id = 0;
@@ -17,8 +18,9 @@ public class AiRunController : Object {
     public signal void clear_prompt_requested();
     public signal void set_send_enabled_requested(bool enabled);
 
-    public AiRunController(MainController main_controller) {
+    public AiRunController(IAiRunContext main_controller, IScheduler? scheduler = null) {
         this.main_controller = main_controller;
+        this.scheduler = scheduler ?? new MainLoopScheduler();
     }
 
     public void set_panel_visible(bool visible) {
@@ -190,7 +192,7 @@ public class AiRunController : Object {
         if (ai_poll_id != 0) {
             return;
         }
-        ai_poll_id = Timeout.add(AI_POLL_INTERVAL_MS, () => {
+        ai_poll_id = scheduler.schedule_repeating(AI_POLL_INTERVAL_MS, () => {
             if (!panel_visible) {
                 ai_poll_id = 0;
                 return Source.REMOVE;
@@ -204,7 +206,7 @@ public class AiRunController : Object {
         if (ai_poll_id == 0) {
             return;
         }
-        Source.remove(ai_poll_id);
+        scheduler.cancel(ai_poll_id);
         ai_poll_id = 0;
     }
 

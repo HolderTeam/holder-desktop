@@ -17,6 +17,7 @@ sources = [
   'main.vala',
   'src/app.vala',
   'src/models.vala',
+  'src/core_interfaces.vala',
   'src/text_utils.vala',
   'src/sidebar.vala',
   'src/ai_panel.vala',
@@ -55,3 +56,24 @@ test_exe = executable(
 )
 
 test('holder-linux-tests', test_exe)
+
+ai_controller_test_exe = executable(
+  'holder-linux-ai-controller-tests',
+  [
+    'src/models.vala',
+    'src/core_interfaces.vala',
+    'src/ai_run_controller.vala',
+    'tests/ai_run_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-ai-controller-tests', ai_controller_test_exe)

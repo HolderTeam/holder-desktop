@@ -7,9 +7,7 @@ public errordomain ApiError {
     PARSE
 }
 
-public delegate void AiRunEventHandler(string event_name, Json.Object data);
-
-public class ApiClient : Object {
+public class ApiClient : Object, IHolderApi {
     private Soup.Session session;
     private string base_url;
     private string auth_token;
