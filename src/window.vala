@@ -319,14 +319,15 @@ public class MainWindow : Adw.ApplicationWindow {
         content_stack.add_named(search_page, "search");
         content_stack.set_visible_child_name("editor");
 
-        outer.append(content_stack);
-
         ai_split = new Adw.OverlaySplitView();
         ai_split.set_sidebar_position(Gtk.PackType.END);
-        ai_split.set_content(outer);
+        ai_split.set_content(content_stack);
         ai_split.set_sidebar(build_ai_panel());
         ai_split.set_show_sidebar(false);
-        return ai_split;
+        ai_split.set_vexpand(true);
+
+        outer.append(ai_split);
+        return outer;
     }
 
     private Gtk.Widget build_ai_panel() {
@@ -336,14 +337,18 @@ public class MainWindow : Adw.ApplicationWindow {
         box.set_margin_start(8);
         box.set_margin_end(8);
 
-        var header = new Adw.HeaderBar();
-        header.set_title_widget(new Gtk.Label("AI Status"));
+        var header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var title = new Gtk.Label("AI Status");
+        title.add_css_class("title-4");
+        title.set_halign(Gtk.Align.START);
+        title.set_hexpand(true);
         var refresh = new Gtk.Button.from_icon_name("view-refresh-symbolic");
         refresh.set_tooltip_text("Refresh AI status");
         refresh.clicked.connect(() => {
             refresh_ai_panel.begin();
         });
-        header.pack_end(refresh);
+        header.append(title);
+        header.append(refresh);
         box.append(header);
 
         var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
