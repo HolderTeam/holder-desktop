@@ -23,6 +23,7 @@ sources = [
   'src/toolbox.vala',
   'src/workspace_pane.vala',
   'src/main_controller.vala',
+  'src/ai_run_controller.vala',
   'src/discovery.vala',
   'src/api_client.vala',
   'src/window.vala',

@@ -22,11 +22,9 @@ public class MainWindow : Adw.ApplicationWindow {
     private AiPanel ai_panel;
     private ToolboxPane toolbox;
     private MainController controller;
+    private AiRunController ai_run_controller;
 
     private bool suppress_editor_events = false;
-    private bool ai_run_in_flight = false;
-    private uint ai_poll_id = 0;
-    private const uint AI_POLL_INTERVAL_MS = 2000;
 
     public MainWindow(Adw.Application app) {
         Object(
@@ -73,6 +71,7 @@ public class MainWindow : Adw.ApplicationWindow {
             search_entry,
             editor_buffer
         );
+        ai_run_controller = new AiRunController(controller);
 
         sidebar = new SidebarPane(project_selection, card_selection, ai_thread_selection);
         root_split.set_sidebar(sidebar.widget);
@@ -104,7 +103,7 @@ public class MainWindow : Adw.ApplicationWindow {
             search_summary_label.set_text(text);
         });
         controller.ai_status_refresh_requested.connect(() => {
-            refresh_ai_panel.begin();
+            ai_run_controller.refresh_status.begin();
         });
         controller.ai_thread_title_changed.connect((title_text) => {
             ai_panel.set_thread_title(title_text);
@@ -124,11 +123,7 @@ public class MainWindow : Adw.ApplicationWindow {
         });
         workspace.ai_panel_toggled.connect((visible) => {
             ai_split.set_show_sidebar(visible);
-            if (visible) {
-                refresh_ai_panel.begin();
-            } else {
-                stop_ai_polling();
-            }
+            ai_run_controller.set_panel_visible(visible);
         });
         workspace.toolbox_toggled.connect((visible) => {
             toolbox.set_reveal_child(visible);
@@ -197,16 +192,44 @@ public class MainWindow : Adw.ApplicationWindow {
             controller.schedule_autosave();
         });
         ai_panel.send_requested.connect(() => {
-            on_ai_send_clicked();
+            ai_run_controller.on_send_clicked(ai_panel.get_prompt_text());
         });
         ai_panel.new_thread_requested.connect(() => {
-            create_ai_thread_from_prompt.begin();
+            ai_run_controller.create_thread_from_prompt.begin();
         });
         ai_panel.status_refresh_requested.connect(() => {
-            refresh_ai_panel.begin();
+            ai_run_controller.refresh_status.begin();
         });
         ai_panel.pull_model_requested.connect((model_tag) => {
-            start_model_pull.begin(model_tag);
+            ai_run_controller.start_model_pull.begin(model_tag);
+        });
+
+        ai_run_controller.status_changed.connect((text) => {
+            set_status(text);
+        });
+        ai_run_controller.error_reported.connect((title_text, details) => {
+            show_error(title_text, details);
+        });
+        ai_run_controller.toast_requested.connect((message) => {
+            add_toast(message);
+        });
+        ai_run_controller.render_status_requested.connect((capabilities, status) => {
+            ai_panel.render_status(capabilities, status);
+        });
+        ai_run_controller.render_status_error_requested.connect((message) => {
+            ai_panel.render_status_error(message);
+        });
+        ai_run_controller.append_output_requested.connect((role, text) => {
+            ai_panel.append_output(role, text);
+        });
+        ai_run_controller.append_output_chunk_requested.connect((text) => {
+            ai_panel.append_output_chunk(text);
+        });
+        ai_run_controller.clear_prompt_requested.connect(() => {
+            ai_panel.clear_prompt();
+        });
+        ai_run_controller.set_send_enabled_requested.connect((enabled) => {
+            ai_panel.set_send_enabled(enabled);
         });
 
         toolbox.error_reported.connect((title, details) => {
@@ -239,114 +262,6 @@ public class MainWindow : Adw.ApplicationWindow {
         add_action(new_card_action);
     }
 
-    private async void refresh_ai_panel() {
-        var api = controller.get_api_client();
-        if (api == null) {
-            return;
-        }
-
-        var project_id = selected_project_id();
-        try {
-            var capabilities = yield api.get_ai_capabilities(project_id);
-            var status = yield api.get_ai_status();
-            ai_panel.render_status(capabilities, status);
-            update_ai_polling(status.active_pull_jobs > 0);
-        } catch (Error e) {
-            ai_panel.render_status_error(e.message);
-            stop_ai_polling();
-        }
-    }
-
-    private void on_ai_send_clicked() {
-        if (ai_run_in_flight) {
-            set_status("AI run already in progress...");
-            return;
-        }
-        var prompt = ai_panel.get_prompt_text().strip();
-        if (prompt.length == 0) {
-            show_error("Prompt required", "Type a prompt before sending.");
-            return;
-        }
-        if (controller.get_current_project() == null) {
-            show_error("No project selected", "Select a project before using the assistant.");
-            return;
-        }
-        if (controller.get_current_ai_thread() == null) {
-            create_ai_thread_named.begin("Thread %s".printf(now_epoch_seconds().to_string()), true);
-            return;
-        }
-
-        send_prompt_to_ai.begin(prompt);
-    }
-
-    private async void send_prompt_to_ai(string prompt) {
-        var api = controller.get_api_client();
-        var current_project = controller.get_current_project();
-        var current_ai_thread = controller.get_current_ai_thread();
-        var current_card = controller.get_current_card();
-        if (api == null || current_project == null || current_ai_thread == null) {
-            show_error("Cannot run AI", "Missing API, project, or thread context.");
-            return;
-        }
-
-        ai_panel.append_output("You", prompt);
-        ai_panel.clear_prompt();
-        ai_panel.append_output("Assistant", "");
-
-        ai_run_in_flight = true;
-        ai_panel.set_send_enabled(false);
-        set_status("Running AI...");
-        try {
-            var context_card_id = current_card != null ? current_card.card_id : null;
-            var context_card_title = current_card != null ? current_card.title : null;
-            var context_card_body = current_card != null ? current_card.content : null;
-            yield api.run_ai_stream(
-                prompt,
-                current_project.project_id,
-                current_ai_thread.thread_id,
-                context_card_id,
-                context_card_title,
-                context_card_body,
-                (event_name, data) => {
-                    handle_ai_run_event(event_name, data);
-                }
-            );
-            ai_panel.append_output_chunk("\n");
-            set_status("AI run complete");
-        } catch (Error e) {
-            ai_panel.append_output("System", "AI run failed: %s".printf(e.message));
-            show_error("AI run failed", e.message);
-        } finally {
-            ai_run_in_flight = false;
-            ai_panel.set_send_enabled(true);
-            refresh_ai_panel.begin();
-        }
-    }
-
-    private async void create_ai_thread_from_prompt() {
-        create_ai_thread_named.begin("Thread %s".printf(now_epoch_seconds().to_string()), false);
-    }
-
-    private async void create_ai_thread_named(string title, bool continue_send) {
-        var current_project = controller.get_current_project();
-        if (current_project == null) {
-            show_error("Cannot create thread", "No project/API context.");
-            return;
-        }
-        try {
-            var thread_id = yield controller.create_ai_thread(title);
-            yield reload_ai_threads_for_project(current_project.project_id);
-            if (thread_id.length > 0) {
-                select_ai_thread_by_id(thread_id);
-            }
-            add_toast("Created AI thread");
-            if (continue_send) {
-                on_ai_send_clicked();
-            }
-        } catch (Error e) {
-            show_error("Failed to create AI thread", e.message);
-        }
-    }
 
     private void show_new_project_dialog() {
         var dialog = new Adw.MessageDialog(
@@ -381,10 +296,6 @@ public class MainWindow : Adw.ApplicationWindow {
 
     private async void create_project_named(string name) {
         yield controller.create_project_named(name);
-    }
-
-    private async void reload_ai_threads_for_project(string project_id) {
-        yield controller.reload_ai_threads_for_project(project_id);
     }
 
     private void set_status(string text) {
@@ -427,122 +338,9 @@ public class MainWindow : Adw.ApplicationWindow {
         workspace.show_search_mode();
     }
 
-    private void update_ai_polling(bool should_poll) {
-        if (!ai_split.get_show_sidebar()) {
-            stop_ai_polling();
-            return;
-        }
-        if (should_poll) {
-            start_ai_polling();
-        } else {
-            stop_ai_polling();
-        }
-    }
-
-    private void start_ai_polling() {
-        if (ai_poll_id != 0) {
-            return;
-        }
-        ai_poll_id = Timeout.add(AI_POLL_INTERVAL_MS, () => {
-            if (!ai_split.get_show_sidebar()) {
-                ai_poll_id = 0;
-                return Source.REMOVE;
-            }
-            refresh_ai_panel.begin();
-            return Source.CONTINUE;
-        });
-    }
-
-    private void stop_ai_polling() {
-        if (ai_poll_id == 0) {
-            return;
-        }
-        Source.remove(ai_poll_id);
-        ai_poll_id = 0;
-    }
-
     protected override void dispose() {
-        stop_ai_polling();
+        ai_run_controller.stop();
         base.dispose();
-    }
-
-    private string? selected_project_id() {
-        return controller.selected_project_id();
-    }
-
-    private bool select_ai_thread_by_id(string thread_id) {
-        return controller.select_ai_thread_by_id(thread_id);
-    }
-
-    private void handle_ai_run_event(string event_name, Json.Object data) {
-        switch (event_name) {
-            case "chunk":
-                ai_panel.append_output_chunk(json_string_member_or_empty(data, "delta"));
-                break;
-            case "progress":
-                var message = json_string_member_or_empty(data, "message");
-                if (message.length > 0) {
-                    ai_panel.append_output("System", message);
-                }
-                break;
-            case "fallback":
-                var model = json_string_member_or_empty(data, "model");
-                var error = json_string_member_or_empty(data, "error");
-                var detail = model.length > 0 ? "Fallback from %s".printf(model) : "Fallback";
-                if (error.length > 0) {
-                    detail += ": " + error;
-                }
-                ai_panel.append_output("System", detail);
-                break;
-            case "failed":
-                var failed = json_string_member_or_empty(data, "error");
-                ai_panel.append_output("System", failed.length > 0 ? failed : "Run failed.");
-                break;
-            case "done":
-                var model_done = json_string_member_or_empty(data, "model");
-                if (model_done.length > 0) {
-                    ai_panel.append_output("System", "Completed with %s".printf(model_done));
-                }
-                break;
-            default:
-                break;
-        }
-    }
-
-    private string json_string_member_or_empty(Json.Object obj, string key) {
-        if (!obj.has_member(key)) {
-            return "";
-        }
-        var node = obj.get_member(key);
-        if (node == null || node.get_node_type() == Json.NodeType.NULL) {
-            return "";
-        }
-        return obj.get_string_member(key);
-    }
-
-    private async void start_model_pull(string model_tag) {
-        var api = controller.get_api_client();
-        if (api == null) {
-            return;
-        }
-
-        set_status("Starting pull for %s...".printf(model_tag));
-        try {
-            var job_id = yield api.start_ai_runner_pull(model_tag);
-            add_toast("Started pull: %s".printf(model_tag));
-            if (job_id.length > 0) {
-                set_status("Pull job started: %s".printf(job_id));
-            } else {
-                set_status("Pull started: %s".printf(model_tag));
-            }
-            refresh_ai_panel.begin();
-        } catch (Error e) {
-            show_error("Failed to start model pull", e.message);
-        }
-    }
-
-    private int64 now_epoch_seconds() {
-        return new DateTime.now_utc().to_unix();
     }
 
 }
