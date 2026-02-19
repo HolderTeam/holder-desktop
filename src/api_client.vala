@@ -120,6 +120,11 @@ public class ApiClient : Object {
         return string_member_or_empty(data, "thread_id");
     }
 
+    public async Gee.ArrayList<AiCatalogProvider> list_ai_provider_catalog() throws Error {
+        var root = yield request_json("GET", "/ai/providers/catalog", null, null);
+        return parse_ai_provider_catalog(root);
+    }
+
     public async void run_ai_stream(string prompt,
                                     string? project_id,
                                     string? thread_id,
@@ -533,6 +538,30 @@ public class ApiClient : Object {
             ));
         }
         return out_list;
+    }
+
+    private Gee.ArrayList<AiCatalogProvider> parse_ai_provider_catalog(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai provider catalog response");
+        }
+        var data = root.get_object_member("data");
+        var providers = new Gee.ArrayList<AiCatalogProvider>();
+        if (!data.has_member("providers")) {
+            return providers;
+        }
+        var items = data.get_array_member("providers");
+        for (uint i = 0; i < items.get_length(); i++) {
+            var item = items.get_object_element(i);
+            providers.add(new AiCatalogProvider(
+                string_member_or_empty(item, "id"),
+                string_member_or_empty(item, "display_name"),
+                item.has_member("enabled") ? item.get_boolean_member("enabled") : false,
+                item.has_member("configured") ? item.get_boolean_member("configured") : false,
+                string_member_or_empty(item, "setup_url"),
+                string_member_or_empty(item, "docs_url")
+            ));
+        }
+        return providers;
     }
 
     private string string_member_or_empty(Json.Object obj, string key) {

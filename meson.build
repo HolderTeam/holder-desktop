@@ -10,6 +10,7 @@ deps = [
   dependency('gee-0.8'),
   dependency('libsoup-3.0'),
   dependency('json-glib-1.0'),
+  dependency('vte-2.91-gtk4'),
 ]
 
 sources = [

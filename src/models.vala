@@ -204,4 +204,29 @@ public class AiThreadSummary : Object {
     }
 }
 
+public class AiCatalogProvider : Object {
+    public string id { get; construct; }
+    public string display_name { get; construct; }
+    public bool enabled { get; construct; }
+    public bool configured { get; construct; }
+    public string setup_url { get; construct; }
+    public string docs_url { get; construct; }
+
+    public AiCatalogProvider(string id,
+                             string display_name,
+                             bool enabled,
+                             bool configured,
+                             string setup_url,
+                             string docs_url) {
+        Object(
+            id: id,
+            display_name: display_name,
+            enabled: enabled,
+            configured: configured,
+            setup_url: setup_url,
+            docs_url: docs_url
+        );
+    }
+}
+
 }
