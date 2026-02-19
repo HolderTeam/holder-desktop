@@ -41,6 +41,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private bool suppress_project_selection_events = false;
     private bool suppress_card_selection_events = false;
     private bool create_card_in_flight = false;
+    private bool ai_run_in_flight = false;
     private uint autosave_id = 0;
     private uint search_debounce_id = 0;
     private uint ai_poll_id = 0;
@@ -827,6 +828,10 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void on_ai_send_clicked() {
+        if (ai_run_in_flight) {
+            set_status("AI run already in progress...");
+            return;
+        }
         var prompt = ai_prompt_text().strip();
         if (prompt.length == 0) {
             show_error("Prompt required", "Type a prompt before sending.");
@@ -841,12 +846,45 @@ public class MainWindow : Adw.ApplicationWindow {
             return;
         }
 
+        send_prompt_to_ai.begin(prompt);
+    }
+
+    private async void send_prompt_to_ai(string prompt) {
+        if (api == null || current_project == null || current_ai_thread == null) {
+            show_error("Cannot run AI", "Missing API, project, or thread context.");
+            return;
+        }
+
         append_ai_output("You", prompt);
         clear_ai_prompt();
-        append_ai_output(
-            "Assistant",
-            "Run execution wiring is next: this prompt is ready to send via /ai/runs."
-        );
+        append_ai_output("Assistant", "");
+
+        ai_run_in_flight = true;
+        set_status("Running AI...");
+        try {
+            var context_card_id = current_card != null ? current_card.card_id : null;
+            var context_card_title = current_card != null ? current_card.title : null;
+            var context_card_body = current_card != null ? current_card.content : null;
+            yield api.run_ai_stream(
+                prompt,
+                current_project.project_id,
+                current_ai_thread.thread_id,
+                context_card_id,
+                context_card_title,
+                context_card_body,
+                (event_name, data) => {
+                    handle_ai_run_event(event_name, data);
+                }
+            );
+            append_ai_output_chunk("\n");
+            set_status("AI run complete");
+        } catch (Error e) {
+            append_ai_output("System", "AI run failed: %s".printf(e.message));
+            show_error("AI run failed", e.message);
+        } finally {
+            ai_run_in_flight = false;
+            refresh_ai_panel.begin();
+        }
     }
 
     private async void create_ai_thread_from_prompt() {
@@ -1272,6 +1310,58 @@ public class MainWindow : Adw.ApplicationWindow {
         var prefix = existing.length > 0 ? "\n\n" : "";
         var next = "%s%s:\n%s".printf(prefix, role, text);
         ai_output_buffer.insert(ref end, next, -1);
+    }
+
+    private void append_ai_output_chunk(string text) {
+        Gtk.TextIter end;
+        ai_output_buffer.get_end_iter(out end);
+        ai_output_buffer.insert(ref end, text, -1);
+    }
+
+    private void handle_ai_run_event(string event_name, Json.Object data) {
+        switch (event_name) {
+            case "chunk":
+                append_ai_output_chunk(json_string_member_or_empty(data, "delta"));
+                break;
+            case "progress":
+                var message = json_string_member_or_empty(data, "message");
+                if (message.length > 0) {
+                    append_ai_output("System", message);
+                }
+                break;
+            case "fallback":
+                var model = json_string_member_or_empty(data, "model");
+                var error = json_string_member_or_empty(data, "error");
+                var detail = model.length > 0 ? "Fallback from %s".printf(model) : "Fallback";
+                if (error.length > 0) {
+                    detail += ": " + error;
+                }
+                append_ai_output("System", detail);
+                break;
+            case "failed":
+                var failed = json_string_member_or_empty(data, "error");
+                append_ai_output("System", failed.length > 0 ? failed : "Run failed.");
+                break;
+            case "done":
+                var model_done = json_string_member_or_empty(data, "model");
+                if (model_done.length > 0) {
+                    append_ai_output("System", "Completed with %s".printf(model_done));
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
+    private string json_string_member_or_empty(Json.Object obj, string key) {
+        if (!obj.has_member(key)) {
+            return "";
+        }
+        var node = obj.get_member(key);
+        if (node == null || node.get_node_type() == Json.NodeType.NULL) {
+            return "";
+        }
+        return obj.get_string_member(key);
     }
 
     private void rebuild_recommended_pull_buttons(Gee.ArrayList<string> recommended_models) {
