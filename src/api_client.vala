@@ -95,6 +95,29 @@ public class ApiClient : Object {
         return data.has_member("job_id") ? data.get_string_member("job_id") : "";
     }
 
+    public async Gee.ArrayList<AiThreadSummary> list_ai_threads(string project_id) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("project_id", project_id);
+        var root = yield request_json("GET", "/ai/threads", null, query);
+        return parse_ai_threads(root);
+    }
+
+    public async string create_ai_thread(string project_id, string title) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("project_id");
+        body.add_string_value(project_id);
+        body.set_member_name("title");
+        body.add_string_value(title);
+        body.end_object();
+        var root = yield request_json("POST", "/ai/threads", json_string_from_builder(body), null);
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai thread create response");
+        }
+        var data = root.get_object_member("data");
+        return string_member_or_empty(data, "thread_id");
+    }
+
     public async string create_card(string project_id,
                                     string title,
                                     string content) throws Error {
@@ -389,6 +412,26 @@ public class ApiClient : Object {
             data.has_member("cloud_configured_providers") ? data.get_int_member("cloud_configured_providers") : 0,
             pull_jobs
         );
+    }
+
+    private Gee.ArrayList<AiThreadSummary> parse_ai_threads(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai threads response");
+        }
+
+        var out_list = new Gee.ArrayList<AiThreadSummary>();
+        var data = root.get_array_member("data");
+        for (uint i = 0; i < data.get_length(); i++) {
+            var item = data.get_object_element(i);
+            out_list.add(new AiThreadSummary(
+                string_member_or_empty(item, "thread_id"),
+                string_member_or_empty(item, "project_id"),
+                string_member_or_empty(item, "title"),
+                item.has_member("created_at") ? item.get_int_member("created_at") : 0,
+                item.has_member("updated_at") ? item.get_int_member("updated_at") : 0
+            ));
+        }
+        return out_list;
     }
 
     private string string_member_or_empty(Json.Object obj, string key) {

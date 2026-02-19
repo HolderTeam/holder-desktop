@@ -182,4 +182,26 @@ public class AiStatusInfo : Object {
     }
 }
 
+public class AiThreadSummary : Object {
+    public string thread_id { get; construct; }
+    public string project_id { get; construct; }
+    public string title { get; set; }
+    public int64 created_at { get; construct; }
+    public int64 updated_at { get; set; }
+
+    public AiThreadSummary(string thread_id,
+                           string project_id,
+                           string title,
+                           int64 created_at,
+                           int64 updated_at) {
+        Object(
+            thread_id: thread_id,
+            project_id: project_id,
+            title: title,
+            created_at: created_at,
+            updated_at: updated_at
+        );
+    }
+}
+
 }

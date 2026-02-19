@@ -9,6 +9,8 @@ public class MainWindow : Adw.ApplicationWindow {
     private Gtk.SingleSelection project_selection;
     private GLib.ListStore card_store;
     private Gtk.SingleSelection card_selection;
+    private GLib.ListStore ai_thread_store;
+    private Gtk.SingleSelection ai_thread_selection;
     private GLib.ListStore search_store;
 
     private GtkSource.Buffer editor_buffer;
@@ -25,10 +27,15 @@ public class MainWindow : Adw.ApplicationWindow {
     private Gtk.Box ai_recommended_buttons_box;
     private Gtk.Label ai_runtime_label;
     private Gtk.Label ai_pulls_label;
+    private Gtk.TextBuffer ai_output_buffer;
+    private Gtk.TextView ai_output_view;
+    private Gtk.TextView ai_prompt_view;
+    private Gtk.Label ai_assistant_thread_label;
     private ApiClient? api;
 
     private Project? current_project;
     private CardDetail? current_card;
+    private AiThreadSummary? current_ai_thread;
 
     private bool suppress_editor_events = false;
     private bool suppress_project_selection_events = false;
@@ -52,6 +59,8 @@ public class MainWindow : Adw.ApplicationWindow {
 
         card_store = new GLib.ListStore(typeof(CardSummary));
         card_selection = new Gtk.SingleSelection(card_store);
+        ai_thread_store = new GLib.ListStore(typeof(AiThreadSummary));
+        ai_thread_selection = new Gtk.SingleSelection(ai_thread_store);
         search_store = new GLib.ListStore(typeof(SearchCardResult));
 
         var root_split = new Adw.OverlaySplitView();
@@ -77,6 +86,10 @@ public class MainWindow : Adw.ApplicationWindow {
                 return;
             }
             on_card_selected();
+        });
+
+        ai_thread_selection.notify["selected"].connect(() => {
+            on_ai_thread_selected();
         });
 
         editor_buffer.changed.connect(() => {
@@ -193,6 +206,47 @@ public class MainWindow : Adw.ApplicationWindow {
         card_scroll.set_vexpand(true);
         card_scroll.set_child(card_list);
         box.append(card_scroll);
+
+        var threads_title = new Gtk.Label("AI Threads") { xalign = 0.0f };
+        threads_title.add_css_class("heading");
+        box.append(threads_title);
+
+        var thread_factory = new Gtk.SignalListItemFactory();
+        thread_factory.setup.connect((item) => {
+            var list_item = (Gtk.ListItem) item;
+            var row = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
+            var title = new Gtk.Label("") { xalign = 0.0f };
+            title.add_css_class("title-5");
+            title.set_ellipsize(Pango.EllipsizeMode.END);
+            var updated = new Gtk.Label("") { xalign = 0.0f };
+            updated.add_css_class("dim-label");
+            updated.add_css_class("caption");
+            row.append(title);
+            row.append(updated);
+            list_item.set_child(row);
+        });
+        thread_factory.bind.connect((item) => {
+            var list_item = (Gtk.ListItem) item;
+            var thread = list_item.get_item() as AiThreadSummary;
+            var row = list_item.get_child() as Gtk.Box;
+            var title = row.get_first_child() as Gtk.Label;
+            var updated = title.get_next_sibling() as Gtk.Label;
+            if (thread == null) {
+                title.set_text("");
+                updated.set_text("");
+                return;
+            }
+            title.set_text(thread.title);
+            updated.set_text("Updated %s".printf(format_relative_time(thread.updated_at)));
+        });
+
+        var thread_list = new Gtk.ListView(ai_thread_selection, thread_factory);
+        thread_list.set_vexpand(true);
+        var thread_scroll = new Gtk.ScrolledWindow();
+        thread_scroll.set_min_content_height(120);
+        thread_scroll.set_vexpand(true);
+        thread_scroll.set_child(thread_list);
+        box.append(thread_scroll);
 
         return box;
     }
@@ -351,7 +405,54 @@ public class MainWindow : Adw.ApplicationWindow {
         header.append(refresh);
         box.append(header);
 
-        var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
+        var stack = new Gtk.Stack();
+        stack.set_vexpand(true);
+        stack.set_hexpand(true);
+        var switcher = new Gtk.StackSwitcher();
+        switcher.set_stack(stack);
+        switcher.set_halign(Gtk.Align.START);
+        box.append(switcher);
+
+        var assistant = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
+        ai_assistant_thread_label = new Gtk.Label("Thread: none selected") { xalign = 0.0f };
+        ai_assistant_thread_label.add_css_class("dim-label");
+        assistant.append(ai_assistant_thread_label);
+
+        ai_output_buffer = new Gtk.TextBuffer(null);
+        ai_output_view = new Gtk.TextView.with_buffer(ai_output_buffer);
+        ai_output_view.set_editable(false);
+        ai_output_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
+        ai_output_view.set_vexpand(true);
+
+        var output_scroll = new Gtk.ScrolledWindow();
+        output_scroll.set_vexpand(true);
+        output_scroll.set_child(ai_output_view);
+        assistant.append(output_scroll);
+
+        ai_prompt_view = new Gtk.TextView();
+        ai_prompt_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
+        ai_prompt_view.set_vexpand(false);
+        ai_prompt_view.set_size_request(-1, 96);
+
+        var prompt_scroll = new Gtk.ScrolledWindow();
+        prompt_scroll.set_vexpand(false);
+        prompt_scroll.set_child(ai_prompt_view);
+        assistant.append(prompt_scroll);
+
+        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var send_btn = new Gtk.Button.with_label("Send");
+        send_btn.clicked.connect(() => {
+            on_ai_send_clicked();
+        });
+        var new_thread_btn = new Gtk.Button.with_label("New Thread");
+        new_thread_btn.clicked.connect(() => {
+            create_ai_thread_from_prompt.begin();
+        });
+        actions.append(send_btn);
+        actions.append(new_thread_btn);
+        assistant.append(actions);
+
+        var status_page = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
         ai_summary_label = new Gtk.Label("Not loaded") { xalign = 0.0f };
         ai_summary_label.set_wrap(true);
         ai_models_label = new Gtk.Label("") { xalign = 0.0f };
@@ -364,16 +465,20 @@ public class MainWindow : Adw.ApplicationWindow {
         ai_pulls_label = new Gtk.Label("") { xalign = 0.0f };
         ai_pulls_label.set_wrap(true);
 
-        content.append(ai_summary_label);
-        content.append(ai_models_label);
-        content.append(ai_recommended_label);
-        content.append(ai_recommended_buttons_box);
-        content.append(ai_runtime_label);
-        content.append(ai_pulls_label);
+        status_page.append(ai_summary_label);
+        status_page.append(ai_models_label);
+        status_page.append(ai_recommended_label);
+        status_page.append(ai_recommended_buttons_box);
+        status_page.append(ai_runtime_label);
+        status_page.append(ai_pulls_label);
+
+        stack.add_titled(assistant, "assistant", "Assistant");
+        stack.add_titled(status_page, "status", "Status");
+        stack.set_visible_child_name("assistant");
 
         var scroll = new Gtk.ScrolledWindow();
         scroll.set_vexpand(true);
-        scroll.set_child(content);
+        scroll.set_child(stack);
         box.append(scroll);
 
         return box;
@@ -555,6 +660,7 @@ public class MainWindow : Adw.ApplicationWindow {
         try {
             var cards = yield api.list_cards(selected.project_id);
             replace_cards(cards);
+            yield reload_ai_threads_for_project(selected.project_id);
             if (card_store.get_n_items() == 0) {
                 current_card = null;
                 set_editor_state(
@@ -581,6 +687,16 @@ public class MainWindow : Adw.ApplicationWindow {
 
     private void on_card_selected() {
         load_selected_card.begin();
+    }
+
+    private void on_ai_thread_selected() {
+        var selected = ai_thread_selection.get_selected_item() as AiThreadSummary;
+        current_ai_thread = selected;
+        if (selected == null) {
+            ai_assistant_thread_label.set_text("Thread: none selected");
+            return;
+        }
+        ai_assistant_thread_label.set_text("Thread: %s".printf(selected.title));
     }
 
     private async void load_selected_card() {
@@ -707,6 +823,53 @@ public class MainWindow : Adw.ApplicationWindow {
             ai_runtime_label.set_text(e.message);
             ai_pulls_label.set_text("");
             stop_ai_polling();
+        }
+    }
+
+    private void on_ai_send_clicked() {
+        var prompt = ai_prompt_text().strip();
+        if (prompt.length == 0) {
+            show_error("Prompt required", "Type a prompt before sending.");
+            return;
+        }
+        if (current_project == null) {
+            show_error("No project selected", "Select a project before using the assistant.");
+            return;
+        }
+        if (current_ai_thread == null) {
+            create_ai_thread_named.begin("Thread %s".printf(now_epoch_seconds().to_string()), true);
+            return;
+        }
+
+        append_ai_output("You", prompt);
+        clear_ai_prompt();
+        append_ai_output(
+            "Assistant",
+            "Run execution wiring is next: this prompt is ready to send via /ai/runs."
+        );
+    }
+
+    private async void create_ai_thread_from_prompt() {
+        create_ai_thread_named.begin("Thread %s".printf(now_epoch_seconds().to_string()), false);
+    }
+
+    private async void create_ai_thread_named(string title, bool continue_send) {
+        if (api == null || current_project == null) {
+            show_error("Cannot create thread", "No project/API context.");
+            return;
+        }
+        try {
+            var thread_id = yield api.create_ai_thread(current_project.project_id, title);
+            yield reload_ai_threads_for_project(current_project.project_id);
+            if (thread_id.length > 0) {
+                select_ai_thread_by_id(thread_id);
+            }
+            add_toast("Created AI thread");
+            if (continue_send) {
+                on_ai_send_clicked();
+            }
+        } catch (Error e) {
+            show_error("Failed to create AI thread", e.message);
         }
     }
 
@@ -858,6 +1021,24 @@ public class MainWindow : Adw.ApplicationWindow {
         }
     }
 
+    private async void reload_ai_threads_for_project(string project_id) {
+        if (api == null) {
+            return;
+        }
+        try {
+            var threads = yield api.list_ai_threads(project_id);
+            replace_ai_threads(threads);
+            if (ai_thread_store.get_n_items() > 0) {
+                ai_thread_selection.set_selected(0);
+            } else {
+                current_ai_thread = null;
+                ai_assistant_thread_label.set_text("Thread: none selected");
+            }
+        } catch (Error e) {
+            show_error("Failed to load AI threads", e.message);
+        }
+    }
+
     private void replace_projects(Gee.ArrayList<Project> projects) {
         project_store.remove_all();
         foreach (var project in projects) {
@@ -872,9 +1053,19 @@ public class MainWindow : Adw.ApplicationWindow {
         }
     }
 
+    private void replace_ai_threads(Gee.ArrayList<AiThreadSummary> threads) {
+        ai_thread_store.remove_all();
+        foreach (var thread in threads) {
+            ai_thread_store.append(thread);
+        }
+    }
+
     private void clear_cards() {
         card_store.remove_all();
         current_card = null;
+        ai_thread_store.remove_all();
+        current_ai_thread = null;
+        ai_assistant_thread_label.set_text("Thread: none selected");
     }
 
     private void replace_search_results(Gee.ArrayList<SearchCardResult> results) {
@@ -1006,6 +1197,17 @@ public class MainWindow : Adw.ApplicationWindow {
         return false;
     }
 
+    private bool select_ai_thread_by_id(string thread_id) {
+        for (uint i = 0; i < ai_thread_store.get_n_items(); i++) {
+            var thread = ai_thread_store.get_item(i) as AiThreadSummary;
+            if (thread != null && thread.thread_id == thread_id) {
+                ai_thread_selection.set_selected(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void update_selected_card_summary(string title, int64 updated_at) {
         if (current_card == null) {
             return;
@@ -1047,6 +1249,29 @@ public class MainWindow : Adw.ApplicationWindow {
             builder.append(values[i]);
         }
         return builder.str;
+    }
+
+    private string ai_prompt_text() {
+        var buffer = ai_prompt_view.get_buffer();
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        buffer.get_bounds(out start, out end);
+        return buffer.get_text(start, end, false);
+    }
+
+    private void clear_ai_prompt() {
+        var buffer = ai_prompt_view.get_buffer();
+        buffer.set_text("", -1);
+    }
+
+    private void append_ai_output(string role, string text) {
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        ai_output_buffer.get_bounds(out start, out end);
+        var existing = ai_output_buffer.get_text(start, end, false);
+        var prefix = existing.length > 0 ? "\n\n" : "";
+        var next = "%s%s:\n%s".printf(prefix, role, text);
+        ai_output_buffer.insert(ref end, next, -1);
     }
 
     private void rebuild_recommended_pull_buttons(Gee.ArrayList<string> recommended_models) {
