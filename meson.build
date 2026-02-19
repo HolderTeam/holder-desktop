@@ -16,19 +16,19 @@ deps = [
 sources = [
   'main.vala',
   'src/app.vala',
-  'src/models.vala',
-  'src/core_interfaces.vala',
-  'src/text_utils.vala',
-  'src/sidebar.vala',
-  'src/ai_panel.vala',
-  'src/toolbox.vala',
-  'src/ui_adapters.vala',
-  'src/workspace_pane.vala',
-  'src/main_controller.vala',
-  'src/ai_run_controller.vala',
-  'src/discovery.vala',
-  'src/api_client.vala',
-  'src/window.vala',
+  'src/models/models.vala',
+  'src/services/core_interfaces.vala',
+  'src/utils/text_utils.vala',
+  'src/views/sidebar.vala',
+  'src/views/ai_panel.vala',
+  'src/views/toolbox.vala',
+  'src/services/ui_adapters.vala',
+  'src/views/workspace_pane.vala',
+  'src/controllers/main_controller.vala',
+  'src/controllers/ai_run_controller.vala',
+  'src/services/discovery.vala',
+  'src/services/api_client.vala',
+  'src/views/window.vala',
 ]
 
 executable(
@@ -44,7 +44,7 @@ executable(
 test_exe = executable(
   'holder-linux-tests',
   [
-    'src/text_utils.vala',
+    'src/utils/text_utils.vala',
     'tests/text_utils_test.vala',
   ],
   dependencies: [
@@ -61,9 +61,9 @@ test('holder-linux-tests', test_exe)
 ai_controller_test_exe = executable(
   'holder-linux-ai-controller-tests',
   [
-    'src/models.vala',
-    'src/core_interfaces.vala',
-    'src/ai_run_controller.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/controllers/ai_run_controller.vala',
     'tests/ai_run_controller_test.vala',
   ],
   dependencies: [
@@ -82,10 +82,10 @@ test('holder-linux-ai-controller-tests', ai_controller_test_exe)
 main_controller_test_exe = executable(
   'holder-linux-main-controller-tests',
   [
-    'src/models.vala',
-    'src/core_interfaces.vala',
-    'src/text_utils.vala',
-    'src/main_controller.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/utils/text_utils.vala',
+    'src/controllers/main_controller.vala',
     'tests/main_controller_test.vala',
   ],
   dependencies: [
