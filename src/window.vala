@@ -2,7 +2,6 @@ namespace HolderLinux {
 
 public class MainWindow : Adw.ApplicationWindow {
     private Adw.ToastOverlay toast_overlay;
-    private Gtk.Label title_label;
 
     private GLib.ListStore project_store;
     private Gtk.SingleSelection project_selection;
@@ -12,10 +11,9 @@ public class MainWindow : Adw.ApplicationWindow {
     private Gtk.SingleSelection ai_thread_selection;
     private GLib.ListStore search_store;
 
+    private WorkspacePane workspace;
     private GtkSource.Buffer editor_buffer;
-    private GtkSource.View editor_view;
     private Gtk.SearchEntry search_entry;
-    private Gtk.Stack content_stack;
     private Gtk.Label search_summary_label;
     private Gtk.SingleSelection search_selection;
     private Gtk.ListView search_list;
@@ -23,19 +21,10 @@ public class MainWindow : Adw.ApplicationWindow {
     private Adw.OverlaySplitView ai_split;
     private AiPanel ai_panel;
     private ToolboxPane toolbox;
-    private ApiClient? api;
-
-    private Project? current_project;
-    private CardDetail? current_card;
-    private AiThreadSummary? current_ai_thread;
+    private MainController controller;
 
     private bool suppress_editor_events = false;
-    private bool suppress_project_selection_events = false;
-    private bool suppress_card_selection_events = false;
-    private bool create_card_in_flight = false;
     private bool ai_run_in_flight = false;
-    private uint autosave_id = 0;
-    private uint search_debounce_id = 0;
     private uint ai_poll_id = 0;
     private const uint AI_POLL_INTERVAL_MS = 2000;
 
@@ -63,196 +52,150 @@ public class MainWindow : Adw.ApplicationWindow {
         toast_overlay.set_child(root_split);
         set_content(toast_overlay);
 
+        workspace = new WorkspacePane(search_store);
+        editor_buffer = workspace.editor_buffer;
+        search_entry = workspace.search_entry;
+        search_summary_label = workspace.search_summary_label;
+        search_selection = workspace.search_selection;
+        search_list = workspace.search_list;
+        ai_split = workspace.ai_split;
+        ai_panel = workspace.ai_panel;
+        toolbox = workspace.toolbox;
+        controller = new MainController(
+            project_store,
+            project_selection,
+            card_store,
+            card_selection,
+            ai_thread_store,
+            ai_thread_selection,
+            search_store,
+            search_selection,
+            search_entry,
+            editor_buffer
+        );
+
         sidebar = new SidebarPane(project_selection, card_selection, ai_thread_selection);
         root_split.set_sidebar(sidebar.widget);
-        root_split.set_content(build_workspace());
+        root_split.set_content(workspace.widget);
         root_split.set_show_sidebar(true);
 
-        project_selection.notify["selected"].connect(() => {
-            if (suppress_project_selection_events) {
-                return;
-            }
-            on_project_selected();
+        controller.status_changed.connect((text) => {
+            set_status(text);
+        });
+        controller.editor_state_changed.connect((text, editable) => {
+            set_editor_state(text, editable);
+        });
+        controller.window_title_changed.connect((title_text) => {
+            update_window_title(title_text);
+        });
+        controller.toast_requested.connect((message) => {
+            add_toast(message);
+        });
+        controller.error_reported.connect((title_text, details) => {
+            show_error(title_text, details);
+        });
+        controller.show_editor_requested.connect(() => {
+            show_editor_mode();
+        });
+        controller.show_search_requested.connect(() => {
+            show_search_mode();
+        });
+        controller.search_summary_changed.connect((text) => {
+            search_summary_label.set_text(text);
+        });
+        controller.ai_status_refresh_requested.connect(() => {
+            refresh_ai_panel.begin();
+        });
+        controller.ai_thread_title_changed.connect((title_text) => {
+            ai_panel.set_thread_title(title_text);
+        });
+        controller.api_client_ready.connect((api_client) => {
+            toolbox.set_api_client(api_client);
         });
 
-        card_selection.notify["selected"].connect(() => {
-            if (suppress_card_selection_events) {
-                return;
-            }
-            on_card_selected();
+        workspace.refresh_requested.connect(() => {
+            controller.reload_everything.begin();
         });
-
-        ai_thread_selection.notify["selected"].connect(() => {
-            on_ai_thread_selected();
-        });
-
-        editor_buffer.changed.connect(() => {
-            if (suppress_editor_events || current_card == null) {
-                return;
-            }
-            schedule_autosave();
-        });
-
-        bootstrap.begin();
-    }
-
-    construct {
-        var refresh_action = new SimpleAction("refresh", null);
-        refresh_action.activate.connect(() => {
-            reload_everything.begin();
-        });
-        add_action(refresh_action);
-
-        var new_project_action = new SimpleAction("new-project", null);
-        new_project_action.activate.connect(() => {
+        workspace.new_project_requested.connect(() => {
             show_new_project_dialog();
         });
-        add_action(new_project_action);
-
-        var new_card_action = new SimpleAction("new-card", null);
-        new_card_action.activate.connect(() => {
-            create_card.begin();
+        workspace.new_card_requested.connect(() => {
+            controller.create_card.begin();
         });
-        add_action(new_card_action);
-    }
-
-    private Gtk.Widget build_workspace() {
-        var outer = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
-
-        var header = new Adw.HeaderBar();
-        title_label = new Gtk.Label("Editor");
-        header.set_title_widget(title_label);
-
-        var refresh_btn = new Gtk.Button.from_icon_name("view-refresh-symbolic");
-        refresh_btn.set_tooltip_text("Refresh projects and cards");
-        refresh_btn.set_action_name("win.refresh");
-
-        var new_project_btn = new Gtk.Button.from_icon_name("folder-new-symbolic");
-        new_project_btn.set_tooltip_text("Create a new project");
-        new_project_btn.set_action_name("win.new-project");
-
-        var new_card_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
-        new_card_btn.set_tooltip_text("Create a new card");
-        new_card_btn.set_action_name("win.new-card");
-
-        var ai_toggle_btn = new Gtk.ToggleButton();
-        ai_toggle_btn.set_icon_name("utilities-terminal-symbolic");
-        ai_toggle_btn.set_tooltip_text("Toggle AI status panel");
-        ai_toggle_btn.toggled.connect(() => {
-            ai_split.set_show_sidebar(ai_toggle_btn.get_active());
-            if (ai_toggle_btn.get_active()) {
+        workspace.ai_panel_toggled.connect((visible) => {
+            ai_split.set_show_sidebar(visible);
+            if (visible) {
                 refresh_ai_panel.begin();
             } else {
                 stop_ai_polling();
             }
         });
-
-        var toolbox_toggle_btn = new Gtk.ToggleButton();
-        toolbox_toggle_btn.set_icon_name("view-bottom-pane-symbolic");
-        toolbox_toggle_btn.set_tooltip_text("Toggle toolbox panel");
-        toolbox_toggle_btn.toggled.connect(() => {
-            toolbox.set_reveal_child(toolbox_toggle_btn.get_active());
-            if (toolbox_toggle_btn.get_active()) {
+        workspace.toolbox_toggled.connect((visible) => {
+            toolbox.set_reveal_child(visible);
+            if (visible) {
                 toolbox.log_debug("Toolbox opened");
                 toolbox.refresh_ai_catalog.begin();
             } else {
                 toolbox.log_debug("Toolbox closed");
             }
         });
-
-        header.pack_start(refresh_btn);
-        header.pack_end(toolbox_toggle_btn);
-        header.pack_end(ai_toggle_btn);
-        header.pack_end(new_project_btn);
-        header.pack_end(new_card_btn);
-        outer.append(header);
-
-        var search_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        search_row.set_margin_top(8);
-        search_row.set_margin_bottom(8);
-        search_row.set_margin_start(8);
-        search_row.set_margin_end(8);
-
-        search_entry = new Gtk.SearchEntry();
-        search_entry.set_placeholder_text("Search cards in current project...");
-        search_entry.set_hexpand(true);
-        search_entry.activate.connect(() => {
-            cancel_pending_search();
-            run_search.begin();
+        workspace.search_activated.connect(() => {
+            controller.cancel_pending_search();
+            controller.run_search.begin();
         });
-        search_entry.search_changed.connect(() => {
+        workspace.search_changed.connect(() => {
             var q = search_entry.get_text().strip();
             if (q.length == 0) {
-                cancel_pending_search();
-                clear_search_results();
+                controller.cancel_pending_search();
+                controller.clear_search_results();
                 show_editor_mode();
                 return;
             }
-            schedule_search();
+            controller.schedule_search();
         });
-
-        var search_key = new Gtk.EventControllerKey();
-        search_key.key_pressed.connect((keyval, keycode, state) => {
-            if (keyval == Gdk.Key.Down) {
-                if (search_store.get_n_items() > 0) {
-                    show_search_mode();
-                    if (search_selection.get_selected() == Gtk.INVALID_LIST_POSITION) {
-                        search_selection.set_selected(0);
-                    }
-                    search_list.grab_focus();
-                    return true;
-                }
-            }
-            return false;
-        });
-        search_entry.add_controller(search_key);
-
-        var clear_search_btn = new Gtk.Button.from_icon_name("edit-clear-symbolic");
-        clear_search_btn.set_tooltip_text("Clear search");
-        clear_search_btn.clicked.connect(() => {
+        workspace.search_cleared.connect(() => {
             search_entry.set_text("");
-            clear_search_results();
+            controller.clear_search_results();
             show_editor_mode();
         });
+        workspace.search_focus_results_requested.connect(() => {
+            if (search_store.get_n_items() == 0) {
+                return;
+            }
+            show_search_mode();
+            if (search_selection.get_selected() == Gtk.INVALID_LIST_POSITION) {
+                search_selection.set_selected(0);
+            }
+            search_list.grab_focus();
+        });
+        workspace.search_result_activated.connect((position) => {
+            controller.open_search_result_at.begin(position);
+        });
 
-        search_row.append(search_entry);
-        search_row.append(clear_search_btn);
-        outer.append(search_row);
+        project_selection.notify["selected"].connect(() => {
+            if (controller.should_ignore_project_selection_events()) {
+                return;
+            }
+            controller.on_project_selected();
+        });
 
-        editor_buffer = new GtkSource.Buffer(null);
-        editor_buffer.set_highlight_syntax(true);
-        editor_buffer.set_highlight_matching_brackets(true);
+        card_selection.notify["selected"].connect(() => {
+            if (controller.should_ignore_card_selection_events()) {
+                return;
+            }
+            controller.on_card_selected();
+        });
 
-        var lm = GtkSource.LanguageManager.get_default();
-        var markdown = lm.get_language("markdown");
-        if (markdown == null) {
-            markdown = lm.guess_language("note.md", null);
-        }
-        if (markdown != null) {
-            editor_buffer.set_language(markdown);
-        }
+        ai_thread_selection.notify["selected"].connect(() => {
+            controller.on_ai_thread_selected();
+        });
 
-        editor_view = new GtkSource.View.with_buffer(editor_buffer);
-        editor_view.set_monospace(true);
-        editor_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
-        editor_view.set_show_line_numbers(true);
-        editor_view.set_vexpand(true);
-        editor_view.set_hexpand(true);
-
-        var editor_scroll = new Gtk.ScrolledWindow();
-        editor_scroll.set_child(editor_view);
-        editor_scroll.set_vexpand(true);
-
-        var search_page = build_search_page();
-
-        content_stack = new Gtk.Stack();
-        content_stack.set_vexpand(true);
-        content_stack.set_hexpand(true);
-        content_stack.add_named(editor_scroll, "editor");
-        content_stack.add_named(search_page, "search");
-        content_stack.set_visible_child_name("editor");
-
-        ai_panel = new AiPanel();
+        editor_buffer.changed.connect(() => {
+            if (suppress_editor_events || controller.get_current_card() == null) {
+                return;
+            }
+            controller.schedule_autosave();
+        });
         ai_panel.send_requested.connect(() => {
             on_ai_send_clicked();
         });
@@ -266,14 +209,6 @@ public class MainWindow : Adw.ApplicationWindow {
             start_model_pull.begin(model_tag);
         });
 
-        ai_split = new Adw.OverlaySplitView();
-        ai_split.set_sidebar_position(Gtk.PackType.END);
-        ai_split.set_content(content_stack);
-        ai_split.set_sidebar(ai_panel.widget);
-        ai_split.set_show_sidebar(false);
-        ai_split.set_vexpand(true);
-
-        toolbox = new ToolboxPane();
         toolbox.error_reported.connect((title, details) => {
             show_error(title, details);
         });
@@ -281,334 +216,31 @@ public class MainWindow : Adw.ApplicationWindow {
             add_toast(message);
         });
 
-        outer.append(ai_split);
-        outer.append(toolbox.widget);
-        return outer;
+        controller.bootstrap.begin();
     }
 
-    private Gtk.Widget build_search_page() {
-        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
-        box.set_margin_top(8);
-        box.set_margin_bottom(8);
-        box.set_margin_start(8);
-        box.set_margin_end(8);
-
-        search_summary_label = new Gtk.Label("Search results will appear here.") { xalign = 0.0f };
-        search_summary_label.add_css_class("dim-label");
-        box.append(search_summary_label);
-
-        search_selection = new Gtk.SingleSelection(search_store);
-        var search_factory = new Gtk.SignalListItemFactory();
-        search_factory.setup.connect((item) => {
-            var list_item = (Gtk.ListItem) item;
-            var row = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
-            var title = new Gtk.Label("") { xalign = 0.0f };
-            title.add_css_class("title-5");
-            title.set_ellipsize(Pango.EllipsizeMode.END);
-            var snippet = new Gtk.Label("") { xalign = 0.0f };
-            snippet.add_css_class("dim-label");
-            snippet.set_wrap(true);
-            snippet.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
-            snippet.set_max_width_chars(80);
-            row.append(title);
-            row.append(snippet);
-            list_item.set_child(row);
+    construct {
+        var refresh_action = new SimpleAction("refresh", null);
+        refresh_action.activate.connect(() => {
+            controller.reload_everything.begin();
         });
-        search_factory.bind.connect((item) => {
-            var list_item = (Gtk.ListItem) item;
-            var result = list_item.get_item() as SearchCardResult;
-            var row = list_item.get_child() as Gtk.Box;
-            var title = row.get_first_child() as Gtk.Label;
-            var snippet = title.get_next_sibling() as Gtk.Label;
-            if (result == null) {
-                title.set_text("");
-                snippet.set_text("");
-                return;
-            }
-            title.set_text(result.title);
-            snippet.set_text(result.snippet);
+        add_action(refresh_action);
+
+        var new_project_action = new SimpleAction("new-project", null);
+        new_project_action.activate.connect(() => {
+            show_new_project_dialog();
         });
+        add_action(new_project_action);
 
-        search_list = new Gtk.ListView(search_selection, search_factory);
-        search_list.activate.connect((position) => {
-            open_search_result_at.begin((uint) position);
+        var new_card_action = new SimpleAction("new-card", null);
+        new_card_action.activate.connect(() => {
+            controller.create_card.begin();
         });
-
-        var scroll = new Gtk.ScrolledWindow();
-        scroll.set_vexpand(true);
-        scroll.set_child(search_list);
-        box.append(scroll);
-
-        return box;
-    }
-
-    private async void bootstrap() {
-        set_status("Discovering local server...");
-        set_editor_state("# Loading\n\nDiscovering local server...", false);
-
-        ServerInfo info;
-        try {
-            info = Discovery.discover_server();
-        } catch (Error e) {
-            set_status(e.message);
-            set_editor_state(
-                "# Holder Not Found\n\n" +
-                "Start the backend first, then reopen this app.\n\n" +
-                "Expected file:\n`%s`\n".printf(Discovery.holder_info_path())
-                ,
-                false
-            );
-            return;
-        }
-
-        api = new ApiClient(info.base_url(), info.auth_token);
-        toolbox.set_api_client(api);
-        set_status("Checking API health...");
-        set_editor_state("# Loading\n\nChecking API health...", false);
-        try {
-            yield api.health_check();
-        } catch (Error e) {
-            set_status("Health check failed");
-            set_editor_state(
-                "# Health Check Failed\n\n" +
-                "Could not connect to the Holder API.\n\n" +
-                e.message,
-                false
-            );
-            show_error("Health check failed", e.message);
-            return;
-        }
-
-        set_status("Connected to %s:%d (API %s)".printf(info.bind, info.port, info.api_version));
-        yield ensure_first_project();
-        yield reload_everything();
-        refresh_ai_panel.begin();
-    }
-
-    private async void ensure_first_project() {
-        if (api == null) {
-            return;
-        }
-
-        try {
-            var projects = yield api.list_projects();
-            if (projects.size == 0) {
-                var project_id = yield api.create_project("My Project");
-                add_toast("Created first project (%s)".printf(project_id));
-            }
-        } catch (Error e) {
-            show_error("Project bootstrap failed", e.message);
-        }
-    }
-
-    private async void reload_everything() {
-        var preferred_project_id = selected_project_id();
-        var preferred_card_id = selected_card_id();
-        yield reload_everything_with_selection(preferred_project_id, preferred_card_id);
-    }
-
-    private async void reload_everything_with_selection(string? preferred_project_id,
-                                                        string? preferred_card_id) {
-        if (api == null) {
-            return;
-        }
-
-        set_status("Refreshing projects...");
-        try {
-            var projects = yield api.list_projects();
-            replace_projects(projects);
-            if (project_store.get_n_items() == 0) {
-                current_project = null;
-                clear_cards();
-                set_editor_state("# No Projects\n\nCreate a project to start writing.", false);
-                return;
-            }
-
-            var selected = false;
-            if (preferred_project_id != null) {
-                selected = select_project_by_id(preferred_project_id);
-            }
-            if (!selected) {
-                suppress_project_selection_events = true;
-                project_selection.set_selected(0);
-                suppress_project_selection_events = false;
-            }
-            yield reload_cards_for_selected_project(preferred_card_id);
-            refresh_ai_panel.begin();
-        } catch (Error e) {
-            show_error("Failed to refresh", e.message);
-        }
-    }
-
-    private void on_project_selected() {
-        reload_cards_for_selected_project.begin();
-    }
-
-    private async void reload_cards_for_selected_project(string? preferred_card_id = null) {
-        if (api == null) {
-            return;
-        }
-
-        var selected = project_selection.get_selected_item() as Project;
-        if (selected == null) {
-            current_project = null;
-            clear_cards();
-            return;
-        }
-
-        current_project = selected;
-        update_window_title(selected.name);
-        set_status("Loading cards for %s...".printf(selected.name));
-
-        try {
-            var cards = yield api.list_cards(selected.project_id);
-            replace_cards(cards);
-            yield reload_ai_threads_for_project(selected.project_id);
-            if (card_store.get_n_items() == 0) {
-                current_card = null;
-                set_editor_state(
-                    "# %s\n\nNo cards yet. Create one with the + button.".printf(selected.name),
-                    false
-                );
-                return;
-            }
-
-            var selected_card = false;
-            if (preferred_card_id != null) {
-                selected_card = select_card_by_id(preferred_card_id);
-            }
-            if (!selected_card) {
-                suppress_card_selection_events = true;
-                card_selection.set_selected(0);
-                suppress_card_selection_events = false;
-            }
-            load_selected_card.begin();
-        } catch (Error e) {
-            show_error("Failed to load cards", e.message);
-        }
-    }
-
-    private void on_card_selected() {
-        load_selected_card.begin();
-    }
-
-    private void on_ai_thread_selected() {
-        var selected = ai_thread_selection.get_selected_item() as AiThreadSummary;
-        current_ai_thread = selected;
-        if (selected == null) {
-            ai_panel.set_thread_title(null);
-            return;
-        }
-        ai_panel.set_thread_title(selected.title);
-    }
-
-    private async void load_selected_card() {
-        if (api == null) {
-            return;
-        }
-
-        var selected = card_selection.get_selected_item() as CardSummary;
-        if (selected == null) {
-            current_card = null;
-            set_editor_state("# No Card Selected\n\nSelect a card from the sidebar.", false);
-            return;
-        }
-
-        set_status("Loading card...");
-        set_editor_state("Loading card...", false);
-        try {
-            var card = yield api.get_card(selected.card_id);
-            current_card = card;
-            set_editor_state(card.content, true);
-            show_editor_mode();
-            update_window_title(card.title);
-            set_status("Loaded %s".printf(card.title));
-        } catch (Error e) {
-            set_editor_state(
-                "# Error\n\nFailed to load card `%s`.\n\n%s".printf(selected.card_id, e.message),
-                false
-            );
-            show_error("Failed to load card", e.message);
-        }
-    }
-
-    private async void create_card() {
-        if (create_card_in_flight) {
-            set_status("Create card already in progress...");
-            return;
-        }
-        if (api == null) {
-            show_error("Create card unavailable", "API client is not connected.");
-            return;
-        }
-
-        if (current_project == null) {
-            var selected = project_selection.get_selected_item() as Project;
-            if (selected != null) {
-                current_project = selected;
-            }
-        }
-        if (current_project == null) {
-            show_error("No project selected", "Select or create a project first.");
-            return;
-        }
-
-        var initial_title = "Untitled";
-        var initial_body = "# Untitled\n\n";
-
-        create_card_in_flight = true;
-        set_status("Creating new card...");
-        try {
-            var new_id = yield api.create_card(current_project.project_id, initial_title, initial_body);
-            var cards = yield api.list_cards(current_project.project_id);
-            replace_cards(cards);
-
-            for (uint i = 0; i < card_store.get_n_items(); i++) {
-                var item = card_store.get_item(i) as CardSummary;
-                if (item != null && item.card_id == new_id) {
-                    card_selection.set_selected(i);
-                    break;
-                }
-            }
-
-            add_toast("New card created");
-            set_status("Created new card");
-        } catch (Error e) {
-            show_error("Failed to create card", e.message);
-        } finally {
-            create_card_in_flight = false;
-        }
-    }
-
-    private async void run_search() {
-        if (api == null) {
-            return;
-        }
-        if (current_project == null) {
-            show_error("Search unavailable", "No project selected.");
-            return;
-        }
-
-        var query_text = search_entry.get_text().strip();
-        if (query_text.length == 0) {
-            clear_search_results();
-            show_editor_mode();
-            return;
-        }
-
-        set_status("Searching for \"%s\"...".printf(query_text));
-        try {
-            var results = yield api.search_cards(current_project.project_id, query_text);
-            replace_search_results(results);
-            search_summary_label.set_text("%d result(s) for \"%s\"".printf(results.size, query_text));
-            show_search_mode();
-            set_status("Search complete");
-        } catch (Error e) {
-            show_error("Search failed", e.message);
-        }
+        add_action(new_card_action);
     }
 
     private async void refresh_ai_panel() {
+        var api = controller.get_api_client();
         if (api == null) {
             return;
         }
@@ -635,11 +267,11 @@ public class MainWindow : Adw.ApplicationWindow {
             show_error("Prompt required", "Type a prompt before sending.");
             return;
         }
-        if (current_project == null) {
+        if (controller.get_current_project() == null) {
             show_error("No project selected", "Select a project before using the assistant.");
             return;
         }
-        if (current_ai_thread == null) {
+        if (controller.get_current_ai_thread() == null) {
             create_ai_thread_named.begin("Thread %s".printf(now_epoch_seconds().to_string()), true);
             return;
         }
@@ -648,6 +280,10 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private async void send_prompt_to_ai(string prompt) {
+        var api = controller.get_api_client();
+        var current_project = controller.get_current_project();
+        var current_ai_thread = controller.get_current_ai_thread();
+        var current_card = controller.get_current_card();
         if (api == null || current_project == null || current_ai_thread == null) {
             show_error("Cannot run AI", "Missing API, project, or thread context.");
             return;
@@ -692,12 +328,13 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private async void create_ai_thread_named(string title, bool continue_send) {
-        if (api == null || current_project == null) {
+        var current_project = controller.get_current_project();
+        if (current_project == null) {
             show_error("Cannot create thread", "No project/API context.");
             return;
         }
         try {
-            var thread_id = yield api.create_ai_thread(current_project.project_id, title);
+            var thread_id = yield controller.create_ai_thread(title);
             yield reload_ai_threads_for_project(current_project.project_id);
             if (thread_id.length > 0) {
                 select_ai_thread_by_id(thread_id);
@@ -708,75 +345,6 @@ public class MainWindow : Adw.ApplicationWindow {
             }
         } catch (Error e) {
             show_error("Failed to create AI thread", e.message);
-        }
-    }
-
-    private void schedule_search() {
-        if (search_debounce_id != 0) {
-            Source.remove(search_debounce_id);
-        }
-        search_debounce_id = Timeout.add(300, () => {
-            search_debounce_id = 0;
-            run_search.begin();
-            return Source.REMOVE;
-        });
-    }
-
-    private void cancel_pending_search() {
-        if (search_debounce_id == 0) {
-            return;
-        }
-        Source.remove(search_debounce_id);
-        search_debounce_id = 0;
-    }
-
-    private async void open_search_result_at(uint position) {
-        var item = search_store.get_item(position) as SearchCardResult;
-        if (item == null) {
-            return;
-        }
-
-        if (!select_card_by_id(item.card_id)) {
-            yield reload_cards_for_selected_project(item.card_id);
-        } else {
-            load_selected_card.begin();
-        }
-    }
-
-    private void schedule_autosave() {
-        if (autosave_id != 0) {
-            Source.remove(autosave_id);
-        }
-
-        autosave_id = Timeout.add(900, () => {
-            autosave_id = 0;
-            autosave_current_card.begin();
-            return Source.REMOVE;
-        });
-    }
-
-    private async void autosave_current_card() {
-        if (api == null || current_card == null) {
-            return;
-        }
-
-        Gtk.TextIter start;
-        Gtk.TextIter end;
-        editor_buffer.get_bounds(out start, out end);
-        var text = editor_buffer.get_text(start, end, false);
-        var title = title_from_content(text);
-        var updated_at = now_epoch_seconds();
-
-        try {
-            yield api.update_card(current_card.card_id, title, text, updated_at);
-            current_card.title = title;
-            current_card.content = text;
-            current_card.updated_at = updated_at;
-            update_selected_card_summary(title, updated_at);
-            update_window_title(title);
-            set_status("Saved %s".printf(format_relative_time(updated_at)));
-        } catch (Error e) {
-            show_error("Autosave failed", e.message);
         }
     }
 
@@ -812,81 +380,11 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private async void create_project_named(string name) {
-        if (api == null) {
-            return;
-        }
-
-        set_status("Creating project...");
-        try {
-            var project_id = yield api.create_project(name);
-            add_toast("Created project: %s".printf(name));
-            set_status("Project created");
-            yield reload_everything_with_selection(project_id, null);
-        } catch (Error e) {
-            show_error("Failed to create project", e.message);
-        }
+        yield controller.create_project_named(name);
     }
 
     private async void reload_ai_threads_for_project(string project_id) {
-        if (api == null) {
-            return;
-        }
-        try {
-            var threads = yield api.list_ai_threads(project_id);
-            replace_ai_threads(threads);
-            if (ai_thread_store.get_n_items() > 0) {
-                ai_thread_selection.set_selected(0);
-            } else {
-                current_ai_thread = null;
-                ai_panel.set_thread_title(null);
-            }
-        } catch (Error e) {
-            show_error("Failed to load AI threads", e.message);
-        }
-    }
-
-    private void replace_projects(Gee.ArrayList<Project> projects) {
-        project_store.remove_all();
-        foreach (var project in projects) {
-            project_store.append(project);
-        }
-    }
-
-    private void replace_cards(Gee.ArrayList<CardSummary> cards) {
-        card_store.remove_all();
-        foreach (var card in cards) {
-            card_store.append(card);
-        }
-    }
-
-    private void replace_ai_threads(Gee.ArrayList<AiThreadSummary> threads) {
-        ai_thread_store.remove_all();
-        foreach (var thread in threads) {
-            ai_thread_store.append(thread);
-        }
-    }
-
-    private void clear_cards() {
-        card_store.remove_all();
-        current_card = null;
-        ai_thread_store.remove_all();
-        current_ai_thread = null;
-        ai_panel.set_thread_title(null);
-    }
-
-    private void replace_search_results(Gee.ArrayList<SearchCardResult> results) {
-        search_store.remove_all();
-        foreach (var result in results) {
-            search_store.append(result);
-        }
-        if (results.size > 0) {
-            search_selection.set_selected(0);
-        }
-    }
-
-    private void clear_search_results() {
-        search_store.remove_all();
-        search_summary_label.set_text("Search results will appear here.");
+        yield controller.reload_ai_threads_for_project(project_id);
     }
 
     private void set_status(string text) {
@@ -900,13 +398,12 @@ public class MainWindow : Adw.ApplicationWindow {
 
     private void set_editor_state(string text, bool editable) {
         suppress_editor_events = true;
-        editor_buffer.set_text(text, -1);
-        editor_view.set_editable(editable);
+        workspace.set_editor_state(text, editable);
         suppress_editor_events = false;
     }
 
     private void update_window_title(string title_text) {
-        title_label.set_text(title_text);
+        workspace.set_window_title_text(title_text);
         title = title_text;
     }
 
@@ -923,11 +420,11 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void show_editor_mode() {
-        content_stack.set_visible_child_name("editor");
+        workspace.show_editor_mode();
     }
 
     private void show_search_mode() {
-        content_stack.set_visible_child_name("search");
+        workspace.show_search_mode();
     }
 
     private void update_ai_polling(bool should_poll) {
@@ -970,85 +467,11 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private string? selected_project_id() {
-        var selected = project_selection.get_selected_item() as Project;
-        if (selected == null) {
-            return null;
-        }
-        return selected.project_id;
-    }
-
-    private string? selected_card_id() {
-        var selected = card_selection.get_selected_item() as CardSummary;
-        if (selected == null) {
-            return null;
-        }
-        return selected.card_id;
-    }
-
-    private bool select_project_by_id(string project_id) {
-        for (uint i = 0; i < project_store.get_n_items(); i++) {
-            var project = project_store.get_item(i) as Project;
-            if (project != null && project.project_id == project_id) {
-                suppress_project_selection_events = true;
-                project_selection.set_selected(i);
-                suppress_project_selection_events = false;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private bool select_card_by_id(string card_id) {
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
-            if (card != null && card.card_id == card_id) {
-                suppress_card_selection_events = true;
-                card_selection.set_selected(i);
-                suppress_card_selection_events = false;
-                return true;
-            }
-        }
-        return false;
+        return controller.selected_project_id();
     }
 
     private bool select_ai_thread_by_id(string thread_id) {
-        for (uint i = 0; i < ai_thread_store.get_n_items(); i++) {
-            var thread = ai_thread_store.get_item(i) as AiThreadSummary;
-            if (thread != null && thread.thread_id == thread_id) {
-                ai_thread_selection.set_selected(i);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void update_selected_card_summary(string title, int64 updated_at) {
-        if (current_card == null) {
-            return;
-        }
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
-            if (card == null || card.card_id != current_card.card_id) {
-                continue;
-            }
-            var replacement = new CardSummary(
-                card.card_id,
-                card.project_id,
-                title,
-                card.rel_path,
-                card.created_at,
-                updated_at
-            );
-            var selected_pos = card_selection.get_selected();
-            card_store.remove(i);
-            card_store.insert(i, replacement);
-            if (selected_pos == i) {
-                suppress_card_selection_events = true;
-                card_selection.set_selected(i);
-                suppress_card_selection_events = false;
-            }
-            break;
-        }
+        return controller.select_ai_thread_by_id(thread_id);
     }
 
     private void handle_ai_run_event(string event_name, Json.Object data) {
@@ -1098,6 +521,7 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private async void start_model_pull(string model_tag) {
+        var api = controller.get_api_client();
         if (api == null) {
             return;
         }
@@ -1121,13 +545,6 @@ public class MainWindow : Adw.ApplicationWindow {
         return new DateTime.now_utc().to_unix();
     }
 
-    private string title_from_content(string text) {
-        return TextUtils.title_from_content(text);
-    }
-
-    private string format_relative_time(int64 timestamp) {
-        return TextUtils.format_relative_time(now_epoch_seconds(), timestamp);
-    }
 }
 
 }
