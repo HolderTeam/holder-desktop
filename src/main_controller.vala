@@ -14,6 +14,7 @@ public class MainController : Object, IAiRunContext {
 
     private IHolderApi? api;
     private IApiFactory api_factory;
+    private IServerDiscovery server_discovery;
     private IClock clock;
     private IScheduler scheduler;
     private Project? current_project;
@@ -48,7 +49,8 @@ public class MainController : Object, IAiRunContext {
                           ISelectionState search_selection,
                           ITextProvider search_text,
                           ITextProvider editor_text,
-                          IApiFactory? api_factory = null,
+                          IApiFactory api_factory,
+                          IServerDiscovery server_discovery,
                           IClock? clock = null,
                           IScheduler? scheduler = null,
                           IHolderApi? initial_api = null) {
@@ -62,7 +64,8 @@ public class MainController : Object, IAiRunContext {
         this.search_selection = search_selection;
         this.search_text = search_text;
         this.editor_text = editor_text;
-        this.api_factory = api_factory ?? new DefaultApiFactory();
+        this.api_factory = api_factory;
+        this.server_discovery = server_discovery;
         this.clock = clock ?? new SystemClock();
         this.scheduler = scheduler ?? new MainLoopScheduler();
         this.api = initial_api;
@@ -136,13 +139,13 @@ public class MainController : Object, IAiRunContext {
 
         ServerInfo info;
         try {
-            info = Discovery.discover_server();
+            info = server_discovery.discover_server();
         } catch (Error e) {
             status_changed(e.message);
             editor_state_changed(
                 "# Holder Not Found\n\n" +
                 "Start the backend first, then reopen this app.\n\n" +
-                "Expected file:\n`%s`\n".printf(Discovery.holder_info_path()),
+                "Expected file:\n`%s`\n".printf(server_discovery.holder_info_path()),
                 false
             );
             return;

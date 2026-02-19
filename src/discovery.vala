@@ -70,4 +70,14 @@ public class Discovery : Object {
     }
 }
 
+public class FileServerDiscovery : Object, IServerDiscovery {
+    public ServerInfo discover_server() throws Error {
+        return Discovery.discover_server();
+    }
+
+    public string holder_info_path() {
+        return Discovery.holder_info_path();
+    }
+}
+
 }

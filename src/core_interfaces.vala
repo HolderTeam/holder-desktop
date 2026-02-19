@@ -37,6 +37,11 @@ public interface IApiFactory : Object {
     public abstract IHolderApi create(string base_url, string auth_token);
 }
 
+public interface IServerDiscovery : Object {
+    public abstract ServerInfo discover_server() throws Error;
+    public abstract string holder_info_path();
+}
+
 public interface IClock : Object {
     public abstract int64 now_epoch_seconds();
 }

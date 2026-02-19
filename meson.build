@@ -86,15 +86,12 @@ main_controller_test_exe = executable(
     'src/core_interfaces.vala',
     'src/text_utils.vala',
     'src/main_controller.vala',
-    'src/discovery.vala',
-    'src/api_client.vala',
     'tests/main_controller_test.vala',
   ],
   dependencies: [
     dependency('gio-2.0'),
     dependency('gee-0.8'),
     dependency('json-glib-1.0'),
-    dependency('libsoup-3.0'),
   ],
   vala_args: [
     '--target-glib=2.70',

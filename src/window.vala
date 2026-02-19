@@ -69,7 +69,9 @@ public class MainWindow : Adw.ApplicationWindow {
             search_store,
             new GtkSingleSelectionState(search_selection),
             new SearchEntryTextProvider(search_entry),
-            new SourceBufferTextProvider(editor_buffer)
+            new SourceBufferTextProvider(editor_buffer),
+            new DefaultApiFactory(),
+            new FileServerDiscovery()
         );
         ai_run_controller = new AiRunController(controller);
 

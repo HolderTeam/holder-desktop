@@ -185,6 +185,34 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     }
 }
 
+private class FakeApiFactory : Object, HolderLinux.IApiFactory {
+    private HolderLinux.IHolderApi api;
+
+    public FakeApiFactory(HolderLinux.IHolderApi api) {
+        this.api = api;
+    }
+
+    public HolderLinux.IHolderApi create(string base_url, string auth_token) {
+        return api;
+    }
+}
+
+private class FakeServerDiscovery : Object, HolderLinux.IServerDiscovery {
+    public HolderLinux.ServerInfo info;
+
+    public FakeServerDiscovery() {
+        info = new HolderLinux.ServerInfo(1, "127.0.0.1", 8080, 1, "0.1", "0.1", "token");
+    }
+
+    public HolderLinux.ServerInfo discover_server() throws Error {
+        return info;
+    }
+
+    public string holder_info_path() {
+        return "/tmp/holder.json";
+    }
+}
+
 private HolderLinux.MainController make_controller(FakeApi api,
                                                    FakeScheduler scheduler,
                                                    FakeClock clock,
@@ -206,7 +234,8 @@ private HolderLinux.MainController make_controller(FakeApi api,
         new StoreSelectionState(search_store),
         search_text,
         editor_text,
-        null,
+        new FakeApiFactory(api),
+        new FakeServerDiscovery(),
         clock,
         scheduler,
         api
