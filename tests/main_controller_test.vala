@@ -116,6 +116,8 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     public bool include_created_card = false;
     public bool fail_update_card = false;
     public bool fail_search = false;
+    public bool fail_get_card = false;
+    public bool fail_list_cards = false;
     private int list_projects_index = 0;
 
     public async void health_check() throws Error {
@@ -147,6 +149,9 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async Gee.ArrayList<HolderLinux.CardSummary> list_cards(string project_id) throws Error {
+        if (fail_list_cards) {
+            throw new IOError.FAILED("list cards failed");
+        }
         list_cards_calls++;
         var cards = new Gee.ArrayList<HolderLinux.CardSummary>();
         if (list_cards_empty) {
@@ -163,6 +168,9 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async HolderLinux.CardDetail get_card(string card_id) throws Error {
+        if (fail_get_card) {
+            throw new IOError.FAILED("get card failed");
+        }
         get_card_calls++;
         return new HolderLinux.CardDetail(card_id, "p1", "Card 1", "# Card 1\n\nBody", 20);
     }
@@ -301,7 +309,8 @@ private HolderLinux.MainController make_controller(FakeApi api,
                                                    MutableTextProvider search_text,
                                                    MutableTextProvider editor_text,
                                                    FakeServerDiscovery? discovery = null,
-                                                   HolderLinux.IHolderApi? initial_api = null) {
+                                                   HolderLinux.IHolderApi? initial_api = null,
+                                                   bool inject_initial_api = true) {
     var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
     var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
     var thread_store = new GLib.ListStore(typeof(HolderLinux.AiThreadSummary));
@@ -322,7 +331,7 @@ private HolderLinux.MainController make_controller(FakeApi api,
         discovery ?? new FakeServerDiscovery(),
         clock,
         scheduler,
-        initial_api ?? api
+        inject_initial_api ? (initial_api ?? api) : null
     );
     return controller;
 }
@@ -509,6 +518,19 @@ private void test_create_project_error_emits_error() {
     });
     controller.create_project_named.begin("X");
     assert(wait_for(() => got_error));
+}
+
+private void test_create_project_with_no_api_is_noop() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text, null, null, false);
+
+    controller.create_project_named.begin("X");
+    assert(wait_for(() => true));
+    assert(api.create_project_calls == 0);
 }
 
 private void test_create_card_success_selects_created_card() {
@@ -711,6 +733,20 @@ private void test_run_search_failure_emits_error() {
     assert(wait_for(() => got_error));
 }
 
+private void test_run_search_with_no_api_is_noop() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text, null, null, false);
+    search_text.value = "hello";
+
+    controller.run_search.begin();
+    assert(wait_for(() => true));
+    assert(api.search_calls == 0);
+}
+
 private void test_reload_everything_with_no_projects_sets_empty_state() {
     var api = new FakeApi();
     api.list_projects_empty = true;
@@ -749,6 +785,25 @@ private void test_reload_everything_with_no_cards_sets_empty_state() {
     controller.reload_everything.begin();
     assert(wait_for(() => saw_no_cards));
     assert(controller.get_current_card() == null);
+}
+
+private void test_reload_cards_error_emits_error() {
+    var api = new FakeApi();
+    api.fail_list_cards = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Failed to load cards") {
+            got_error = true;
+        }
+    });
+    controller.reload_everything.begin();
+    assert(wait_for(() => got_error));
 }
 
 private void test_cancel_pending_search_prevents_scheduled_run() {
@@ -804,6 +859,25 @@ private void test_select_ai_thread_by_unknown_id_returns_false() {
     assert(!controller.select_ai_thread_by_id("does-not-exist"));
 }
 
+private void test_on_ai_thread_selected_with_no_selection_emits_null_title() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    bool saw_null = false;
+    controller.ai_thread_title_changed.connect((title) => {
+        if (title == null) {
+            saw_null = true;
+        }
+    });
+    controller.on_ai_thread_selected();
+    assert(wait_for(() => saw_null));
+    assert(controller.get_current_ai_thread() == null);
+}
+
 private void test_on_ai_thread_selected_emits_title_and_sets_current_thread() {
     var api = new FakeApi();
     var scheduler = new FakeScheduler();
@@ -841,6 +915,138 @@ private void test_open_search_result_with_empty_store_is_noop() {
     controller.open_search_result_at.begin(0);
     assert(wait_for(() => true));
     assert(api.get_card_calls == card_calls_before);
+}
+
+private void test_load_selected_card_failure_emits_error() {
+    var api = new FakeApi();
+    api.fail_get_card = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Failed to load card") {
+            got_error = true;
+        }
+    });
+    controller.reload_everything.begin();
+    assert(wait_for(() => got_error));
+}
+
+private void test_autosave_failure_emits_error() {
+    var api = new FakeApi();
+    api.fail_update_card = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    controller.reload_everything.begin();
+    assert(wait_for(() => controller.get_current_card() != null));
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Autosave failed") {
+            got_error = true;
+        }
+    });
+    editor_text.value = "# New title";
+    controller.autosave_current_card.begin();
+    assert(wait_for(() => got_error));
+}
+
+private void test_autosave_without_card_is_noop() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    controller.autosave_current_card.begin();
+    assert(wait_for(() => true));
+    assert(api.update_card_calls == 0);
+}
+
+private void test_create_ai_thread_success() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    controller.reload_everything.begin();
+    assert(wait_for(() => controller.get_current_project() != null));
+
+    bool done = false;
+    bool ok = false;
+    controller.create_ai_thread.begin("Thread", (obj, res) => {
+        try {
+            var id = controller.create_ai_thread.end(res);
+            ok = (id == "t-created");
+        } catch (Error e) {
+            ok = false;
+        }
+        done = true;
+    });
+    assert(wait_for(() => done));
+    assert(ok);
+}
+
+private void test_create_ai_thread_without_context_throws() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text, null, null, false);
+
+    bool done = false;
+    bool got_error = false;
+    controller.create_ai_thread.begin("Thread", (obj, res) => {
+        try {
+            controller.create_ai_thread.end(res);
+        } catch (Error e) {
+            got_error = true;
+        }
+        done = true;
+    });
+    assert(wait_for(() => done));
+    assert(got_error);
+}
+
+private void test_reload_ai_threads_without_api_is_noop() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text, null, null, false);
+
+    controller.reload_ai_threads_for_project.begin("p1");
+    assert(wait_for(() => true));
+    assert(api.list_threads_calls == 0);
+}
+
+private void test_create_card_without_api_emits_unavailable() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text, null, null, false);
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Create card unavailable") {
+            got_error = true;
+        }
+    });
+    controller.create_card.begin();
+    assert(wait_for(() => got_error));
 }
 
 private void test_bootstrap_success_emits_ready_and_refresh() {
@@ -913,6 +1119,10 @@ int main(string[] args) {
         test_create_project_error_emits_error
     );
     Test.add_func(
+        "/main_controller/create_project_with_no_api_is_noop",
+        test_create_project_with_no_api_is_noop
+    );
+    Test.add_func(
         "/main_controller/create_card_success_selects_created_card",
         test_create_card_success_selects_created_card
     );
@@ -949,12 +1159,20 @@ int main(string[] args) {
         test_run_search_failure_emits_error
     );
     Test.add_func(
+        "/main_controller/run_search_with_no_api_is_noop",
+        test_run_search_with_no_api_is_noop
+    );
+    Test.add_func(
         "/main_controller/reload_everything_with_no_projects_sets_empty_state",
         test_reload_everything_with_no_projects_sets_empty_state
     );
     Test.add_func(
         "/main_controller/reload_everything_with_no_cards_sets_empty_state",
         test_reload_everything_with_no_cards_sets_empty_state
+    );
+    Test.add_func(
+        "/main_controller/reload_cards_error_emits_error",
+        test_reload_cards_error_emits_error
     );
     Test.add_func(
         "/main_controller/cancel_pending_search_prevents_scheduled_run",
@@ -969,12 +1187,44 @@ int main(string[] args) {
         test_select_ai_thread_by_unknown_id_returns_false
     );
     Test.add_func(
+        "/main_controller/on_ai_thread_selected_with_no_selection_emits_null_title",
+        test_on_ai_thread_selected_with_no_selection_emits_null_title
+    );
+    Test.add_func(
         "/main_controller/on_ai_thread_selected_emits_title_and_sets_current_thread",
         test_on_ai_thread_selected_emits_title_and_sets_current_thread
     );
     Test.add_func(
         "/main_controller/open_search_result_with_empty_store_is_noop",
         test_open_search_result_with_empty_store_is_noop
+    );
+    Test.add_func(
+        "/main_controller/load_selected_card_failure_emits_error",
+        test_load_selected_card_failure_emits_error
+    );
+    Test.add_func(
+        "/main_controller/autosave_failure_emits_error",
+        test_autosave_failure_emits_error
+    );
+    Test.add_func(
+        "/main_controller/autosave_without_card_is_noop",
+        test_autosave_without_card_is_noop
+    );
+    Test.add_func(
+        "/main_controller/create_ai_thread_success",
+        test_create_ai_thread_success
+    );
+    Test.add_func(
+        "/main_controller/create_ai_thread_without_context_throws",
+        test_create_ai_thread_without_context_throws
+    );
+    Test.add_func(
+        "/main_controller/reload_ai_threads_without_api_is_noop",
+        test_reload_ai_threads_without_api_is_noop
+    );
+    Test.add_func(
+        "/main_controller/create_card_without_api_emits_unavailable",
+        test_create_card_without_api_emits_unavailable
     );
     Test.add_func(
         "/main_controller/bootstrap_success_emits_ready_and_refresh",
