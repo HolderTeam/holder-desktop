@@ -61,6 +61,7 @@ test('holder-linux-tests', test_exe)
 ai_controller_test_exe = executable(
   'holder-linux-ai-controller-tests',
   [
+    'tests/support/test_utils.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/controllers/ai_run_controller.vala',
@@ -82,6 +83,7 @@ test('holder-linux-ai-controller-tests', ai_controller_test_exe)
 main_controller_test_exe = executable(
   'holder-linux-main-controller-tests',
   [
+    'tests/support/test_utils.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/utils/text_utils.vala',

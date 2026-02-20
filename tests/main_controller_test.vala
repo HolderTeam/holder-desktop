@@ -10,52 +10,6 @@ private class FakeClock : Object, HolderLinux.IClock {
     }
 }
 
-private class FakeScheduler : Object, HolderLinux.IScheduler {
-    private class OneShotTask : Object {
-        public uint id;
-        public SourceFunc callback;
-
-        public OneShotTask(uint id, owned SourceFunc callback) {
-            this.id = id;
-            this.callback = (owned) callback;
-        }
-    }
-
-    private uint next_id = 1;
-    private Gee.ArrayList<OneShotTask> one_shots = new Gee.ArrayList<OneShotTask>();
-
-    public uint schedule_once(uint delay_ms, owned SourceFunc callback) {
-        var id = next_id++;
-        one_shots.add(new OneShotTask(id, (owned) callback));
-        return id;
-    }
-
-    public uint schedule_repeating(uint interval_ms, owned SourceFunc callback) {
-        return next_id++;
-    }
-
-    public bool cancel(uint source_id) {
-        for (int i = 0; i < one_shots.size; i++) {
-            if (one_shots[i].id == source_id) {
-                one_shots.remove_at(i);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public void run_all_once() {
-        var tasks = new Gee.ArrayList<OneShotTask>();
-        foreach (var task in one_shots) {
-            tasks.add(task);
-        }
-        one_shots.clear();
-        foreach (var task in tasks) {
-            task.callback();
-        }
-    }
-}
-
 private class StoreSelectionState : Object, HolderLinux.ISelectionState {
     private GLib.ListStore store;
     private uint selected = uint.MAX;
@@ -94,7 +48,7 @@ private class TestHarness : Object {
     public HolderLinux.MainController controller;
 
     public TestHarness(FakeApi api,
-                       FakeScheduler scheduler,
+                       TestScheduler scheduler,
                        FakeClock clock,
                        FakeServerDiscovery? discovery = null,
                        HolderLinux.IHolderApi? initial_api = null,
@@ -159,6 +113,7 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     public bool search_returns_card2 = false;
     public bool list_projects_empty = false;
     public bool list_projects_empty_first = false;
+    public bool fail_list_projects = false;
     public bool list_cards_empty = false;
     public bool slow_create_card = false;
     public bool list_threads_empty = false;
@@ -176,6 +131,9 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
+        if (fail_list_projects) {
+            throw new IOError.FAILED("list projects failed");
+        }
         list_projects_calls++;
         list_projects_index++;
         var projects = new Gee.ArrayList<HolderLinux.Project>();
@@ -353,7 +311,7 @@ private class FakeServerDiscovery : Object, HolderLinux.IServerDiscovery {
 }
 
 private HolderLinux.MainController make_controller(FakeApi api,
-                                                   FakeScheduler scheduler,
+                                                   TestScheduler scheduler,
                                                    FakeClock clock,
                                                    MutableTextProvider search_text,
                                                    MutableTextProvider editor_text,
@@ -386,7 +344,7 @@ private HolderLinux.MainController make_controller(FakeApi api,
 }
 
 private TestHarness make_harness(FakeApi api,
-                                 FakeScheduler scheduler,
+                                 TestScheduler scheduler,
                                  FakeClock clock,
                                  FakeServerDiscovery? discovery = null,
                                  HolderLinux.IHolderApi? initial_api = null,
@@ -394,40 +352,9 @@ private TestHarness make_harness(FakeApi api,
     return new TestHarness(api, scheduler, clock, discovery, initial_api, inject_initial_api);
 }
 
-private bool wait_for(owned SourceFunc condition) {
-    var loop = new MainLoop();
-    bool ok = false;
-    uint poll_id = 0;
-    uint timeout_id = 0;
-
-    poll_id = Timeout.add(10, () => {
-        if (condition()) {
-            ok = true;
-            poll_id = 0;
-            loop.quit();
-            return Source.REMOVE;
-        }
-        return Source.CONTINUE;
-    });
-    timeout_id = Timeout.add(1500, () => {
-        timeout_id = 0;
-        loop.quit();
-        return Source.REMOVE;
-    });
-
-    loop.run();
-    if (poll_id != 0) {
-        Source.remove(poll_id);
-    }
-    if (timeout_id != 0) {
-        Source.remove(timeout_id);
-    }
-    return ok;
-}
-
 private void test_reload_everything_loads_project_and_card() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -435,7 +362,7 @@ private void test_reload_everything_loads_project_and_card() {
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
     controller.reload_everything.begin();
 
-    assert(wait_for(() => controller.get_current_card() != null));
+    assert(wait_for_condition(() => controller.get_current_card() != null));
     assert(controller.get_current_project() != null);
     assert(controller.get_current_project().project_id == "p1");
     assert(controller.get_current_card().card_id == "c1");
@@ -446,34 +373,34 @@ private void test_reload_everything_loads_project_and_card() {
 
 private void test_search_debounce_runs_once() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
 
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_project() != null));
+    assert(wait_for_condition(() => controller.get_current_project() != null));
 
     search_text.value = "hello";
     controller.schedule_search();
     controller.schedule_search();
     scheduler.run_all_once();
 
-    assert(wait_for(() => api.search_calls == 1));
+    assert(wait_for_condition(() => api.search_calls == 1));
     assert(api.search_calls == 1);
 }
 
 private void test_autosave_debounce_runs_once() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
 
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_card() != null));
+    assert(wait_for_condition(() => controller.get_current_card() != null));
 
     editor_text.value = "# Updated Title\n\nNew body";
     clock.now_value = 4242;
@@ -482,7 +409,7 @@ private void test_autosave_debounce_runs_once() {
     controller.schedule_autosave();
     scheduler.run_all_once();
 
-    assert(wait_for(() => api.update_card_calls == 1));
+    assert(wait_for_condition(() => api.update_card_calls == 1));
     assert(api.update_card_calls == 1);
     assert(api.last_updated_card_id == "c1");
     assert(api.last_updated_title == "Updated Title");
@@ -492,7 +419,7 @@ private void test_autosave_debounce_runs_once() {
 
 private void test_bootstrap_discovery_failure_updates_editor_state() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -515,13 +442,13 @@ private void test_bootstrap_discovery_failure_updates_editor_state() {
     });
 
     controller.bootstrap.begin();
-    assert(wait_for(() => saw_status && saw_not_found));
+    assert(wait_for_condition(() => saw_status && saw_not_found));
 }
 
 private void test_bootstrap_health_failure_emits_error() {
     var api = new FakeApi();
     api.fail_health = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -535,19 +462,19 @@ private void test_bootstrap_health_failure_emits_error() {
     });
 
     controller.bootstrap.begin();
-    assert(wait_for(() => got_error));
+    assert(wait_for_condition(() => got_error));
 }
 
 private void test_create_card_error_emits_error() {
     var api = new FakeApi();
     api.fail_create_card = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_project() != null));
+    assert(wait_for_condition(() => controller.get_current_project() != null));
 
     bool got_error = false;
     controller.error_reported.connect((title, details) => {
@@ -556,13 +483,13 @@ private void test_create_card_error_emits_error() {
         }
     });
     controller.create_card.begin();
-    assert(wait_for(() => got_error));
+    assert(wait_for_condition(() => got_error));
 }
 
 private void test_create_project_error_emits_error() {
     var api = new FakeApi();
     api.fail_create_project = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -575,32 +502,32 @@ private void test_create_project_error_emits_error() {
         }
     });
     controller.create_project_named.begin("X");
-    assert(wait_for(() => got_error));
+    assert(wait_for_condition(() => got_error));
 }
 
 private void test_create_project_with_no_api_is_noop() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text, null, null, false);
 
     controller.create_project_named.begin("X");
-    assert(wait_for(() => true));
+    assert(wait_for_condition(() => true));
     assert(api.create_project_calls == 0);
 }
 
 private void test_create_card_success_selects_created_card() {
     var api = new FakeApi();
     api.include_created_card = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_project() != null));
+    assert(wait_for_condition(() => controller.get_current_project() != null));
 
     bool saw_toast = false;
     controller.toast_requested.connect((message) => {
@@ -610,7 +537,7 @@ private void test_create_card_success_selects_created_card() {
     });
 
     controller.create_card.begin();
-    assert(wait_for(() => saw_toast));
+    assert(wait_for_condition(() => saw_toast));
     assert(api.create_card_calls == 1);
     assert(controller.selected_card_id() == "c-created");
 }
@@ -619,12 +546,12 @@ private void test_create_card_in_flight_guard() {
     var api = new FakeApi();
     api.include_created_card = true;
     api.slow_create_card = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
     var controller = harness.controller;
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_project() != null));
+    assert(wait_for_condition(() => controller.get_current_project() != null));
 
     bool saw_in_flight = false;
     controller.status_changed.connect((text) => {
@@ -635,13 +562,13 @@ private void test_create_card_in_flight_guard() {
 
     controller.create_card.begin();
     controller.create_card.begin();
-    assert(wait_for(() => saw_in_flight));
+    assert(wait_for_condition(() => saw_in_flight));
 }
 
 private void test_create_card_without_project_emits_error() {
     var api = new FakeApi();
     api.list_projects_empty = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -655,15 +582,15 @@ private void test_create_card_without_project_emits_error() {
     });
 
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_project() == null));
+    assert(wait_for_condition(() => controller.get_current_project() == null));
     controller.create_card.begin();
-    assert(wait_for(() => got_error));
+    assert(wait_for_condition(() => got_error));
 }
 
 private void test_reload_ai_threads_error_emits_error() {
     var api = new FakeApi();
     api.fail_list_threads = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -676,27 +603,27 @@ private void test_reload_ai_threads_error_emits_error() {
         }
     });
     controller.reload_ai_threads_for_project.begin("p1");
-    assert(wait_for(() => got_error));
+    assert(wait_for_condition(() => got_error));
 }
 
 private void test_open_search_result_existing_card_skips_reload() {
     var api = new FakeApi();
     api.include_card2 = true;
     api.search_returns_card2 = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_project() != null));
+    assert(wait_for_condition(() => controller.get_current_project() != null));
 
     search_text.value = "card2";
     controller.run_search.begin();
-    assert(wait_for(() => api.search_calls == 1));
+    assert(wait_for_condition(() => api.search_calls == 1));
     var list_cards_before = api.list_cards_calls;
     controller.open_search_result_at.begin(0);
-    assert(wait_for(() => api.get_card_calls >= 2));
+    assert(wait_for_condition(() => api.get_card_calls >= 2));
     assert(api.list_cards_calls == list_cards_before);
 }
 
@@ -704,29 +631,29 @@ private void test_open_search_result_missing_card_triggers_reload() {
     var api = new FakeApi();
     api.include_card2 = false;
     api.search_returns_card2 = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_project() != null));
+    assert(wait_for_condition(() => controller.get_current_project() != null));
 
     search_text.value = "card2";
     controller.run_search.begin();
-    assert(wait_for(() => api.search_calls == 1));
+    assert(wait_for_condition(() => api.search_calls == 1));
 
     var before_reload = api.list_cards_calls;
     api.include_card2 = true;
     controller.open_search_result_at.begin(0);
-    assert(wait_for(() => api.list_cards_calls > before_reload));
-    assert(wait_for(() => controller.get_current_card() != null &&
+    assert(wait_for_condition(() => api.list_cards_calls > before_reload));
+    assert(wait_for_condition(() => controller.get_current_card() != null &&
                           controller.get_current_card().card_id == "c2"));
 }
 
 private void test_run_search_without_project_emits_error() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -741,18 +668,18 @@ private void test_run_search_without_project_emits_error() {
 
     search_text.value = "anything";
     controller.run_search.begin();
-    assert(wait_for(() => got_error));
+    assert(wait_for_condition(() => got_error));
 }
 
 private void test_run_search_empty_query_shows_editor() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_project() != null));
+    assert(wait_for_condition(() => controller.get_current_project() != null));
 
     bool show_editor = false;
     controller.show_editor_requested.connect(() => {
@@ -760,19 +687,19 @@ private void test_run_search_empty_query_shows_editor() {
     });
     search_text.value = "   ";
     controller.run_search.begin();
-    assert(wait_for(() => show_editor));
+    assert(wait_for_condition(() => show_editor));
 }
 
 private void test_run_search_success_emits_summary_and_show_search() {
     var api = new FakeApi();
     api.search_returns_card2 = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_project() != null));
+    assert(wait_for_condition(() => controller.get_current_project() != null));
 
     bool show_search = false;
     bool saw_summary = false;
@@ -787,20 +714,20 @@ private void test_run_search_success_emits_summary_and_show_search() {
 
     search_text.value = "card2";
     controller.run_search.begin();
-    assert(wait_for(() => show_search && saw_summary));
+    assert(wait_for_condition(() => show_search && saw_summary));
     assert(api.search_calls == 1);
 }
 
 private void test_run_search_failure_emits_error() {
     var api = new FakeApi();
     api.fail_search = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_project() != null));
+    assert(wait_for_condition(() => controller.get_current_project() != null));
 
     bool got_error = false;
     controller.error_reported.connect((title, details) => {
@@ -811,12 +738,12 @@ private void test_run_search_failure_emits_error() {
 
     search_text.value = "boom";
     controller.run_search.begin();
-    assert(wait_for(() => got_error));
+    assert(wait_for_condition(() => got_error));
 }
 
 private void test_run_search_with_no_api_is_noop() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -824,13 +751,13 @@ private void test_run_search_with_no_api_is_noop() {
     search_text.value = "hello";
 
     controller.run_search.begin();
-    assert(wait_for(() => true));
+    assert(wait_for_condition(() => true));
     assert(api.search_calls == 0);
 }
 
 private void test_selected_ids_and_api_getter() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
     var controller = harness.controller;
@@ -848,10 +775,23 @@ private void test_selected_ids_and_api_getter() {
     assert(controller.selected_card_id() == "c1");
 }
 
+private void test_reload_everything_with_no_api_is_noop() {
+    var api = new FakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock, null, null, false);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => true));
+    assert(controller.get_current_project() == null);
+    assert(api.list_projects_calls == 0);
+}
+
 private void test_reload_everything_with_no_projects_sets_empty_state() {
     var api = new FakeApi();
     api.list_projects_empty = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -864,14 +804,14 @@ private void test_reload_everything_with_no_projects_sets_empty_state() {
         }
     });
     controller.reload_everything.begin();
-    assert(wait_for(() => saw_no_projects));
+    assert(wait_for_condition(() => saw_no_projects));
     assert(controller.get_current_project() == null);
 }
 
 private void test_reload_everything_with_no_cards_sets_empty_state() {
     var api = new FakeApi();
     api.list_cards_empty = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -884,13 +824,45 @@ private void test_reload_everything_with_no_cards_sets_empty_state() {
         }
     });
     controller.reload_everything.begin();
-    assert(wait_for(() => saw_no_cards));
+    assert(wait_for_condition(() => saw_no_cards));
     assert(controller.get_current_card() == null);
+}
+
+private void test_reload_everything_list_projects_failure_emits_error() {
+    var api = new FakeApi();
+    api.fail_list_projects = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Failed to refresh") {
+            got_error = true;
+        }
+    });
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => got_error));
+}
+
+private void test_reload_everything_uses_preferred_project_selection() {
+    var api = new FakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    harness.project_store.append(new HolderLinux.Project("p1", "Old P1", "/tmp", 1, 1));
+    harness.project_selection.set_selected_index(0);
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    assert(controller.selected_project_id() == "p1");
 }
 
 private void test_ignore_flags_public_accessors_default_false() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
     var controller = harness.controller;
@@ -902,7 +874,7 @@ private void test_ignore_flags_public_accessors_default_false() {
 private void test_reload_cards_error_emits_error() {
     var api = new FakeApi();
     api.fail_list_cards = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -915,18 +887,18 @@ private void test_reload_cards_error_emits_error() {
         }
     });
     controller.reload_everything.begin();
-    assert(wait_for(() => got_error));
+    assert(wait_for_condition(() => got_error));
 }
 
 private void test_cancel_pending_search_prevents_scheduled_run() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_project() != null));
+    assert(wait_for_condition(() => controller.get_current_project() != null));
 
     search_text.value = "x";
     controller.schedule_search();
@@ -941,7 +913,7 @@ private void test_cancel_pending_search_prevents_scheduled_run() {
 private void test_reload_ai_threads_empty_emits_null_title() {
     var api = new FakeApi();
     api.list_threads_empty = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -955,25 +927,25 @@ private void test_reload_ai_threads_empty_emits_null_title() {
     });
 
     controller.reload_ai_threads_for_project.begin("p1");
-    assert(wait_for(() => saw_null_title));
+    assert(wait_for_condition(() => saw_null_title));
 }
 
 private void test_select_ai_thread_by_unknown_id_returns_false() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
 
     controller.reload_ai_threads_for_project.begin("p1");
-    assert(wait_for(() => api.list_threads_calls > 0));
+    assert(wait_for_condition(() => api.list_threads_calls > 0));
     assert(!controller.select_ai_thread_by_id("does-not-exist"));
 }
 
 private void test_on_ai_thread_selected_with_no_selection_emits_null_title() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -986,13 +958,46 @@ private void test_on_ai_thread_selected_with_no_selection_emits_null_title() {
         }
     });
     controller.on_ai_thread_selected();
-    assert(wait_for(() => saw_null));
+    assert(wait_for_condition(() => saw_null));
     assert(controller.get_current_ai_thread() == null);
+}
+
+private void test_on_project_selected_without_selection_noop() {
+    var api = new FakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.on_project_selected();
+    assert(wait_for_condition(() => true));
+    assert(controller.get_current_project() == null);
+}
+
+private void test_on_card_selected_without_selection_sets_empty_state() {
+    var api = new FakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    bool saw_no_selection = false;
+    controller.editor_state_changed.connect((text, editable) => {
+        if (text.contains("No Card Selected")) {
+            saw_no_selection = true;
+        }
+    });
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(uint.MAX);
+    controller.on_card_selected();
+    assert(wait_for_condition(() => saw_no_selection));
 }
 
 private void test_on_ai_thread_selected_emits_title_and_sets_current_thread() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -1006,45 +1011,45 @@ private void test_on_ai_thread_selected_emits_title_and_sets_current_thread() {
     });
 
     controller.reload_ai_threads_for_project.begin("p1");
-    assert(wait_for(() => api.list_threads_calls > 0));
+    assert(wait_for_condition(() => api.list_threads_calls > 0));
     controller.on_ai_thread_selected();
-    assert(wait_for(() => got_title));
+    assert(wait_for_condition(() => got_title));
     assert(controller.get_current_ai_thread() != null);
     assert(controller.get_current_ai_thread().thread_id == "t1");
 }
 
 private void test_select_ai_thread_by_id_true_path() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
     var controller = harness.controller;
 
     controller.reload_ai_threads_for_project.begin("p1");
-    assert(wait_for(() => api.list_threads_calls > 0));
+    assert(wait_for_condition(() => api.list_threads_calls > 0));
     assert(controller.select_ai_thread_by_id("t1"));
 }
 
 private void test_open_search_result_with_empty_store_is_noop() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_project() != null));
+    assert(wait_for_condition(() => controller.get_current_project() != null));
     var card_calls_before = api.get_card_calls;
 
     controller.open_search_result_at.begin(0);
-    assert(wait_for(() => true));
+    assert(wait_for_condition(() => true));
     assert(api.get_card_calls == card_calls_before);
 }
 
 private void test_load_selected_card_failure_emits_error() {
     var api = new FakeApi();
     api.fail_get_card = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -1057,19 +1062,19 @@ private void test_load_selected_card_failure_emits_error() {
         }
     });
     controller.reload_everything.begin();
-    assert(wait_for(() => got_error));
+    assert(wait_for_condition(() => got_error));
 }
 
 private void test_autosave_failure_emits_error() {
     var api = new FakeApi();
     api.fail_update_card = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_card() != null));
+    assert(wait_for_condition(() => controller.get_current_card() != null));
 
     bool got_error = false;
     controller.error_reported.connect((title, details) => {
@@ -1079,31 +1084,31 @@ private void test_autosave_failure_emits_error() {
     });
     editor_text.value = "# New title";
     controller.autosave_current_card.begin();
-    assert(wait_for(() => got_error));
+    assert(wait_for_condition(() => got_error));
 }
 
 private void test_autosave_without_card_is_noop() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
 
     controller.autosave_current_card.begin();
-    assert(wait_for(() => true));
+    assert(wait_for_condition(() => true));
     assert(api.update_card_calls == 0);
 }
 
 private void test_create_ai_thread_success() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_project() != null));
+    assert(wait_for_condition(() => controller.get_current_project() != null));
 
     bool done = false;
     bool ok = false;
@@ -1116,13 +1121,13 @@ private void test_create_ai_thread_success() {
         }
         done = true;
     });
-    assert(wait_for(() => done));
+    assert(wait_for_condition(() => done));
     assert(ok);
 }
 
 private void test_create_ai_thread_without_context_throws() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -1138,13 +1143,13 @@ private void test_create_ai_thread_without_context_throws() {
         }
         done = true;
     });
-    assert(wait_for(() => done));
+    assert(wait_for_condition(() => done));
     assert(got_error);
 }
 
 private void test_create_project_success_reloads_and_toasts() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
     var controller = harness.controller;
@@ -1163,56 +1168,56 @@ private void test_create_project_success_reloads_and_toasts() {
     });
 
     controller.create_project_named.begin("New");
-    assert(wait_for(() => saw_toast && saw_created));
+    assert(wait_for_condition(() => saw_toast && saw_created));
     assert(api.create_project_calls == 1);
 }
 
 private void test_on_project_selected_triggers_reload() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
     var controller = harness.controller;
 
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_project() != null));
+    assert(wait_for_condition(() => controller.get_current_project() != null));
     var before = api.list_cards_calls;
     controller.on_project_selected();
-    assert(wait_for(() => api.list_cards_calls > before));
+    assert(wait_for_condition(() => api.list_cards_calls > before));
 }
 
 private void test_on_card_selected_triggers_load() {
     var api = new FakeApi();
     api.include_card2 = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
     var controller = harness.controller;
 
     controller.reload_everything.begin();
-    assert(wait_for(() => controller.get_current_card() != null));
+    assert(wait_for_condition(() => controller.get_current_card() != null));
     harness.card_selection.set_selected_index(1);
     var before = api.get_card_calls;
     controller.on_card_selected();
-    assert(wait_for(() => api.get_card_calls > before));
+    assert(wait_for_condition(() => api.get_card_calls > before));
 }
 
 private void test_reload_ai_threads_without_api_is_noop() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text, null, null, false);
 
     controller.reload_ai_threads_for_project.begin("p1");
-    assert(wait_for(() => true));
+    assert(wait_for_condition(() => true));
     assert(api.list_threads_calls == 0);
 }
 
 private void test_create_card_without_api_emits_unavailable() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -1225,12 +1230,12 @@ private void test_create_card_without_api_emits_unavailable() {
         }
     });
     controller.create_card.begin();
-    assert(wait_for(() => got_error));
+    assert(wait_for_condition(() => got_error));
 }
 
 private void test_bootstrap_success_emits_ready_and_refresh() {
     var api = new FakeApi();
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -1247,14 +1252,14 @@ private void test_bootstrap_success_emits_ready_and_refresh() {
     });
 
     controller.bootstrap.begin();
-    assert(wait_for(() => got_ready && got_refresh));
+    assert(wait_for_condition(() => got_ready && got_refresh));
     assert(api.factory_create_calls == 1);
 }
 
 private void test_bootstrap_creates_first_project_when_empty_first() {
     var api = new FakeApi();
     api.list_projects_empty_first = true;
-    var scheduler = new FakeScheduler();
+    var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
     var editor_text = new MutableTextProvider();
@@ -1262,8 +1267,29 @@ private void test_bootstrap_creates_first_project_when_empty_first() {
     var controller = make_controller(api, scheduler, clock, search_text, editor_text, discovery, null);
 
     controller.bootstrap.begin();
-    assert(wait_for(() => api.create_project_calls > 0));
+    assert(wait_for_condition(() => api.create_project_calls > 0));
     assert(api.create_project_calls == 1);
+}
+
+private void test_bootstrap_list_projects_failure_emits_bootstrap_error() {
+    var api = new FakeApi();
+    api.fail_list_projects = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var discovery = new FakeServerDiscovery();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text, discovery, null);
+
+    bool saw_bootstrap_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Project bootstrap failed") {
+            saw_bootstrap_error = true;
+        }
+    });
+
+    controller.bootstrap.begin();
+    assert(wait_for_condition(() => saw_bootstrap_error));
 }
 
 int main(string[] args) {
@@ -1350,12 +1376,24 @@ int main(string[] args) {
         test_selected_ids_and_api_getter
     );
     Test.add_func(
+        "/main_controller/reload_everything_with_no_api_is_noop",
+        test_reload_everything_with_no_api_is_noop
+    );
+    Test.add_func(
         "/main_controller/reload_everything_with_no_projects_sets_empty_state",
         test_reload_everything_with_no_projects_sets_empty_state
     );
     Test.add_func(
         "/main_controller/reload_everything_with_no_cards_sets_empty_state",
         test_reload_everything_with_no_cards_sets_empty_state
+    );
+    Test.add_func(
+        "/main_controller/reload_everything_list_projects_failure_emits_error",
+        test_reload_everything_list_projects_failure_emits_error
+    );
+    Test.add_func(
+        "/main_controller/reload_everything_uses_preferred_project_selection",
+        test_reload_everything_uses_preferred_project_selection
     );
     Test.add_func(
         "/main_controller/ignore_flags_public_accessors_default_false",
@@ -1380,6 +1418,14 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/on_ai_thread_selected_with_no_selection_emits_null_title",
         test_on_ai_thread_selected_with_no_selection_emits_null_title
+    );
+    Test.add_func(
+        "/main_controller/on_project_selected_without_selection_noop",
+        test_on_project_selected_without_selection_noop
+    );
+    Test.add_func(
+        "/main_controller/on_card_selected_without_selection_sets_empty_state",
+        test_on_card_selected_without_selection_sets_empty_state
     );
     Test.add_func(
         "/main_controller/on_ai_thread_selected_emits_title_and_sets_current_thread",
@@ -1440,6 +1486,10 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/bootstrap_creates_first_project_when_empty_first",
         test_bootstrap_creates_first_project_when_empty_first
+    );
+    Test.add_func(
+        "/main_controller/bootstrap_list_projects_failure_emits_bootstrap_error",
+        test_bootstrap_list_projects_failure_emits_bootstrap_error
     );
 
     return Test.run();
