@@ -80,6 +80,55 @@ private class StoreSelectionState : Object, HolderLinux.ISelectionState {
     }
 }
 
+private class TestHarness : Object {
+    public GLib.ListStore project_store;
+    public GLib.ListStore card_store;
+    public GLib.ListStore thread_store;
+    public GLib.ListStore search_store;
+    public StoreSelectionState project_selection;
+    public StoreSelectionState card_selection;
+    public StoreSelectionState thread_selection;
+    public StoreSelectionState search_selection;
+    public MutableTextProvider search_text;
+    public MutableTextProvider editor_text;
+    public HolderLinux.MainController controller;
+
+    public TestHarness(FakeApi api,
+                       FakeScheduler scheduler,
+                       FakeClock clock,
+                       FakeServerDiscovery? discovery = null,
+                       HolderLinux.IHolderApi? initial_api = null,
+                       bool inject_initial_api = true) {
+        project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+        card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+        thread_store = new GLib.ListStore(typeof(HolderLinux.AiThreadSummary));
+        search_store = new GLib.ListStore(typeof(HolderLinux.SearchCardResult));
+        project_selection = new StoreSelectionState(project_store);
+        card_selection = new StoreSelectionState(card_store);
+        thread_selection = new StoreSelectionState(thread_store);
+        search_selection = new StoreSelectionState(search_store);
+        search_text = new MutableTextProvider();
+        editor_text = new MutableTextProvider();
+        controller = new HolderLinux.MainController(
+            project_store,
+            project_selection,
+            card_store,
+            card_selection,
+            thread_store,
+            thread_selection,
+            search_store,
+            search_selection,
+            search_text,
+            editor_text,
+            new FakeApiFactory(api, api),
+            discovery ?? new FakeServerDiscovery(),
+            clock,
+            scheduler,
+            inject_initial_api ? (initial_api ?? api) : null
+        );
+    }
+}
+
 private class MutableTextProvider : Object, HolderLinux.ITextProvider {
     public string value = "";
 
@@ -336,6 +385,15 @@ private HolderLinux.MainController make_controller(FakeApi api,
     return controller;
 }
 
+private TestHarness make_harness(FakeApi api,
+                                 FakeScheduler scheduler,
+                                 FakeClock clock,
+                                 FakeServerDiscovery? discovery = null,
+                                 HolderLinux.IHolderApi? initial_api = null,
+                                 bool inject_initial_api = true) {
+    return new TestHarness(api, scheduler, clock, discovery, initial_api, inject_initial_api);
+}
+
 private bool wait_for(owned SourceFunc condition) {
     var loop = new MainLoop();
     bool ok = false;
@@ -557,6 +615,29 @@ private void test_create_card_success_selects_created_card() {
     assert(controller.selected_card_id() == "c-created");
 }
 
+private void test_create_card_in_flight_guard() {
+    var api = new FakeApi();
+    api.include_created_card = true;
+    api.slow_create_card = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+    controller.reload_everything.begin();
+    assert(wait_for(() => controller.get_current_project() != null));
+
+    bool saw_in_flight = false;
+    controller.status_changed.connect((text) => {
+        if (text == "Create card already in progress...") {
+            saw_in_flight = true;
+        }
+    });
+
+    controller.create_card.begin();
+    controller.create_card.begin();
+    assert(wait_for(() => saw_in_flight));
+}
+
 private void test_create_card_without_project_emits_error() {
     var api = new FakeApi();
     api.list_projects_empty = true;
@@ -747,6 +828,26 @@ private void test_run_search_with_no_api_is_noop() {
     assert(api.search_calls == 0);
 }
 
+private void test_selected_ids_and_api_getter() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    assert(controller.get_api_client() == api);
+    assert(controller.selected_project_id() == null);
+    assert(controller.selected_card_id() == null);
+
+    harness.project_store.append(new HolderLinux.Project("p1", "P1", "/tmp", 1, 1));
+    harness.card_store.append(new HolderLinux.CardSummary("c1", "p1", "C1", "c1.md", 1, 1));
+    harness.project_selection.set_selected_index(0);
+    harness.card_selection.set_selected_index(0);
+
+    assert(controller.selected_project_id() == "p1");
+    assert(controller.selected_card_id() == "c1");
+}
+
 private void test_reload_everything_with_no_projects_sets_empty_state() {
     var api = new FakeApi();
     api.list_projects_empty = true;
@@ -785,6 +886,17 @@ private void test_reload_everything_with_no_cards_sets_empty_state() {
     controller.reload_everything.begin();
     assert(wait_for(() => saw_no_cards));
     assert(controller.get_current_card() == null);
+}
+
+private void test_ignore_flags_public_accessors_default_false() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    assert(!controller.should_ignore_project_selection_events());
+    assert(!controller.should_ignore_card_selection_events());
 }
 
 private void test_reload_cards_error_emits_error() {
@@ -899,6 +1011,18 @@ private void test_on_ai_thread_selected_emits_title_and_sets_current_thread() {
     assert(wait_for(() => got_title));
     assert(controller.get_current_ai_thread() != null);
     assert(controller.get_current_ai_thread().thread_id == "t1");
+}
+
+private void test_select_ai_thread_by_id_true_path() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_ai_threads_for_project.begin("p1");
+    assert(wait_for(() => api.list_threads_calls > 0));
+    assert(controller.select_ai_thread_by_id("t1"));
 }
 
 private void test_open_search_result_with_empty_store_is_noop() {
@@ -1018,6 +1142,61 @@ private void test_create_ai_thread_without_context_throws() {
     assert(got_error);
 }
 
+private void test_create_project_success_reloads_and_toasts() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    bool saw_toast = false;
+    bool saw_created = false;
+    controller.toast_requested.connect((message) => {
+        if (message == "Created project: New") {
+            saw_toast = true;
+        }
+    });
+    controller.status_changed.connect((text) => {
+        if (text == "Project created") {
+            saw_created = true;
+        }
+    });
+
+    controller.create_project_named.begin("New");
+    assert(wait_for(() => saw_toast && saw_created));
+    assert(api.create_project_calls == 1);
+}
+
+private void test_on_project_selected_triggers_reload() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for(() => controller.get_current_project() != null));
+    var before = api.list_cards_calls;
+    controller.on_project_selected();
+    assert(wait_for(() => api.list_cards_calls > before));
+}
+
+private void test_on_card_selected_triggers_load() {
+    var api = new FakeApi();
+    api.include_card2 = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for(() => controller.get_current_card() != null));
+    harness.card_selection.set_selected_index(1);
+    var before = api.get_card_calls;
+    controller.on_card_selected();
+    assert(wait_for(() => api.get_card_calls > before));
+}
+
 private void test_reload_ai_threads_without_api_is_noop() {
     var api = new FakeApi();
     var scheduler = new FakeScheduler();
@@ -1127,6 +1306,10 @@ int main(string[] args) {
         test_create_card_success_selects_created_card
     );
     Test.add_func(
+        "/main_controller/create_card_in_flight_guard",
+        test_create_card_in_flight_guard
+    );
+    Test.add_func(
         "/main_controller/create_card_without_project_emits_error",
         test_create_card_without_project_emits_error
     );
@@ -1163,12 +1346,20 @@ int main(string[] args) {
         test_run_search_with_no_api_is_noop
     );
     Test.add_func(
+        "/main_controller/selected_ids_and_api_getter",
+        test_selected_ids_and_api_getter
+    );
+    Test.add_func(
         "/main_controller/reload_everything_with_no_projects_sets_empty_state",
         test_reload_everything_with_no_projects_sets_empty_state
     );
     Test.add_func(
         "/main_controller/reload_everything_with_no_cards_sets_empty_state",
         test_reload_everything_with_no_cards_sets_empty_state
+    );
+    Test.add_func(
+        "/main_controller/ignore_flags_public_accessors_default_false",
+        test_ignore_flags_public_accessors_default_false
     );
     Test.add_func(
         "/main_controller/reload_cards_error_emits_error",
@@ -1195,6 +1386,10 @@ int main(string[] args) {
         test_on_ai_thread_selected_emits_title_and_sets_current_thread
     );
     Test.add_func(
+        "/main_controller/select_ai_thread_by_id_true_path",
+        test_select_ai_thread_by_id_true_path
+    );
+    Test.add_func(
         "/main_controller/open_search_result_with_empty_store_is_noop",
         test_open_search_result_with_empty_store_is_noop
     );
@@ -1217,6 +1412,18 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/create_ai_thread_without_context_throws",
         test_create_ai_thread_without_context_throws
+    );
+    Test.add_func(
+        "/main_controller/create_project_success_reloads_and_toasts",
+        test_create_project_success_reloads_and_toasts
+    );
+    Test.add_func(
+        "/main_controller/on_project_selected_triggers_reload",
+        test_on_project_selected_triggers_reload
+    );
+    Test.add_func(
+        "/main_controller/on_card_selected_triggers_load",
+        test_on_card_selected_triggers_load
     );
     Test.add_func(
         "/main_controller/reload_ai_threads_without_api_is_noop",
