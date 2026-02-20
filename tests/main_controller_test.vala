@@ -107,6 +107,9 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_list_threads = false;
     public bool include_card2 = false;
     public bool search_returns_card2 = false;
+    public bool list_projects_empty = false;
+    public bool list_cards_empty = false;
+    public bool slow_create_card = false;
 
     public async void health_check() throws Error {
         if (fail_health) {
@@ -117,6 +120,9 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     public async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
         list_projects_calls++;
         var projects = new Gee.ArrayList<HolderLinux.Project>();
+        if (list_projects_empty) {
+            return projects;
+        }
         projects.add(new HolderLinux.Project("p1", "Project 1", "/tmp/p1", 10, 10));
         return projects;
     }
@@ -132,6 +138,9 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     public async Gee.ArrayList<HolderLinux.CardSummary> list_cards(string project_id) throws Error {
         list_cards_calls++;
         var cards = new Gee.ArrayList<HolderLinux.CardSummary>();
+        if (list_cards_empty) {
+            return cards;
+        }
         cards.add(new HolderLinux.CardSummary("c1", project_id, "Card 1", "c1.md", 20, 20));
         if (include_card2) {
             cards.add(new HolderLinux.CardSummary("c2", project_id, "Card 2", "c2.md", 21, 21));
@@ -202,6 +211,14 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
             throw new IOError.FAILED("create card failed");
         }
         create_card_calls++;
+        if (slow_create_card) {
+            var loop = new MainLoop();
+            Timeout.add(200, () => {
+                loop.quit();
+                return Source.REMOVE;
+            });
+            loop.run();
+        }
         return "c-created";
     }
 
@@ -506,6 +523,110 @@ private void test_open_search_result_existing_card_skips_reload() {
     assert(api.list_cards_calls == list_cards_before);
 }
 
+private void test_open_search_result_missing_card_triggers_reload() {
+    var api = new FakeApi();
+    api.include_card2 = false;
+    api.search_returns_card2 = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    controller.reload_everything.begin();
+    assert(wait_for(() => controller.get_current_project() != null));
+
+    search_text.value = "card2";
+    controller.run_search.begin();
+    assert(wait_for(() => api.search_calls == 1));
+
+    var before_reload = api.list_cards_calls;
+    api.include_card2 = true;
+    controller.open_search_result_at.begin(0);
+    assert(wait_for(() => api.list_cards_calls > before_reload));
+    assert(wait_for(() => controller.get_current_card() != null &&
+                          controller.get_current_card().card_id == "c2"));
+}
+
+private void test_run_search_without_project_emits_error() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Search unavailable") {
+            got_error = true;
+        }
+    });
+
+    search_text.value = "anything";
+    controller.run_search.begin();
+    assert(wait_for(() => got_error));
+}
+
+private void test_reload_everything_with_no_projects_sets_empty_state() {
+    var api = new FakeApi();
+    api.list_projects_empty = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    bool saw_no_projects = false;
+    controller.editor_state_changed.connect((text, editable) => {
+        if (text.contains("No Projects")) {
+            saw_no_projects = true;
+        }
+    });
+    controller.reload_everything.begin();
+    assert(wait_for(() => saw_no_projects));
+    assert(controller.get_current_project() == null);
+}
+
+private void test_reload_everything_with_no_cards_sets_empty_state() {
+    var api = new FakeApi();
+    api.list_cards_empty = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    bool saw_no_cards = false;
+    controller.editor_state_changed.connect((text, editable) => {
+        if (text.contains("No cards yet")) {
+            saw_no_cards = true;
+        }
+    });
+    controller.reload_everything.begin();
+    assert(wait_for(() => saw_no_cards));
+    assert(controller.get_current_card() == null);
+}
+
+private void test_cancel_pending_search_prevents_scheduled_run() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    controller.reload_everything.begin();
+    assert(wait_for(() => controller.get_current_project() != null));
+
+    search_text.value = "x";
+    controller.schedule_search();
+    controller.cancel_pending_search();
+    scheduler.run_all_once();
+    assert(api.search_calls == 0);
+
+    controller.cancel_pending_search();
+    assert(api.search_calls == 0);
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -544,6 +665,26 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/open_search_result_existing_card_skips_reload",
         test_open_search_result_existing_card_skips_reload
+    );
+    Test.add_func(
+        "/main_controller/open_search_result_missing_card_triggers_reload",
+        test_open_search_result_missing_card_triggers_reload
+    );
+    Test.add_func(
+        "/main_controller/run_search_without_project_emits_error",
+        test_run_search_without_project_emits_error
+    );
+    Test.add_func(
+        "/main_controller/reload_everything_with_no_projects_sets_empty_state",
+        test_reload_everything_with_no_projects_sets_empty_state
+    );
+    Test.add_func(
+        "/main_controller/reload_everything_with_no_cards_sets_empty_state",
+        test_reload_everything_with_no_cards_sets_empty_state
+    );
+    Test.add_func(
+        "/main_controller/cancel_pending_search_prevents_scheduled_run",
+        test_cancel_pending_search_prevents_scheduled_run
     );
 
     return Test.run();

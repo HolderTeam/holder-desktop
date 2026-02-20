@@ -4,6 +4,8 @@ namespace HolderLinuxTests {
 
 private class FakeScheduler : Object, HolderLinux.IScheduler {
     private uint next_id = 1;
+    public int repeating_scheduled = 0;
+    public int cancel_calls = 0;
 
     public uint schedule_once(uint delay_ms, owned SourceFunc callback) {
         var id = next_id++;
@@ -15,10 +17,12 @@ private class FakeScheduler : Object, HolderLinux.IScheduler {
     }
 
     public uint schedule_repeating(uint interval_ms, owned SourceFunc callback) {
+        repeating_scheduled++;
         return next_id++;
     }
 
     public bool cancel(uint source_id) {
+        cancel_calls++;
         return true;
     }
 }
@@ -35,6 +39,7 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     public bool emit_progress = false;
     public bool emit_fallback = false;
     public bool emit_failed = false;
+    public int64 status_active_pull_jobs = 0;
 
     public async void health_check() throws Error {}
     public async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
@@ -66,7 +71,7 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
         if (fail_status) {
             throw new IOError.FAILED("status failed");
         }
-        return new HolderLinux.AiStatusInfo(1, true, "", 0, 0, 0, new Gee.ArrayList<string>());
+        return new HolderLinux.AiStatusInfo(1, true, "", 0, status_active_pull_jobs, 0, new Gee.ArrayList<string>());
     }
     public async string start_ai_runner_pull(string model_tag) throws Error {
         if (fail_pull) {
@@ -400,6 +405,21 @@ private void test_stream_progress_fallback_failed_events_are_rendered() {
     assert(wait_for(() => saw_progress && saw_fallback && saw_failed));
 }
 
+private void test_set_panel_visible_starts_and_stops_polling() {
+    var api = new FakeApi();
+    api.status_active_pull_jobs = 1;
+    var ctx = new FakeContext();
+    ctx.api = api;
+    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    var scheduler = new FakeScheduler();
+    var controller = new HolderLinux.AiRunController(ctx, scheduler);
+
+    controller.set_panel_visible(true);
+    assert(wait_for(() => scheduler.repeating_scheduled > 0));
+    controller.set_panel_visible(false);
+    assert(scheduler.cancel_calls > 0);
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -434,6 +454,10 @@ int main(string[] args) {
     Test.add_func(
         "/ai_run/stream_progress_fallback_failed_events_are_rendered",
         test_stream_progress_fallback_failed_events_are_rendered
+    );
+    Test.add_func(
+        "/ai_run/set_panel_visible_starts_and_stops_polling",
+        test_set_panel_visible_starts_and_stops_polling
     );
 
     return Test.run();
