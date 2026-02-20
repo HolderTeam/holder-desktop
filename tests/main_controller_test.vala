@@ -97,6 +97,7 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     public int create_card_calls = 0;
     public int create_project_calls = 0;
     public int list_threads_calls = 0;
+    public int factory_create_calls = 0;
     public string last_updated_card_id = "";
     public string last_updated_title = "";
     public string last_updated_content = "";
@@ -108,8 +109,14 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     public bool include_card2 = false;
     public bool search_returns_card2 = false;
     public bool list_projects_empty = false;
+    public bool list_projects_empty_first = false;
     public bool list_cards_empty = false;
     public bool slow_create_card = false;
+    public bool list_threads_empty = false;
+    public bool include_created_card = false;
+    public bool fail_update_card = false;
+    public bool fail_search = false;
+    private int list_projects_index = 0;
 
     public async void health_check() throws Error {
         if (fail_health) {
@@ -119,7 +126,11 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
 
     public async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
         list_projects_calls++;
+        list_projects_index++;
         var projects = new Gee.ArrayList<HolderLinux.Project>();
+        if (list_projects_empty_first && list_projects_index == 1) {
+            return projects;
+        }
         if (list_projects_empty) {
             return projects;
         }
@@ -145,6 +156,9 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
         if (include_card2) {
             cards.add(new HolderLinux.CardSummary("c2", project_id, "Card 2", "c2.md", 21, 21));
         }
+        if (include_created_card) {
+            cards.add(new HolderLinux.CardSummary("c-created", project_id, "Untitled", "c-created.md", 22, 22));
+        }
         return cards;
     }
 
@@ -156,6 +170,9 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     public async Gee.ArrayList<HolderLinux.SearchCardResult> search_cards(string project_id,
                                                                            string query_text,
                                                                            int limit = 30) throws Error {
+        if (fail_search) {
+            throw new IOError.FAILED("search failed");
+        }
         search_calls++;
         var results = new Gee.ArrayList<HolderLinux.SearchCardResult>();
         if (search_returns_card2) {
@@ -184,6 +201,9 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
         }
         list_threads_calls++;
         var threads = new Gee.ArrayList<HolderLinux.AiThreadSummary>();
+        if (list_threads_empty) {
+            return threads;
+        }
         threads.add(new HolderLinux.AiThreadSummary("t1", project_id, "Thread 1", 30, 30));
         return threads;
     }
@@ -226,6 +246,9 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
                                   string title,
                                   string content,
                                   int64 updated_at) throws Error {
+        if (fail_update_card) {
+            throw new IOError.FAILED("update failed");
+        }
         update_card_calls++;
         last_updated_card_id = card_id;
         last_updated_title = title;
@@ -236,12 +259,17 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
 
 private class FakeApiFactory : Object, HolderLinux.IApiFactory {
     private HolderLinux.IHolderApi api;
+    private FakeApi? fake_api;
 
-    public FakeApiFactory(HolderLinux.IHolderApi api) {
+    public FakeApiFactory(HolderLinux.IHolderApi api, FakeApi? fake_api = null) {
         this.api = api;
+        this.fake_api = fake_api;
     }
 
     public HolderLinux.IHolderApi create(string base_url, string auth_token) {
+        if (fake_api != null) {
+            fake_api.factory_create_calls++;
+        }
         return api;
     }
 }
@@ -290,7 +318,7 @@ private HolderLinux.MainController make_controller(FakeApi api,
         new StoreSelectionState(search_store),
         search_text,
         editor_text,
-        new FakeApiFactory(api),
+        new FakeApiFactory(api, api),
         discovery ?? new FakeServerDiscovery(),
         clock,
         scheduler,
@@ -483,6 +511,52 @@ private void test_create_project_error_emits_error() {
     assert(wait_for(() => got_error));
 }
 
+private void test_create_card_success_selects_created_card() {
+    var api = new FakeApi();
+    api.include_created_card = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    controller.reload_everything.begin();
+    assert(wait_for(() => controller.get_current_project() != null));
+
+    bool saw_toast = false;
+    controller.toast_requested.connect((message) => {
+        if (message == "New card created") {
+            saw_toast = true;
+        }
+    });
+
+    controller.create_card.begin();
+    assert(wait_for(() => saw_toast));
+    assert(api.create_card_calls == 1);
+    assert(controller.selected_card_id() == "c-created");
+}
+
+private void test_create_card_without_project_emits_error() {
+    var api = new FakeApi();
+    api.list_projects_empty = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "No project selected") {
+            got_error = true;
+        }
+    });
+
+    controller.reload_everything.begin();
+    assert(wait_for(() => controller.get_current_project() == null));
+    controller.create_card.begin();
+    assert(wait_for(() => got_error));
+}
+
 private void test_reload_ai_threads_error_emits_error() {
     var api = new FakeApi();
     api.fail_list_threads = true;
@@ -567,6 +641,76 @@ private void test_run_search_without_project_emits_error() {
     assert(wait_for(() => got_error));
 }
 
+private void test_run_search_empty_query_shows_editor() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    controller.reload_everything.begin();
+    assert(wait_for(() => controller.get_current_project() != null));
+
+    bool show_editor = false;
+    controller.show_editor_requested.connect(() => {
+        show_editor = true;
+    });
+    search_text.value = "   ";
+    controller.run_search.begin();
+    assert(wait_for(() => show_editor));
+}
+
+private void test_run_search_success_emits_summary_and_show_search() {
+    var api = new FakeApi();
+    api.search_returns_card2 = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    controller.reload_everything.begin();
+    assert(wait_for(() => controller.get_current_project() != null));
+
+    bool show_search = false;
+    bool saw_summary = false;
+    controller.show_search_requested.connect(() => {
+        show_search = true;
+    });
+    controller.search_summary_changed.connect((text) => {
+        if (text.contains("1 result(s)")) {
+            saw_summary = true;
+        }
+    });
+
+    search_text.value = "card2";
+    controller.run_search.begin();
+    assert(wait_for(() => show_search && saw_summary));
+    assert(api.search_calls == 1);
+}
+
+private void test_run_search_failure_emits_error() {
+    var api = new FakeApi();
+    api.fail_search = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    controller.reload_everything.begin();
+    assert(wait_for(() => controller.get_current_project() != null));
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Search failed") {
+            got_error = true;
+        }
+    });
+
+    search_text.value = "boom";
+    controller.run_search.begin();
+    assert(wait_for(() => got_error));
+}
+
 private void test_reload_everything_with_no_projects_sets_empty_state() {
     var api = new FakeApi();
     api.list_projects_empty = true;
@@ -627,6 +771,116 @@ private void test_cancel_pending_search_prevents_scheduled_run() {
     assert(api.search_calls == 0);
 }
 
+private void test_reload_ai_threads_empty_emits_null_title() {
+    var api = new FakeApi();
+    api.list_threads_empty = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    bool saw_null_title = false;
+    controller.ai_thread_title_changed.connect((title) => {
+        if (title == null) {
+            saw_null_title = true;
+        }
+    });
+
+    controller.reload_ai_threads_for_project.begin("p1");
+    assert(wait_for(() => saw_null_title));
+}
+
+private void test_select_ai_thread_by_unknown_id_returns_false() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    controller.reload_ai_threads_for_project.begin("p1");
+    assert(wait_for(() => api.list_threads_calls > 0));
+    assert(!controller.select_ai_thread_by_id("does-not-exist"));
+}
+
+private void test_on_ai_thread_selected_emits_title_and_sets_current_thread() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    bool got_title = false;
+    controller.ai_thread_title_changed.connect((title) => {
+        if (title == "Thread 1") {
+            got_title = true;
+        }
+    });
+
+    controller.reload_ai_threads_for_project.begin("p1");
+    assert(wait_for(() => api.list_threads_calls > 0));
+    controller.on_ai_thread_selected();
+    assert(wait_for(() => got_title));
+    assert(controller.get_current_ai_thread() != null);
+    assert(controller.get_current_ai_thread().thread_id == "t1");
+}
+
+private void test_open_search_result_with_empty_store_is_noop() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    controller.reload_everything.begin();
+    assert(wait_for(() => controller.get_current_project() != null));
+    var card_calls_before = api.get_card_calls;
+
+    controller.open_search_result_at.begin(0);
+    assert(wait_for(() => true));
+    assert(api.get_card_calls == card_calls_before);
+}
+
+private void test_bootstrap_success_emits_ready_and_refresh() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var discovery = new FakeServerDiscovery();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text, discovery, null);
+
+    bool got_ready = false;
+    bool got_refresh = false;
+    controller.api_client_ready.connect((client) => {
+        got_ready = true;
+    });
+    controller.ai_status_refresh_requested.connect(() => {
+        got_refresh = true;
+    });
+
+    controller.bootstrap.begin();
+    assert(wait_for(() => got_ready && got_refresh));
+    assert(api.factory_create_calls == 1);
+}
+
+private void test_bootstrap_creates_first_project_when_empty_first() {
+    var api = new FakeApi();
+    api.list_projects_empty_first = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var discovery = new FakeServerDiscovery();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text, discovery, null);
+
+    controller.bootstrap.begin();
+    assert(wait_for(() => api.create_project_calls > 0));
+    assert(api.create_project_calls == 1);
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -659,6 +913,14 @@ int main(string[] args) {
         test_create_project_error_emits_error
     );
     Test.add_func(
+        "/main_controller/create_card_success_selects_created_card",
+        test_create_card_success_selects_created_card
+    );
+    Test.add_func(
+        "/main_controller/create_card_without_project_emits_error",
+        test_create_card_without_project_emits_error
+    );
+    Test.add_func(
         "/main_controller/reload_ai_threads_error_emits_error",
         test_reload_ai_threads_error_emits_error
     );
@@ -675,6 +937,18 @@ int main(string[] args) {
         test_run_search_without_project_emits_error
     );
     Test.add_func(
+        "/main_controller/run_search_empty_query_shows_editor",
+        test_run_search_empty_query_shows_editor
+    );
+    Test.add_func(
+        "/main_controller/run_search_success_emits_summary_and_show_search",
+        test_run_search_success_emits_summary_and_show_search
+    );
+    Test.add_func(
+        "/main_controller/run_search_failure_emits_error",
+        test_run_search_failure_emits_error
+    );
+    Test.add_func(
         "/main_controller/reload_everything_with_no_projects_sets_empty_state",
         test_reload_everything_with_no_projects_sets_empty_state
     );
@@ -685,6 +959,30 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/cancel_pending_search_prevents_scheduled_run",
         test_cancel_pending_search_prevents_scheduled_run
+    );
+    Test.add_func(
+        "/main_controller/reload_ai_threads_empty_emits_null_title",
+        test_reload_ai_threads_empty_emits_null_title
+    );
+    Test.add_func(
+        "/main_controller/select_ai_thread_by_unknown_id_returns_false",
+        test_select_ai_thread_by_unknown_id_returns_false
+    );
+    Test.add_func(
+        "/main_controller/on_ai_thread_selected_emits_title_and_sets_current_thread",
+        test_on_ai_thread_selected_emits_title_and_sets_current_thread
+    );
+    Test.add_func(
+        "/main_controller/open_search_result_with_empty_store_is_noop",
+        test_open_search_result_with_empty_store_is_noop
+    );
+    Test.add_func(
+        "/main_controller/bootstrap_success_emits_ready_and_refresh",
+        test_bootstrap_success_emits_ready_and_refresh
+    );
+    Test.add_func(
+        "/main_controller/bootstrap_creates_first_project_when_empty_first",
+        test_bootstrap_creates_first_project_when_empty_first
     );
 
     return Test.run();

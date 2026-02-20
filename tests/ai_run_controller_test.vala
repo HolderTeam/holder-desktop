@@ -39,6 +39,9 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     public bool emit_progress = false;
     public bool emit_fallback = false;
     public bool emit_failed = false;
+    public bool emit_failed_empty = false;
+    public bool done_without_model = false;
+    public bool pull_returns_empty_job_id = false;
     public int64 status_active_pull_jobs = 0;
 
     public async void health_check() throws Error {}
@@ -79,6 +82,9 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
         }
         start_pull_calls++;
         last_pull_model = model_tag;
+        if (pull_returns_empty_job_id) {
+            return "";
+        }
         return "job-1";
     }
     public async Gee.ArrayList<HolderLinux.AiThreadSummary> list_ai_threads(string project_id) throws Error {
@@ -123,9 +129,14 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
             failed_obj.set_string_member("error", "bad prompt");
             on_event("failed", failed_obj);
         }
+        if (emit_failed_empty) {
+            on_event("failed", new Json.Object());
+        }
 
         var done_obj = new Json.Object();
-        done_obj.set_string_member("model", "phi4");
+        if (!done_without_model) {
+            done_obj.set_string_member("model", "phi4");
+        }
         on_event("done", done_obj);
     }
     public async string create_card(string project_id,
@@ -295,6 +306,26 @@ private void test_send_requires_project() {
     assert(api.run_calls == 0);
 }
 
+private void test_send_requires_prompt() {
+    var api = new FakeApi();
+    var ctx = new FakeContext();
+    ctx.api = api;
+    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
+    var controller = new HolderLinux.AiRunController(ctx, new FakeScheduler());
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Prompt required") {
+            got_error = true;
+        }
+    });
+
+    controller.on_send_clicked("   ");
+    assert(wait_for(() => got_error));
+    assert(api.run_calls == 0);
+}
+
 private void test_start_model_pull_emits_status_and_toast() {
     var api = new FakeApi();
     var ctx = new FakeContext();
@@ -319,6 +350,26 @@ private void test_start_model_pull_emits_status_and_toast() {
     assert(wait_for(() => saw_toast && saw_started));
     assert(api.start_pull_calls == 1);
     assert(api.last_pull_model == "phi4");
+}
+
+private void test_start_model_pull_with_empty_job_id_reports_started() {
+    var api = new FakeApi();
+    api.pull_returns_empty_job_id = true;
+    var ctx = new FakeContext();
+    ctx.api = api;
+    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    var controller = new HolderLinux.AiRunController(ctx, new FakeScheduler());
+
+    bool saw_started = false;
+    controller.status_changed.connect((text) => {
+        if (text == "Pull started: phi4") {
+            saw_started = true;
+        }
+    });
+
+    controller.start_model_pull.begin("phi4");
+    assert(wait_for(() => saw_started));
+    assert(api.start_pull_calls == 1);
 }
 
 private void test_refresh_status_emits_render_status() {
@@ -405,6 +456,50 @@ private void test_stream_progress_fallback_failed_events_are_rendered() {
     assert(wait_for(() => saw_progress && saw_fallback && saw_failed));
 }
 
+private void test_stream_failed_without_error_uses_default_message() {
+    var api = new FakeApi();
+    api.emit_failed_empty = true;
+    api.done_without_model = true;
+    var ctx = new FakeContext();
+    ctx.api = api;
+    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
+    var controller = new HolderLinux.AiRunController(ctx, new FakeScheduler());
+
+    bool saw_default_failed = false;
+    bool saw_done_model_message = false;
+    controller.append_output_requested.connect((role, text) => {
+        if (text == "Run failed.") {
+            saw_default_failed = true;
+        }
+        if (text.contains("Completed with")) {
+            saw_done_model_message = true;
+        }
+    });
+
+    controller.on_send_clicked("prompt");
+    assert(wait_for(() => saw_default_failed));
+    assert(!saw_done_model_message);
+}
+
+private void test_create_thread_from_prompt_without_project_errors() {
+    var api = new FakeApi();
+    var ctx = new FakeContext();
+    ctx.api = api;
+    ctx.project = null;
+    var controller = new HolderLinux.AiRunController(ctx, new FakeScheduler());
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Cannot create thread") {
+            got_error = true;
+        }
+    });
+
+    controller.create_thread_from_prompt.begin();
+    assert(wait_for(() => got_error));
+}
+
 private void test_set_panel_visible_starts_and_stops_polling() {
     var api = new FakeApi();
     api.status_active_pull_jobs = 1;
@@ -436,8 +531,16 @@ int main(string[] args) {
         test_send_requires_project
     );
     Test.add_func(
+        "/ai_run/send_requires_prompt",
+        test_send_requires_prompt
+    );
+    Test.add_func(
         "/ai_run/start_model_pull_emits_status_and_toast",
         test_start_model_pull_emits_status_and_toast
+    );
+    Test.add_func(
+        "/ai_run/start_model_pull_with_empty_job_id_reports_started",
+        test_start_model_pull_with_empty_job_id_reports_started
     );
     Test.add_func(
         "/ai_run/refresh_status_emits_render_status",
@@ -454,6 +557,14 @@ int main(string[] args) {
     Test.add_func(
         "/ai_run/stream_progress_fallback_failed_events_are_rendered",
         test_stream_progress_fallback_failed_events_are_rendered
+    );
+    Test.add_func(
+        "/ai_run/stream_failed_without_error_uses_default_message",
+        test_stream_failed_without_error_uses_default_message
+    );
+    Test.add_func(
+        "/ai_run/create_thread_from_prompt_without_project_errors",
+        test_create_thread_from_prompt_without_project_errors
     );
     Test.add_func(
         "/ai_run/set_panel_visible_starts_and_stops_polling",
