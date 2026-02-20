@@ -2,207 +2,9 @@ using GLib;
 
 namespace HolderLinuxTests {
 
-private class FakeApi : Object, HolderLinux.IHolderApi {
-    public int run_calls = 0;
-    public string? last_thread_id = null;
-    public int start_pull_calls = 0;
-    public string last_pull_model = "";
-    public bool fail_capabilities = false;
-    public bool fail_status = false;
-    public bool fail_pull = false;
-    public bool fail_stream = false;
-    public bool slow_stream = false;
-    public bool emit_progress = false;
-    public bool emit_progress_empty = false;
-    public bool emit_fallback = false;
-    public bool emit_fallback_empty = false;
-    public bool emit_failed = false;
-    public bool emit_failed_empty = false;
-    public bool done_without_model = false;
-    public bool emit_chunk_missing_delta = false;
-    public bool pull_returns_empty_job_id = false;
-    public int64 status_active_pull_jobs = 0;
-
-    public async void health_check() throws Error {}
-    public async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
-        return new Gee.ArrayList<HolderLinux.Project>();
-    }
-    public async string create_project(string name) throws Error {
-        return "p1";
-    }
-    public async Gee.ArrayList<HolderLinux.CardSummary> list_cards(string project_id) throws Error {
-        return new Gee.ArrayList<HolderLinux.CardSummary>();
-    }
-    public async HolderLinux.CardDetail get_card(string card_id) throws Error {
-        return new HolderLinux.CardDetail(card_id, "p1", "T", "C", 1);
-    }
-    public async Gee.ArrayList<HolderLinux.SearchCardResult> search_cards(string project_id,
-                                                                           string query_text,
-                                                                           int limit = 30) throws Error {
-        return new Gee.ArrayList<HolderLinux.SearchCardResult>();
-    }
-    public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error {
-        if (fail_capabilities) {
-            throw new IOError.FAILED("capabilities failed");
-        }
-        return new HolderLinux.AiCapabilitiesInfo(
-            true, "", 1, "1.0", "user", new Gee.ArrayList<string>(), new Gee.ArrayList<string>()
-        );
-    }
-    public async HolderLinux.AiStatusInfo get_ai_status() throws Error {
-        if (fail_status) {
-            throw new IOError.FAILED("status failed");
-        }
-        return new HolderLinux.AiStatusInfo(1, true, "", 0, status_active_pull_jobs, 0, new Gee.ArrayList<string>());
-    }
-    public async string start_ai_runner_pull(string model_tag) throws Error {
-        if (fail_pull) {
-            throw new IOError.FAILED("pull failed");
-        }
-        start_pull_calls++;
-        last_pull_model = model_tag;
-        if (pull_returns_empty_job_id) {
-            return "";
-        }
-        return "job-1";
-    }
-    public async Gee.ArrayList<HolderLinux.AiThreadSummary> list_ai_threads(string project_id) throws Error {
-        return new Gee.ArrayList<HolderLinux.AiThreadSummary>();
-    }
-    public async string create_ai_thread(string project_id, string title) throws Error {
-        return "t-created";
-    }
-    public async Gee.ArrayList<HolderLinux.AiCatalogProvider> list_ai_provider_catalog() throws Error {
-        return new Gee.ArrayList<HolderLinux.AiCatalogProvider>();
-    }
-    public async void run_ai_stream(string prompt,
-                                    string? project_id,
-                                    string? thread_id,
-                                    string? context_card_id,
-                                    string? context_card_title,
-                                    string? context_card_body,
-                                    HolderLinux.AiRunEventHandler on_event) throws Error {
-        if (fail_stream) {
-            throw new IOError.FAILED("stream failed");
-        }
-        run_calls++;
-        last_thread_id = thread_id;
-
-        if (slow_stream) {
-            var loop = new MainLoop();
-            Timeout.add(80, () => {
-                loop.quit();
-                return Source.REMOVE;
-            });
-            loop.run();
-        }
-
-        var chunk_obj = new Json.Object();
-        if (!emit_chunk_missing_delta) {
-            chunk_obj.set_string_member("delta", "hello");
-        }
-        on_event("chunk", chunk_obj);
-
-        if (emit_progress) {
-            var progress_obj = new Json.Object();
-            progress_obj.set_string_member("message", "working");
-            on_event("progress", progress_obj);
-        }
-        if (emit_progress_empty) {
-            on_event("progress", new Json.Object());
-        }
-        if (emit_fallback) {
-            var fallback_obj = new Json.Object();
-            fallback_obj.set_string_member("model", "phi4");
-            fallback_obj.set_string_member("error", "rate limit");
-            on_event("fallback", fallback_obj);
-        }
-        if (emit_fallback_empty) {
-            on_event("fallback", new Json.Object());
-        }
-        if (emit_failed) {
-            var failed_obj = new Json.Object();
-            failed_obj.set_string_member("error", "bad prompt");
-            on_event("failed", failed_obj);
-        }
-        if (emit_failed_empty) {
-            on_event("failed", new Json.Object());
-        }
-
-        var done_obj = new Json.Object();
-        if (!done_without_model) {
-            done_obj.set_string_member("model", "phi4");
-        }
-        on_event("done", done_obj);
-    }
-    public async string create_card(string project_id,
-                                    string title,
-                                    string content) throws Error {
-        return "c1";
-    }
-    public async void update_card(string card_id,
-                                  string title,
-                                  string content,
-                                  int64 updated_at) throws Error {}
-}
-
-private class FakeContext : Object, HolderLinux.IAiRunContext {
-    public HolderLinux.IHolderApi? api;
-    public HolderLinux.Project? project;
-    public HolderLinux.CardDetail? card;
-    public HolderLinux.AiThreadSummary? thread;
-    public int create_thread_calls = 0;
-    public int reload_threads_calls = 0;
-    public string? selected_thread_id = null;
-    public bool fail_create_thread = false;
-    public string create_thread_id = "t-created";
-
-    public HolderLinux.IHolderApi? get_api_client() {
-        return api;
-    }
-
-    public string? selected_project_id() {
-        return project != null ? project.project_id : null;
-    }
-
-    public HolderLinux.Project? get_current_project() {
-        return project;
-    }
-
-    public HolderLinux.CardDetail? get_current_card() {
-        return card;
-    }
-
-    public HolderLinux.AiThreadSummary? get_current_ai_thread() {
-        return thread;
-    }
-
-    public int64 now_epoch_seconds() {
-        return 1234;
-    }
-
-    public async string create_ai_thread(string title) throws Error {
-        if (fail_create_thread) {
-            throw new IOError.FAILED("create thread failed");
-        }
-        create_thread_calls++;
-        return create_thread_id;
-    }
-
-    public async void reload_ai_threads_for_project(string project_id) {
-        reload_threads_calls++;
-    }
-
-    public bool select_ai_thread_by_id(string thread_id) {
-        selected_thread_id = thread_id;
-        thread = new HolderLinux.AiThreadSummary(thread_id, "p1", "New thread", 1, 1);
-        return true;
-    }
-}
-
 private void test_send_with_existing_thread_streams_and_completes() {
-    var api = new FakeApi();
-    var ctx = new FakeContext();
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
@@ -233,8 +35,8 @@ private void test_send_with_existing_thread_streams_and_completes() {
 }
 
 private void test_send_without_thread_creates_thread_then_runs() {
-    var api = new FakeApi();
-    var ctx = new FakeContext();
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     ctx.thread = null;
@@ -257,8 +59,8 @@ private void test_send_without_thread_creates_thread_then_runs() {
 }
 
 private void test_send_requires_project() {
-    var api = new FakeApi();
-    var ctx = new FakeContext();
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = null;
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
@@ -275,8 +77,8 @@ private void test_send_requires_project() {
 }
 
 private void test_send_requires_prompt() {
-    var api = new FakeApi();
-    var ctx = new FakeContext();
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
@@ -295,8 +97,8 @@ private void test_send_requires_prompt() {
 }
 
 private void test_start_model_pull_emits_status_and_toast() {
-    var api = new FakeApi();
-    var ctx = new FakeContext();
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
@@ -321,9 +123,9 @@ private void test_start_model_pull_emits_status_and_toast() {
 }
 
 private void test_start_model_pull_with_empty_job_id_reports_started() {
-    var api = new FakeApi();
+    var api = new AiRunFakeApi();
     api.pull_returns_empty_job_id = true;
-    var ctx = new FakeContext();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
@@ -341,8 +143,8 @@ private void test_start_model_pull_with_empty_job_id_reports_started() {
 }
 
 private void test_refresh_status_emits_render_status() {
-    var api = new FakeApi();
-    var ctx = new FakeContext();
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
@@ -357,9 +159,9 @@ private void test_refresh_status_emits_render_status() {
 }
 
 private void test_refresh_status_error_emits_render_status_error() {
-    var api = new FakeApi();
+    var api = new AiRunFakeApi();
     api.fail_capabilities = true;
-    var ctx = new FakeContext();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
@@ -376,9 +178,9 @@ private void test_refresh_status_error_emits_render_status_error() {
 }
 
 private void test_start_model_pull_error_emits_error() {
-    var api = new FakeApi();
+    var api = new AiRunFakeApi();
     api.fail_pull = true;
-    var ctx = new FakeContext();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
@@ -395,11 +197,11 @@ private void test_start_model_pull_error_emits_error() {
 }
 
 private void test_stream_progress_fallback_failed_events_are_rendered() {
-    var api = new FakeApi();
+    var api = new AiRunFakeApi();
     api.emit_progress = true;
     api.emit_fallback = true;
     api.emit_failed = true;
-    var ctx = new FakeContext();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
@@ -425,10 +227,10 @@ private void test_stream_progress_fallback_failed_events_are_rendered() {
 }
 
 private void test_stream_failed_without_error_uses_default_message() {
-    var api = new FakeApi();
+    var api = new AiRunFakeApi();
     api.emit_failed_empty = true;
     api.done_without_model = true;
-    var ctx = new FakeContext();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
@@ -451,8 +253,8 @@ private void test_stream_failed_without_error_uses_default_message() {
 }
 
 private void test_create_thread_from_prompt_without_project_errors() {
-    var api = new FakeApi();
-    var ctx = new FakeContext();
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = null;
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
@@ -469,9 +271,9 @@ private void test_create_thread_from_prompt_without_project_errors() {
 }
 
 private void test_set_panel_visible_starts_and_stops_polling() {
-    var api = new FakeApi();
+    var api = new AiRunFakeApi();
     api.status_active_pull_jobs = 1;
-    var ctx = new FakeContext();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     var scheduler = new TestScheduler();
@@ -484,7 +286,7 @@ private void test_set_panel_visible_starts_and_stops_polling() {
 }
 
 private void test_refresh_status_with_no_api_is_noop() {
-    var ctx = new FakeContext();
+    var ctx = new AiRunFakeContext();
     ctx.api = null;
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
@@ -504,7 +306,7 @@ private void test_refresh_status_with_no_api_is_noop() {
 }
 
 private void test_start_model_pull_with_no_api_is_noop() {
-    var ctx = new FakeContext();
+    var ctx = new AiRunFakeContext();
     ctx.api = null;
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
@@ -519,8 +321,8 @@ private void test_start_model_pull_with_no_api_is_noop() {
 }
 
 private void test_create_thread_failure_emits_error() {
-    var api = new FakeApi();
-    var ctx = new FakeContext();
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     ctx.fail_create_thread = true;
@@ -538,8 +340,8 @@ private void test_create_thread_failure_emits_error() {
 }
 
 private void test_create_thread_empty_id_then_prompt_errors_missing_context() {
-    var api = new FakeApi();
-    var ctx = new FakeContext();
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     ctx.create_thread_id = "";
@@ -558,9 +360,9 @@ private void test_create_thread_empty_id_then_prompt_errors_missing_context() {
 }
 
 private void test_send_stream_failure_reports_error_and_recovers_send_enabled() {
-    var api = new FakeApi();
+    var api = new AiRunFakeApi();
     api.fail_stream = true;
-    var ctx = new FakeContext();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
@@ -590,9 +392,9 @@ private void test_send_stream_failure_reports_error_and_recovers_send_enabled() 
 }
 
 private void test_send_while_in_flight_emits_busy_status() {
-    var api = new FakeApi();
+    var api = new AiRunFakeApi();
     api.slow_stream = true;
-    var ctx = new FakeContext();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
@@ -615,12 +417,12 @@ private void test_send_while_in_flight_emits_busy_status() {
 }
 
 private void test_stream_event_edge_defaults() {
-    var api = new FakeApi();
+    var api = new AiRunFakeApi();
     api.emit_chunk_missing_delta = true;
     api.emit_progress_empty = true;
     api.emit_fallback_empty = true;
     api.done_without_model = true;
-    var ctx = new FakeContext();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
@@ -653,8 +455,8 @@ private void test_stream_event_edge_defaults() {
 }
 
 private void test_stop_without_polling_is_noop() {
-    var api = new FakeApi();
-    var ctx = new FakeContext();
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
     var scheduler = new TestScheduler();

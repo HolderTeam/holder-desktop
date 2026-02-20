@@ -2,315 +2,7 @@ using GLib;
 
 namespace HolderLinuxTests {
 
-private class FakeClock : Object, HolderLinux.IClock {
-    public int64 now_value = 1000;
-
-    public int64 now_epoch_seconds() {
-        return now_value;
-    }
-}
-
-private class StoreSelectionState : Object, HolderLinux.ISelectionState {
-    private GLib.ListStore store;
-    private uint selected = uint.MAX;
-
-    public StoreSelectionState(GLib.ListStore store) {
-        this.store = store;
-    }
-
-    public Object? get_selected_item() {
-        if (selected == uint.MAX) {
-            return null;
-        }
-        return store.get_item(selected);
-    }
-
-    public uint get_selected_index() {
-        return selected;
-    }
-
-    public void set_selected_index(uint index) {
-        selected = index;
-    }
-}
-
-private class TestHarness : Object {
-    public GLib.ListStore project_store;
-    public GLib.ListStore card_store;
-    public GLib.ListStore thread_store;
-    public GLib.ListStore search_store;
-    public StoreSelectionState project_selection;
-    public StoreSelectionState card_selection;
-    public StoreSelectionState thread_selection;
-    public StoreSelectionState search_selection;
-    public MutableTextProvider search_text;
-    public MutableTextProvider editor_text;
-    public HolderLinux.MainController controller;
-
-    public TestHarness(FakeApi api,
-                       TestScheduler scheduler,
-                       FakeClock clock,
-                       FakeServerDiscovery? discovery = null,
-                       HolderLinux.IHolderApi? initial_api = null,
-                       bool inject_initial_api = true) {
-        project_store = new GLib.ListStore(typeof(HolderLinux.Project));
-        card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
-        thread_store = new GLib.ListStore(typeof(HolderLinux.AiThreadSummary));
-        search_store = new GLib.ListStore(typeof(HolderLinux.SearchCardResult));
-        project_selection = new StoreSelectionState(project_store);
-        card_selection = new StoreSelectionState(card_store);
-        thread_selection = new StoreSelectionState(thread_store);
-        search_selection = new StoreSelectionState(search_store);
-        search_text = new MutableTextProvider();
-        editor_text = new MutableTextProvider();
-        controller = new HolderLinux.MainController(
-            project_store,
-            project_selection,
-            card_store,
-            card_selection,
-            thread_store,
-            thread_selection,
-            search_store,
-            search_selection,
-            search_text,
-            editor_text,
-            new FakeApiFactory(api, api),
-            discovery ?? new FakeServerDiscovery(),
-            clock,
-            scheduler,
-            inject_initial_api ? (initial_api ?? api) : null
-        );
-    }
-}
-
-private class MutableTextProvider : Object, HolderLinux.ITextProvider {
-    public string value = "";
-
-    public string get_text() {
-        return value;
-    }
-}
-
-private class FakeApi : Object, HolderLinux.IHolderApi {
-    public int list_projects_calls = 0;
-    public int list_cards_calls = 0;
-    public int get_card_calls = 0;
-    public int search_calls = 0;
-    public int update_card_calls = 0;
-    public int create_card_calls = 0;
-    public int create_project_calls = 0;
-    public int list_threads_calls = 0;
-    public int factory_create_calls = 0;
-    public string last_updated_card_id = "";
-    public string last_updated_title = "";
-    public string last_updated_content = "";
-    public int64 last_updated_at = 0;
-    public bool fail_health = false;
-    public bool fail_create_card = false;
-    public bool fail_create_project = false;
-    public bool fail_list_threads = false;
-    public bool include_card2 = false;
-    public bool search_returns_card2 = false;
-    public bool list_projects_empty = false;
-    public bool list_projects_empty_first = false;
-    public bool fail_list_projects = false;
-    public bool list_cards_empty = false;
-    public bool slow_create_card = false;
-    public bool list_threads_empty = false;
-    public bool include_created_card = false;
-    public bool fail_update_card = false;
-    public bool fail_search = false;
-    public bool fail_get_card = false;
-    public bool fail_list_cards = false;
-    private int list_projects_index = 0;
-
-    public async void health_check() throws Error {
-        if (fail_health) {
-            throw new IOError.FAILED("health failed");
-        }
-    }
-
-    public async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
-        if (fail_list_projects) {
-            throw new IOError.FAILED("list projects failed");
-        }
-        list_projects_calls++;
-        list_projects_index++;
-        var projects = new Gee.ArrayList<HolderLinux.Project>();
-        if (list_projects_empty_first && list_projects_index == 1) {
-            return projects;
-        }
-        if (list_projects_empty) {
-            return projects;
-        }
-        projects.add(new HolderLinux.Project("p1", "Project 1", "/tmp/p1", 10, 10));
-        return projects;
-    }
-
-    public async string create_project(string name) throws Error {
-        if (fail_create_project) {
-            throw new IOError.FAILED("create project failed");
-        }
-        create_project_calls++;
-        return "p-created";
-    }
-
-    public async Gee.ArrayList<HolderLinux.CardSummary> list_cards(string project_id) throws Error {
-        if (fail_list_cards) {
-            throw new IOError.FAILED("list cards failed");
-        }
-        list_cards_calls++;
-        var cards = new Gee.ArrayList<HolderLinux.CardSummary>();
-        if (list_cards_empty) {
-            return cards;
-        }
-        cards.add(new HolderLinux.CardSummary("c1", project_id, "Card 1", "c1.md", 20, 20));
-        if (include_card2) {
-            cards.add(new HolderLinux.CardSummary("c2", project_id, "Card 2", "c2.md", 21, 21));
-        }
-        if (include_created_card) {
-            cards.add(new HolderLinux.CardSummary("c-created", project_id, "Untitled", "c-created.md", 22, 22));
-        }
-        return cards;
-    }
-
-    public async HolderLinux.CardDetail get_card(string card_id) throws Error {
-        if (fail_get_card) {
-            throw new IOError.FAILED("get card failed");
-        }
-        get_card_calls++;
-        return new HolderLinux.CardDetail(card_id, "p1", "Card 1", "# Card 1\n\nBody", 20);
-    }
-
-    public async Gee.ArrayList<HolderLinux.SearchCardResult> search_cards(string project_id,
-                                                                           string query_text,
-                                                                           int limit = 30) throws Error {
-        if (fail_search) {
-            throw new IOError.FAILED("search failed");
-        }
-        search_calls++;
-        var results = new Gee.ArrayList<HolderLinux.SearchCardResult>();
-        if (search_returns_card2) {
-            results.add(new HolderLinux.SearchCardResult("c2", "Card 2", 21, 21, "snippet", 1.0));
-        }
-        return results;
-    }
-
-    public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error {
-        return new HolderLinux.AiCapabilitiesInfo(
-            true, "", 1, "1.0", "user", new Gee.ArrayList<string>(), new Gee.ArrayList<string>()
-        );
-    }
-
-    public async HolderLinux.AiStatusInfo get_ai_status() throws Error {
-        return new HolderLinux.AiStatusInfo(1, true, "", 0, 0, 0, new Gee.ArrayList<string>());
-    }
-
-    public async string start_ai_runner_pull(string model_tag) throws Error {
-        return "job-1";
-    }
-
-    public async Gee.ArrayList<HolderLinux.AiThreadSummary> list_ai_threads(string project_id) throws Error {
-        if (fail_list_threads) {
-            throw new IOError.FAILED("list threads failed");
-        }
-        list_threads_calls++;
-        var threads = new Gee.ArrayList<HolderLinux.AiThreadSummary>();
-        if (list_threads_empty) {
-            return threads;
-        }
-        threads.add(new HolderLinux.AiThreadSummary("t1", project_id, "Thread 1", 30, 30));
-        return threads;
-    }
-
-    public async string create_ai_thread(string project_id, string title) throws Error {
-        return "t-created";
-    }
-
-    public async Gee.ArrayList<HolderLinux.AiCatalogProvider> list_ai_provider_catalog() throws Error {
-        return new Gee.ArrayList<HolderLinux.AiCatalogProvider>();
-    }
-
-    public async void run_ai_stream(string prompt,
-                                    string? project_id,
-                                    string? thread_id,
-                                    string? context_card_id,
-                                    string? context_card_title,
-                                    string? context_card_body,
-                                    HolderLinux.AiRunEventHandler on_event) throws Error {}
-
-    public async string create_card(string project_id,
-                                    string title,
-                                    string content) throws Error {
-        if (fail_create_card) {
-            throw new IOError.FAILED("create card failed");
-        }
-        create_card_calls++;
-        if (slow_create_card) {
-            var loop = new MainLoop();
-            Timeout.add(200, () => {
-                loop.quit();
-                return Source.REMOVE;
-            });
-            loop.run();
-        }
-        return "c-created";
-    }
-
-    public async void update_card(string card_id,
-                                  string title,
-                                  string content,
-                                  int64 updated_at) throws Error {
-        if (fail_update_card) {
-            throw new IOError.FAILED("update failed");
-        }
-        update_card_calls++;
-        last_updated_card_id = card_id;
-        last_updated_title = title;
-        last_updated_content = content;
-        last_updated_at = updated_at;
-    }
-}
-
-private class FakeApiFactory : Object, HolderLinux.IApiFactory {
-    private HolderLinux.IHolderApi api;
-    private FakeApi? fake_api;
-
-    public FakeApiFactory(HolderLinux.IHolderApi api, FakeApi? fake_api = null) {
-        this.api = api;
-        this.fake_api = fake_api;
-    }
-
-    public HolderLinux.IHolderApi create(string base_url, string auth_token) {
-        if (fake_api != null) {
-            fake_api.factory_create_calls++;
-        }
-        return api;
-    }
-}
-
-private class FakeServerDiscovery : Object, HolderLinux.IServerDiscovery {
-    public HolderLinux.ServerInfo info;
-    public bool should_fail = false;
-    public string fail_message = "discovery failed";
-
-    public FakeServerDiscovery() {
-        info = new HolderLinux.ServerInfo(1, "127.0.0.1", 8080, 1, "0.1", "0.1", "token");
-    }
-
-    public HolderLinux.ServerInfo discover_server() throws Error {
-        if (should_fail) {
-            throw new IOError.FAILED(fail_message);
-        }
-        return info;
-    }
-
-    public string holder_info_path() {
-        return "/tmp/holder.json";
-    }
-}
-
-private HolderLinux.MainController make_controller(FakeApi api,
+private HolderLinux.MainController make_controller(MainControllerFakeApi api,
                                                    TestScheduler scheduler,
                                                    FakeClock clock,
                                                    MutableTextProvider search_text,
@@ -334,7 +26,7 @@ private HolderLinux.MainController make_controller(FakeApi api,
         new StoreSelectionState(search_store),
         search_text,
         editor_text,
-        new FakeApiFactory(api, api),
+        new MainControllerFakeApiFactory(api, api),
         discovery ?? new FakeServerDiscovery(),
         clock,
         scheduler,
@@ -343,17 +35,17 @@ private HolderLinux.MainController make_controller(FakeApi api,
     return controller;
 }
 
-private TestHarness make_harness(FakeApi api,
+private MainControllerTestHarness make_harness(MainControllerFakeApi api,
                                  TestScheduler scheduler,
                                  FakeClock clock,
                                  FakeServerDiscovery? discovery = null,
                                  HolderLinux.IHolderApi? initial_api = null,
                                  bool inject_initial_api = true) {
-    return new TestHarness(api, scheduler, clock, discovery, initial_api, inject_initial_api);
+    return new MainControllerTestHarness(api, scheduler, clock, discovery, initial_api, inject_initial_api);
 }
 
 private void test_reload_everything_loads_project_and_card() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -372,7 +64,7 @@ private void test_reload_everything_loads_project_and_card() {
 }
 
 private void test_search_debounce_runs_once() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -392,7 +84,7 @@ private void test_search_debounce_runs_once() {
 }
 
 private void test_autosave_debounce_runs_once() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -418,7 +110,7 @@ private void test_autosave_debounce_runs_once() {
 }
 
 private void test_bootstrap_discovery_failure_updates_editor_state() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -446,7 +138,7 @@ private void test_bootstrap_discovery_failure_updates_editor_state() {
 }
 
 private void test_bootstrap_health_failure_emits_error() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.fail_health = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -466,7 +158,7 @@ private void test_bootstrap_health_failure_emits_error() {
 }
 
 private void test_create_card_error_emits_error() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.fail_create_card = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -487,7 +179,7 @@ private void test_create_card_error_emits_error() {
 }
 
 private void test_create_project_error_emits_error() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.fail_create_project = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -506,7 +198,7 @@ private void test_create_project_error_emits_error() {
 }
 
 private void test_create_project_with_no_api_is_noop() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -519,7 +211,7 @@ private void test_create_project_with_no_api_is_noop() {
 }
 
 private void test_create_card_success_selects_created_card() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.include_created_card = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -543,7 +235,7 @@ private void test_create_card_success_selects_created_card() {
 }
 
 private void test_create_card_in_flight_guard() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.include_created_card = true;
     api.slow_create_card = true;
     var scheduler = new TestScheduler();
@@ -566,7 +258,7 @@ private void test_create_card_in_flight_guard() {
 }
 
 private void test_create_card_without_project_emits_error() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.list_projects_empty = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -588,7 +280,7 @@ private void test_create_card_without_project_emits_error() {
 }
 
 private void test_reload_ai_threads_error_emits_error() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.fail_list_threads = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -607,7 +299,7 @@ private void test_reload_ai_threads_error_emits_error() {
 }
 
 private void test_open_search_result_existing_card_skips_reload() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.include_card2 = true;
     api.search_returns_card2 = true;
     var scheduler = new TestScheduler();
@@ -628,7 +320,7 @@ private void test_open_search_result_existing_card_skips_reload() {
 }
 
 private void test_open_search_result_missing_card_triggers_reload() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.include_card2 = false;
     api.search_returns_card2 = true;
     var scheduler = new TestScheduler();
@@ -652,7 +344,7 @@ private void test_open_search_result_missing_card_triggers_reload() {
 }
 
 private void test_run_search_without_project_emits_error() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -672,7 +364,7 @@ private void test_run_search_without_project_emits_error() {
 }
 
 private void test_run_search_empty_query_shows_editor() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -691,7 +383,7 @@ private void test_run_search_empty_query_shows_editor() {
 }
 
 private void test_run_search_success_emits_summary_and_show_search() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.search_returns_card2 = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -719,7 +411,7 @@ private void test_run_search_success_emits_summary_and_show_search() {
 }
 
 private void test_run_search_failure_emits_error() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.fail_search = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -742,7 +434,7 @@ private void test_run_search_failure_emits_error() {
 }
 
 private void test_run_search_with_no_api_is_noop() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -756,7 +448,7 @@ private void test_run_search_with_no_api_is_noop() {
 }
 
 private void test_selected_ids_and_api_getter() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
@@ -776,7 +468,7 @@ private void test_selected_ids_and_api_getter() {
 }
 
 private void test_reload_everything_with_no_api_is_noop() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock, null, null, false);
@@ -789,7 +481,7 @@ private void test_reload_everything_with_no_api_is_noop() {
 }
 
 private void test_reload_everything_with_no_projects_sets_empty_state() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.list_projects_empty = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -809,7 +501,7 @@ private void test_reload_everything_with_no_projects_sets_empty_state() {
 }
 
 private void test_reload_everything_with_no_cards_sets_empty_state() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.list_cards_empty = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -829,7 +521,7 @@ private void test_reload_everything_with_no_cards_sets_empty_state() {
 }
 
 private void test_reload_everything_list_projects_failure_emits_error() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.fail_list_projects = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -847,7 +539,7 @@ private void test_reload_everything_list_projects_failure_emits_error() {
 }
 
 private void test_reload_everything_uses_preferred_project_selection() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
@@ -861,7 +553,7 @@ private void test_reload_everything_uses_preferred_project_selection() {
 }
 
 private void test_ignore_flags_public_accessors_default_false() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
@@ -872,7 +564,7 @@ private void test_ignore_flags_public_accessors_default_false() {
 }
 
 private void test_reload_cards_error_emits_error() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.fail_list_cards = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -891,7 +583,7 @@ private void test_reload_cards_error_emits_error() {
 }
 
 private void test_cancel_pending_search_prevents_scheduled_run() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -911,7 +603,7 @@ private void test_cancel_pending_search_prevents_scheduled_run() {
 }
 
 private void test_reload_ai_threads_empty_emits_null_title() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.list_threads_empty = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -931,7 +623,7 @@ private void test_reload_ai_threads_empty_emits_null_title() {
 }
 
 private void test_select_ai_thread_by_unknown_id_returns_false() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -944,7 +636,7 @@ private void test_select_ai_thread_by_unknown_id_returns_false() {
 }
 
 private void test_on_ai_thread_selected_with_no_selection_emits_null_title() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -963,7 +655,7 @@ private void test_on_ai_thread_selected_with_no_selection_emits_null_title() {
 }
 
 private void test_on_project_selected_without_selection_noop() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
@@ -975,7 +667,7 @@ private void test_on_project_selected_without_selection_noop() {
 }
 
 private void test_on_card_selected_without_selection_sets_empty_state() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
@@ -996,7 +688,7 @@ private void test_on_card_selected_without_selection_sets_empty_state() {
 }
 
 private void test_on_ai_thread_selected_emits_title_and_sets_current_thread() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -1019,7 +711,7 @@ private void test_on_ai_thread_selected_emits_title_and_sets_current_thread() {
 }
 
 private void test_select_ai_thread_by_id_true_path() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
@@ -1031,7 +723,7 @@ private void test_select_ai_thread_by_id_true_path() {
 }
 
 private void test_open_search_result_with_empty_store_is_noop() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -1047,7 +739,7 @@ private void test_open_search_result_with_empty_store_is_noop() {
 }
 
 private void test_load_selected_card_failure_emits_error() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.fail_get_card = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -1066,7 +758,7 @@ private void test_load_selected_card_failure_emits_error() {
 }
 
 private void test_autosave_failure_emits_error() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.fail_update_card = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -1088,7 +780,7 @@ private void test_autosave_failure_emits_error() {
 }
 
 private void test_autosave_without_card_is_noop() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -1101,7 +793,7 @@ private void test_autosave_without_card_is_noop() {
 }
 
 private void test_create_ai_thread_success() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -1126,7 +818,7 @@ private void test_create_ai_thread_success() {
 }
 
 private void test_create_ai_thread_without_context_throws() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -1148,7 +840,7 @@ private void test_create_ai_thread_without_context_throws() {
 }
 
 private void test_create_project_success_reloads_and_toasts() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
@@ -1173,7 +865,7 @@ private void test_create_project_success_reloads_and_toasts() {
 }
 
 private void test_on_project_selected_triggers_reload() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var harness = make_harness(api, scheduler, clock);
@@ -1187,7 +879,7 @@ private void test_on_project_selected_triggers_reload() {
 }
 
 private void test_on_card_selected_triggers_load() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.include_card2 = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -1203,7 +895,7 @@ private void test_on_card_selected_triggers_load() {
 }
 
 private void test_reload_ai_threads_without_api_is_noop() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -1216,7 +908,7 @@ private void test_reload_ai_threads_without_api_is_noop() {
 }
 
 private void test_create_card_without_api_emits_unavailable() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -1234,7 +926,7 @@ private void test_create_card_without_api_emits_unavailable() {
 }
 
 private void test_bootstrap_success_emits_ready_and_refresh() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
     var search_text = new MutableTextProvider();
@@ -1257,7 +949,7 @@ private void test_bootstrap_success_emits_ready_and_refresh() {
 }
 
 private void test_bootstrap_creates_first_project_when_empty_first() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.list_projects_empty_first = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -1272,7 +964,7 @@ private void test_bootstrap_creates_first_project_when_empty_first() {
 }
 
 private void test_bootstrap_list_projects_failure_emits_bootstrap_error() {
-    var api = new FakeApi();
+    var api = new MainControllerFakeApi();
     api.fail_list_projects = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
