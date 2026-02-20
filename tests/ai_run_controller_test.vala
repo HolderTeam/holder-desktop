@@ -28,6 +28,13 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     public string? last_thread_id = null;
     public int start_pull_calls = 0;
     public string last_pull_model = "";
+    public bool fail_capabilities = false;
+    public bool fail_status = false;
+    public bool fail_pull = false;
+    public bool fail_stream = false;
+    public bool emit_progress = false;
+    public bool emit_fallback = false;
+    public bool emit_failed = false;
 
     public async void health_check() throws Error {}
     public async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
@@ -48,14 +55,23 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
         return new Gee.ArrayList<HolderLinux.SearchCardResult>();
     }
     public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error {
+        if (fail_capabilities) {
+            throw new IOError.FAILED("capabilities failed");
+        }
         return new HolderLinux.AiCapabilitiesInfo(
             true, "", 1, "1.0", "user", new Gee.ArrayList<string>(), new Gee.ArrayList<string>()
         );
     }
     public async HolderLinux.AiStatusInfo get_ai_status() throws Error {
+        if (fail_status) {
+            throw new IOError.FAILED("status failed");
+        }
         return new HolderLinux.AiStatusInfo(1, true, "", 0, 0, 0, new Gee.ArrayList<string>());
     }
     public async string start_ai_runner_pull(string model_tag) throws Error {
+        if (fail_pull) {
+            throw new IOError.FAILED("pull failed");
+        }
         start_pull_calls++;
         last_pull_model = model_tag;
         return "job-1";
@@ -76,12 +92,32 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
                                     string? context_card_title,
                                     string? context_card_body,
                                     HolderLinux.AiRunEventHandler on_event) throws Error {
+        if (fail_stream) {
+            throw new IOError.FAILED("stream failed");
+        }
         run_calls++;
         last_thread_id = thread_id;
 
         var chunk_obj = new Json.Object();
         chunk_obj.set_string_member("delta", "hello");
         on_event("chunk", chunk_obj);
+
+        if (emit_progress) {
+            var progress_obj = new Json.Object();
+            progress_obj.set_string_member("message", "working");
+            on_event("progress", progress_obj);
+        }
+        if (emit_fallback) {
+            var fallback_obj = new Json.Object();
+            fallback_obj.set_string_member("model", "phi4");
+            fallback_obj.set_string_member("error", "rate limit");
+            on_event("fallback", fallback_obj);
+        }
+        if (emit_failed) {
+            var failed_obj = new Json.Object();
+            failed_obj.set_string_member("error", "bad prompt");
+            on_event("failed", failed_obj);
+        }
 
         var done_obj = new Json.Object();
         done_obj.set_string_member("model", "phi4");
@@ -280,6 +316,90 @@ private void test_start_model_pull_emits_status_and_toast() {
     assert(api.last_pull_model == "phi4");
 }
 
+private void test_refresh_status_emits_render_status() {
+    var api = new FakeApi();
+    var ctx = new FakeContext();
+    ctx.api = api;
+    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    var controller = new HolderLinux.AiRunController(ctx, new FakeScheduler());
+
+    bool rendered = false;
+    controller.render_status_requested.connect((capabilities, status) => {
+        rendered = true;
+    });
+
+    controller.refresh_status.begin();
+    assert(wait_for(() => rendered));
+}
+
+private void test_refresh_status_error_emits_render_status_error() {
+    var api = new FakeApi();
+    api.fail_capabilities = true;
+    var ctx = new FakeContext();
+    ctx.api = api;
+    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    var controller = new HolderLinux.AiRunController(ctx, new FakeScheduler());
+
+    bool got_error = false;
+    controller.render_status_error_requested.connect((message) => {
+        if (message.contains("capabilities failed")) {
+            got_error = true;
+        }
+    });
+
+    controller.refresh_status.begin();
+    assert(wait_for(() => got_error));
+}
+
+private void test_start_model_pull_error_emits_error() {
+    var api = new FakeApi();
+    api.fail_pull = true;
+    var ctx = new FakeContext();
+    ctx.api = api;
+    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    var controller = new HolderLinux.AiRunController(ctx, new FakeScheduler());
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Failed to start model pull") {
+            got_error = true;
+        }
+    });
+
+    controller.start_model_pull.begin("phi4");
+    assert(wait_for(() => got_error));
+}
+
+private void test_stream_progress_fallback_failed_events_are_rendered() {
+    var api = new FakeApi();
+    api.emit_progress = true;
+    api.emit_fallback = true;
+    api.emit_failed = true;
+    var ctx = new FakeContext();
+    ctx.api = api;
+    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
+    var controller = new HolderLinux.AiRunController(ctx, new FakeScheduler());
+
+    bool saw_progress = false;
+    bool saw_fallback = false;
+    bool saw_failed = false;
+    controller.append_output_requested.connect((role, text) => {
+        if (text.contains("working")) {
+            saw_progress = true;
+        }
+        if (text.contains("Fallback from phi4")) {
+            saw_fallback = true;
+        }
+        if (text.contains("bad prompt")) {
+            saw_failed = true;
+        }
+    });
+
+    controller.on_send_clicked("prompt");
+    assert(wait_for(() => saw_progress && saw_fallback && saw_failed));
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -298,6 +418,22 @@ int main(string[] args) {
     Test.add_func(
         "/ai_run/start_model_pull_emits_status_and_toast",
         test_start_model_pull_emits_status_and_toast
+    );
+    Test.add_func(
+        "/ai_run/refresh_status_emits_render_status",
+        test_refresh_status_emits_render_status
+    );
+    Test.add_func(
+        "/ai_run/refresh_status_error_emits_render_status_error",
+        test_refresh_status_error_emits_render_status_error
+    );
+    Test.add_func(
+        "/ai_run/start_model_pull_error_emits_error",
+        test_start_model_pull_error_emits_error
+    );
+    Test.add_func(
+        "/ai_run/stream_progress_fallback_failed_events_are_rendered",
+        test_stream_progress_fallback_failed_events_are_rendered
     );
 
     return Test.run();

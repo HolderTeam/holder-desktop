@@ -94,12 +94,25 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     public int get_card_calls = 0;
     public int search_calls = 0;
     public int update_card_calls = 0;
+    public int create_card_calls = 0;
+    public int create_project_calls = 0;
+    public int list_threads_calls = 0;
     public string last_updated_card_id = "";
     public string last_updated_title = "";
     public string last_updated_content = "";
     public int64 last_updated_at = 0;
+    public bool fail_health = false;
+    public bool fail_create_card = false;
+    public bool fail_create_project = false;
+    public bool fail_list_threads = false;
+    public bool include_card2 = false;
+    public bool search_returns_card2 = false;
 
-    public async void health_check() throws Error {}
+    public async void health_check() throws Error {
+        if (fail_health) {
+            throw new IOError.FAILED("health failed");
+        }
+    }
 
     public async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
         list_projects_calls++;
@@ -109,6 +122,10 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async string create_project(string name) throws Error {
+        if (fail_create_project) {
+            throw new IOError.FAILED("create project failed");
+        }
+        create_project_calls++;
         return "p-created";
     }
 
@@ -116,6 +133,9 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
         list_cards_calls++;
         var cards = new Gee.ArrayList<HolderLinux.CardSummary>();
         cards.add(new HolderLinux.CardSummary("c1", project_id, "Card 1", "c1.md", 20, 20));
+        if (include_card2) {
+            cards.add(new HolderLinux.CardSummary("c2", project_id, "Card 2", "c2.md", 21, 21));
+        }
         return cards;
     }
 
@@ -128,7 +148,11 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
                                                                            string query_text,
                                                                            int limit = 30) throws Error {
         search_calls++;
-        return new Gee.ArrayList<HolderLinux.SearchCardResult>();
+        var results = new Gee.ArrayList<HolderLinux.SearchCardResult>();
+        if (search_returns_card2) {
+            results.add(new HolderLinux.SearchCardResult("c2", "Card 2", 21, 21, "snippet", 1.0));
+        }
+        return results;
     }
 
     public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error {
@@ -146,6 +170,10 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async Gee.ArrayList<HolderLinux.AiThreadSummary> list_ai_threads(string project_id) throws Error {
+        if (fail_list_threads) {
+            throw new IOError.FAILED("list threads failed");
+        }
+        list_threads_calls++;
         var threads = new Gee.ArrayList<HolderLinux.AiThreadSummary>();
         threads.add(new HolderLinux.AiThreadSummary("t1", project_id, "Thread 1", 30, 30));
         return threads;
@@ -170,6 +198,10 @@ private class FakeApi : Object, HolderLinux.IHolderApi {
     public async string create_card(string project_id,
                                     string title,
                                     string content) throws Error {
+        if (fail_create_card) {
+            throw new IOError.FAILED("create card failed");
+        }
+        create_card_calls++;
         return "c-created";
     }
 
@@ -199,12 +231,17 @@ private class FakeApiFactory : Object, HolderLinux.IApiFactory {
 
 private class FakeServerDiscovery : Object, HolderLinux.IServerDiscovery {
     public HolderLinux.ServerInfo info;
+    public bool should_fail = false;
+    public string fail_message = "discovery failed";
 
     public FakeServerDiscovery() {
         info = new HolderLinux.ServerInfo(1, "127.0.0.1", 8080, 1, "0.1", "0.1", "token");
     }
 
     public HolderLinux.ServerInfo discover_server() throws Error {
+        if (should_fail) {
+            throw new IOError.FAILED(fail_message);
+        }
         return info;
     }
 
@@ -217,7 +254,9 @@ private HolderLinux.MainController make_controller(FakeApi api,
                                                    FakeScheduler scheduler,
                                                    FakeClock clock,
                                                    MutableTextProvider search_text,
-                                                   MutableTextProvider editor_text) {
+                                                   MutableTextProvider editor_text,
+                                                   FakeServerDiscovery? discovery = null,
+                                                   HolderLinux.IHolderApi? initial_api = null) {
     var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
     var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
     var thread_store = new GLib.ListStore(typeof(HolderLinux.AiThreadSummary));
@@ -235,10 +274,10 @@ private HolderLinux.MainController make_controller(FakeApi api,
         search_text,
         editor_text,
         new FakeApiFactory(api),
-        new FakeServerDiscovery(),
+        discovery ?? new FakeServerDiscovery(),
         clock,
         scheduler,
-        api
+        initial_api ?? api
     );
     return controller;
 }
@@ -339,6 +378,134 @@ private void test_autosave_debounce_runs_once() {
     assert(api.last_updated_at == 4242);
 }
 
+private void test_bootstrap_discovery_failure_updates_editor_state() {
+    var api = new FakeApi();
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var discovery = new FakeServerDiscovery();
+    discovery.should_fail = true;
+    discovery.fail_message = "no holder running";
+
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text, discovery, null);
+    bool saw_status = false;
+    bool saw_not_found = false;
+    controller.status_changed.connect((text) => {
+        if (text.contains("no holder running")) {
+            saw_status = true;
+        }
+    });
+    controller.editor_state_changed.connect((text, editable) => {
+        if (text.contains("Holder Not Found")) {
+            saw_not_found = true;
+        }
+    });
+
+    controller.bootstrap.begin();
+    assert(wait_for(() => saw_status && saw_not_found));
+}
+
+private void test_bootstrap_health_failure_emits_error() {
+    var api = new FakeApi();
+    api.fail_health = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text, null, null);
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Health check failed") {
+            got_error = true;
+        }
+    });
+
+    controller.bootstrap.begin();
+    assert(wait_for(() => got_error));
+}
+
+private void test_create_card_error_emits_error() {
+    var api = new FakeApi();
+    api.fail_create_card = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    controller.reload_everything.begin();
+    assert(wait_for(() => controller.get_current_project() != null));
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Failed to create card") {
+            got_error = true;
+        }
+    });
+    controller.create_card.begin();
+    assert(wait_for(() => got_error));
+}
+
+private void test_create_project_error_emits_error() {
+    var api = new FakeApi();
+    api.fail_create_project = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Failed to create project") {
+            got_error = true;
+        }
+    });
+    controller.create_project_named.begin("X");
+    assert(wait_for(() => got_error));
+}
+
+private void test_reload_ai_threads_error_emits_error() {
+    var api = new FakeApi();
+    api.fail_list_threads = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Failed to load AI threads") {
+            got_error = true;
+        }
+    });
+    controller.reload_ai_threads_for_project.begin("p1");
+    assert(wait_for(() => got_error));
+}
+
+private void test_open_search_result_existing_card_skips_reload() {
+    var api = new FakeApi();
+    api.include_card2 = true;
+    api.search_returns_card2 = true;
+    var scheduler = new FakeScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    controller.reload_everything.begin();
+    assert(wait_for(() => controller.get_current_project() != null));
+
+    search_text.value = "card2";
+    controller.run_search.begin();
+    assert(wait_for(() => api.search_calls == 1));
+    var list_cards_before = api.list_cards_calls;
+    controller.open_search_result_at.begin(0);
+    assert(wait_for(() => api.get_card_calls >= 2));
+    assert(api.list_cards_calls == list_cards_before);
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -353,6 +520,30 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/autosave_debounce_runs_once",
         test_autosave_debounce_runs_once
+    );
+    Test.add_func(
+        "/main_controller/bootstrap_discovery_failure_updates_editor_state",
+        test_bootstrap_discovery_failure_updates_editor_state
+    );
+    Test.add_func(
+        "/main_controller/bootstrap_health_failure_emits_error",
+        test_bootstrap_health_failure_emits_error
+    );
+    Test.add_func(
+        "/main_controller/create_card_error_emits_error",
+        test_create_card_error_emits_error
+    );
+    Test.add_func(
+        "/main_controller/create_project_error_emits_error",
+        test_create_project_error_emits_error
+    );
+    Test.add_func(
+        "/main_controller/reload_ai_threads_error_emits_error",
+        test_reload_ai_threads_error_emits_error
+    );
+    Test.add_func(
+        "/main_controller/open_search_result_existing_card_skips_reload",
+        test_open_search_result_existing_card_skips_reload
     );
 
     return Test.run();
