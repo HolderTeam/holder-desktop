@@ -149,3 +149,26 @@ discovery_test_exe = executable(
 )
 
 test('holder-linux-discovery-tests', discovery_test_exe)
+
+ui_adapters_test_exe = executable(
+  'holder-linux-ui-adapters-tests',
+  [
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/ui_adapters.vala',
+    'tests/ui_adapters_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('gtksourceview-5'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-ui-adapters-tests', ui_adapters_test_exe)
