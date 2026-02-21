@@ -104,3 +104,27 @@ main_controller_test_exe = executable(
 )
 
 test('holder-linux-main-controller-tests', main_controller_test_exe)
+
+api_client_test_exe = executable(
+  'holder-linux-api-client-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/api_client_fakes.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/api_client.vala',
+    'tests/api_client_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-api-client-tests', api_client_test_exe)

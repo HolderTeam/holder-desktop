@@ -7,15 +7,56 @@ public errordomain ApiError {
     PARSE
 }
 
-public class ApiClient : Object, IHolderApi {
+public interface IApiHttpTransport : Object {
+    public abstract async ApiHttpBytesResponse send_and_read(Soup.Message message) throws Error;
+    public abstract async ApiHttpStreamResponse send(Soup.Message message) throws Error;
+}
+
+public class ApiHttpBytesResponse : Object {
+    public uint status { get; construct; }
+    public Bytes body { get; construct; }
+
+    public ApiHttpBytesResponse(uint status, Bytes body) {
+        Object(status: status, body: body);
+    }
+}
+
+public class ApiHttpStreamResponse : Object {
+    public uint status { get; construct; }
+    public InputStream stream { get; construct; }
+
+    public ApiHttpStreamResponse(uint status, InputStream stream) {
+        Object(status: status, stream: stream);
+    }
+}
+
+public class SoupApiHttpTransport : Object, IApiHttpTransport {
     private Soup.Session session;
+
+    public SoupApiHttpTransport(Soup.Session? session = null) {
+        this.session = session ?? new Soup.Session();
+    }
+
+    public async ApiHttpBytesResponse send_and_read(Soup.Message message) throws Error {
+        var body = yield session.send_and_read_async(message, Priority.DEFAULT, null);
+        return new ApiHttpBytesResponse(message.get_status(), body);
+    }
+
+    public async ApiHttpStreamResponse send(Soup.Message message) throws Error {
+        var stream = yield session.send_async(message, Priority.DEFAULT, null);
+        return new ApiHttpStreamResponse(message.get_status(), stream);
+    }
+}
+
+public class ApiClient : Object, IHolderApi {
+    private IApiHttpTransport transport;
     private string base_url;
     private string auth_token;
 
-    public ApiClient(string base_url, string auth_token) {
+    public ApiClient(string base_url, string auth_token, IApiHttpTransport? transport = null) {
         this.base_url = base_url;
         this.auth_token = auth_token;
-        this.session = new Soup.Session();
+        this.transport = transport ?? new SoupApiHttpTransport();
     }
 
     public async void health_check() throws Error {
@@ -167,18 +208,19 @@ public class ApiClient : Object, IHolderApi {
         var body_text = json_string_from_builder(body);
         message.set_request_body_from_bytes("application/json", new Bytes((uint8[]) body_text.data));
 
-        InputStream stream;
+        ApiHttpStreamResponse response;
         try {
-            stream = yield session.send_async(message, Priority.DEFAULT, null);
+            response = yield transport.send(message);
         } catch (Error e) {
             throw new ApiError.TRANSPORT("Transport error for POST /ai/runs: %s".printf(e.message));
         }
 
-        var status = message.get_status();
+        var status = response.status;
         if (status < 200 || status >= 300) {
             throw new ApiError.HTTP("HTTP %u for POST /ai/runs".printf((uint) status));
         }
 
+        var stream = response.stream;
         var data_stream = new DataInputStream(stream);
         data_stream.set_newline_type(DataStreamNewlineType.LF);
 
@@ -277,15 +319,15 @@ public class ApiClient : Object, IHolderApi {
             message.set_request_body_from_bytes("application/json", bytes);
         }
 
-        Bytes response_bytes;
+        ApiHttpBytesResponse response;
         try {
-            response_bytes = yield session.send_and_read_async(message, Priority.DEFAULT, null);
+            response = yield transport.send_and_read(message);
         } catch (Error e) {
             throw new ApiError.TRANSPORT("Transport error for %s %s: %s".printf(method, path, e.message));
         }
 
-        var status = message.get_status();
-        var response_text = (string) response_bytes.get_data();
+        var status = response.status;
+        var response_text = (string) response.body.get_data();
 
         Json.Object root;
         try {
