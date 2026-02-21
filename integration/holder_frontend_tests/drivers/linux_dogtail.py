@@ -70,7 +70,7 @@ class LinuxDogtailDriver(FrontendDriver):
         return len(matches) > 0
 
     def _find_app(self, tree_module):
-        for app_name in ("Holder", "holder-linux", "io.holder.linux"):
+        for app_name in ("Holder", "holder-desktop", "holder-linux", "io.holder.linux"):
             try:
                 app = tree_module.root.application(app_name)
                 if app is not None:

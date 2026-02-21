@@ -33,7 +33,7 @@ def find_app():
     except Exception:  # noqa: BLE001
         apps = []
 
-    for app_name in ("Holder", "holder-linux", "io.holder.linux"):
+    for app_name in ("Holder", "holder-desktop", "holder-linux", "io.holder.linux"):
         try:
             app = tree.root.application(app_name)
             if app is not None:
@@ -111,7 +111,7 @@ def click_toolbox_toggle(window):
 
 def main():
     if len(sys.argv) != 2:
-        raise RuntimeError("usage: test_smoke.py /path/to/holder-linux")
+        raise RuntimeError("usage: test_smoke.py /path/to/holder-desktop")
 
     app_path = sys.argv[1]
     env = os.environ.copy()

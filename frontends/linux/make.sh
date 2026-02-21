@@ -23,7 +23,7 @@ test_only() {
 
 run_app() {
   test_only
-  "./${BUILD_DIR}/holder-linux"
+  "./${BUILD_DIR}/holder-desktop"
 }
 
 coverage() {
@@ -63,7 +63,7 @@ coverage() {
     --gcov-executable gcov-13 \
     --gcov-ignore-errors all \
     --html-details "${out_dir}/index.html" \
-    --html-title "holder-linux coverage"
+    --html-title "holder-desktop coverage"
 
   echo "Coverage line summary:   ${out_dir}/summary-lines.txt"
   echo "Coverage branch summary: ${out_dir}/summary-branches.txt"

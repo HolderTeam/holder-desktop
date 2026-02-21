@@ -15,7 +15,7 @@ require_cmd() {
 
 run_linux() {
   require_cmd behave "Ubuntu: sudo apt install python3-behave"
-  local app_path="${HOLDER_FRONTEND_APP_PATH:-../frontends/linux/build/holder-linux}"
+  local app_path="${HOLDER_FRONTEND_APP_PATH:-../frontends/linux/build/holder-desktop}"
   HOLDER_FRONTEND_TARGET=linux \
     behave holder_frontend_tests/features \
       -D app_path="${app_path}" \
@@ -24,7 +24,7 @@ run_linux() {
 
 run_linux_ui_script() {
   local script_path="$1"
-  local app_path="${HOLDER_FRONTEND_APP_PATH:-../frontends/linux/build/holder-linux}"
+  local app_path="${HOLDER_FRONTEND_APP_PATH:-../frontends/linux/build/holder-desktop}"
   local repo_root
   repo_root="$(cd .. && pwd)"
 

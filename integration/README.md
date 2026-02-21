@@ -34,7 +34,7 @@ sudo apt install -y python3-behave python3-dogtail xvfb at-spi2-core dbus-x11 x1
 If your app binary is elsewhere:
 
 ```bash
-HOLDER_FRONTEND_APP_PATH=/path/to/holder-linux ./make.sh linux
+HOLDER_FRONTEND_APP_PATH=/path/to/holder-desktop ./make.sh linux
 ```
 
 Optional fallback for maintainers who want editable package installs:
@@ -53,7 +53,7 @@ Optional fallback for maintainers who want editable package installs:
 ## Environment
 
 - `HOLDER_FRONTEND_TARGET` (default: `linux`)
-- `HOLDER_FRONTEND_APP_PATH` (default: `../frontends/linux/build/holder-linux`)
+- `HOLDER_FRONTEND_APP_PATH` (default: `../frontends/linux/build/holder-desktop`)
 
 ## Next steps
 

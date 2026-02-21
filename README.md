@@ -37,10 +37,10 @@ sudo apt install -y python3-behave python3-dogtail xvfb at-spi2-core dbus-x11 x1
 ```
 
 By default the integration runner uses:
-- `../frontends/linux/build/holder-linux`
+- `../frontends/linux/build/holder-desktop`
 
 Override with:
-- `HOLDER_FRONTEND_APP_PATH=/path/to/holder-linux`
+- `HOLDER_FRONTEND_APP_PATH=/path/to/holder-desktop`
 
 Optional maintainer fallback:
 - `./integration/make.sh install-dev`

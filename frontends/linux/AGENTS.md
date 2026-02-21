@@ -280,13 +280,13 @@ cd frontends/linux
 
 Binary path:
 
-* `frontends/linux/build/holder-linux`
+* `frontends/linux/build/holder-desktop`
 
 Run command:
 
 ```bash
 cd frontends/linux
-./build/holder-linux
+./build/holder-desktop
 ```
 
 ### Required Ubuntu Packages

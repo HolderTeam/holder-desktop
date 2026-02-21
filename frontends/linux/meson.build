@@ -32,7 +32,7 @@ sources = [
 ]
 
 executable(
-  'holder-linux',
+  'holder-desktop',
   sources,
   dependencies: deps,
   vala_args: [
