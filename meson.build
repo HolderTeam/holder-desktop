@@ -128,3 +128,24 @@ api_client_test_exe = executable(
 )
 
 test('holder-linux-api-client-tests', api_client_test_exe)
+
+discovery_test_exe = executable(
+  'holder-linux-discovery-tests',
+  [
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/discovery.vala',
+    'tests/discovery_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-discovery-tests', discovery_test_exe)
