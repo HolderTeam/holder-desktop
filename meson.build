@@ -197,3 +197,15 @@ test(
   suite: 'ui',
   timeout: 240,
 )
+
+test(
+  'holder-linux-ui-create-card-shortcut',
+  ui_runner,
+  args: [
+    meson.project_build_root(),
+    meson.project_source_root(),
+    'tests/ui/test_create_card_shortcut.py',
+  ],
+  suite: 'ui',
+  timeout: 240,
+)
