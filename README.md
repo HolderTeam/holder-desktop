@@ -28,7 +28,9 @@ From `frontends/linux`:
 From `integration`:
 
 ```bash
-./make.sh install-dev
+sudo apt update
+sudo apt install -y python3-behave python3-dogtail xvfb at-spi2-core dbus-x11 x11-utils
+
 ./make.sh linux
 ```
 
@@ -37,3 +39,6 @@ By default the integration runner uses:
 
 Override with:
 - `HOLDER_FRONTEND_APP_PATH=/path/to/holder-linux`
+
+Optional maintainer fallback:
+- `./integration/make.sh install-dev`

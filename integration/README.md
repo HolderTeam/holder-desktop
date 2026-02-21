@@ -15,10 +15,13 @@ Implemented first vertical slice:
 
 ## Quick start (Linux)
 
-From `frontends/holder_frontend_tests`:
+From `integration`:
 
 ```bash
-./make.sh install-dev
+# Ubuntu dependencies (no venv required)
+sudo apt update
+sudo apt install -y python3-behave python3-dogtail xvfb at-spi2-core dbus-x11 x11-utils
+
 ./make.sh linux
 ```
 
@@ -26,6 +29,12 @@ If your app binary is elsewhere:
 
 ```bash
 HOLDER_FRONTEND_APP_PATH=/path/to/holder-linux ./make.sh linux
+```
+
+Optional fallback for maintainers who want editable package installs:
+
+```bash
+./make.sh install-dev
 ```
 
 ## Environment
