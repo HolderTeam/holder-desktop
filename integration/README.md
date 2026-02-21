@@ -31,7 +31,7 @@ HOLDER_FRONTEND_APP_PATH=/path/to/holder-linux ./make.sh linux
 ## Environment
 
 - `HOLDER_FRONTEND_TARGET` (default: `linux`)
-- `HOLDER_FRONTEND_APP_PATH` (default: `../linux/build/holder-linux`)
+- `HOLDER_FRONTEND_APP_PATH` (default: `../frontends/linux/build/holder-linux`)
 
 ## Next steps
 

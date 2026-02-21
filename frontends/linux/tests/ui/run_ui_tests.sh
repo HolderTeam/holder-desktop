@@ -52,7 +52,7 @@ export XDG_CACHE_HOME="${XDG_UI_ROOT}/cache"
 mkdir -p "${XDG_DATA_HOME}" "${XDG_CONFIG_HOME}" "${XDG_CACHE_HOME}"
 
 if [[ "${RUN_UI_BACKEND_TESTS:-0}" == "1" && "${RUN_UI_AUTOSTART_BACKEND:-0}" == "1" ]]; then
-  HOLDER_DIR="${HOLDER_DIR:-${SOURCE_DIR}/../../holder}"
+  HOLDER_DIR="${HOLDER_DIR:-${SOURCE_DIR}/../../../holder}"
   HOLDER_BACKEND_BIN="${HOLDER_BACKEND_BIN:-${HOLDER_DIR}/build/holder}"
   HOLDER_DIR="$(realpath "${HOLDER_DIR}")"
   HOLDER_BACKEND_BIN="$(realpath "${HOLDER_BACKEND_BIN}")"

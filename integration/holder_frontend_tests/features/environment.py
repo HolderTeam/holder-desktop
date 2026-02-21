@@ -7,9 +7,8 @@ from holder_frontend_tests.drivers import LinuxDogtailDriver
 
 
 def _default_linux_app_path() -> str:
-    package_root = Path(__file__).resolve().parents[2]
-    frontends_root = package_root.parent
-    return str(frontends_root / "linux" / "build" / "holder-linux")
+    repo_root = Path(__file__).resolve().parents[3]
+    return str(repo_root / "frontends" / "linux" / "build" / "holder-linux")
 
 
 def before_all(context):
