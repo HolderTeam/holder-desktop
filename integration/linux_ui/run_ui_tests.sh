@@ -18,10 +18,9 @@ if [[ "${1:-}" != "--inner" ]]; then
 fi
 
 shift
-BUILD_DIR="$1"
-SOURCE_DIR="$2"
-TEST_SCRIPT="${3:-tests/ui/test_smoke.py}"
-APP_PATH="${BUILD_DIR}/holder-linux"
+TEST_SCRIPT="${1:-}"
+APP_PATH="${2:-}"
+REPO_ROOT="${3:-$(cd "$(dirname "$0")/../.." && pwd)}"
 BACKEND_PID=""
 XDG_UI_ROOT=""
 
@@ -43,6 +42,10 @@ if [[ ! -x "${APP_PATH}" ]]; then
   echo "Missing app binary: ${APP_PATH}" >&2
   exit 1
 fi
+if [[ -z "${TEST_SCRIPT}" || ! -f "${TEST_SCRIPT}" ]]; then
+  echo "Missing test script: ${TEST_SCRIPT}" >&2
+  exit 1
+fi
 
 XDG_UI_ROOT="$(mktemp -d /tmp/holder-linux-ui-xdg.XXXXXX)"
 chmod 700 "${XDG_UI_ROOT}"
@@ -52,7 +55,7 @@ export XDG_CACHE_HOME="${XDG_UI_ROOT}/cache"
 mkdir -p "${XDG_DATA_HOME}" "${XDG_CONFIG_HOME}" "${XDG_CACHE_HOME}"
 
 if [[ "${RUN_UI_BACKEND_TESTS:-0}" == "1" && "${RUN_UI_AUTOSTART_BACKEND:-0}" == "1" ]]; then
-  HOLDER_DIR="${HOLDER_DIR:-${SOURCE_DIR}/../../../holder}"
+  HOLDER_DIR="${HOLDER_DIR:-${REPO_ROOT}/../holder}"
   HOLDER_BACKEND_BIN="${HOLDER_BACKEND_BIN:-${HOLDER_DIR}/build/holder}"
   HOLDER_DIR="$(realpath "${HOLDER_DIR}")"
   HOLDER_BACKEND_BIN="$(realpath "${HOLDER_BACKEND_BIN}")"
@@ -126,4 +129,4 @@ export PYTHONUNBUFFERED=1
 export GSETTINGS_BACKEND=memory
 export GTK_USE_PORTAL=0
 
-exec timeout 120s python3 "${SOURCE_DIR}/${TEST_SCRIPT}" "${APP_PATH}"
+exec timeout 120s python3 "${TEST_SCRIPT}" "${APP_PATH}"

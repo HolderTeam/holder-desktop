@@ -23,6 +23,12 @@ sudo apt update
 sudo apt install -y python3-behave python3-dogtail xvfb at-spi2-core dbus-x11 x11-utils
 
 ./make.sh linux
+
+# UI launch smoke (Linux app, no backend-required assertions)
+./make.sh ui-smoke
+
+# UI backend-integrated create-card flow (isolated autostart backend)
+./make.sh ui-create-card
 ```
 
 If your app binary is elsewhere:
@@ -36,6 +42,13 @@ Optional fallback for maintainers who want editable package installs:
 ```bash
 ./make.sh install-dev
 ```
+
+## Linux UI script modes
+
+- `./make.sh ui-smoke`: launch app, toggle toolbox, assert UI response
+- `./make.sh ui-create-card`: backend-integrated create card flow with isolated backend
+- `./make.sh ui-linux`: runs smoke + create-card
+- `./make.sh ui-shortcut`: optional `Ctrl+N` flow (headless focus can be flaky)
 
 ## Environment
 

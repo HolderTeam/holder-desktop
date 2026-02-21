@@ -32,6 +32,8 @@ sudo apt update
 sudo apt install -y python3-behave python3-dogtail xvfb at-spi2-core dbus-x11 x11-utils
 
 ./make.sh linux
+./make.sh ui-smoke
+./make.sh ui-create-card
 ```
 
 By default the integration runner uses:

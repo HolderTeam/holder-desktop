@@ -37,37 +37,21 @@ This runs non-UI suites (fast, headless-safe).
 
 ### 3) Run UI smoke test suite
 
-```bash
-./make.sh ui-test
-```
-
-This runs under `dbus-run-session + xvfb-run`.
+UI launch/backend-integrated tests now live in `integration/`.
+Run those from `../integration` (see `integration/README.md`).
 
 ### 4) Run backend-integrated UI tests safely (isolated backend)
 
-```bash
-./make.sh ui-test-backend
-```
-
-What this does:
-- Starts a real Holder backend automatically.
-- Uses temporary isolated `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`.
-- Starts backend on `127.0.0.1` with `--port 0` (ephemeral port).
-- Waits for `holder.json` and `/health` before running tests.
-- Cleans up backend process and temp directories afterwards.
-
-This is designed to avoid touching a user's real Holder data.
+Backend-integrated UI tests are provided by `integration/make.sh ui-create-card` and
+`integration/make.sh ui-linux` and are run against isolated backend data.
 
 ### 5) Optional: enable keyboard-shortcut UI test (`Ctrl+N`)
 
-The shortcut test is opt-in because key focus can be flaky in headless environments.
+The shortcut integration test is opt-in because key focus can be flaky in headless environments.
 
 ```bash
-RUN_UI_TESTS=1 \
-RUN_UI_BACKEND_TESTS=1 \
-RUN_UI_AUTOSTART_BACKEND=1 \
-RUN_UI_SHORTCUT_TESTS=1 \
-meson test -C build --suite ui --print-errorlogs
+cd ../integration
+./make.sh ui-shortcut
 ```
 
 ## Optional: build backend dependencies locally for `ui-test-backend`
@@ -90,4 +74,4 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build
 ```
 
-That should produce `holder/build/holder`, which `./make.sh ui-test-backend` will use automatically.
+That should produce `holder/build/holder`, which integration backend UI tests can auto-start.

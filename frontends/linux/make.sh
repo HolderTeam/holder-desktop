@@ -18,7 +18,7 @@ build() {
 
 test_only() {
   build
-  meson test -C "${BUILD_DIR}" --print-errorlogs --no-suite ui
+  meson test -C "${BUILD_DIR}" --print-errorlogs
 }
 
 run_app() {
@@ -72,17 +72,6 @@ coverage() {
   cat "${out_dir}/summary-branches.txt"
 }
 
-ui_test() {
-  build
-  RUN_UI_TESTS=1 meson test -C "${BUILD_DIR}" --suite ui --print-errorlogs
-}
-
-ui_test_backend() {
-  build
-  RUN_UI_TESTS=1 RUN_UI_BACKEND_TESTS=1 RUN_UI_AUTOSTART_BACKEND=1 \
-    meson test -C "${BUILD_DIR}" --suite ui --print-errorlogs
-}
-
 case "${MODE}" in
   build)
     build
@@ -96,14 +85,8 @@ case "${MODE}" in
   coverage)
     coverage
     ;;
-  ui-test)
-    ui_test
-    ;;
-  ui-test-backend)
-    ui_test_backend
-    ;;
   *)
-    echo "Usage: $0 [build|test|run|coverage|ui-test|ui-test-backend]"
+    echo "Usage: $0 [build|test|run|coverage]"
     exit 2
     ;;
 esac
