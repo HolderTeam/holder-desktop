@@ -370,6 +370,362 @@ private void test_health_check_missing_data_is_protocol_error() {
     assert(got_protocol);
 }
 
+private void test_non_2xx_with_non_json_body_maps_to_http_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(500, "<html>oops</html>");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_http = false;
+    client.list_projects.begin((obj, res) => {
+        try {
+            client.list_projects.end(res);
+        } catch (Error e) {
+            got_http = (e is HolderLinux.ApiError.HTTP);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_http);
+}
+
+private void test_non_2xx_json_without_error_object_maps_to_http_fallback() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(500, "{\"ok\":false,\"data\":{}}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_http = false;
+    bool has_fallback_message = false;
+    client.list_projects.begin((obj, res) => {
+        try {
+            client.list_projects.end(res);
+        } catch (Error e) {
+            got_http = (e is HolderLinux.ApiError.HTTP);
+            has_fallback_message = e.message.contains("HTTP 500 for GET /projects");
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_http);
+    assert(has_fallback_message);
+}
+
+private void test_list_projects_missing_data_is_protocol_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_protocol = false;
+    client.list_projects.begin((obj, res) => {
+        try {
+            client.list_projects.end(res);
+        } catch (Error e) {
+            got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_protocol);
+}
+
+private void test_2xx_with_non_object_json_root_maps_to_parse_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "[]");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_parse = false;
+    client.list_projects.begin((obj, res) => {
+        try {
+            client.list_projects.end(res);
+        } catch (Error e) {
+            got_parse = (e is HolderLinux.ApiError.PARSE);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_parse);
+}
+
+private void test_missing_data_protocol_errors_for_parsers() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true}");
+    transport.enqueue_read(200, "{\"ok\":true}");
+    transport.enqueue_read(200, "{\"ok\":true}");
+    transport.enqueue_read(200, "{\"ok\":true}");
+    transport.enqueue_read(200, "{\"ok\":true}");
+    transport.enqueue_read(200, "{\"ok\":true}");
+    transport.enqueue_read(200, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    int protocol_count = 0;
+    bool done = false;
+    client.list_cards.begin("p1", (o1, r1) => {
+        try { client.list_cards.end(r1); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
+        client.get_card.begin("c1", (o2, r2) => {
+            try { client.get_card.end(r2); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
+            client.search_cards.begin("p1", "q", 30, (o3, r3) => {
+                try { client.search_cards.end(r3); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
+                client.get_ai_status.begin((o4, r4) => {
+                    try { client.get_ai_status.end(r4); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
+                    client.list_ai_threads.begin("p1", (o5, r5) => {
+                        try { client.list_ai_threads.end(r5); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
+                        client.list_ai_provider_catalog.begin((o6, r6) => {
+                            try { client.list_ai_provider_catalog.end(r6); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
+                            client.get_ai_capabilities.begin("p1", (o7, r7) => {
+                                try { client.get_ai_capabilities.end(r7); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
+                                done = true;
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(protocol_count == 7);
+}
+
+private void test_start_runner_pull_missing_data_is_protocol_error_and_missing_job_returns_empty() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    transport.enqueue_read(200, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    bool done_empty = false;
+    string job = "x";
+    client.start_ai_runner_pull.begin("phi4", (o1, r1) => {
+        try {
+            job = client.start_ai_runner_pull.end(r1);
+        } catch (Error e) {
+            job = "error";
+        }
+        done_empty = true;
+    });
+    assert(wait_for_condition(() => done_empty));
+    assert(job == "");
+
+    bool done_error = false;
+    bool got_protocol = false;
+    client.start_ai_runner_pull.begin("phi4", (o2, r2) => {
+        try {
+            client.start_ai_runner_pull.end(r2);
+        } catch (Error e) {
+            got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        }
+        done_error = true;
+    });
+    assert(wait_for_condition(() => done_error));
+    assert(got_protocol);
+}
+
+private void test_create_ai_thread_missing_data_is_protocol_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_protocol = false;
+    client.create_ai_thread.begin("p1", "T", (obj, res) => {
+        try {
+            client.create_ai_thread.end(res);
+        } catch (Error e) {
+            got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_protocol);
+}
+
+private void test_ai_capabilities_optional_fields_and_no_project_query() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"runner_available\":false,\"error\":\"runner missing\",\"models\":[{}],\"recommended_install\":[{}],\"caste\":null}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    HolderLinux.AiCapabilitiesInfo? info = null;
+    client.get_ai_capabilities.begin(null, (obj, res) => {
+        try {
+            info = client.get_ai_capabilities.end(res);
+        } catch (Error e) {
+            info = null;
+        }
+        done = true;
+    });
+    assert(wait_for_condition(() => done));
+    assert(info != null);
+    assert(!info.runner_available);
+    assert(info.runner_error == "runner missing");
+    assert(info.caste_name == "");
+    assert(info.models.size == 0);
+    assert(info.recommended_install.size == 0);
+    assert(!transport.last_uri.contains("project_id="));
+}
+
+private void test_ai_capabilities_missing_caste_and_null_string_fields() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"runner_available\":true,\"error\":null,\"version\":null,\"models\":[],\"recommended_install\":[]}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    HolderLinux.AiCapabilitiesInfo? info = null;
+    client.get_ai_capabilities.begin("p1", (obj, res) => {
+        try {
+            info = client.get_ai_capabilities.end(res);
+        } catch (Error e) {
+            info = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(info != null);
+    assert(info.caste_name == "");
+    assert(info.runner_error == "");
+    assert(info.runner_version == "");
+}
+
+private void test_ai_status_missing_pull_fields_uses_defaults() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"pulls\":[{}]}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    HolderLinux.AiStatusInfo? status = null;
+    client.get_ai_status.begin((obj, res) => {
+        try {
+            status = client.get_ai_status.end(res);
+        } catch (Error e) {
+            status = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(status != null);
+    assert(status.pull_jobs.size == 1);
+    assert(status.pull_jobs[0].contains("unknown"));
+    assert(status.pull_jobs[0].contains("0.0%"));
+}
+
+private void test_provider_catalog_missing_providers_returns_empty() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.AiCatalogProvider>? providers = null;
+    client.list_ai_provider_catalog.begin((obj, res) => {
+        try {
+            providers = client.list_ai_provider_catalog.end(res);
+        } catch (Error e) {
+            providers = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(providers != null);
+    assert(providers.size == 0);
+}
+
+private void test_run_ai_stream_eof_without_blank_line_and_with_context_fields() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_stream(200, "event: chunk\ndata: {\"delta\":\"tail\"}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool saw_chunk = false;
+    client.run_ai_stream.begin(
+        "Prompt",
+        "p1",
+        "t1",
+        "c1",
+        "Card title",
+        "Body text",
+        (event_name, data) => {
+            if (event_name == "chunk" && data.has_member("delta")) {
+                saw_chunk = true;
+            }
+        },
+        (obj, res) => {
+            try { client.run_ai_stream.end(res); } catch (Error e) {}
+            done = true;
+        }
+    );
+
+    assert(wait_for_condition(() => done));
+    assert(saw_chunk);
+    assert(transport.last_content_type == "application/json");
+}
+
+private void test_run_ai_stream_multiline_data_joins_with_newline() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_stream(
+        200,
+        "event: message\n" +
+        "data: first line\n" +
+        "data: second line\n\n"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    bool saw_joined_raw = false;
+    client.run_ai_stream.begin(
+        "Prompt",
+        null,
+        null,
+        null,
+        null,
+        null,
+        (event_name, data) => {
+            if (data.has_member("raw") && data.get_string_member("raw") == "first line\nsecond line") {
+                saw_joined_raw = true;
+            }
+        },
+        (obj, res) => {
+            try { client.run_ai_stream.end(res); } catch (Error e) {}
+            done = true;
+        }
+    );
+
+    assert(wait_for_condition(() => done));
+    assert(saw_joined_raw);
+}
+
+private void test_response_wrapper_objects_construct() {
+    var bytes = new Bytes((uint8[]) "ok".data);
+    var bytes_resp = new HolderLinux.ApiHttpBytesResponse(201, bytes);
+    assert(bytes_resp.status == 201);
+    assert(((string) bytes_resp.body.get_data()).has_prefix("ok"));
+
+    var stream = new MemoryInputStream.from_bytes(new Bytes((uint8[]) "x".data));
+    var stream_resp = new HolderLinux.ApiHttpStreamResponse(202, stream);
+    assert(stream_resp.status == 202);
+    assert(stream_resp.stream != null);
+
+    var transport = new HolderLinux.SoupApiHttpTransport();
+    assert(transport != null);
+}
+
 private void test_request_json_transport_error_maps_to_api_transport() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read_throw("network down");
@@ -586,6 +942,34 @@ int main(string[] args) {
     Test.add_func("/api_client/create_and_update_card_payloads", test_create_and_update_card_payloads);
     Test.add_func("/api_client/health_check_missing_data_is_protocol_error",
                   test_health_check_missing_data_is_protocol_error);
+    Test.add_func("/api_client/non_2xx_with_non_json_body_maps_to_http_error",
+                  test_non_2xx_with_non_json_body_maps_to_http_error);
+    Test.add_func("/api_client/non_2xx_json_without_error_object_maps_to_http_fallback",
+                  test_non_2xx_json_without_error_object_maps_to_http_fallback);
+    Test.add_func("/api_client/list_projects_missing_data_is_protocol_error",
+                  test_list_projects_missing_data_is_protocol_error);
+    Test.add_func("/api_client/2xx_with_non_object_json_root_maps_to_parse_error",
+                  test_2xx_with_non_object_json_root_maps_to_parse_error);
+    Test.add_func("/api_client/missing_data_protocol_errors_for_parsers",
+                  test_missing_data_protocol_errors_for_parsers);
+    Test.add_func("/api_client/start_runner_pull_missing_data_is_protocol_error_and_missing_job_returns_empty",
+                  test_start_runner_pull_missing_data_is_protocol_error_and_missing_job_returns_empty);
+    Test.add_func("/api_client/create_ai_thread_missing_data_is_protocol_error",
+                  test_create_ai_thread_missing_data_is_protocol_error);
+    Test.add_func("/api_client/ai_capabilities_optional_fields_and_no_project_query",
+                  test_ai_capabilities_optional_fields_and_no_project_query);
+    Test.add_func("/api_client/ai_capabilities_missing_caste_and_null_string_fields",
+                  test_ai_capabilities_missing_caste_and_null_string_fields);
+    Test.add_func("/api_client/ai_status_missing_pull_fields_uses_defaults",
+                  test_ai_status_missing_pull_fields_uses_defaults);
+    Test.add_func("/api_client/provider_catalog_missing_providers_returns_empty",
+                  test_provider_catalog_missing_providers_returns_empty);
+    Test.add_func("/api_client/run_ai_stream_eof_without_blank_line_and_with_context_fields",
+                  test_run_ai_stream_eof_without_blank_line_and_with_context_fields);
+    Test.add_func("/api_client/run_ai_stream_multiline_data_joins_with_newline",
+                  test_run_ai_stream_multiline_data_joins_with_newline);
+    Test.add_func("/api_client/response_wrapper_objects_construct",
+                  test_response_wrapper_objects_construct);
     Test.add_func("/api_client/request_json_transport_error_maps_to_api_transport",
                   test_request_json_transport_error_maps_to_api_transport);
     Test.add_func("/api_client/request_json_http_error_parses_error_object",
