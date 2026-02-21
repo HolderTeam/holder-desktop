@@ -91,6 +91,22 @@ private void test_discover_server_missing_required_fields() {
     assert(got_invalid);
 }
 
+private void test_discover_server_read_failure_when_path_is_directory() {
+    setup_temp_data_home();
+    var path = holder_info_path_for_current_env();
+    var dir = Path.get_dirname(path);
+    DirUtils.create_with_parents(dir, 0755);
+    DirUtils.create(path, 0755);
+
+    bool got_invalid = false;
+    try {
+        HolderLinux.Discovery.discover_server();
+    } catch (Error e) {
+        got_invalid = (e is HolderLinux.DiscoveryError.INVALID_FORMAT);
+    }
+    assert(got_invalid);
+}
+
 private void test_discover_server_success() {
     setup_temp_data_home();
     write_holder_json(
@@ -154,6 +170,8 @@ int main(string[] args) {
     Test.add_func("/discovery/discover_server_invalid_json", test_discover_server_invalid_json);
     Test.add_func("/discovery/discover_server_invalid_root", test_discover_server_invalid_root);
     Test.add_func("/discovery/discover_server_missing_required_fields", test_discover_server_missing_required_fields);
+    Test.add_func("/discovery/discover_server_read_failure_when_path_is_directory",
+                  test_discover_server_read_failure_when_path_is_directory);
     Test.add_func("/discovery/discover_server_success", test_discover_server_success);
     Test.add_func("/discovery/file_server_discovery_delegates", test_file_server_discovery_delegates);
 
