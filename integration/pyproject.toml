@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "holder-frontend-tests"
+version = "0.1.0"
+description = "Shared frontend behavior tests for Holder clients"
+requires-python = ">=3.10"
+dependencies = [
+  "behave>=1.2.6",
+]
+
+[project.optional-dependencies]
+linux = [
+  "dogtail>=0.9.11",
+]
+
+[tool.setuptools]
+packages = ["holder_frontend_tests", "holder_frontend_tests.drivers"]
+
+[tool.setuptools.package-data]
+holder_frontend_tests = ["features/**/*.feature"]
