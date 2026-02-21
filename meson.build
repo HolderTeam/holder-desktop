@@ -172,3 +172,28 @@ ui_adapters_test_exe = executable(
 )
 
 test('holder-linux-ui-adapters-tests', ui_adapters_test_exe)
+
+ui_runner = find_program('tests/ui/run_ui_tests.sh')
+test(
+  'holder-linux-ui-smoke',
+  ui_runner,
+  args: [
+    meson.project_build_root(),
+    meson.project_source_root(),
+    'tests/ui/test_smoke.py',
+  ],
+  suite: 'ui',
+  timeout: 240,
+)
+
+test(
+  'holder-linux-ui-create-card',
+  ui_runner,
+  args: [
+    meson.project_build_root(),
+    meson.project_source_root(),
+    'tests/ui/test_create_card.py',
+  ],
+  suite: 'ui',
+  timeout: 240,
+)

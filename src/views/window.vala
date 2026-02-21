@@ -262,6 +262,12 @@ public class MainWindow : Adw.ApplicationWindow {
             controller.create_card.begin();
         });
         add_action(new_card_action);
+
+        var toggle_toolbox_action = new SimpleAction("toggle-toolbox", null);
+        toggle_toolbox_action.activate.connect(() => {
+            workspace.toggle_toolbox();
+        });
+        add_action(toggle_toolbox_action);
     }
 
 

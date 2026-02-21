@@ -2,6 +2,7 @@ namespace HolderLinux {
 
 public class WorkspacePane : Object {
     private Gtk.Label title_label;
+    private Gtk.ToggleButton toolbox_toggle_btn;
     public Gtk.Widget widget { get; private set; }
     public GtkSource.Buffer editor_buffer { get; private set; }
     public GtkSource.View editor_view { get; private set; }
@@ -46,6 +47,13 @@ public class WorkspacePane : Object {
         content_stack.set_visible_child_name("search");
     }
 
+    public void toggle_toolbox() {
+        if (toolbox_toggle_btn == null) {
+            return;
+        }
+        toolbox_toggle_btn.set_active(!toolbox_toggle_btn.get_active());
+    }
+
     private Gtk.Widget build_ui(GLib.ListModel search_model) {
         var outer = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
 
@@ -78,7 +86,7 @@ public class WorkspacePane : Object {
             ai_panel_toggled(ai_toggle_btn.get_active());
         });
 
-        var toolbox_toggle_btn = new Gtk.ToggleButton();
+        toolbox_toggle_btn = new Gtk.ToggleButton();
         toolbox_toggle_btn.set_icon_name("view-bottom-pane-symbolic");
         toolbox_toggle_btn.set_tooltip_text("Toggle toolbox panel");
         toolbox_toggle_btn.toggled.connect(() => {
