@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MODE="${1:-linux}"
+MODE="${1:-behave-linux}"
 
 require_cmd() {
   local cmd="$1"
@@ -20,6 +20,15 @@ run_linux() {
     behave holder_frontend_tests/features \
       -D app_path="${app_path}" \
       --tags "linux"
+}
+
+run_linux_backend() {
+  require_cmd behave "Ubuntu: sudo apt install python3-behave"
+  local app_path="${HOLDER_FRONTEND_APP_PATH:-../frontends/linux/build/holder-desktop}"
+  HOLDER_FRONTEND_TARGET=linux RUN_UI_BACKEND_TESTS=1 RUN_UI_AUTOSTART_BACKEND=1 \
+    behave holder_frontend_tests/features \
+      -D app_path="${app_path}" \
+      --tags "linux and backend"
 }
 
 run_linux_ui_script() {
@@ -62,8 +71,11 @@ case "${MODE}" in
     require_cmd python3 "Install Python 3 from your package manager."
     python3 -m pip install -e .[linux]
     ;;
-  linux)
+  linux|behave-linux)
     run_linux
+    ;;
+  behave-linux-backend)
+    run_linux_backend
     ;;
   ui-smoke)
     run_linux_ui_smoke
@@ -79,7 +91,7 @@ case "${MODE}" in
     run_linux_ui_create_card
     ;;
   *)
-    echo "Usage: $0 [deps-ubuntu|install-dev|linux|ui-smoke|ui-create-card|ui-shortcut|ui-linux]"
+    echo "Usage: $0 [deps-ubuntu|install-dev|behave-linux|behave-linux-backend|linux|ui-smoke|ui-create-card|ui-shortcut|ui-linux]"
     exit 2
     ;;
 esac
