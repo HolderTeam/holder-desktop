@@ -31,6 +31,7 @@ public class FakeApiHttpTransport : Object, HolderLinux.IApiHttpTransport {
     public string last_uri = "";
     public string last_accept = "";
     public string last_auth = "";
+    public string last_content_type = "";
 
     public void enqueue_read(int status, string body) {
         read_responses.add(new QueuedResponse(status, body));
@@ -59,7 +60,7 @@ public class FakeApiHttpTransport : Object, HolderLinux.IApiHttpTransport {
         }
         return new HolderLinux.ApiHttpBytesResponse(
             (uint) response.status,
-            new Bytes((uint8[]) response.body.data)
+            bytes_from_string(response.body)
         );
     }
 
@@ -74,8 +75,17 @@ public class FakeApiHttpTransport : Object, HolderLinux.IApiHttpTransport {
         }
         return new HolderLinux.ApiHttpStreamResponse(
             (uint) response.status,
-            new MemoryInputStream.from_bytes(new Bytes((uint8[]) response.body.data))
+            new MemoryInputStream.from_bytes(bytes_from_string(response.body))
         );
+    }
+
+    private Bytes bytes_from_string(string text) {
+        uint8[] data = new uint8[text.length + 1];
+        for (int i = 0; i < text.length; i++) {
+            data[i] = ((uint8[]) text.data)[i];
+        }
+        data[text.length] = 0;
+        return new Bytes.take((owned) data);
     }
 
     private void remember_message(Soup.Message message) {
@@ -83,6 +93,9 @@ public class FakeApiHttpTransport : Object, HolderLinux.IApiHttpTransport {
         last_uri = message.get_uri().to_string();
         last_accept = message.request_headers.get_one("Accept") ?? "";
         last_auth = message.request_headers.get_one("Authorization") ?? "";
+        HashTable<string, string>? content_type_params = null;
+        var content_type = message.request_headers.get_content_type(out content_type_params);
+        last_content_type = content_type ?? "";
     }
 }
 
