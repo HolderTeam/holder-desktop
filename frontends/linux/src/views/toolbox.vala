@@ -236,6 +236,7 @@ public class ToolboxPane : Object {
         terminal.set_vexpand(true);
         terminal.set_hexpand(true);
         terminal.set_scrollback_lines(10000);
+        var fallback_title = "Term %d".printf(next_terminal_index);
 
         var shell = Environment.get_variable("SHELL");
         if (shell == null || shell.strip().length == 0) {
@@ -260,17 +261,23 @@ public class ToolboxPane : Object {
             }
         );
 
-        var tab_label = build_terminal_tab_label(terminal, "Term %d".printf(next_terminal_index));
+        Gtk.Label tab_title_label;
+        var tab_label = build_terminal_tab_label(terminal, fallback_title, out tab_title_label);
+        terminal.window_title_changed.connect(() => {
+            sync_terminal_tab_title(terminal, tab_title_label, fallback_title);
+        });
+        sync_terminal_tab_title(terminal, tab_title_label, fallback_title);
+
         next_terminal_index++;
         terminal_notebook.append_page(terminal, tab_label);
         terminal_notebook.set_tab_reorderable(terminal, true);
         terminal_notebook.set_current_page(terminal_notebook.get_n_pages() - 1);
     }
 
-    private Gtk.Widget build_terminal_tab_label(Gtk.Widget terminal_page, string title) {
+    private Gtk.Widget build_terminal_tab_label(Gtk.Widget terminal_page, string title, out Gtk.Label label) {
         var box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 4);
         box.set_size_request(120, -1);
-        var label = new Gtk.Label(title);
+        label = new Gtk.Label(title);
         label.set_xalign(0.0f);
         label.set_hexpand(true);
         label.set_ellipsize(Pango.EllipsizeMode.END);
@@ -285,6 +292,15 @@ public class ToolboxPane : Object {
         box.append(label);
         box.append(close_btn);
         return box;
+    }
+
+    private void sync_terminal_tab_title(Vte.Terminal terminal, Gtk.Label tab_title_label, string fallback_title) {
+        var title = terminal.get_window_title();
+        if (title == null || title.strip().length == 0) {
+            title = fallback_title;
+        }
+        tab_title_label.set_text(title);
+        tab_title_label.set_tooltip_text(title);
     }
 
     private void close_terminal_page(Gtk.Widget page) {
