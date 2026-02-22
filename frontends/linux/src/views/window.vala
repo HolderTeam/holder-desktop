@@ -268,6 +268,18 @@ public class MainWindow : Adw.ApplicationWindow {
             workspace.toggle_toolbox();
         });
         add_action(toggle_toolbox_action);
+
+        var show_preferences_action = new SimpleAction("show-preferences", null);
+        show_preferences_action.activate.connect(() => {
+            show_preferences_dialog();
+        });
+        add_action(show_preferences_action);
+
+        var show_about_action = new SimpleAction("show-about", null);
+        show_about_action.activate.connect(() => {
+            show_about_dialog();
+        });
+        add_action(show_about_action);
     }
 
 
@@ -344,6 +356,29 @@ public class MainWindow : Adw.ApplicationWindow {
 
     private void show_search_mode() {
         workspace.show_search_mode();
+    }
+
+    private void show_preferences_dialog() {
+        var dialog = new Adw.MessageDialog(
+            this,
+            "Preferences",
+            "Preferences dialog is not implemented yet."
+        );
+        dialog.add_response("ok", "OK");
+        dialog.set_default_response("ok");
+        dialog.set_close_response("ok");
+        dialog.present();
+    }
+
+    private void show_about_dialog() {
+        var about = new Gtk.AboutDialog();
+        about.set_transient_for(this);
+        about.set_modal(true);
+        about.set_program_name("Holder");
+        about.set_version("0.1.0");
+        about.set_comments("Holder Linux frontend");
+        about.set_website("https://github.com/holder");
+        about.present();
     }
 
     protected override void dispose() {

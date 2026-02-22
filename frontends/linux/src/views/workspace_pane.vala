@@ -93,7 +93,17 @@ public class WorkspacePane : Object {
             toolbox_toggled(toolbox_toggle_btn.get_active());
         });
 
+        var main_menu = new GLib.Menu();
+        main_menu.append("Preferences", "win.show-preferences");
+        main_menu.append("About", "win.show-about");
+
+        var main_menu_btn = new Gtk.MenuButton();
+        main_menu_btn.set_icon_name("open-menu-symbolic");
+        main_menu_btn.set_tooltip_text("Main Menu");
+        main_menu_btn.set_menu_model(main_menu);
+
         header.pack_start(refresh_btn);
+        header.pack_end(main_menu_btn);
         header.pack_end(toolbox_toggle_btn);
         header.pack_end(ai_toggle_btn);
         header.pack_end(new_project_btn);
