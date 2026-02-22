@@ -33,6 +33,12 @@ If your app binary is elsewhere:
 HOLDER_FRONTEND_APP_PATH=/path/to/holder-desktop ./make.sh
 ```
 
+Run visibly on your desktop (debug mode):
+
+```bash
+HOLDER_TEST_HEADLESS=0 ./make.sh
+```
+
 Optional fallback for maintainers who want editable package installs:
 
 ```bash
@@ -49,6 +55,7 @@ Optional fallback for maintainers who want editable package installs:
 
 - `HOLDER_FRONTEND_TARGET` (default: `linux`)
 - `HOLDER_FRONTEND_APP_PATH` (default: `../frontends/linux/build/holder-desktop`)
+- `HOLDER_TEST_HEADLESS` (default: `1`; set `0` for headed/visible run)
 
 ## Runner design
 

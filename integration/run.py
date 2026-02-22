@@ -71,14 +71,15 @@ class Runner:
             str(self.repo_root / "frontends" / "linux" / "build" / "holder-desktop"),
         )
 
-    def behave_env(self) -> dict[str, str]:
+    def behave_env(self, headless: bool) -> dict[str, str]:
         env = os.environ.copy()
         env["HOLDER_FRONTEND_TARGET"] = "linux"
         env.setdefault("NO_AT_BRIDGE", "0")
         env.setdefault("GTK_A11Y", "atspi")
-        env.setdefault("GSETTINGS_BACKEND", "memory")
         env.setdefault("GTK_USE_PORTAL", "0")
         env.setdefault("PYTHONUNBUFFERED", "1")
+        if headless:
+            env.setdefault("GSETTINGS_BACKEND", "memory")
         return env
 
     def run_with_isolated_backend(self, command: list[str], env: dict[str, str]) -> None:
@@ -185,23 +186,32 @@ class Runner:
 
     def run_linux(self) -> None:
         self.require_cmd("behave", "Ubuntu: sudo apt install python3-behave")
-        self.require_cmd("xvfb-run", "Ubuntu: sudo apt install xvfb")
-        self.require_cmd("dbus-run-session", "Ubuntu: sudo apt install dbus-x11")
+        headless = os.environ.get("HOLDER_TEST_HEADLESS", "1") != "0"
 
         behave_cmd = [
-            "dbus-run-session",
-            "--",
-            "xvfb-run",
-            "-a",
-            "-s",
-            "-screen 0 1920x1080x24",
             "behave",
             "holder_frontend_tests/features",
             "-D",
             f"app_path={self.default_app_path()}",
             "--tags=@linux",
         ]
-        self.run_with_isolated_backend(behave_cmd, env=self.behave_env())
+
+        if headless:
+            self.require_cmd("xvfb-run", "Ubuntu: sudo apt install xvfb")
+            self.require_cmd("dbus-run-session", "Ubuntu: sudo apt install dbus-x11")
+            print("Mode: headless (xvfb-run + dbus-run-session)")
+            behave_cmd = [
+                "dbus-run-session",
+                "--",
+                "xvfb-run",
+                "-a",
+                "-s",
+                "-screen 0 1920x1080x24",
+            ] + behave_cmd
+        else:
+            print("Mode: headed (visible desktop session)")
+
+        self.run_with_isolated_backend(behave_cmd, env=self.behave_env(headless=headless))
 
 
 def print_usage() -> None:
