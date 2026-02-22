@@ -213,6 +213,8 @@ public class WorkspacePane : Object {
         if (checker != null) {
             spelling_adapter = new Spelling.TextBufferAdapter(editor_buffer, checker);
             spelling_adapter.set_enabled(true);
+            editor_view.insert_action_group("spelling", spelling_adapter);
+            editor_view.set_extra_menu(spelling_adapter.get_menu_model());
         }
 
         var editor_scroll = new Gtk.ScrolledWindow();
