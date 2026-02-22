@@ -56,8 +56,12 @@ Optional fallback for maintainers who want editable package installs:
 
 ## Behave modes
 
-- `./make.sh behave-linux` (alias: `./make.sh linux`): run shared Behave scenarios tagged `linux`
-- `./make.sh behave-linux-backend`: run shared Behave scenarios tagged `linux and backend`
+- `./make.sh behave-linux` (alias: `./make.sh linux`): run shared Behave scenarios tagged `@linux and not @backend`
+- `./make.sh behave-linux-backend`: run shared Behave scenarios tagged `@linux and @backend`
+  - auto-starts an isolated Holder backend
+  - uses temporary `XDG_DATA_HOME`/`XDG_CONFIG_HOME`/`XDG_CACHE_HOME`
+  - uses backend ephemeral port (`--port 0`)
+  - cleans backend process and temp data after run
 
 ## Environment
 
