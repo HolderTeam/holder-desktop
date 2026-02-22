@@ -87,6 +87,37 @@ public class WorkspacePane : Object {
         }
     }
 
+    private void maybe_move_cursor_for_context_menu(Gtk.GestureClick click, int n_press, double x, double y) {
+        var sequence = click.get_current_sequence();
+        var event = click.get_last_event(sequence);
+        if (n_press != 1 || event == null || !event.triggers_context_menu()) {
+            return;
+        }
+
+        Gtk.TextIter selection_begin;
+        Gtk.TextIter selection_end;
+        if (editor_buffer.get_selection_bounds(out selection_begin, out selection_end)) {
+            return;
+        }
+
+        int buffer_x;
+        int buffer_y;
+        editor_view.window_to_buffer_coords(
+            Gtk.TextWindowType.WIDGET,
+            (int) x,
+            (int) y,
+            out buffer_x,
+            out buffer_y
+        );
+
+        Gtk.TextIter iter;
+        if (!editor_view.get_iter_at_location(out iter, buffer_x, buffer_y)) {
+            return;
+        }
+
+        editor_buffer.select_range(iter, iter);
+    }
+
     private Gtk.Widget build_ui(GLib.ListModel search_model) {
         var outer = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
 
@@ -208,6 +239,13 @@ public class WorkspacePane : Object {
         editor_view.set_show_line_numbers(true);
         editor_view.set_vexpand(true);
         editor_view.set_hexpand(true);
+
+        var context_click = new Gtk.GestureClick();
+        context_click.set_button(0);
+        context_click.pressed.connect((n_press, x, y) => {
+            maybe_move_cursor_for_context_menu(context_click, n_press, x, y);
+        });
+        editor_view.add_controller(context_click);
 
         var checker = Spelling.Checker.get_default();
         if (checker != null) {
