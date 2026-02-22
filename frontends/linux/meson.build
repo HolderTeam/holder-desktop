@@ -2,6 +2,8 @@ project('holder-linux', 'vala', version: '0.1.0')
 
 gnome = import('gnome')
 
+subdir('data')
+
 deps = [
   dependency('gtk4'),
   dependency('libadwaita-1'),
@@ -18,6 +20,7 @@ sources = [
   'src/app.vala',
   'src/models/models.vala',
   'src/services/core_interfaces.vala',
+  'src/services/app_settings.vala',
   'src/utils/text_utils.vala',
   'src/views/sidebar.vala',
   'src/views/ai_panel.vala',

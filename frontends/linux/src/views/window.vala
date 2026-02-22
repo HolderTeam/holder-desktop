@@ -23,6 +23,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private ToolboxPane toolbox;
     private MainController controller;
     private AiRunController ai_run_controller;
+    private Settings? settings;
 
     private bool suppress_editor_events = false;
 
@@ -52,6 +53,8 @@ public class MainWindow : Adw.ApplicationWindow {
 
         workspace = new WorkspacePane(search_store);
         editor_buffer = workspace.editor_buffer;
+        settings = AppSettings.open_or_null();
+        apply_persisted_preferences();
         search_entry = workspace.search_entry;
         search_summary_label = workspace.search_summary_label;
         search_selection = workspace.search_selection;
@@ -358,8 +361,27 @@ public class MainWindow : Adw.ApplicationWindow {
         workspace.show_search_mode();
     }
 
+    private void apply_persisted_preferences() {
+        if (settings == null) {
+            return;
+        }
+
+        var style_key = settings.get_string(AppSettings.KEY_STYLE_VARIANT);
+        Adw.StyleManager.get_default().set_color_scheme(AppSettings.key_to_color_scheme(style_key));
+
+        var scheme_id = settings.get_string(AppSettings.KEY_STYLE_SCHEME_ID);
+        if (scheme_id == null || scheme_id.length == 0) {
+            return;
+        }
+
+        var scheme = GtkSource.StyleSchemeManager.get_default().get_scheme(scheme_id);
+        if (scheme != null) {
+            editor_buffer.set_style_scheme(scheme);
+        }
+    }
+
     private void show_preferences_dialog() {
-        var dialog = new PreferencesDialog(editor_buffer);
+        var dialog = new PreferencesDialog(editor_buffer, settings);
         dialog.present(this);
     }
 

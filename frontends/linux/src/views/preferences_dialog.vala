@@ -2,11 +2,13 @@ namespace HolderLinux {
 
 public class PreferencesDialog : Adw.PreferencesDialog {
     private GtkSource.Buffer editor_buffer;
+    private Settings? settings;
     private Gee.HashMap<string, GtkSource.StyleSchemePreview> scheme_previews;
 
-    public PreferencesDialog(GtkSource.Buffer editor_buffer) {
+    public PreferencesDialog(GtkSource.Buffer editor_buffer, Settings? settings) {
         Object();
         this.editor_buffer = editor_buffer;
+        this.settings = settings;
         this.scheme_previews = new Gee.HashMap<string, GtkSource.StyleSchemePreview>();
         this.set_title("Preferences");
         build_appearance_page();
@@ -30,9 +32,13 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         variant_row.set_title("Style Variant");
         variant_row.set_model(variant_model);
         variant_row.set_expression(new Gtk.PropertyExpression(typeof(Gtk.StringObject), null, "string"));
-        variant_row.set_selected(color_scheme_to_index(Adw.StyleManager.get_default().get_color_scheme()));
+        variant_row.set_selected(current_variant_index());
         variant_row.notify["selected"].connect(() => {
-            Adw.StyleManager.get_default().set_color_scheme(index_to_color_scheme(variant_row.get_selected()));
+            var scheme = index_to_color_scheme(variant_row.get_selected());
+            Adw.StyleManager.get_default().set_color_scheme(scheme);
+            if (settings != null) {
+                settings.set_string(AppSettings.KEY_STYLE_VARIANT, AppSettings.color_scheme_to_key(scheme));
+            }
         });
         style_group.add(variant_row);
 
@@ -101,6 +107,9 @@ public class PreferencesDialog : Adw.PreferencesDialog {
             return;
         }
         editor_buffer.set_style_scheme(scheme);
+        if (settings != null) {
+            settings.set_string(AppSettings.KEY_STYLE_SCHEME_ID, scheme_id);
+        }
         sync_selected_style_scheme();
     }
 
@@ -111,6 +120,15 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         foreach (var entry in scheme_previews.entries) {
             entry.value.set_selected(entry.key == current_id);
         }
+    }
+
+    private uint current_variant_index() {
+        if (settings != null) {
+            return color_scheme_to_index(
+                AppSettings.key_to_color_scheme(settings.get_string(AppSettings.KEY_STYLE_VARIANT))
+            );
+        }
+        return color_scheme_to_index(Adw.StyleManager.get_default().get_color_scheme());
     }
 
     private uint color_scheme_to_index(Adw.ColorScheme scheme) {
