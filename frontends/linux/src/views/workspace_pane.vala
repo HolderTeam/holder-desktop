@@ -7,6 +7,7 @@ public class WorkspacePane : Object {
     private Gtk.Box replace_row;
     private Gtk.Entry find_entry;
     private Gtk.Entry replace_entry;
+    private Gtk.Paned content_paned;
     public Gtk.Widget widget { get; private set; }
     public GtkSource.Buffer editor_buffer { get; private set; }
     public GtkSource.View editor_view { get; private set; }
@@ -84,6 +85,13 @@ public class WorkspacePane : Object {
     public void set_spell_check_enabled(bool enabled) {
         if (spelling_adapter != null) {
             spelling_adapter.set_enabled(enabled);
+        }
+    }
+
+    public void set_toolbox_visible(bool visible) {
+        toolbox.set_reveal_child(visible);
+        if (visible && content_paned.get_position() <= 0) {
+            content_paned.set_position(560);
         }
     }
 
@@ -278,8 +286,18 @@ public class WorkspacePane : Object {
 
         toolbox = new ToolboxPane();
 
-        outer.append(ai_split);
-        outer.append(toolbox.widget);
+        content_paned = new Gtk.Paned(Gtk.Orientation.VERTICAL);
+        content_paned.set_start_child(ai_split);
+        content_paned.set_end_child(toolbox.widget);
+        content_paned.set_resize_start_child(true);
+        content_paned.set_resize_end_child(false);
+        content_paned.set_shrink_start_child(false);
+        content_paned.set_shrink_end_child(true);
+        content_paned.set_wide_handle(true);
+        content_paned.set_vexpand(true);
+        content_paned.set_hexpand(true);
+
+        outer.append(content_paned);
         return outer;
     }
 

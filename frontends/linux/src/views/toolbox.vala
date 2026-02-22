@@ -118,9 +118,8 @@ public class ToolboxPane : Object {
         stack.set_visible_child_name("terminals");
 
         var scroller = new Gtk.ScrolledWindow();
-        scroller.set_vexpand(false);
-        scroller.set_min_content_height(230);
-        scroller.set_max_content_height(320);
+        scroller.set_vexpand(true);
+        scroller.set_min_content_height(180);
         scroller.set_child(stack);
         frame.append(scroller);
 

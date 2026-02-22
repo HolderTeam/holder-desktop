@@ -135,7 +135,7 @@ public class MainWindow : Adw.ApplicationWindow {
             ai_run_controller.set_panel_visible(visible);
         });
         workspace.toolbox_toggled.connect((visible) => {
-            toolbox.set_reveal_child(visible);
+            workspace.set_toolbox_visible(visible);
             if (visible) {
                 toolbox.log_debug("Toolbox opened");
                 toolbox.refresh_ai_catalog.begin();
