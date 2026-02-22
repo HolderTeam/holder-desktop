@@ -80,14 +80,14 @@ public class WorkspacePane : Object {
         });
 
         var ai_toggle_btn = new Gtk.ToggleButton();
-        ai_toggle_btn.set_icon_name("utilities-terminal-symbolic");
+        ai_toggle_btn.set_icon_name("preferences-desktop-keyboard-symbolic");
         ai_toggle_btn.set_tooltip_text("Toggle AI status panel");
         ai_toggle_btn.toggled.connect(() => {
             ai_panel_toggled(ai_toggle_btn.get_active());
         });
 
         toolbox_toggle_btn = new Gtk.ToggleButton();
-        toolbox_toggle_btn.set_icon_name("view-bottom-pane-symbolic");
+        toolbox_toggle_btn.set_icon_name("utilities-terminal-symbolic");
         toolbox_toggle_btn.set_tooltip_text("Toggle toolbox panel");
         toolbox_toggle_btn.toggled.connect(() => {
             toolbox_toggled(toolbox_toggle_btn.get_active());
