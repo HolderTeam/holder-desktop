@@ -4,6 +4,7 @@ public class AppSettings : Object {
     public const string SCHEMA_ID = "io.holder.linux";
     public const string KEY_STYLE_VARIANT = "style-variant";
     public const string KEY_STYLE_SCHEME_ID = "style-scheme-id";
+    public const string KEY_SHOW_LINE_NUMBERS = "show-line-numbers";
 
     public static Settings? open_or_null() {
         var default_source = SettingsSchemaSource.get_default();

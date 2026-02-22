@@ -2,12 +2,14 @@ namespace HolderLinux {
 
 public class PreferencesDialog : Adw.PreferencesDialog {
     private GtkSource.Buffer editor_buffer;
+    private GtkSource.View editor_view;
     private Settings? settings;
     private Gee.HashMap<string, GtkSource.StyleSchemePreview> scheme_previews;
 
-    public PreferencesDialog(GtkSource.Buffer editor_buffer, Settings? settings) {
+    public PreferencesDialog(GtkSource.Buffer editor_buffer, GtkSource.View editor_view, Settings? settings) {
         Object();
         this.editor_buffer = editor_buffer;
+        this.editor_view = editor_view;
         this.settings = settings;
         this.scheme_previews = new Gee.HashMap<string, GtkSource.StyleSchemePreview>();
         this.set_title("Preferences");
@@ -66,6 +68,28 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         scheme_group.add(schemes_scroll);
 
         page.add(scheme_group);
+
+        var editor_group = new Adw.PreferencesGroup();
+        editor_group.set_title("Editor");
+
+        var line_numbers_row = new Adw.SwitchRow();
+        line_numbers_row.set_title("Show line numbers");
+        line_numbers_row.set_subtitle("Display line numbers in the editor gutter.");
+        if (settings != null) {
+            line_numbers_row.set_active(settings.get_boolean(AppSettings.KEY_SHOW_LINE_NUMBERS));
+        } else {
+            line_numbers_row.set_active(editor_view.get_show_line_numbers());
+        }
+        line_numbers_row.notify["active"].connect(() => {
+            var enabled = line_numbers_row.get_active();
+            editor_view.set_show_line_numbers(enabled);
+            if (settings != null) {
+                settings.set_boolean(AppSettings.KEY_SHOW_LINE_NUMBERS, enabled);
+            }
+        });
+        editor_group.add(line_numbers_row);
+
+        page.add(editor_group);
         add(page);
     }
 

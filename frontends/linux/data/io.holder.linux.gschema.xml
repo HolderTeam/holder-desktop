@@ -15,5 +15,12 @@
         Empty string means no explicit override.
       </description>
     </key>
+    <key name="show-line-numbers" type="b">
+      <default>true</default>
+      <summary>Show line numbers in the editor</summary>
+      <description>
+        If true, the editor displays line numbers in the gutter.
+      </description>
+    </key>
   </schema>
 </schemalist>
