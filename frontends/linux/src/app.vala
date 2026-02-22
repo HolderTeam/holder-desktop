@@ -15,6 +15,8 @@ public class App : Adw.Application {
 
         set_accels_for_action("win.new-card", {"<Primary>n"});
         set_accels_for_action("win.new-project", {"<Primary><Shift>n"});
+        set_accels_for_action("win.find-replace", {"<Primary>f", "<Primary>h"});
+        set_accels_for_action("win.print", {"<Primary>p"});
         set_accels_for_action("win.refresh", {"<Primary>r"});
         set_accels_for_action("win.toggle-toolbox", {"<Primary>b"});
         set_accels_for_action("app.quit", {"<Primary>q"});

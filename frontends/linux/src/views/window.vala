@@ -272,6 +272,18 @@ public class MainWindow : Adw.ApplicationWindow {
         });
         add_action(toggle_toolbox_action);
 
+        var find_replace_action = new SimpleAction("find-replace", null);
+        find_replace_action.activate.connect(() => {
+            show_find_replace_dialog();
+        });
+        add_action(find_replace_action);
+
+        var print_action = new SimpleAction("print", null);
+        print_action.activate.connect(() => {
+            print_current_card.begin();
+        });
+        add_action(print_action);
+
         var show_preferences_action = new SimpleAction("show-preferences", null);
         show_preferences_action.activate.connect(() => {
             show_preferences_dialog();
@@ -383,6 +395,159 @@ public class MainWindow : Adw.ApplicationWindow {
     private void show_preferences_dialog() {
         var dialog = new PreferencesDialog(editor_buffer, settings);
         dialog.present(this);
+    }
+
+    private void show_find_replace_dialog() {
+        var dialog = new Adw.MessageDialog(
+            this,
+            "Find and Replace",
+            "Search and replace in the current card."
+        );
+        dialog.add_response("cancel", "Close");
+        dialog.add_response("find", "Find Next");
+        dialog.add_response("replace", "Replace");
+        dialog.add_response("replace-all", "Replace All");
+        dialog.set_default_response("find");
+        dialog.set_close_response("cancel");
+
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
+        box.set_margin_top(6);
+        box.set_margin_bottom(6);
+
+        var find_entry = new Gtk.Entry();
+        find_entry.set_placeholder_text("Find");
+        var replace_entry = new Gtk.Entry();
+        replace_entry.set_placeholder_text("Replace with");
+
+        box.append(find_entry);
+        box.append(replace_entry);
+        dialog.set_extra_child(box);
+
+        dialog.response.connect((response) => {
+            var find_text = find_entry.get_text();
+            var replace_text = replace_entry.get_text();
+            if (find_text == null || find_text.length == 0) {
+                if (response != "cancel") {
+                    add_toast("Enter text to find.");
+                }
+                if (response == "cancel") {
+                    dialog.close();
+                }
+                return;
+            }
+
+            if (response == "find") {
+                perform_find_next(find_text);
+            } else if (response == "replace") {
+                perform_replace_next(find_text, replace_text);
+            } else if (response == "replace-all") {
+                perform_replace_all(find_text, replace_text);
+            } else if (response == "cancel") {
+                dialog.close();
+            }
+        });
+
+        dialog.present();
+    }
+
+    private GtkSource.SearchContext create_search_context(string find_text) {
+        var search_settings = new GtkSource.SearchSettings();
+        search_settings.set_case_sensitive(false);
+        search_settings.set_regex_enabled(false);
+        search_settings.set_wrap_around(true);
+        search_settings.set_search_text(find_text);
+        return new GtkSource.SearchContext(editor_buffer, search_settings);
+    }
+
+    private bool find_match(GtkSource.SearchContext context, out Gtk.TextIter match_start, out Gtk.TextIter match_end) {
+        bool has_wrapped = false;
+        Gtk.TextIter start_from;
+        if (editor_buffer.get_has_selection()) {
+            Gtk.TextIter sel_start;
+            Gtk.TextIter sel_end;
+            editor_buffer.get_selection_bounds(out sel_start, out sel_end);
+            start_from = sel_end;
+        } else {
+            editor_buffer.get_iter_at_mark(out start_from, editor_buffer.get_insert());
+        }
+        return context.forward(start_from, out match_start, out match_end, out has_wrapped);
+    }
+
+    private void perform_find_next(string find_text) {
+        var context = create_search_context(find_text);
+        Gtk.TextIter match_start;
+        Gtk.TextIter match_end;
+        if (!find_match(context, out match_start, out match_end)) {
+            add_toast("No match found.");
+            return;
+        }
+        editor_buffer.select_range(match_start, match_end);
+        workspace.editor_view.scroll_to_iter(match_start, 0.1, false, 0, 0);
+    }
+
+    private void perform_replace_next(string find_text, string replace_text) {
+        var context = create_search_context(find_text);
+        Gtk.TextIter match_start;
+        Gtk.TextIter match_end;
+        if (!find_match(context, out match_start, out match_end)) {
+            add_toast("No match found.");
+            return;
+        }
+        try {
+            context.replace(match_start, match_end, replace_text, -1);
+            add_toast("Replaced one match.");
+        } catch (Error e) {
+            show_error("Replace failed", e.message);
+            return;
+        }
+        perform_find_next(find_text);
+    }
+
+    private void perform_replace_all(string find_text, string replace_text) {
+        var context = create_search_context(find_text);
+        try {
+            var replaced = context.replace_all(replace_text, -1);
+            add_toast("Replaced %u matches.".printf(replaced));
+        } catch (Error e) {
+            show_error("Replace all failed", e.message);
+        }
+    }
+
+    private async void print_current_card() {
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        editor_buffer.get_bounds(out start, out end);
+        var text = editor_buffer.get_text(start, end, false);
+        if (text == null || text.strip().length == 0) {
+            add_toast("Nothing to print.");
+            return;
+        }
+
+        string tmp_dir;
+        try {
+            tmp_dir = DirUtils.make_tmp("holder-print-XXXXXX");
+        } catch (FileError e) {
+            show_error("Print failed", "Could not create temporary print directory: %s".printf(e.message));
+            return;
+        }
+        var tmp_path = Path.build_filename(tmp_dir, "card.txt");
+        try {
+            FileUtils.set_contents(tmp_path, text);
+        } catch (FileError e) {
+            show_error("Print failed", "Could not prepare print file: %s".printf(e.message));
+            return;
+        }
+
+        var dialog = new Gtk.PrintDialog();
+        dialog.set_title("Print");
+        try {
+            yield dialog.print_file(this, null, File.new_for_path(tmp_path), null);
+        } catch (Error e) {
+            show_error("Print failed", e.message);
+        } finally {
+            FileUtils.remove(tmp_path);
+            DirUtils.remove(tmp_dir);
+        }
     }
 
     private void show_about_dialog() {

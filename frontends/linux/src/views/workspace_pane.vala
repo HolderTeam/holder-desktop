@@ -94,8 +94,14 @@ public class WorkspacePane : Object {
         });
 
         var main_menu = new GLib.Menu();
-        main_menu.append("Preferences", "win.show-preferences");
-        main_menu.append("About", "win.show-about");
+        var editing_section = new GLib.Menu();
+        editing_section.append("Find/Replace", "win.find-replace");
+        editing_section.append("Print", "win.print");
+        var app_section = new GLib.Menu();
+        app_section.append("Preferences", "win.show-preferences");
+        app_section.append("About", "win.show-about");
+        main_menu.append_section(null, editing_section);
+        main_menu.append_section(null, app_section);
 
         var main_menu_btn = new Gtk.MenuButton();
         main_menu_btn.set_icon_name("open-menu-symbolic");
