@@ -101,11 +101,11 @@ public class ToolboxPane : Object {
         stack.set_hexpand(true);
         switcher.set_stack(stack);
 
-        stack.add_titled(build_debug_tab(), "debug", "Debug");
-        stack.add_titled(build_ai_catalog_tab(), "catalog", "AI Catalog");
         stack.add_titled(build_terminal_tab(), "terminals", "Terminals");
+        stack.add_titled(build_ai_catalog_tab(), "catalog", "AI Catalog");
         stack.add_titled(build_git_sync_tab(), "git", "Git Sync");
-        stack.set_visible_child_name("debug");
+        stack.add_titled(build_debug_tab(), "debug", "Debug");
+        stack.set_visible_child_name("terminals");
 
         var scroller = new Gtk.ScrolledWindow();
         scroller.set_vexpand(false);
