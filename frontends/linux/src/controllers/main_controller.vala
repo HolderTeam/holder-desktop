@@ -482,19 +482,26 @@ public class MainController : Object, IAiRunContext {
             editor_state_changed("# No Card Selected\n\nSelect a card from the sidebar.", false);
             return;
         }
+        var requested_card_id = selected.card_id;
 
         status_changed("Loading card...");
         editor_state_changed("Loading card...", false);
         try {
-            var card = yield api.get_card(selected.card_id);
+            var card = yield api.get_card(requested_card_id);
+            if (selected_card_id() != requested_card_id) {
+                return;
+            }
             current_card = card;
             editor_state_changed(card.content, true);
             show_editor_requested();
             window_title_changed(card.title);
             status_changed("Loaded %s".printf(card.title));
         } catch (Error e) {
+            if (selected_card_id() != requested_card_id) {
+                return;
+            }
             editor_state_changed(
-                "# Error\n\nFailed to load card `%s`.\n\n%s".printf(selected.card_id, e.message),
+                "# Error\n\nFailed to load card `%s`.\n\n%s".printf(requested_card_id, e.message),
                 false
             );
             error_reported("Failed to load card", e.message);
@@ -570,6 +577,7 @@ public class MainController : Object, IAiRunContext {
         if (current_card == null) {
             return;
         }
+        suppress_card_selection_events = true;
         for (uint i = 0; i < card_store.get_n_items(); i++) {
             var card = card_store.get_item(i) as CardSummary;
             if (card == null || card.card_id != current_card.card_id) {
@@ -587,12 +595,11 @@ public class MainController : Object, IAiRunContext {
             card_store.remove(i);
             card_store.insert(i, replacement);
             if (selected_pos == i) {
-                suppress_card_selection_events = true;
                 card_selection.set_selected_index(i);
-                suppress_card_selection_events = false;
             }
             break;
         }
+        suppress_card_selection_events = false;
     }
 }
 
