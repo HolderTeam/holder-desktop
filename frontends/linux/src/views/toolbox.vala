@@ -236,6 +236,7 @@ public class ToolboxPane : Object {
         terminal.set_vexpand(true);
         terminal.set_hexpand(true);
         terminal.set_scrollback_lines(10000);
+        configure_terminal_interactions(terminal);
         var fallback_title = "Term %d".printf(next_terminal_index);
 
         var shell = Environment.get_variable("SHELL");
@@ -272,6 +273,63 @@ public class ToolboxPane : Object {
         terminal_notebook.append_page(terminal, tab_label);
         terminal_notebook.set_tab_reorderable(terminal, true);
         terminal_notebook.set_current_page(terminal_notebook.get_n_pages() - 1);
+    }
+
+    private void configure_terminal_interactions(Vte.Terminal terminal) {
+        var actions = new SimpleActionGroup();
+
+        var copy_action = new SimpleAction("copy", null);
+        copy_action.activate.connect(() => {
+            terminal.copy_clipboard_format(Vte.Format.TEXT);
+        });
+        actions.add_action(copy_action);
+
+        var paste_action = new SimpleAction("paste", null);
+        paste_action.activate.connect(() => {
+            terminal.paste_clipboard();
+        });
+        actions.add_action(paste_action);
+
+        var select_all_action = new SimpleAction("select-all", null);
+        select_all_action.activate.connect(() => {
+            terminal.select_all();
+        });
+        actions.add_action(select_all_action);
+
+        terminal.insert_action_group("terminal", actions);
+
+        var menu = new GLib.Menu();
+        menu.append("Copy", "terminal.copy");
+        menu.append("Paste", "terminal.paste");
+        menu.append("Select All", "terminal.select-all");
+        terminal.set_context_menu_model(menu);
+
+        var key_controller = new Gtk.EventControllerKey();
+        key_controller.key_pressed.connect((keyval, keycode, state) => {
+            var ctrl_shift = (state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK))
+                == (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK);
+            if (!ctrl_shift) {
+                return false;
+            }
+
+            if (keyval == Gdk.Key.C || keyval == Gdk.Key.c) {
+                terminal.copy_clipboard_format(Vte.Format.TEXT);
+                return true;
+            }
+
+            if (keyval == Gdk.Key.V || keyval == Gdk.Key.v) {
+                terminal.paste_clipboard();
+                return true;
+            }
+
+            if (keyval == Gdk.Key.A || keyval == Gdk.Key.a) {
+                terminal.select_all();
+                return true;
+            }
+
+            return false;
+        });
+        terminal.add_controller(key_controller);
     }
 
     private Gtk.Widget build_terminal_tab_label(Gtk.Widget terminal_page, string title, out Gtk.Label label) {
