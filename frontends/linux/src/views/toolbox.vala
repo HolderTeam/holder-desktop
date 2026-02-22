@@ -269,7 +269,10 @@ public class ToolboxPane : Object {
 
     private Gtk.Widget build_terminal_tab_label(Gtk.Widget terminal_page, string title) {
         var box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 4);
+        box.set_size_request(120, -1);
         var label = new Gtk.Label(title);
+        label.set_xalign(0.0f);
+        label.set_hexpand(true);
         label.set_ellipsize(Pango.EllipsizeMode.END);
 
         var close_btn = new Gtk.Button.from_icon_name("window-close-symbolic");
