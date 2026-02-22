@@ -80,6 +80,10 @@ class Runner:
         env.setdefault("PYTHONUNBUFFERED", "1")
         if headless:
             env.setdefault("GSETTINGS_BACKEND", "memory")
+            env["GDK_BACKEND"] = "x11"
+            env["XDG_SESSION_TYPE"] = "x11"
+            env.pop("WAYLAND_DISPLAY", None)
+            env.pop("SWAYSOCK", None)
         return env
 
     def run_with_isolated_backend(self, command: list[str], env: dict[str, str]) -> None:
