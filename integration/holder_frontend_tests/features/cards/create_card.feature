@@ -1,4 +1,4 @@
-@linux @backend
+@linux
 Feature: Cards
   As a Holder user
   I want to create cards from the frontend

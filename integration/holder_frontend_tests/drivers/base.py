@@ -21,3 +21,11 @@ class FrontendDriver(ABC):
     @abstractmethod
     def has_card_titled_prefix(self, prefix: str) -> bool:
         raise NotImplementedError
+
+    @abstractmethod
+    def toggle_toolbox_panel(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def toolbox_panel_is_visible(self) -> bool:
+        raise NotImplementedError

@@ -33,24 +33,17 @@ class Runner:
             str(self.repo_root / "frontends" / "linux" / "build" / "holder-desktop"),
         )
 
-    def behave_base_env(self) -> dict[str, str]:
+    def behave_env(self) -> dict[str, str]:
         env = os.environ.copy()
         env["HOLDER_FRONTEND_TARGET"] = "linux"
+        env.setdefault("NO_AT_BRIDGE", "0")
+        env.setdefault("GTK_A11Y", "atspi")
+        env.setdefault("GSETTINGS_BACKEND", "memory")
+        env.setdefault("GTK_USE_PORTAL", "0")
+        env.setdefault("PYTHONUNBUFFERED", "1")
         return env
 
-    def run_behave_linux(self) -> None:
-        self.require_cmd("behave", "Ubuntu: sudo apt install python3-behave")
-        cmd = [
-            "behave",
-            "holder_frontend_tests/features",
-            "-D",
-            f"app_path={self.default_app_path()}",
-            "--tags=@linux",
-            "--tags=-@backend",
-        ]
-        self.run_checked(cmd, env=self.behave_base_env())
-
-    def run_with_isolated_backend(self, command: list[str], env: dict[str, str] | None = None) -> None:
+    def run_with_isolated_backend(self, command: list[str], env: dict[str, str]) -> None:
         self.require_cmd("mktemp", "Install coreutils from your package manager.")
         holder_dir = Path(
             os.environ.get("HOLDER_DIR", str(self.repo_root.parent / "holder"))
@@ -63,10 +56,6 @@ class Runner:
             print(f"Build it first (e.g. in {holder_dir}) or set HOLDER_BACKEND_BIN.", file=sys.stderr)
             raise SystemExit(1)
 
-        old_data = os.environ.get("XDG_DATA_HOME")
-        old_config = os.environ.get("XDG_CONFIG_HOME")
-        old_cache = os.environ.get("XDG_CACHE_HOME")
-
         with tempfile.TemporaryDirectory(prefix="holder-integration-xdg.", dir="/tmp") as xdg_root:
             xdg_root_path = Path(xdg_root)
             data = xdg_root_path / "data"
@@ -77,17 +66,17 @@ class Runner:
             cache.mkdir(parents=True, exist_ok=True)
             os.chmod(xdg_root_path, 0o700)
 
-            backend_env = os.environ.copy()
-            backend_env["XDG_DATA_HOME"] = str(data)
-            backend_env["XDG_CONFIG_HOME"] = str(config)
-            backend_env["XDG_CACHE_HOME"] = str(cache)
+            run_env = env.copy()
+            run_env["XDG_DATA_HOME"] = str(data)
+            run_env["XDG_CONFIG_HOME"] = str(config)
+            run_env["XDG_CACHE_HOME"] = str(cache)
 
             backend_log = xdg_root_path / "holder-backend.log"
             with backend_log.open("w", encoding="utf-8") as log:
                 backend_proc = subprocess.Popen(
                     [str(holder_backend_bin), "--bind", "127.0.0.1", "--port", "0"],
                     cwd=str(holder_dir),
-                    env=backend_env,
+                    env=run_env,
                     stdout=log,
                     stderr=subprocess.STDOUT,
                 )
@@ -152,74 +141,33 @@ class Runner:
                         print(log_tail[-8000:], file=sys.stderr)
                         raise SystemExit(1)
 
-                cmd_env = os.environ.copy()
-                cmd_env["XDG_DATA_HOME"] = str(data)
-                cmd_env["XDG_CONFIG_HOME"] = str(config)
-                cmd_env["XDG_CACHE_HOME"] = str(cache)
-                if env:
-                    cmd_env.update(env)
-                self.run_checked(command, env=cmd_env)
+                self.run_checked(command, env=run_env)
             finally:
                 stop_backend()
-                if old_data is not None:
-                    os.environ["XDG_DATA_HOME"] = old_data
-                else:
-                    os.environ.pop("XDG_DATA_HOME", None)
-                if old_config is not None:
-                    os.environ["XDG_CONFIG_HOME"] = old_config
-                else:
-                    os.environ.pop("XDG_CONFIG_HOME", None)
-                if old_cache is not None:
-                    os.environ["XDG_CACHE_HOME"] = old_cache
-                else:
-                    os.environ.pop("XDG_CACHE_HOME", None)
 
-    def run_behave_linux_backend(self) -> None:
+    def run_linux(self) -> None:
         self.require_cmd("behave", "Ubuntu: sudo apt install python3-behave")
-        cmd = [
+        self.require_cmd("xvfb-run", "Ubuntu: sudo apt install xvfb")
+        self.require_cmd("dbus-run-session", "Ubuntu: sudo apt install dbus-x11")
+
+        behave_cmd = [
+            "dbus-run-session",
+            "--",
+            "xvfb-run",
+            "-a",
+            "-s",
+            "-screen 0 1920x1080x24",
             "behave",
             "holder_frontend_tests/features",
             "-D",
             f"app_path={self.default_app_path()}",
             "--tags=@linux",
-            "--tags=@backend",
         ]
-        self.run_with_isolated_backend(cmd, env=self.behave_base_env())
-
-    def run_linux_ui_script(self, script_path: Path, extra_env: dict[str, str] | None = None) -> None:
-        self.require_cmd("python3", "Ubuntu: sudo apt install python3")
-        self.require_cmd("xvfb-run", "Ubuntu: sudo apt install xvfb")
-        self.require_cmd("dbus-run-session", "Ubuntu: sudo apt install dbus-x11")
-
-        cmd = [
-            str(self.integration_root / "linux_ui" / "run_ui_tests.sh"),
-            str(script_path),
-            self.default_app_path(),
-            str(self.repo_root),
-        ]
-        env = os.environ.copy()
-        env["RUN_UI_TESTS"] = "1"
-        if extra_env:
-            env.update(extra_env)
-        self.run_checked(cmd, env=env)
-
-    def run_ui_linux(self) -> None:
-        self.run_linux_ui_script(self.integration_root / "linux_ui" / "test_smoke.py")
-        self.run_linux_ui_script(
-            self.integration_root / "linux_ui" / "test_create_card.py",
-            extra_env={"RUN_UI_BACKEND_TESTS": "1", "RUN_UI_AUTOSTART_BACKEND": "1"},
-        )
-
-    def run_linux(self) -> None:
-        self.run_behave_linux()
-        self.run_behave_linux_backend()
-        self.run_ui_linux()
+        self.run_with_isolated_backend(behave_cmd, env=self.behave_env())
 
 
 def print_usage() -> None:
-    print(
-        "Usage: ./make.sh [linux|deps-ubuntu|install-dev]"
-    )
+    print("Usage: ./make.sh [linux|deps-ubuntu|install-dev]")
 
 
 def main() -> int:

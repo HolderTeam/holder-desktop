@@ -69,6 +69,25 @@ class LinuxDogtailDriver(FrontendDriver):
         )
         return len(matches) > 0
 
+    def toggle_toolbox_panel(self) -> None:
+        from dogtail import tree  # pylint: disable=import-outside-toplevel
+
+        app = self._wait_for(lambda: self._find_app(tree), timeout=20.0)
+        window = self._wait_for(lambda: self._find_window(app), timeout=20.0)
+        self._click_toolbox_toggle(window)
+
+    def toolbox_panel_is_visible(self) -> bool:
+        from dogtail import tree  # pylint: disable=import-outside-toplevel
+
+        app = self._wait_for(lambda: self._find_app(tree), timeout=20.0)
+        window = self._wait_for(lambda: self._find_window(app), timeout=20.0)
+        visible = self._wait_for(
+            lambda: window if self._has_toolbox_label(window) else None,
+            timeout=10.0,
+            interval=0.2,
+        )
+        return visible is not None
+
     def _find_app(self, tree_module):
         for app_name in ("Holder", "holder-desktop", "holder-linux", "io.holder.linux"):
             try:
@@ -107,6 +126,45 @@ class LinuxDogtailDriver(FrontendDriver):
             except Exception:
                 pass
         raise RuntimeError(f"Cannot click node: {getattr(node, 'name', '<unnamed>')}")
+
+    def _click_toolbox_toggle(self, window) -> None:
+        buttons = window.findChildren(
+            lambda node: "button" in getattr(node, "roleName", "").lower()
+        )
+
+        for button in buttons:
+            name = (getattr(button, "name", "") or "").lower()
+            if "toolbox" in name:
+                self._click_node(button)
+                return
+
+        toggle_buttons = [
+            button for button in buttons
+            if getattr(button, "roleName", "").lower() == "toggle button"
+        ]
+        if len(toggle_buttons) >= 2:
+            self._click_node(toggle_buttons[-1])
+            return
+        if toggle_buttons:
+            self._click_node(toggle_buttons[0])
+            return
+        raise RuntimeError("Could not find toolbox toggle button in accessibility tree")
+
+    @staticmethod
+    def _has_toolbox_label(window) -> bool:
+        expected_names = (
+            "Toolbox",
+            "Debug",
+            "AI Catalog",
+            "New Terminal",
+            "Refresh Catalog",
+        )
+        for child in window.findChildren(
+            lambda node: getattr(node, "name", "") in expected_names
+        ):
+            if child is not None:
+                return True
+        return False
 
     @staticmethod
     def _wait_for(fn: Callable[[], object], timeout: float = 20.0, interval: float = 0.2):

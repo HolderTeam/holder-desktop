@@ -11,6 +11,7 @@ This package is intended to hold:
 
 Implemented first vertical slice:
 - Feature: create a card
+- Feature: toggle toolbox panel
 - Driver: Linux dogtail adapter
 
 ## Quick start (Linux)
@@ -40,10 +41,9 @@ Optional fallback for maintainers who want editable package installs:
 
 ## What `./make.sh` runs
 
-- Behave scenarios tagged `@linux` and not `@backend`
-- Behave scenarios tagged `@linux` and `@backend` with isolated backend
-- Linux UI smoke test
-- Linux UI backend-integrated create-card test
+- A single Behave run for scenarios tagged `@linux`
+- Entire run executes with an isolated Holder backend instance
+- Entire run executes inside `dbus-run-session` + `xvfb-run` for headless UI automation
 
 ## Environment
 
@@ -53,7 +53,7 @@ Optional fallback for maintainers who want editable package installs:
 ## Runner design
 
 - `./make.sh` is intentionally minimal and delegates to `./run.py`.
-- `run.py` contains orchestration (tag filtering, UI script execution, isolated backend lifecycle).
+- `run.py` contains orchestration (Behave invocation + isolated backend lifecycle).
 
 ## Next steps
 
