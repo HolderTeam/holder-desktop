@@ -88,6 +88,18 @@ class LinuxDogtailDriver(FrontendDriver):
         )
         return visible is not None
 
+    def toolbox_panel_is_hidden(self) -> bool:
+        from dogtail import tree  # pylint: disable=import-outside-toplevel
+
+        app = self._wait_for(lambda: self._find_app(tree), timeout=20.0)
+        window = self._wait_for(lambda: self._find_window(app), timeout=20.0)
+        hidden = self._wait_for(
+            lambda: window if not self._has_toolbox_label(window) else None,
+            timeout=10.0,
+            interval=0.2,
+        )
+        return hidden is not None
+
     def _find_app(self, tree_module):
         for app_name in ("Holder", "holder-desktop", "holder-linux", "io.holder.linux"):
             try:

@@ -29,3 +29,7 @@ class FrontendDriver(ABC):
     @abstractmethod
     def toolbox_panel_is_visible(self) -> bool:
         raise NotImplementedError
+
+    @abstractmethod
+    def toolbox_panel_is_hidden(self) -> bool:
+        raise NotImplementedError

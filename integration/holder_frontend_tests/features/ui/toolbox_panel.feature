@@ -8,4 +8,5 @@ Feature: Toolbox Panel
     Given the Holder frontend is running
     When I toggle the toolbox panel
     Then I should see the toolbox panel
-    When I toggle the toolbox panel
+    And I toggle the toolbox panel
+    Then I should not see the toolbox panel

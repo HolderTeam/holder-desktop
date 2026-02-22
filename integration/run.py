@@ -23,9 +23,47 @@ class Runner:
             print(hint, file=sys.stderr)
             raise SystemExit(1)
 
+    def _is_noise_line(self, line: str) -> bool:
+        noisy_markers = (
+            "dbus-daemon[",
+            "fusermount3:",
+            "error: fuse init failed:",
+            "xdg-desktop-portal-WARNING",
+            "Non-compatible display server, exposing settings only.",
+            "discover_other_daemon:",
+            "GNOME_KEYRING_CONTROL=",
+            "SSH_AUTH_SOCK=",
+            "SpiRegistry daemon is running with well-known name",
+            "A connection to the bus can't be made",
+            "dbind-WARNING",
+        )
+        return any(marker in line for marker in noisy_markers)
+
     def run_checked(self, cmd: list[str], env: dict[str, str] | None = None) -> None:
         print("Running:", " ".join(cmd), flush=True)
-        subprocess.run(cmd, check=True, env=env)
+        proc = subprocess.Popen(
+            cmd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        suppressed: list[str] = []
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            if self._is_noise_line(line):
+                if len(suppressed) < 400:
+                    suppressed.append(line.rstrip("\n"))
+                continue
+            print(line, end="")
+        rc = proc.wait()
+        if rc != 0:
+            if suppressed:
+                print("\nSuppressed noisy lines (tail):", file=sys.stderr)
+                for line in suppressed[-30:]:
+                    print(line, file=sys.stderr)
+            raise subprocess.CalledProcessError(rc, cmd)
 
     def default_app_path(self) -> str:
         return os.environ.get(
