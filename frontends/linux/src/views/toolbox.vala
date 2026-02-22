@@ -172,17 +172,19 @@ public class ToolboxPane : Object {
 
     private Gtk.Widget build_terminal_tab() {
         var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
-        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var add_btn = new Gtk.Button.with_label("New Terminal");
-        add_btn.clicked.connect(() => {
-            add_terminal_tab();
-        });
-        actions.append(add_btn);
-        box.append(actions);
 
         terminal_notebook = new Gtk.Notebook();
         terminal_notebook.set_vexpand(true);
         terminal_notebook.set_hexpand(true);
+
+        var add_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
+        add_btn.set_tooltip_text("New Terminal");
+        add_btn.add_css_class("flat");
+        add_btn.clicked.connect(() => {
+            add_terminal_tab();
+        });
+        terminal_notebook.set_action_widget(add_btn, Gtk.PackType.END);
+
         box.append(terminal_notebook);
 
         add_terminal_tab();
