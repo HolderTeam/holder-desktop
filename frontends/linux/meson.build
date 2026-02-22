@@ -176,3 +176,21 @@ ui_adapters_test_exe = executable(
 )
 
 test('holder-linux-ui-adapters-tests', ui_adapters_test_exe)
+
+app_settings_test_exe = executable(
+  'holder-linux-app-settings-tests',
+  [
+    'src/services/app_settings.vala',
+    'tests/app_settings_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-app-settings-tests', app_settings_test_exe)
