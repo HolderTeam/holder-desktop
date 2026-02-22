@@ -28,6 +28,7 @@ class Runner:
             "dbus-daemon[",
             "fusermount3:",
             "error: fuse init failed:",
+            "libEGL warning:",
             "xdg-desktop-portal-WARNING",
             "Non-compatible display server, exposing settings only.",
             "discover_other_daemon:",
