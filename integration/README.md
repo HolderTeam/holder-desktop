@@ -22,8 +22,17 @@ From `integration`:
 sudo apt update
 sudo apt install -y python3-behave python3-dogtail xvfb at-spi2-core dbus-x11 x11-utils
 
-./make.sh linux
+# Run the full Linux integration suite (recommended)
+./make.sh
+# or explicitly:
+./make.sh all-linux
+```
+
+If you need specific slices:
+
+```bash
 ./make.sh behave-linux
+./make.sh behave-linux-backend
 
 # UI launch smoke (Linux app, no backend-required assertions)
 ./make.sh ui-smoke
@@ -67,6 +76,12 @@ Optional fallback for maintainers who want editable package installs:
 
 - `HOLDER_FRONTEND_TARGET` (default: `linux`)
 - `HOLDER_FRONTEND_APP_PATH` (default: `../frontends/linux/build/holder-desktop`)
+
+## Runner design
+
+- `./make.sh` is intentionally minimal and delegates to `./run.py`.
+- `run.py` contains orchestration (tag filtering, UI script execution, isolated backend lifecycle).
+- Default mode is `all-linux` to reduce command sprawl and make CI/local usage consistent.
 
 ## Next steps
 

@@ -19,8 +19,6 @@ From `frontends/linux`:
 
 ```bash
 ./make.sh test
-./make.sh ui-test
-./make.sh ui-test-backend
 ```
 
 ## Shared integration tests
@@ -32,6 +30,7 @@ sudo apt update
 sudo apt install -y python3-behave python3-dogtail xvfb at-spi2-core dbus-x11 x11-utils
 
 ./make.sh linux
+./make.sh all-linux
 ./make.sh ui-smoke
 ./make.sh ui-create-card
 ```
