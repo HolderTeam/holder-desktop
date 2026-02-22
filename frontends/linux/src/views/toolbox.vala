@@ -2,6 +2,7 @@ namespace HolderLinux {
 
 public class ToolboxPane : Object {
     private Gtk.TextBuffer debug_buffer;
+    private Gtk.TextView debug_view;
     private Gtk.ListBox ai_catalog_list;
     private Gtk.Notebook terminal_notebook;
     private int next_terminal_index = 1;
@@ -33,6 +34,15 @@ public class ToolboxPane : Object {
         debug_buffer.get_end_iter(out end);
         var stamp = new DateTime.now_local().format("%H:%M:%S");
         debug_buffer.insert(ref end, "[%s] %s\n".printf(stamp, line), -1);
+        if (debug_view != null) {
+            Idle.add(() => {
+                Gtk.TextIter latest_end;
+                debug_buffer.get_end_iter(out latest_end);
+                debug_buffer.place_cursor(latest_end);
+                debug_view.scroll_to_iter(latest_end, 0.0, false, 0.0, 1.0);
+                return Source.REMOVE;
+            });
+        }
     }
 
     public async void refresh_ai_catalog() {
@@ -120,11 +130,11 @@ public class ToolboxPane : Object {
     private Gtk.Widget build_debug_tab() {
         var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
         debug_buffer = new Gtk.TextBuffer(null);
-        var view = new Gtk.TextView.with_buffer(debug_buffer);
-        view.set_editable(false);
-        view.set_monospace(true);
-        view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
-        view.set_vexpand(true);
+        debug_view = new Gtk.TextView.with_buffer(debug_buffer);
+        debug_view.set_editable(false);
+        debug_view.set_monospace(true);
+        debug_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
+        debug_view.set_vexpand(true);
 
         var controls = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         var clear = new Gtk.Button.with_label("Clear");
@@ -136,7 +146,7 @@ public class ToolboxPane : Object {
 
         var scroll = new Gtk.ScrolledWindow();
         scroll.set_vexpand(true);
-        scroll.set_child(view);
+        scroll.set_child(debug_view);
         box.append(scroll);
         return box;
     }
