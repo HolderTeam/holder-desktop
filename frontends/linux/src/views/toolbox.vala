@@ -260,11 +260,49 @@ public class ToolboxPane : Object {
             }
         );
 
-        var tab_label = new Gtk.Label("Term %d".printf(next_terminal_index));
+        var tab_label = build_terminal_tab_label(terminal, "Term %d".printf(next_terminal_index));
         next_terminal_index++;
         terminal_notebook.append_page(terminal, tab_label);
         terminal_notebook.set_tab_reorderable(terminal, true);
         terminal_notebook.set_current_page(terminal_notebook.get_n_pages() - 1);
+    }
+
+    private Gtk.Widget build_terminal_tab_label(Gtk.Widget terminal_page, string title) {
+        var box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 4);
+        var label = new Gtk.Label(title);
+        label.set_ellipsize(Pango.EllipsizeMode.END);
+
+        var close_btn = new Gtk.Button.from_icon_name("window-close-symbolic");
+        close_btn.add_css_class("flat");
+        close_btn.set_tooltip_text("Close terminal");
+        close_btn.clicked.connect(() => {
+            close_terminal_page(terminal_page);
+        });
+
+        box.append(label);
+        box.append(close_btn);
+        return box;
+    }
+
+    private void close_terminal_page(Gtk.Widget page) {
+        var page_index = terminal_notebook.page_num(page);
+        if (page_index < 0) {
+            return;
+        }
+
+        terminal_notebook.remove_page(page_index);
+        log_debug("Terminal tab closed");
+
+        if (terminal_notebook.get_n_pages() == 0) {
+            add_terminal_tab();
+        } else {
+            var next = page_index;
+            var count = terminal_notebook.get_n_pages();
+            if (next >= count) {
+                next = count - 1;
+            }
+            terminal_notebook.set_current_page(next);
+        }
     }
 
     private void clear_list_box(Gtk.ListBox list) {
