@@ -22,32 +22,14 @@ From `integration`:
 sudo apt update
 sudo apt install -y python3-behave python3-dogtail xvfb at-spi2-core dbus-x11 x11-utils
 
-# Run the full Linux integration suite (recommended)
+# Run the full Linux integration suite
 ./make.sh
-# or explicitly:
-./make.sh all-linux
-```
-
-If you need specific slices:
-
-```bash
-./make.sh behave-linux
-./make.sh behave-linux-backend
-
-# UI launch smoke (Linux app, no backend-required assertions)
-./make.sh ui-smoke
-
-# UI backend-integrated create-card flow (isolated autostart backend)
-./make.sh ui-create-card
-
-# Behave scenario set that requires backend behavior
-./make.sh behave-linux-backend
 ```
 
 If your app binary is elsewhere:
 
 ```bash
-HOLDER_FRONTEND_APP_PATH=/path/to/holder-desktop ./make.sh linux
+HOLDER_FRONTEND_APP_PATH=/path/to/holder-desktop ./make.sh
 ```
 
 Optional fallback for maintainers who want editable package installs:
@@ -56,21 +38,12 @@ Optional fallback for maintainers who want editable package installs:
 ./make.sh install-dev
 ```
 
-## Linux UI script modes
+## What `./make.sh` runs
 
-- `./make.sh ui-smoke`: launch app, toggle toolbox, assert UI response
-- `./make.sh ui-create-card`: backend-integrated create card flow with isolated backend
-- `./make.sh ui-linux`: runs smoke + create-card
-- `./make.sh ui-shortcut`: optional `Ctrl+N` flow (headless focus can be flaky)
-
-## Behave modes
-
-- `./make.sh behave-linux` (alias: `./make.sh linux`): run shared Behave scenarios tagged `@linux and not @backend`
-- `./make.sh behave-linux-backend`: run shared Behave scenarios tagged `@linux and @backend`
-  - auto-starts an isolated Holder backend
-  - uses temporary `XDG_DATA_HOME`/`XDG_CONFIG_HOME`/`XDG_CACHE_HOME`
-  - uses backend ephemeral port (`--port 0`)
-  - cleans backend process and temp data after run
+- Behave scenarios tagged `@linux` and not `@backend`
+- Behave scenarios tagged `@linux` and `@backend` with isolated backend
+- Linux UI smoke test
+- Linux UI backend-integrated create-card test
 
 ## Environment
 
@@ -81,7 +54,7 @@ Optional fallback for maintainers who want editable package installs:
 
 - `./make.sh` is intentionally minimal and delegates to `./run.py`.
 - `run.py` contains orchestration (tag filtering, UI script execution, isolated backend lifecycle).
-- Default mode is `all-linux` to reduce command sprawl and make CI/local usage consistent.
+- Default mode is `all-linux` and subset test modes are intentionally not exposed.
 
 ## Next steps
 

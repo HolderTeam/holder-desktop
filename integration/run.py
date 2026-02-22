@@ -248,8 +248,7 @@ def run_all_linux() -> None:
 
 def print_usage() -> None:
     print(
-        "Usage: ./make.sh [all-linux|linux|behave-linux|behave-linux-backend|"
-        "ui-smoke|ui-create-card|ui-shortcut|ui-linux|deps-ubuntu|install-dev]"
+        "Usage: ./make.sh [all-linux|deps-ubuntu|install-dev]"
     )
 
 
@@ -265,25 +264,7 @@ def main() -> int:
         require_cmd("python3", "Install Python 3 from your package manager.")
         run_checked(["python3", "-m", "pip", "install", "-e", ".[linux]"])
         return 0
-    if mode in {"linux", "behave-linux"}:
-        run_behave_linux()
-        return 0
-    if mode == "behave-linux-backend":
-        run_behave_linux_backend()
-        return 0
-    if mode == "ui-smoke":
-        run_ui_smoke()
-        return 0
-    if mode == "ui-create-card":
-        run_ui_create_card()
-        return 0
-    if mode == "ui-shortcut":
-        run_ui_shortcut()
-        return 0
-    if mode == "ui-linux":
-        run_ui_linux()
-        return 0
-    if mode in {"all-linux", "linux-all", "test-linux"}:
+    if mode == "all-linux":
         run_all_linux()
         return 0
 

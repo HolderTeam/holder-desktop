@@ -5,7 +5,7 @@ Desktop product repo for Holder clients and cross-frontend integration tests.
 ## Repository layout
 
 - `frontends/`
-  - `linux/` GTK/Vala client (source, unit tests, UI tests)
+  - `linux/` GTK/Vala client (source, unit tests)
   - `windows/` WinUI client (planned)
   - `macos/` SwiftUI client (planned)
 - `integration/`
@@ -29,10 +29,7 @@ From `integration`:
 sudo apt update
 sudo apt install -y python3-behave python3-dogtail xvfb at-spi2-core dbus-x11 x11-utils
 
-./make.sh linux
-./make.sh all-linux
-./make.sh ui-smoke
-./make.sh ui-create-card
+./make.sh
 ```
 
 By default the integration runner uses:
