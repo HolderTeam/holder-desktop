@@ -5,6 +5,7 @@ public class AppSettings : Object {
     public const string KEY_STYLE_VARIANT = "style-variant";
     public const string KEY_STYLE_SCHEME_ID = "style-scheme-id";
     public const string KEY_SHOW_LINE_NUMBERS = "show-line-numbers";
+    public const string KEY_SHOW_SPELL_CHECKING = "show-spell-checking";
 
     public static Settings? open_or_null() {
         var default_source = SettingsSchemaSource.get_default();

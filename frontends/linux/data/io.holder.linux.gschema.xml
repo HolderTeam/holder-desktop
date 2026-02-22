@@ -22,5 +22,12 @@
         If true, the editor displays line numbers in the gutter.
       </description>
     </key>
+    <key name="show-spell-checking" type="b">
+      <default>true</default>
+      <summary>Show spell checking in the editor</summary>
+      <description>
+        If true, misspelled words are underlined in the editor.
+      </description>
+    </key>
   </schema>
 </schemalist>

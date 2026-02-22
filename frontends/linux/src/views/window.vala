@@ -14,6 +14,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private WorkspacePane workspace;
     private GtkSource.Buffer editor_buffer;
     private GtkSource.View editor_view;
+    private Spelling.TextBufferAdapter? spelling_adapter;
     private Gtk.SearchEntry search_entry;
     private Gtk.Label search_summary_label;
     private Gtk.SingleSelection search_selection;
@@ -55,6 +56,7 @@ public class MainWindow : Adw.ApplicationWindow {
         workspace = new WorkspacePane(search_store);
         editor_buffer = workspace.editor_buffer;
         editor_view = workspace.editor_view;
+        spelling_adapter = workspace.spelling_adapter;
         settings = AppSettings.open_or_null();
         apply_persisted_preferences();
         search_entry = workspace.search_entry;
@@ -408,6 +410,9 @@ public class MainWindow : Adw.ApplicationWindow {
         Adw.StyleManager.get_default().set_color_scheme(AppSettings.key_to_color_scheme(style_key));
 
         editor_view.set_show_line_numbers(settings.get_boolean(AppSettings.KEY_SHOW_LINE_NUMBERS));
+        if (spelling_adapter != null) {
+            spelling_adapter.set_enabled(settings.get_boolean(AppSettings.KEY_SHOW_SPELL_CHECKING));
+        }
 
         var scheme_id = settings.get_string(AppSettings.KEY_STYLE_SCHEME_ID);
         if (scheme_id == null || scheme_id.length == 0) {
@@ -422,7 +427,7 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void show_preferences_dialog() {
-        var dialog = new PreferencesDialog(editor_buffer, editor_view, settings);
+        var dialog = new PreferencesDialog(editor_buffer, editor_view, spelling_adapter, settings);
         dialog.present(this);
     }
 

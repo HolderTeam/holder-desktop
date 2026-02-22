@@ -3,13 +3,18 @@ namespace HolderLinux {
 public class PreferencesDialog : Adw.PreferencesDialog {
     private GtkSource.Buffer editor_buffer;
     private GtkSource.View editor_view;
+    private Spelling.TextBufferAdapter? spelling_adapter;
     private Settings? settings;
     private Gee.HashMap<string, GtkSource.StyleSchemePreview> scheme_previews;
 
-    public PreferencesDialog(GtkSource.Buffer editor_buffer, GtkSource.View editor_view, Settings? settings) {
+    public PreferencesDialog(GtkSource.Buffer editor_buffer,
+                             GtkSource.View editor_view,
+                             Spelling.TextBufferAdapter? spelling_adapter,
+                             Settings? settings) {
         Object();
         this.editor_buffer = editor_buffer;
         this.editor_view = editor_view;
+        this.spelling_adapter = spelling_adapter;
         this.settings = settings;
         this.scheme_previews = new Gee.HashMap<string, GtkSource.StyleSchemePreview>();
         this.set_title("Preferences");
@@ -88,6 +93,31 @@ public class PreferencesDialog : Adw.PreferencesDialog {
             }
         });
         editor_group.add(line_numbers_row);
+
+        var spell_row = new Adw.SwitchRow();
+        spell_row.set_title("Show spell checking");
+        spell_row.set_subtitle("Underline misspelled words in the editor.");
+        if (settings != null) {
+            spell_row.set_active(settings.get_boolean(AppSettings.KEY_SHOW_SPELL_CHECKING));
+        } else if (spelling_adapter != null) {
+            spell_row.set_active(spelling_adapter.get_enabled());
+        } else {
+            spell_row.set_active(true);
+        }
+        if (spelling_adapter == null) {
+            spell_row.set_sensitive(false);
+            spell_row.set_subtitle("Spell checking backend is unavailable.");
+        }
+        spell_row.notify["active"].connect(() => {
+            var enabled = spell_row.get_active();
+            if (spelling_adapter != null) {
+                spelling_adapter.set_enabled(enabled);
+            }
+            if (settings != null) {
+                settings.set_boolean(AppSettings.KEY_SHOW_SPELL_CHECKING, enabled);
+            }
+        });
+        editor_group.add(spell_row);
 
         page.add(editor_group);
         add(page);

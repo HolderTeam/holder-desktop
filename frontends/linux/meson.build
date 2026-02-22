@@ -8,6 +8,7 @@ deps = [
   dependency('gtk4'),
   dependency('libadwaita-1'),
   dependency('gtksourceview-5'),
+  dependency('libspelling-1'),
   dependency('gio-2.0'),
   dependency('gee-0.8'),
   dependency('libsoup-3.0'),

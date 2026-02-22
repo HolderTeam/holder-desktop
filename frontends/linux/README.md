@@ -14,6 +14,7 @@ sudo apt install -y \
   build-essential \
   meson ninja-build pkg-config valac \
   libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev \
+  libspelling-1-dev \
   libgee-0.8-dev libsoup-3.0-dev libjson-glib-dev libvte-2.91-gtk4-dev
 
 # Optional: coverage command support

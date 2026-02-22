@@ -10,6 +10,7 @@ public class WorkspacePane : Object {
     public Gtk.Widget widget { get; private set; }
     public GtkSource.Buffer editor_buffer { get; private set; }
     public GtkSource.View editor_view { get; private set; }
+    public Spelling.TextBufferAdapter? spelling_adapter { get; private set; }
     public Gtk.SearchEntry search_entry { get; private set; }
     public Gtk.Stack content_stack { get; private set; }
     public Gtk.Label search_summary_label { get; private set; }
@@ -78,6 +79,12 @@ public class WorkspacePane : Object {
 
     public string get_replace_text() {
         return replace_entry.get_text();
+    }
+
+    public void set_spell_check_enabled(bool enabled) {
+        if (spelling_adapter != null) {
+            spelling_adapter.set_enabled(enabled);
+        }
     }
 
     private Gtk.Widget build_ui(GLib.ListModel search_model) {
@@ -184,6 +191,7 @@ public class WorkspacePane : Object {
         editor_buffer = new GtkSource.Buffer(null);
         editor_buffer.set_highlight_syntax(true);
         editor_buffer.set_highlight_matching_brackets(true);
+        Spelling.init();
 
         var lm = GtkSource.LanguageManager.get_default();
         var markdown = lm.get_language("markdown");
@@ -200,6 +208,12 @@ public class WorkspacePane : Object {
         editor_view.set_show_line_numbers(true);
         editor_view.set_vexpand(true);
         editor_view.set_hexpand(true);
+
+        var checker = Spelling.Checker.get_default();
+        if (checker != null) {
+            spelling_adapter = new Spelling.TextBufferAdapter(editor_buffer, checker);
+            spelling_adapter.set_enabled(true);
+        }
 
         var editor_scroll = new Gtk.ScrolledWindow();
         editor_scroll.set_child(editor_view);
