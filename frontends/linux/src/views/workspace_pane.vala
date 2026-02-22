@@ -89,9 +89,15 @@ public class WorkspacePane : Object {
     }
 
     public void set_toolbox_visible(bool visible) {
-        toolbox.set_reveal_child(visible);
-        if (visible && content_paned.get_position() <= 0) {
-            content_paned.set_position(560);
+        if (visible) {
+            toolbox.widget.set_visible(true);
+            toolbox.set_reveal_child(true);
+            if (content_paned.get_position() <= 0) {
+                content_paned.set_position(560);
+            }
+        } else {
+            toolbox.set_reveal_child(false);
+            toolbox.widget.set_visible(false);
         }
     }
 
@@ -296,6 +302,7 @@ public class WorkspacePane : Object {
         content_paned.set_wide_handle(true);
         content_paned.set_vexpand(true);
         content_paned.set_hexpand(true);
+        toolbox.widget.set_visible(false);
 
         outer.append(content_paned);
         return outer;
