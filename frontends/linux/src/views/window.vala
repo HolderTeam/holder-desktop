@@ -171,6 +171,30 @@ public class MainWindow : Adw.ApplicationWindow {
         workspace.search_result_activated.connect((position) => {
             controller.open_search_result_at.begin(position);
         });
+        workspace.find_next_requested.connect(() => {
+            var find_text = workspace.get_find_text().strip();
+            if (find_text.length == 0) {
+                add_toast("Enter text to find.");
+                return;
+            }
+            perform_find_next(find_text);
+        });
+        workspace.replace_requested.connect(() => {
+            var find_text = workspace.get_find_text().strip();
+            if (find_text.length == 0) {
+                add_toast("Enter text to find.");
+                return;
+            }
+            perform_replace_next(find_text, workspace.get_replace_text());
+        });
+        workspace.replace_all_requested.connect(() => {
+            var find_text = workspace.get_find_text().strip();
+            if (find_text.length == 0) {
+                add_toast("Enter text to find.");
+                return;
+            }
+            perform_replace_all(find_text, workspace.get_replace_text());
+        });
 
         project_selection.notify["selected"].connect(() => {
             if (controller.should_ignore_project_selection_events()) {
@@ -274,7 +298,7 @@ public class MainWindow : Adw.ApplicationWindow {
 
         var find_replace_action = new SimpleAction("find-replace", null);
         find_replace_action.activate.connect(() => {
-            show_find_replace_dialog();
+            workspace.show_find_replace_bar(true);
         });
         add_action(find_replace_action);
 
@@ -395,59 +419,6 @@ public class MainWindow : Adw.ApplicationWindow {
     private void show_preferences_dialog() {
         var dialog = new PreferencesDialog(editor_buffer, settings);
         dialog.present(this);
-    }
-
-    private void show_find_replace_dialog() {
-        var dialog = new Adw.MessageDialog(
-            this,
-            "Find and Replace",
-            "Search and replace in the current card."
-        );
-        dialog.add_response("cancel", "Close");
-        dialog.add_response("find", "Find Next");
-        dialog.add_response("replace", "Replace");
-        dialog.add_response("replace-all", "Replace All");
-        dialog.set_default_response("find");
-        dialog.set_close_response("cancel");
-
-        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
-        box.set_margin_top(6);
-        box.set_margin_bottom(6);
-
-        var find_entry = new Gtk.Entry();
-        find_entry.set_placeholder_text("Find");
-        var replace_entry = new Gtk.Entry();
-        replace_entry.set_placeholder_text("Replace with");
-
-        box.append(find_entry);
-        box.append(replace_entry);
-        dialog.set_extra_child(box);
-
-        dialog.response.connect((response) => {
-            var find_text = find_entry.get_text();
-            var replace_text = replace_entry.get_text();
-            if (find_text == null || find_text.length == 0) {
-                if (response != "cancel") {
-                    add_toast("Enter text to find.");
-                }
-                if (response == "cancel") {
-                    dialog.close();
-                }
-                return;
-            }
-
-            if (response == "find") {
-                perform_find_next(find_text);
-            } else if (response == "replace") {
-                perform_replace_next(find_text, replace_text);
-            } else if (response == "replace-all") {
-                perform_replace_all(find_text, replace_text);
-            } else if (response == "cancel") {
-                dialog.close();
-            }
-        });
-
-        dialog.present();
     }
 
     private GtkSource.SearchContext create_search_context(string find_text) {

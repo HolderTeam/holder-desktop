@@ -3,6 +3,10 @@ namespace HolderLinux {
 public class WorkspacePane : Object {
     private Gtk.Label title_label;
     private Gtk.ToggleButton toolbox_toggle_btn;
+    private Gtk.Revealer find_revealer;
+    private Gtk.Box replace_row;
+    private Gtk.Entry find_entry;
+    private Gtk.Entry replace_entry;
     public Gtk.Widget widget { get; private set; }
     public GtkSource.Buffer editor_buffer { get; private set; }
     public GtkSource.View editor_view { get; private set; }
@@ -25,6 +29,9 @@ public class WorkspacePane : Object {
     public signal void search_cleared();
     public signal void search_focus_results_requested();
     public signal void search_result_activated(uint position);
+    public signal void find_next_requested();
+    public signal void replace_requested();
+    public signal void replace_all_requested();
 
     public WorkspacePane(GLib.ListModel search_model) {
         widget = build_ui(search_model);
@@ -52,6 +59,25 @@ public class WorkspacePane : Object {
             return;
         }
         toolbox_toggle_btn.set_active(!toolbox_toggle_btn.get_active());
+    }
+
+    public void show_find_replace_bar(bool show_replace) {
+        replace_row.set_visible(show_replace);
+        find_revealer.set_reveal_child(true);
+        find_entry.grab_focus();
+        find_entry.select_region(0, -1);
+    }
+
+    public void hide_find_replace_bar() {
+        find_revealer.set_reveal_child(false);
+    }
+
+    public string get_find_text() {
+        return find_entry.get_text();
+    }
+
+    public string get_replace_text() {
+        return replace_entry.get_text();
     }
 
     private Gtk.Widget build_ui(GLib.ListModel search_model) {
@@ -152,6 +178,9 @@ public class WorkspacePane : Object {
         search_row.append(clear_search_btn);
         outer.append(search_row);
 
+        find_revealer = build_find_replace_revealer();
+        outer.append(find_revealer);
+
         editor_buffer = new GtkSource.Buffer(null);
         editor_buffer.set_highlight_syntax(true);
         editor_buffer.set_highlight_matching_brackets(true);
@@ -198,6 +227,97 @@ public class WorkspacePane : Object {
         outer.append(ai_split);
         outer.append(toolbox.widget);
         return outer;
+    }
+
+    private Gtk.Revealer build_find_replace_revealer() {
+        var revealer = new Gtk.Revealer();
+        revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN);
+        revealer.set_reveal_child(false);
+
+        var frame = new Gtk.Frame(null);
+        frame.add_css_class("card");
+        frame.set_margin_top(6);
+        frame.set_margin_bottom(6);
+        frame.set_margin_start(8);
+        frame.set_margin_end(8);
+
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        box.set_margin_top(8);
+        box.set_margin_bottom(8);
+        box.set_margin_start(8);
+        box.set_margin_end(8);
+
+        var find_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var find_label = new Gtk.Label("Find") { xalign = 0.0f };
+        find_label.set_width_chars(8);
+        find_entry = new Gtk.Entry();
+        find_entry.set_hexpand(true);
+        find_entry.set_placeholder_text("Search text");
+        find_entry.activate.connect(() => {
+            find_next_requested();
+        });
+        var find_next_btn = new Gtk.Button.with_label("Find Next");
+        find_next_btn.clicked.connect(() => {
+            find_next_requested();
+        });
+        var close_btn = new Gtk.Button.from_icon_name("window-close-symbolic");
+        close_btn.set_tooltip_text("Close find and replace");
+        close_btn.clicked.connect(() => {
+            hide_find_replace_bar();
+        });
+        find_row.append(find_label);
+        find_row.append(find_entry);
+        find_row.append(find_next_btn);
+        find_row.append(close_btn);
+
+        replace_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var replace_label = new Gtk.Label("Replace") { xalign = 0.0f };
+        replace_label.set_width_chars(8);
+        replace_entry = new Gtk.Entry();
+        replace_entry.set_hexpand(true);
+        replace_entry.set_placeholder_text("Replacement text");
+        replace_entry.activate.connect(() => {
+            replace_requested();
+        });
+        var replace_btn = new Gtk.Button.with_label("Replace");
+        replace_btn.clicked.connect(() => {
+            replace_requested();
+        });
+        var replace_all_btn = new Gtk.Button.with_label("Replace All");
+        replace_all_btn.clicked.connect(() => {
+            replace_all_requested();
+        });
+        replace_row.append(replace_label);
+        replace_row.append(replace_entry);
+        replace_row.append(replace_btn);
+        replace_row.append(replace_all_btn);
+
+        var key = new Gtk.EventControllerKey();
+        key.key_pressed.connect((keyval, keycode, state) => {
+            if (keyval == Gdk.Key.Escape) {
+                hide_find_replace_bar();
+                editor_view.grab_focus();
+                return true;
+            }
+            return false;
+        });
+        find_entry.add_controller(key);
+        var replace_key = new Gtk.EventControllerKey();
+        replace_key.key_pressed.connect((keyval, keycode, state) => {
+            if (keyval == Gdk.Key.Escape) {
+                hide_find_replace_bar();
+                editor_view.grab_focus();
+                return true;
+            }
+            return false;
+        });
+        replace_entry.add_controller(replace_key);
+
+        box.append(find_row);
+        box.append(replace_row);
+        frame.set_child(box);
+        revealer.set_child(frame);
+        return revealer;
     }
 
     private Gtk.Widget build_search_page(GLib.ListModel search_model) {
