@@ -377,7 +377,7 @@ public class MainWindow : Adw.ApplicationWindow {
         about.set_program_name("Holder");
         about.set_version("0.1.0");
         about.set_comments("Holder Linux frontend");
-        about.set_website("https://github.com/holder");
+        about.set_website("https://github.com/HolderTeam");
         about.present();
     }
 
