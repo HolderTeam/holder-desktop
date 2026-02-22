@@ -240,7 +240,7 @@ def run_ui_linux() -> None:
     run_ui_create_card()
 
 
-def run_all_linux() -> None:
+def run_linux() -> None:
     run_behave_linux()
     run_behave_linux_backend()
     run_ui_linux()
@@ -248,12 +248,12 @@ def run_all_linux() -> None:
 
 def print_usage() -> None:
     print(
-        "Usage: ./make.sh [all-linux|deps-ubuntu|install-dev]"
+        "Usage: ./make.sh [linux|deps-ubuntu|install-dev]"
     )
 
 
 def main() -> int:
-    mode = sys.argv[1] if len(sys.argv) > 1 else "all-linux"
+    mode = sys.argv[1] if len(sys.argv) > 1 else "linux"
     if mode == "deps-ubuntu":
         print("sudo apt update")
         print(
@@ -264,8 +264,8 @@ def main() -> int:
         require_cmd("python3", "Install Python 3 from your package manager.")
         run_checked(["python3", "-m", "pip", "install", "-e", ".[linux]"])
         return 0
-    if mode == "all-linux":
-        run_all_linux()
+    if mode == "linux":
+        run_linux()
         return 0
 
     print_usage()

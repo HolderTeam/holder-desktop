@@ -54,7 +54,6 @@ Optional fallback for maintainers who want editable package installs:
 
 - `./make.sh` is intentionally minimal and delegates to `./run.py`.
 - `run.py` contains orchestration (tag filtering, UI script execution, isolated backend lifecycle).
-- Default mode is `all-linux` and subset test modes are intentionally not exposed.
 
 ## Next steps
 
