@@ -21,6 +21,7 @@ sources = [
   'src/utils/text_utils.vala',
   'src/views/sidebar.vala',
   'src/views/ai_panel.vala',
+  'src/views/preferences_dialog.vala',
   'src/views/toolbox.vala',
   'src/services/ui_adapters.vala',
   'src/views/workspace_pane.vala',

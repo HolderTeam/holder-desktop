@@ -359,15 +359,8 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void show_preferences_dialog() {
-        var dialog = new Adw.MessageDialog(
-            this,
-            "Preferences",
-            "Preferences dialog is not implemented yet."
-        );
-        dialog.add_response("ok", "OK");
-        dialog.set_default_response("ok");
-        dialog.set_close_response("ok");
-        dialog.present();
+        var dialog = new PreferencesDialog(editor_buffer);
+        dialog.present(this);
     }
 
     private void show_about_dialog() {
