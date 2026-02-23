@@ -1,6 +1,12 @@
 namespace HolderLinux {
 
 public class MainWindow : Adw.ApplicationWindow {
+    private const int DEFAULT_WINDOW_WIDTH = 1200;
+    private const int DEFAULT_WINDOW_HEIGHT = 800;
+    private const int MIN_RESTORE_WIDTH = 690;
+    private const int MIN_RESTORE_HEIGHT = 590;
+    private const int TINY_CLOSE_STRIKE_LIMIT = 3;
+
     private Adw.ToastOverlay toast_overlay;
 
     private GLib.ListStore project_store;
@@ -30,8 +36,18 @@ public class MainWindow : Adw.ApplicationWindow {
     private bool suppress_editor_events = false;
 
     public MainWindow(Adw.Application app, int startup_width = 0, int startup_height = 0) {
-        var initial_width = startup_width > 0 ? startup_width : 1200;
-        var initial_height = startup_height > 0 ? startup_height : 800;
+        var boot_settings = AppSettings.open_or_null();
+        int initial_width;
+        int initial_height;
+        bool start_maximized;
+        resolve_startup_window_state(
+            boot_settings,
+            startup_width,
+            startup_height,
+            out initial_width,
+            out initial_height,
+            out start_maximized
+        );
         Object(
             application: app,
             default_width: initial_width,
@@ -59,7 +75,7 @@ public class MainWindow : Adw.ApplicationWindow {
         editor_buffer = workspace.editor_buffer;
         editor_view = workspace.editor_view;
         spelling_adapter = workspace.spelling_adapter;
-        settings = AppSettings.open_or_null();
+        settings = boot_settings;
         apply_persisted_preferences();
         search_entry = workspace.search_entry;
         search_summary_label = workspace.search_summary_label;
@@ -274,7 +290,81 @@ public class MainWindow : Adw.ApplicationWindow {
             add_toast(message);
         });
 
+        close_request.connect(() => {
+            persist_window_state();
+            return false;
+        });
+
+        if (start_maximized) {
+            maximize();
+        }
+
         controller.bootstrap.begin();
+    }
+
+    private static void resolve_startup_window_state(
+        Settings? settings,
+        int startup_width,
+        int startup_height,
+        out int width,
+        out int height,
+        out bool start_maximized
+    ) {
+        if (startup_width > 0 || startup_height > 0) {
+            width = startup_width > 0 ? startup_width : DEFAULT_WINDOW_WIDTH;
+            height = startup_height > 0 ? startup_height : DEFAULT_WINDOW_HEIGHT;
+            start_maximized = false;
+            return;
+        }
+
+        width = DEFAULT_WINDOW_WIDTH;
+        height = DEFAULT_WINDOW_HEIGHT;
+        start_maximized = false;
+        if (settings == null) {
+            return;
+        }
+
+        var saved_width = settings.get_int(AppSettings.KEY_WINDOW_WIDTH);
+        var saved_height = settings.get_int(AppSettings.KEY_WINDOW_HEIGHT);
+        var saved_tiny = is_tiny_size(saved_width, saved_height);
+        var streak = settings.get_int(AppSettings.KEY_TINY_CLOSE_STREAK);
+
+        if (!saved_tiny || streak >= TINY_CLOSE_STRIKE_LIMIT) {
+            width = saved_width;
+            height = saved_height;
+        }
+
+        start_maximized = settings.get_boolean(AppSettings.KEY_WINDOW_MAXIMIZED);
+    }
+
+    private static bool is_tiny_size(int width, int height) {
+        return width < MIN_RESTORE_WIDTH || height < MIN_RESTORE_HEIGHT;
+    }
+
+    private void persist_window_state() {
+        if (settings == null) {
+            return;
+        }
+
+        var maximized = is_maximized();
+        settings.set_boolean(AppSettings.KEY_WINDOW_MAXIMIZED, maximized);
+
+        if (!maximized) {
+            var width = get_width();
+            var height = get_height();
+            settings.set_int(AppSettings.KEY_WINDOW_WIDTH, width);
+            settings.set_int(AppSettings.KEY_WINDOW_HEIGHT, height);
+
+            if (is_tiny_size(width, height)) {
+                var streak = settings.get_int(AppSettings.KEY_TINY_CLOSE_STREAK);
+                settings.set_int(AppSettings.KEY_TINY_CLOSE_STREAK, streak + 1);
+            } else {
+                settings.set_int(AppSettings.KEY_TINY_CLOSE_STREAK, 0);
+            }
+            return;
+        }
+
+        settings.set_int(AppSettings.KEY_TINY_CLOSE_STREAK, 0);
     }
 
     construct {

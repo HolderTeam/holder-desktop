@@ -6,6 +6,10 @@ public class AppSettings : Object {
     public const string KEY_STYLE_SCHEME_ID = "style-scheme-id";
     public const string KEY_SHOW_LINE_NUMBERS = "show-line-numbers";
     public const string KEY_SHOW_SPELL_CHECKING = "show-spell-checking";
+    public const string KEY_WINDOW_WIDTH = "window-width";
+    public const string KEY_WINDOW_HEIGHT = "window-height";
+    public const string KEY_WINDOW_MAXIMIZED = "window-maximized";
+    public const string KEY_TINY_CLOSE_STREAK = "tiny-close-streak";
 
     public static Settings? open_or_null() {
         var default_source = SettingsSchemaSource.get_default();
