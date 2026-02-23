@@ -91,6 +91,7 @@ public class FlowboardTile : Object {
     public int64 updated_at { get; construct; }
     public bool is_container { get; construct; }
     public string? card_id { get; construct; }
+    public string? project_id { get; construct; }
     public int child_count { get; construct; }
 
     public FlowboardTile(string node_key,
@@ -98,6 +99,7 @@ public class FlowboardTile : Object {
                          int64 updated_at,
                          bool is_container,
                          string? card_id = null,
+                         string? project_id = null,
                          int child_count = 0) {
         Object(
             node_key: node_key,
@@ -105,6 +107,7 @@ public class FlowboardTile : Object {
             updated_at: updated_at,
             is_container: is_container,
             card_id: card_id,
+            project_id: project_id,
             child_count: child_count
         );
     }
