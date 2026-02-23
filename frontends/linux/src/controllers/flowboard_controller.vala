@@ -13,6 +13,7 @@ public class FlowboardController : Object {
     public signal void empty_message_changed(string text);
     public signal void card_open_requested(string card_id);
     public signal void move_requested(string card_id, string? parent_card_id, double sort_key);
+    public signal void toast_requested(string message);
 
     public FlowboardController(GLib.ListStore project_store,
                                Gtk.SingleSelection project_selection,
@@ -129,6 +130,7 @@ public class FlowboardController : Object {
                 return;
             }
             new_sort = next_sort_key_for_parent(new_parent, source.card_id);
+            toast_requested("Moved \"%s\" into \"%s\"".printf(source.title, target.title));
         } else {
             new_parent = normalize_parent(target.parent_card_id);
             var after = target_y_fraction > 0.70;

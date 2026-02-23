@@ -59,6 +59,9 @@ public class ToolboxPane : Object {
         controller.move_requested.connect((card_id, parent_card_id, sort_key) => {
             flowboard_move_requested(card_id, parent_card_id, sort_key);
         });
+        controller.toast_requested.connect((message) => {
+            toast_requested(message);
+        });
         controller.refresh();
     }
 
