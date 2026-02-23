@@ -107,6 +107,14 @@ public class FlowboardTile : Object {
     }
 }
 
+public class FlowboardBreadcrumbSegment : Object {
+    public string label { get; construct; }
+
+    public FlowboardBreadcrumbSegment(string label) {
+        Object(label: label);
+    }
+}
+
 public class CardDetail : Object {
     public string card_id { get; construct; }
     public string project_id { get; construct; }

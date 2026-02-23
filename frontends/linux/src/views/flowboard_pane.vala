@@ -12,7 +12,7 @@ public class FlowboardPane : Object {
     private const string DRAG_ACTIVE_CLASS = "flowboard-drag-active";
     private static bool drop_css_installed = false;
 
-    private Gtk.Label breadcrumb_label;
+    private Gtk.Box breadcrumb_bar;
     private Gtk.Label empty_label;
     private Gtk.Stack state_stack;
     private Gtk.MultiSelection selection;
@@ -25,6 +25,7 @@ public class FlowboardPane : Object {
     public signal void navigate_up_requested();
     public signal void card_drop_requested(string source_card_id, string target_card_id, double target_y_fraction);
     public signal void background_drop_requested(string source_card_id);
+    public signal void breadcrumb_segment_activated(int index);
 
     public FlowboardPane() {
         ensure_drop_css();
@@ -41,8 +42,22 @@ public class FlowboardPane : Object {
         update_state_visibility();
     }
 
-    public void set_breadcrumb(string text) {
-        breadcrumb_label.set_text(text);
+    public void set_breadcrumb_segments(Gee.ArrayList<FlowboardBreadcrumbSegment> segments) {
+        clear_box_children(breadcrumb_bar);
+        for (int i = 0; i < segments.size; i++) {
+            var segment = segments[i];
+            var btn = new Gtk.Button.with_label(segment.label);
+            btn.add_css_class("flat");
+            btn.clicked.connect(() => {
+                breadcrumb_segment_activated(i);
+            });
+            breadcrumb_bar.append(btn);
+            if (i < segments.size - 1) {
+                var sep = new Gtk.Label(" / ");
+                sep.add_css_class("dim-label");
+                breadcrumb_bar.append(sep);
+            }
+        }
     }
 
     public void set_empty_message(string text) {
@@ -52,9 +67,8 @@ public class FlowboardPane : Object {
     private Gtk.Widget build_ui() {
         var outer = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
 
-        breadcrumb_label = new Gtk.Label("Projects") { xalign = 0.0f };
-        breadcrumb_label.add_css_class("dim-label");
-        outer.append(breadcrumb_label);
+        breadcrumb_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        outer.append(breadcrumb_bar);
 
         var factory = new Gtk.SignalListItemFactory();
         factory.setup.connect((item) => {
@@ -328,6 +342,15 @@ public class FlowboardPane : Object {
             return;
         }
         row_widget.add_css_class(DROP_INTO_CLASS);
+    }
+
+    private void clear_box_children(Gtk.Box box) {
+        Gtk.Widget? child = box.get_first_child();
+        while (child != null) {
+            var next = child.get_next_sibling();
+            box.remove(child);
+            child = next;
+        }
     }
 }
 

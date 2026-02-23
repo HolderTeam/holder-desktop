@@ -9,7 +9,7 @@ public class FlowboardController : Object {
     private string? current_parent_card_id = null;
     private Gee.ArrayList<string> parent_stack_ids;
 
-    public signal void breadcrumb_changed(string text);
+    public signal void breadcrumb_segments_changed(Gee.ArrayList<FlowboardBreadcrumbSegment> segments);
     public signal void empty_message_changed(string text);
     public signal void card_open_requested(string card_id);
     public signal void move_requested(string card_id, string? parent_card_id, double sort_key);
@@ -32,7 +32,7 @@ public class FlowboardController : Object {
         var selected_project = project_selection.get_selected_item() as Project;
         if (selected_project == null) {
             visible_tiles.remove_all();
-            breadcrumb_changed("Projects");
+            breadcrumb_segments_changed(build_breadcrumb_segments(""));
             empty_message_changed("Select a project to browse cards.");
             current_project_id = null;
             current_parent_card_id = null;
@@ -52,7 +52,7 @@ public class FlowboardController : Object {
         }
 
         replace_visible_for_parent(current_parent_card_id);
-        breadcrumb_changed(build_breadcrumb(selected_project.name));
+        breadcrumb_segments_changed(build_breadcrumb_segments(selected_project.name));
         if (visible_tiles.get_n_items() == 0) {
             empty_message_changed("No cards yet. Create one to get started.");
         } else {
@@ -87,6 +87,25 @@ public class FlowboardController : Object {
             current_parent_card_id = null;
         } else {
             current_parent_card_id = parent_stack_ids[parent_stack_ids.size - 1];
+        }
+        refresh();
+    }
+
+    public void navigate_to_breadcrumb_index(int index) {
+        if (index <= 1) {
+            current_parent_card_id = null;
+            parent_stack_ids.clear();
+            refresh();
+            return;
+        }
+
+        var stack_index = index - 2;
+        if (stack_index < 0 || stack_index >= parent_stack_ids.size) {
+            return;
+        }
+        current_parent_card_id = parent_stack_ids[stack_index];
+        while (parent_stack_ids.size > stack_index + 1) {
+            parent_stack_ids.remove_at(parent_stack_ids.size - 1);
         }
         refresh();
     }
@@ -188,17 +207,19 @@ public class FlowboardController : Object {
         return false;
     }
 
-    private string build_breadcrumb(string project_name) {
-        var parts = new Gee.ArrayList<string>();
-        parts.add("Projects");
-        parts.add(project_name);
+    private Gee.ArrayList<FlowboardBreadcrumbSegment> build_breadcrumb_segments(string project_name) {
+        var segments = new Gee.ArrayList<FlowboardBreadcrumbSegment>();
+        segments.add(new FlowboardBreadcrumbSegment("Projects"));
+        if (project_name != null && project_name.length > 0) {
+            segments.add(new FlowboardBreadcrumbSegment(project_name));
+        }
         foreach (var parent_id in parent_stack_ids) {
             var card = find_card(parent_id);
             if (card != null) {
-                parts.add(card.title);
+                segments.add(new FlowboardBreadcrumbSegment(card.title));
             }
         }
-        return string.joinv(" / ", parts.to_array());
+        return segments;
     }
 
     private int compare_for_flowboard(CardSummary a, CardSummary b) {

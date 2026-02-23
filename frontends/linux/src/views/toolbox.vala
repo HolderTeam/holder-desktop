@@ -32,8 +32,8 @@ public class ToolboxPane : Object {
     public void bind_flowboard_controller(FlowboardController controller) {
         flowboard_controller = controller;
         flowboard.set_model(controller.get_visible_model());
-        controller.breadcrumb_changed.connect((text) => {
-            flowboard.set_breadcrumb(text);
+        controller.breadcrumb_segments_changed.connect((segments) => {
+            flowboard.set_breadcrumb_segments(segments);
         });
         controller.empty_message_changed.connect((text) => {
             flowboard.set_empty_message(text);
@@ -46,6 +46,9 @@ public class ToolboxPane : Object {
         });
         flowboard.navigate_up_requested.connect(() => {
             controller.navigate_up();
+        });
+        flowboard.breadcrumb_segment_activated.connect((index) => {
+            controller.navigate_to_breadcrumb_index(index);
         });
         flowboard.card_drop_requested.connect((source_card_id, target_card_id, target_y_fraction) => {
             controller.on_card_drop(source_card_id, target_card_id, target_y_fraction);
