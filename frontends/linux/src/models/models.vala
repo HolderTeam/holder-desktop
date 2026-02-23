@@ -79,6 +79,20 @@ public class CardSummary : Object {
     }
 }
 
+public class FlowboardTile : Object {
+    public string card_id { get; construct; }
+    public string title { get; construct; }
+    public int64 updated_at { get; construct; }
+
+    public FlowboardTile(string card_id, string title, int64 updated_at) {
+        Object(
+            card_id: card_id,
+            title: title,
+            updated_at: updated_at
+        );
+    }
+}
+
 public class CardDetail : Object {
     public string card_id { get; construct; }
     public string project_id { get; construct; }

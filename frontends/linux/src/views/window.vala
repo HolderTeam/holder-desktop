@@ -31,6 +31,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private ToolboxPane toolbox;
     private MainController controller;
     private AiRunController ai_run_controller;
+    private FlowboardController flowboard_controller;
     private Settings? settings;
 
     private bool suppress_editor_events = false;
@@ -99,6 +100,7 @@ public class MainWindow : Adw.ApplicationWindow {
             new FileServerDiscovery()
         );
         ai_run_controller = new AiRunController(controller);
+        flowboard_controller = new FlowboardController(project_store, project_selection, card_store);
 
         sidebar = new SidebarPane(project_selection, card_selection, ai_thread_selection);
         root_split.set_sidebar(sidebar.widget);
@@ -223,6 +225,7 @@ public class MainWindow : Adw.ApplicationWindow {
                 return;
             }
             controller.on_project_selected();
+            flowboard_controller.refresh();
         });
 
         card_selection.notify["selected"].connect(() => {
@@ -288,6 +291,13 @@ public class MainWindow : Adw.ApplicationWindow {
         });
         toolbox.toast_requested.connect((message) => {
             add_toast(message);
+        });
+        toolbox.flowboard_card_open_requested.connect((card_id) => {
+            open_card_from_flowboard(card_id);
+        });
+        toolbox.bind_flowboard_controller(flowboard_controller);
+        card_store.items_changed.connect((position, removed, added) => {
+            flowboard_controller.refresh();
         });
 
         close_request.connect(() => {
@@ -516,6 +526,17 @@ public class MainWindow : Adw.ApplicationWindow {
             editor_buffer.set_style_scheme(scheme);
         }
 
+    }
+
+    private void open_card_from_flowboard(string card_id) {
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null || card.card_id != card_id) {
+                continue;
+            }
+            card_selection.set_selected(i);
+            return;
+        }
     }
 
     private void show_preferences_dialog() {

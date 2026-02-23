@@ -8,11 +8,14 @@ public class ToolboxPane : Object {
     private int next_terminal_index = 1;
     private Gtk.Entry git_remote_entry;
     private Gtk.Entry git_branch_entry;
+    private FlowboardPane flowboard;
+    private FlowboardController? flowboard_controller;
     private IHolderApi? api;
     public Gtk.Revealer widget { get; private set; }
 
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
+    public signal void flowboard_card_open_requested(string card_id);
 
     public ToolboxPane() {
         widget = new Gtk.Revealer();
@@ -23,6 +26,27 @@ public class ToolboxPane : Object {
 
     public void set_api_client(IHolderApi? api) {
         this.api = api;
+    }
+
+    public void bind_flowboard_controller(FlowboardController controller) {
+        flowboard_controller = controller;
+        flowboard.set_model(controller.get_visible_model());
+        controller.breadcrumb_changed.connect((text) => {
+            flowboard.set_breadcrumb(text);
+        });
+        controller.empty_message_changed.connect((text) => {
+            flowboard.set_empty_message(text);
+        });
+        controller.card_open_requested.connect((card_id) => {
+            flowboard_card_open_requested(card_id);
+        });
+        flowboard.tile_activated.connect((position) => {
+            controller.activate_position(position);
+        });
+        flowboard.navigate_up_requested.connect(() => {
+            controller.navigate_up();
+        });
+        controller.refresh();
     }
 
     public void set_reveal_child(bool reveal) {
@@ -126,11 +150,8 @@ public class ToolboxPane : Object {
         );
         resources_page.set_icon_name("view-list-symbolic");
 
-        var corkboard_page = stack.add_titled(
-            build_placeholder_tab("Corkboard tools are scaffolded and planned."),
-            "corkboard",
-            "Corkboard"
-        );
+        flowboard = new FlowboardPane();
+        var corkboard_page = stack.add_titled(flowboard.widget, "corkboard", "Corkboard");
         corkboard_page.set_icon_name("view-grid-symbolic");
 
         var sharing_page = stack.add_titled(
