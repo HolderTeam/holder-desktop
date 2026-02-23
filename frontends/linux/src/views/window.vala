@@ -29,11 +29,13 @@ public class MainWindow : Adw.ApplicationWindow {
 
     private bool suppress_editor_events = false;
 
-    public MainWindow(Adw.Application app) {
+    public MainWindow(Adw.Application app, int startup_width = 0, int startup_height = 0) {
+        var initial_width = startup_width > 0 ? startup_width : 1200;
+        var initial_height = startup_height > 0 ? startup_height : 800;
         Object(
             application: app,
-            default_width: 1200,
-            default_height: 800,
+            default_width: initial_width,
+            default_height: initial_height,
             title: "Holder"
         );
 

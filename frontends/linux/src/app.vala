@@ -1,11 +1,16 @@
 namespace HolderLinux {
 
 public class App : Adw.Application {
-    public App() {
+    private int startup_width;
+    private int startup_height;
+
+    public App(int startup_width = 0, int startup_height = 0) {
         Object(
             application_id: "io.holder.linux",
             flags: ApplicationFlags.DEFAULT_FLAGS
         );
+        this.startup_width = startup_width;
+        this.startup_height = startup_height;
 
         var quit_action = new SimpleAction("quit", null);
         quit_action.activate.connect(() => {
@@ -25,7 +30,7 @@ public class App : Adw.Application {
     protected override void activate() {
         var window = this.active_window as MainWindow;
         if (window == null) {
-            window = new MainWindow(this);
+            window = new MainWindow(this, startup_width, startup_height);
         }
         window.present();
     }
