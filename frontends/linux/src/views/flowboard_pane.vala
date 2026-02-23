@@ -12,6 +12,8 @@ public class FlowboardPane : Object {
 
     public signal void tile_activated(uint position);
     public signal void navigate_up_requested();
+    public signal void card_drop_requested(string source_card_id, string target_card_id, double target_y_fraction);
+    public signal void background_drop_requested(string source_card_id);
 
     public FlowboardPane() {
         selection = new Gtk.MultiSelection(null);
@@ -60,6 +62,7 @@ public class FlowboardPane : Object {
             meta.add_css_class("dim-label");
             card.append(title);
             card.append(meta);
+            install_drag_and_drop(card);
             list_item.set_child(card);
         });
         factory.bind.connect((item) => {
@@ -78,6 +81,12 @@ public class FlowboardPane : Object {
                 meta.set_text("Folder");
             } else {
                 meta.set_text(TextUtils.format_relative_time(new DateTime.now_utc().to_unix(), tile.updated_at));
+            }
+
+            if (!tile.is_container && tile.card_id != null) {
+                card.set_data<string>("flowboard-card-id", tile.card_id);
+            } else {
+                card.set_data<string>("flowboard-card-id", "");
             }
         });
 
@@ -126,6 +135,17 @@ public class FlowboardPane : Object {
         });
         grid_view.add_controller(pointer_click);
 
+        var grid_drop = new Gtk.DropTarget(typeof(string), Gdk.DragAction.MOVE);
+        grid_drop.drop.connect((value, x, y) => {
+            string? source_card_id = value.get_string();
+            if (source_card_id == null || source_card_id.strip().length == 0) {
+                return false;
+            }
+            background_drop_requested(source_card_id);
+            return true;
+        });
+        grid_view.add_controller(grid_drop);
+
         var scroll = new Gtk.ScrolledWindow();
         scroll.set_vexpand(true);
         scroll.set_hexpand(true);
@@ -153,6 +173,46 @@ public class FlowboardPane : Object {
             return;
         }
         state_stack.set_visible_child_name("grid");
+    }
+
+    private void install_drag_and_drop(Gtk.Widget row_widget) {
+        var drag_source = new Gtk.DragSource();
+        drag_source.set_actions(Gdk.DragAction.MOVE);
+        drag_source.prepare.connect((x, y) => {
+            var card_id = row_widget.get_data<string>("flowboard-card-id");
+            if (card_id == null || card_id.strip().length == 0) {
+                return null;
+            }
+            Value payload = Value(typeof(string));
+            payload.set_string(card_id);
+            return new Gdk.ContentProvider.for_value(payload);
+        });
+        row_widget.add_controller(drag_source);
+
+        var drop_target = new Gtk.DropTarget(typeof(string), Gdk.DragAction.MOVE);
+        drop_target.drop.connect((value, x, y) => {
+            string? source_card_id = value.get_string();
+            var target_card_id = row_widget.get_data<string>("flowboard-card-id");
+            if (target_card_id == null || target_card_id.strip().length == 0) {
+                return false;
+            }
+            if (source_card_id == null || source_card_id.strip().length == 0 || source_card_id == target_card_id) {
+                return false;
+            }
+            var height = row_widget.get_height();
+            double y_fraction = 0.5;
+            if (height > 0) {
+                y_fraction = y / (double) height;
+            }
+            if (y_fraction < 0.0) {
+                y_fraction = 0.0;
+            } else if (y_fraction > 1.0) {
+                y_fraction = 1.0;
+            }
+            card_drop_requested(source_card_id, target_card_id, y_fraction);
+            return true;
+        });
+        row_widget.add_controller(drop_target);
     }
 }
 

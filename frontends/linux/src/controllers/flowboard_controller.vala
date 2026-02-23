@@ -1,21 +1,15 @@
 namespace HolderLinux {
 
 public class FlowboardController : Object {
-    private const string ROOT_CONTAINER = "";
-
     private GLib.ListStore project_store;
     private Gtk.SingleSelection project_selection;
     private GLib.ListStore card_store;
     private GLib.ListStore visible_tiles;
-    private Gee.HashMap<string, Gee.ArrayList<FlowboardTile>> children_by_container;
-    private Gee.HashMap<string, bool> seen_node_keys;
-    private Gee.ArrayList<string> container_stack;
-    private string current_container = ROOT_CONTAINER;
-    private string? current_project_id = null;
 
     public signal void breadcrumb_changed(string text);
     public signal void empty_message_changed(string text);
     public signal void card_open_requested(string card_id);
+    public signal void move_requested(string card_id, string? parent_card_id, double sort_key);
 
     public FlowboardController(GLib.ListStore project_store,
                                Gtk.SingleSelection project_selection,
@@ -24,9 +18,6 @@ public class FlowboardController : Object {
         this.project_selection = project_selection;
         this.card_store = card_store;
         this.visible_tiles = new GLib.ListStore(typeof(FlowboardTile));
-        this.children_by_container = new Gee.HashMap<string, Gee.ArrayList<FlowboardTile>>();
-        this.seen_node_keys = new Gee.HashMap<string, bool>();
-        this.container_stack = new Gee.ArrayList<string>();
     }
 
     public GLib.ListModel get_visible_model() {
@@ -39,168 +30,72 @@ public class FlowboardController : Object {
             visible_tiles.remove_all();
             breadcrumb_changed("Projects");
             empty_message_changed("Select a project to browse cards.");
-            current_project_id = null;
-            current_container = ROOT_CONTAINER;
-            container_stack.clear();
             return;
         }
 
-        if (current_project_id != selected_project.project_id) {
-            current_project_id = selected_project.project_id;
-            current_container = ROOT_CONTAINER;
-            container_stack.clear();
-        }
-        if (current_container == ROOT_CONTAINER) {
-            replace_visible_flat_cards();
-            breadcrumb_changed("Projects / %s".printf(selected_project.name));
-            if (visible_tiles.get_n_items() == 0) {
-                empty_message_changed("No cards yet. Create one to get started.");
-            } else {
-                empty_message_changed("Use arrow keys to navigate. Press Enter to open.");
-            }
-            return;
-        }
-
-        rebuild_index();
-        if (!children_by_container.has_key(current_container)) {
-            current_container = ROOT_CONTAINER;
-            container_stack.clear();
-            refresh();
-            return;
-        }
-        replace_visible(children_by_container.get(current_container));
-        breadcrumb_changed(build_breadcrumb(selected_project.name));
+        replace_visible_flat_cards();
+        breadcrumb_changed("Projects / %s".printf(selected_project.name));
         if (visible_tiles.get_n_items() == 0) {
-            empty_message_changed("No items in this section. Press Backspace to go up.");
+            empty_message_changed("No cards yet. Create one to get started.");
         } else {
-            empty_message_changed("Use arrow keys to navigate. Enter drills in or opens. Backspace goes up.");
+            empty_message_changed("Drag card center onto another card to nest. Drag top/bottom edges to reorder.");
         }
     }
 
     public void activate_position(uint position) {
         var tile = visible_tiles.get_item(position) as FlowboardTile;
-        if (tile == null) {
-            return;
-        }
-        if (current_container == ROOT_CONTAINER) {
-            if (tile.card_id != null) {
-                card_open_requested(tile.card_id);
-            }
-            return;
-        }
-        if (tile.is_container) {
-            current_container = tile.node_key;
-            container_stack.add(tile.title);
-            refresh();
-            return;
-        }
-        if (tile.card_id == null) {
+        if (tile == null || tile.card_id == null) {
             return;
         }
         card_open_requested(tile.card_id);
     }
 
     public void navigate_up() {
-        if (current_container == ROOT_CONTAINER || container_stack.size == 0) {
+    }
+
+    public void on_card_drop(string source_card_id, string target_card_id, double target_y_fraction) {
+        if (source_card_id == target_card_id) {
             return;
         }
-        container_stack.remove_at(container_stack.size - 1);
-        current_container = container_stack_to_key();
-        refresh();
-    }
 
-    private void rebuild_index() {
-        children_by_container.clear();
-        seen_node_keys.clear();
-        ensure_bucket(ROOT_CONTAINER);
-
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
-            if (card == null) {
-                continue;
-            }
-
-            var rel_path = normalize_rel_path(card.rel_path);
-            var parent = ROOT_CONTAINER;
-            var dirname = Path.get_dirname(rel_path);
-            if (dirname != null && dirname != "." && dirname != "/") {
-                var parts = dirname.split("/");
-                var cumulative = "";
-                foreach (var raw_part in parts) {
-                    var part = raw_part.strip();
-                    if (part.length == 0) {
-                        continue;
-                    }
-                    cumulative = cumulative.length == 0 ? part : "%s/%s".printf(cumulative, part);
-                    var dir_key = "dir:%s".printf(cumulative);
-                    ensure_unique_child(
-                        parent,
-                        new FlowboardTile(dir_key, part, card.updated_at, true, null)
-                    );
-                    ensure_bucket(dir_key);
-                    parent = dir_key;
-                }
-            }
-
-            var node_key = "card:%s".printf(card.card_id);
-            ensure_unique_child(
-                parent,
-                new FlowboardTile(node_key, card.title, card.updated_at, false, card.card_id)
-            );
-        }
-    }
-
-    private static string normalize_rel_path(string rel_path) {
-        return rel_path.replace("\\", "/");
-    }
-
-    private string build_breadcrumb(string project_name) {
-        var parts = new Gee.ArrayList<string>();
-        parts.add("Projects");
-        parts.add(project_name);
-        foreach (var seg in container_stack) {
-            parts.add(seg);
-        }
-        return string.joinv(" / ", parts.to_array());
-    }
-
-    private string container_stack_to_key() {
-        if (container_stack.size == 0) {
-            return ROOT_CONTAINER;
-        }
-        var joined = string.joinv("/", container_stack.to_array());
-        return "dir:%s".printf(joined);
-    }
-
-    private void replace_visible(Gee.ArrayList<FlowboardTile>? items) {
-        visible_tiles.remove_all();
-        if (items == null) {
+        var source = find_card(source_card_id);
+        var target = find_card(target_card_id);
+        if (source == null || target == null) {
             return;
         }
-        var sorted = new Gee.ArrayList<FlowboardTile>();
-        foreach (var item in items) {
-            sorted.add(item);
+
+        string? new_parent;
+        double new_sort;
+        if (target_y_fraction >= 0.30 && target_y_fraction <= 0.70) {
+            new_parent = target.card_id;
+            new_sort = next_sort_key_for_parent(new_parent, source.card_id);
+        } else {
+            new_parent = normalize_parent(target.parent_card_id);
+            var after = target_y_fraction > 0.70;
+            new_sort = sort_key_around_target(source.card_id, target.card_id, new_parent, after);
         }
-        sorted.sort((a, b) => {
-            if (a.is_container != b.is_container) {
-                return a.is_container ? -1 : 1;
-            }
-            return strcmp(a.title.down(), b.title.down());
-        });
-        foreach (var item in sorted) {
-            visible_tiles.append(item);
+
+        apply_local_move(source.card_id, new_parent, new_sort);
+        move_requested(source.card_id, new_parent, new_sort);
+    }
+
+    public void on_background_drop(string source_card_id) {
+        var source = find_card(source_card_id);
+        if (source == null) {
+            return;
         }
+        string? new_parent = null;
+        double new_sort = next_sort_key_for_parent(new_parent, source.card_id);
+        apply_local_move(source.card_id, new_parent, new_sort);
+        move_requested(source.card_id, new_parent, new_sort);
     }
 
     private void replace_visible_flat_cards() {
         visible_tiles.remove_all();
-        var sorted = new Gee.ArrayList<FlowboardTile>();
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
-            if (card == null) {
-                continue;
-            }
-            sorted.add(new FlowboardTile(
+        var sorted = all_cards();
+        sorted.sort((a, b) => compare_cards(a, b));
+        foreach (var card in sorted) {
+            visible_tiles.append(new FlowboardTile(
                 "card:%s".printf(card.card_id),
                 card.title,
                 card.updated_at,
@@ -208,25 +103,141 @@ public class FlowboardController : Object {
                 card.card_id
             ));
         }
-        sorted.sort((a, b) => strcmp(a.title.down(), b.title.down()));
-        foreach (var item in sorted) {
-            visible_tiles.append(item);
-        }
     }
 
-    private void ensure_bucket(string key) {
-        if (!children_by_container.has_key(key)) {
-            children_by_container.set(key, new Gee.ArrayList<FlowboardTile>());
+    private Gee.ArrayList<CardSummary> all_cards() {
+        var out_cards = new Gee.ArrayList<CardSummary>();
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card != null) {
+                out_cards.add(card);
+            }
         }
+        return out_cards;
     }
 
-    private void ensure_unique_child(string parent_key, FlowboardTile tile) {
-        ensure_bucket(parent_key);
-        if (seen_node_keys.has_key("%s|%s".printf(parent_key, tile.node_key))) {
-            return;
+    private CardSummary? find_card(string card_id) {
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card != null && card.card_id == card_id) {
+                return card;
+            }
         }
-        seen_node_keys.set("%s|%s".printf(parent_key, tile.node_key), true);
-        children_by_container.get(parent_key).add(tile);
+        return null;
+    }
+
+    private int compare_cards(CardSummary a, CardSummary b) {
+        var parent_cmp = strcmp((normalize_parent(a.parent_card_id) ?? "").down(), (normalize_parent(b.parent_card_id) ?? "").down());
+        if (parent_cmp != 0) {
+            return parent_cmp;
+        }
+        if (a.sort_key < b.sort_key) {
+            return -1;
+        }
+        if (a.sort_key > b.sort_key) {
+            return 1;
+        }
+        return strcmp(a.title.down(), b.title.down());
+    }
+
+    private string? normalize_parent(string? parent_card_id) {
+        if (parent_card_id == null) {
+            return null;
+        }
+        var trimmed = parent_card_id.strip();
+        return trimmed.length == 0 ? null : trimmed;
+    }
+
+    private Gee.ArrayList<CardSummary> siblings_for_parent(string? parent_card_id, string? exclude_card_id = null) {
+        var siblings = new Gee.ArrayList<CardSummary>();
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null) {
+                continue;
+            }
+            if (exclude_card_id != null && card.card_id == exclude_card_id) {
+                continue;
+            }
+            if (normalize_parent(card.parent_card_id) == normalize_parent(parent_card_id)) {
+                siblings.add(card);
+            }
+        }
+        siblings.sort((a, b) => {
+            if (a.sort_key < b.sort_key) {
+                return -1;
+            }
+            if (a.sort_key > b.sort_key) {
+                return 1;
+            }
+            return strcmp(a.title.down(), b.title.down());
+        });
+        return siblings;
+    }
+
+    private double next_sort_key_for_parent(string? parent_card_id, string? exclude_card_id = null) {
+        var siblings = siblings_for_parent(parent_card_id, exclude_card_id);
+        if (siblings.size == 0) {
+            return 1024.0;
+        }
+        return siblings[siblings.size - 1].sort_key + 1024.0;
+    }
+
+    private double sort_key_around_target(string source_card_id,
+                                          string target_card_id,
+                                          string? parent_card_id,
+                                          bool after) {
+        var siblings = siblings_for_parent(parent_card_id, source_card_id);
+        int target_index = -1;
+        for (int i = 0; i < siblings.size; i++) {
+            if (siblings[i].card_id == target_card_id) {
+                target_index = i;
+                break;
+            }
+        }
+        if (target_index < 0) {
+            return next_sort_key_for_parent(parent_card_id, source_card_id);
+        }
+
+        double left;
+        double right;
+        if (after) {
+            left = siblings[target_index].sort_key;
+            right = target_index + 1 < siblings.size
+                ? siblings[target_index + 1].sort_key
+                : left + 1024.0;
+        } else {
+            right = siblings[target_index].sort_key;
+            left = target_index > 0
+                ? siblings[target_index - 1].sort_key
+                : right - 1024.0;
+        }
+        if (right - left < 0.0001) {
+            return after ? right + 1.0 : left - 1.0;
+        }
+        return (left + right) / 2.0;
+    }
+
+    private void apply_local_move(string card_id, string? parent_card_id, double sort_key) {
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null || card.card_id != card_id) {
+                continue;
+            }
+            var updated_at = new DateTime.now_utc().to_unix();
+            var replacement = new CardSummary(
+                card.card_id,
+                card.project_id,
+                card.title,
+                card.rel_path,
+                sort_key,
+                parent_card_id,
+                card.created_at,
+                updated_at
+            );
+            card_store.remove(i);
+            card_store.insert(i, replacement);
+            break;
+        }
     }
 }
 

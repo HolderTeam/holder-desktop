@@ -16,6 +16,7 @@ public class ToolboxPane : Object {
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
     public signal void flowboard_card_open_requested(string card_id);
+    public signal void flowboard_move_requested(string card_id, string? parent_card_id, double sort_key);
 
     public ToolboxPane() {
         widget = new Gtk.Revealer();
@@ -45,6 +46,15 @@ public class ToolboxPane : Object {
         });
         flowboard.navigate_up_requested.connect(() => {
             controller.navigate_up();
+        });
+        flowboard.card_drop_requested.connect((source_card_id, target_card_id, target_y_fraction) => {
+            controller.on_card_drop(source_card_id, target_card_id, target_y_fraction);
+        });
+        flowboard.background_drop_requested.connect((source_card_id) => {
+            controller.on_background_drop(source_card_id);
+        });
+        controller.move_requested.connect((card_id, parent_card_id, sort_key) => {
+            flowboard_move_requested(card_id, parent_card_id, sort_key);
         });
         controller.refresh();
     }

@@ -59,6 +59,8 @@ public class CardSummary : Object {
     public string project_id { get; construct; }
     public string title { get; set; }
     public string rel_path { get; construct; }
+    public double sort_key { get; set; }
+    public string? parent_card_id { get; set; }
     public int64 created_at { get; construct; }
     public int64 updated_at { get; set; }
 
@@ -66,6 +68,8 @@ public class CardSummary : Object {
                        string project_id,
                        string title,
                        string rel_path,
+                       double sort_key,
+                       string? parent_card_id,
                        int64 created_at,
                        int64 updated_at) {
         Object(
@@ -73,6 +77,8 @@ public class CardSummary : Object {
             project_id: project_id,
             title: title,
             rel_path: rel_path,
+            sort_key: sort_key,
+            parent_card_id: parent_card_id,
             created_at: created_at,
             updated_at: updated_at
         );

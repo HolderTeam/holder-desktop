@@ -304,6 +304,32 @@ public class ApiClient : Object, IHolderApi {
         );
     }
 
+    public async void update_card_position(string card_id,
+                                           string? parent_card_id,
+                                           double sort_key,
+                                           int64 updated_at) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("parent_card_id");
+        if (parent_card_id == null || parent_card_id.length == 0) {
+            body.add_null_value();
+        } else {
+            body.add_string_value(parent_card_id);
+        }
+        body.set_member_name("sort_key");
+        body.add_double_value(sort_key);
+        body.set_member_name("updated_at");
+        body.add_int_value(updated_at);
+        body.end_object();
+
+        yield request_json(
+            "PATCH",
+            "/cards/%s".printf(Uri.escape_string(card_id)),
+            json_string_from_builder(body),
+            null
+        );
+    }
+
     private async Json.Object request_json(string method,
                                            string path,
                                            string? request_body,
@@ -437,6 +463,10 @@ public class ApiClient : Object, IHolderApi {
                 item.get_string_member("project_id"),
                 item.get_string_member("title"),
                 item.has_member("rel_path") ? item.get_string_member("rel_path") : "",
+                item.has_member("sort_key") ? item.get_double_member("sort_key") : 0.0,
+                item.has_member("parent_card_id") && item.get_member("parent_card_id").get_node_type() != Json.NodeType.NULL
+                    ? item.get_string_member("parent_card_id")
+                    : null,
                 item.has_member("created_at") ? item.get_int_member("created_at") : 0,
                 item.has_member("updated_at") ? item.get_int_member("updated_at") : 0
             ));

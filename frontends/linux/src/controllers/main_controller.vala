@@ -344,6 +344,22 @@ public class MainController : Object, IAiRunContext {
         }
     }
 
+    public async void move_card(string card_id, string? parent_card_id, double sort_key) {
+        if (api == null) {
+            return;
+        }
+
+        var updated_at = now_epoch_seconds();
+        try {
+            yield api.update_card_position(card_id, parent_card_id, sort_key, updated_at);
+            apply_card_position_update(card_id, parent_card_id, sort_key, updated_at);
+            status_changed("Moved card");
+        } catch (Error e) {
+            error_reported("Move card failed", e.message);
+            reload_cards_for_selected_project.begin(card_id);
+        }
+    }
+
     public async void create_project_named(string name) {
         if (api == null) {
             return;
@@ -588,6 +604,8 @@ public class MainController : Object, IAiRunContext {
                 card.project_id,
                 title,
                 card.rel_path,
+                card.sort_key,
+                card.parent_card_id,
                 card.created_at,
                 updated_at
             );
@@ -596,6 +614,40 @@ public class MainController : Object, IAiRunContext {
             card_store.insert(i, replacement);
             if (selected_pos == i) {
                 card_selection.set_selected_index(i);
+            }
+            break;
+        }
+        suppress_card_selection_events = false;
+    }
+
+    private void apply_card_position_update(string card_id,
+                                            string? parent_card_id,
+                                            double sort_key,
+                                            int64 updated_at) {
+        suppress_card_selection_events = true;
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null || card.card_id != card_id) {
+                continue;
+            }
+            var replacement = new CardSummary(
+                card.card_id,
+                card.project_id,
+                card.title,
+                card.rel_path,
+                sort_key,
+                parent_card_id,
+                card.created_at,
+                updated_at
+            );
+            var selected_pos = card_selection.get_selected_index();
+            card_store.remove(i);
+            card_store.insert(i, replacement);
+            if (selected_pos == i) {
+                card_selection.set_selected_index(i);
+            }
+            if (current_card != null && current_card.card_id == card_id) {
+                current_card.updated_at = updated_at;
             }
             break;
         }

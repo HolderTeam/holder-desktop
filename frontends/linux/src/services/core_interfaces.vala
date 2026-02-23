@@ -31,6 +31,10 @@ public interface IHolderApi : Object {
                                            string title,
                                            string content,
                                            int64 updated_at) throws Error;
+    public abstract async void update_card_position(string card_id,
+                                                    string? parent_card_id,
+                                                    double sort_key,
+                                                    int64 updated_at) throws Error;
 }
 
 public interface IApiFactory : Object {

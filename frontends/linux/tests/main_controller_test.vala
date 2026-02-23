@@ -459,7 +459,7 @@ private void test_selected_ids_and_api_getter() {
     assert(controller.selected_card_id() == null);
 
     harness.project_store.append(new HolderLinux.Project("p1", "P1", "/tmp", 1, 1));
-    harness.card_store.append(new HolderLinux.CardSummary("c1", "p1", "C1", "c1.md", 1, 1));
+    harness.card_store.append(new HolderLinux.CardSummary("c1", "p1", "C1", "c1.md", 1024.0, null, 1, 1));
     harness.project_selection.set_selected_index(0);
     harness.card_selection.set_selected_index(0);
 

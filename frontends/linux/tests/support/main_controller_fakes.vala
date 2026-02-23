@@ -48,6 +48,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int get_card_calls = 0;
     public int search_calls = 0;
     public int update_card_calls = 0;
+    public int update_card_position_calls = 0;
     public int create_card_calls = 0;
     public int create_project_calls = 0;
     public int list_threads_calls = 0;
@@ -56,6 +57,10 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public string last_updated_title = "";
     public string last_updated_content = "";
     public int64 last_updated_at = 0;
+    public string last_move_card_id = "";
+    public string? last_move_parent_card_id = null;
+    public double last_move_sort_key = 0.0;
+    public int64 last_move_updated_at = 0;
     public bool fail_health = false;
     public bool fail_create_card = false;
     public bool fail_create_project = false;
@@ -115,12 +120,12 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         if (list_cards_empty) {
             return cards;
         }
-        cards.add(new HolderLinux.CardSummary("c1", project_id, "Card 1", "c1.md", 20, 20));
+        cards.add(new HolderLinux.CardSummary("c1", project_id, "Card 1", "c1.md", 1024.0, null, 20, 20));
         if (include_card2) {
-            cards.add(new HolderLinux.CardSummary("c2", project_id, "Card 2", "c2.md", 21, 21));
+            cards.add(new HolderLinux.CardSummary("c2", project_id, "Card 2", "c2.md", 2048.0, null, 21, 21));
         }
         if (include_created_card) {
-            cards.add(new HolderLinux.CardSummary("c-created", project_id, "Untitled", "c-created.md", 22, 22));
+            cards.add(new HolderLinux.CardSummary("c-created", project_id, "Untitled", "c-created.md", 3072.0, null, 22, 22));
         }
         return cards;
     }
@@ -220,6 +225,17 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         last_updated_title = title;
         last_updated_content = content;
         last_updated_at = updated_at;
+    }
+
+    public async void update_card_position(string card_id,
+                                           string? parent_card_id,
+                                           double sort_key,
+                                           int64 updated_at) throws Error {
+        update_card_position_calls++;
+        last_move_card_id = card_id;
+        last_move_parent_card_id = parent_card_id;
+        last_move_sort_key = sort_key;
+        last_move_updated_at = updated_at;
     }
 }
 
