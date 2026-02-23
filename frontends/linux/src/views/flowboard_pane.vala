@@ -46,10 +46,11 @@ public class FlowboardPane : Object {
         clear_box_children(breadcrumb_bar);
         for (int i = 0; i < segments.size; i++) {
             var segment = segments[i];
+            var idx = i;
             var btn = new Gtk.Button.with_label(segment.label);
             btn.add_css_class("flat");
             btn.clicked.connect(() => {
-                breadcrumb_segment_activated(i);
+                breadcrumb_segment_activated(idx);
             });
             breadcrumb_bar.append(btn);
             if (i < segments.size - 1) {
