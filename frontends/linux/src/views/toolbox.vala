@@ -110,11 +110,48 @@ public class ToolboxPane : Object {
         stack.set_vexpand(true);
         stack.set_hexpand(true);
         switcher.set_stack(stack);
+        stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT);
 
-        stack.add_titled(build_terminal_tab(), "terminals", "Terminals");
-        stack.add_titled(build_ai_catalog_tab(), "catalog", "AI Catalog");
-        stack.add_titled(build_git_sync_tab(), "git", "Git Sync");
-        stack.add_titled(build_debug_tab(), "debug", "Debug");
+        var connections_page = stack.add_titled(
+            build_placeholder_tab("Connections tools are scaffolded and planned."),
+            "connections",
+            "Connections"
+        );
+        connections_page.set_icon_name("network-wired-symbolic");
+
+        var resources_page = stack.add_titled(
+            build_placeholder_tab("Resource tools are scaffolded and planned."),
+            "resources",
+            "Resources"
+        );
+        resources_page.set_icon_name("view-list-symbolic");
+
+        var corkboard_page = stack.add_titled(
+            build_placeholder_tab("Corkboard tools are scaffolded and planned."),
+            "corkboard",
+            "Corkboard"
+        );
+        corkboard_page.set_icon_name("view-grid-symbolic");
+
+        var sharing_page = stack.add_titled(
+            build_placeholder_tab("Sharing tools are scaffolded and planned."),
+            "sharing",
+            "Sharing"
+        );
+        sharing_page.set_icon_name("emblem-shared-symbolic");
+
+        var terminals_page = stack.add_titled(build_terminal_tab(), "terminals", "Terminals");
+        terminals_page.set_icon_name("utilities-terminal-symbolic");
+
+        var catalog_page = stack.add_titled(build_ai_catalog_tab(), "catalog", "AI Catalog");
+        catalog_page.set_icon_name("x-office-address-book-symbolic");
+
+        var git_page = stack.add_titled(build_git_sync_tab(), "git", "Git Sync");
+        git_page.set_icon_name("folder-remote-symbolic");
+
+        var debug_page = stack.add_titled(build_debug_tab(), "debug", "Debug");
+        debug_page.set_icon_name("view-reveal-symbolic");
+
         stack.set_visible_child_name("terminals");
 
         var scroller = new Gtk.ScrolledWindow();
@@ -124,6 +161,15 @@ public class ToolboxPane : Object {
         frame.append(scroller);
 
         return frame;
+    }
+
+    private Gtk.Widget build_placeholder_tab(string message) {
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
+        var info = new Gtk.Label(message) { xalign = 0.0f };
+        info.set_wrap(true);
+        info.add_css_class("dim-label");
+        box.append(info);
+        return box;
     }
 
     private Gtk.Widget build_debug_tab() {
