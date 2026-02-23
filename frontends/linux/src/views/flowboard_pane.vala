@@ -104,22 +104,27 @@ public class FlowboardPane : Object {
         });
         grid_view.add_controller(keys);
 
-        var background_click = new Gtk.GestureClick();
-        background_click.set_button(Gdk.BUTTON_PRIMARY);
-        background_click.pressed.connect((n_press, x, y) => {
+        var pointer_click = new Gtk.GestureClick();
+        pointer_click.set_button(Gdk.BUTTON_PRIMARY);
+        pointer_click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE);
+        pointer_click.pressed.connect((n_press, x, y) => {
             if (n_press != 1) {
                 return;
             }
-            var state = background_click.get_current_event_state();
-            if ((state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK)) != 0) {
-                return;
-            }
             var picked = grid_view.pick(x, y, Gtk.PickFlags.DEFAULT);
-            if (picked == grid_view) {
+            var background_press = (picked == null || picked == grid_view);
+            grid_view.set_enable_rubberband(background_press);
+
+            var state = pointer_click.get_current_event_state();
+            if (background_press &&
+                (state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK)) == 0) {
                 selection.unselect_all();
             }
         });
-        grid_view.add_controller(background_click);
+        pointer_click.released.connect((n_press, x, y) => {
+            grid_view.set_enable_rubberband(true);
+        });
+        grid_view.add_controller(pointer_click);
 
         var scroll = new Gtk.ScrolledWindow();
         scroll.set_vexpand(true);
