@@ -110,9 +110,15 @@ public class FlowboardPane : Object {
             meta.set_margin_start(8);
             meta.set_margin_end(8);
             meta.set_margin_bottom(10);
+            meta.set_xalign(1.0f);
+            meta.set_halign(Gtk.Align.END);
+
+            var spacer = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+            spacer.set_vexpand(true);
             card.set_data<Gtk.Label>("flowboard-title-label", title);
             card.set_data<Gtk.Label>("flowboard-meta-label", meta);
             card.append(header);
+            card.append(spacer);
             card.append(meta);
             install_drag_and_drop(card);
             list_item.set_child(card);
