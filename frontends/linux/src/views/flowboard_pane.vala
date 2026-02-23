@@ -92,17 +92,24 @@ public class FlowboardPane : Object {
 
             var header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
             card.set_data<Gtk.Widget>("flowboard-header-box", header);
+            header.set_margin_start(8);
+            header.set_margin_end(8);
 
             var title = new Gtk.Label("") { xalign = 0.0f };
             title.add_css_class("title-5");
             title.set_wrap(true);
             title.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+            title.set_lines(2);
+            title.set_ellipsize(Pango.EllipsizeMode.END);
 
             title.set_hexpand(true);
             header.append(title);
 
             var meta = new Gtk.Label("") { xalign = 0.0f };
             meta.add_css_class("dim-label");
+            meta.set_margin_start(8);
+            meta.set_margin_end(8);
+            meta.set_margin_bottom(10);
             card.set_data<Gtk.Label>("flowboard-title-label", title);
             card.set_data<Gtk.Label>("flowboard-meta-label", meta);
             card.append(header);
@@ -134,7 +141,11 @@ public class FlowboardPane : Object {
                 folder_tab.set_visible(true);
                 header.set_margin_top(0);
                 title.set_text(tile.title);
-                meta.set_text("%d %s".printf(tile.child_count, tile.child_count == 1 ? "item" : "items"));
+                meta.set_text("%d %s | %s".printf(
+                    tile.child_count,
+                    tile.child_count == 1 ? "item" : "items",
+                    TextUtils.format_relative_time(new DateTime.now_utc().to_unix(), tile.updated_at)
+                ));
             } else {
                 card.remove_css_class("flowboard-branch");
                 folder_tab.set_visible(false);
@@ -327,6 +338,7 @@ public class FlowboardPane : Object {
                 border-radius: 8px;
                 border: 1px solid alpha(@borders, 0.65);
                 background-color: alpha(@card_bg_color, 0.35);
+                min-height: 76px;
             }
             .flowboard-branch {
                 margin-top: 0;
