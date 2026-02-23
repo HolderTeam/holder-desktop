@@ -111,13 +111,18 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         return "p-created";
     }
 
-    public async Gee.ArrayList<HolderLinux.CardSummary> list_cards(string project_id) throws Error {
+    public async Gee.ArrayList<HolderLinux.CardSummary> list_cards(string project_id,
+                                                                    string scope = "root",
+                                                                    string? parent_card_id = null) throws Error {
         if (fail_list_cards) {
             throw new IOError.FAILED("list cards failed");
         }
         list_cards_calls++;
         var cards = new Gee.ArrayList<HolderLinux.CardSummary>();
         if (list_cards_empty) {
+            return cards;
+        }
+        if (scope == "children" && parent_card_id != null && parent_card_id.strip().length > 0) {
             return cards;
         }
         cards.add(new HolderLinux.CardSummary("c1", project_id, "Card 1", "c1.md", 1024.0, null, 20, 20));

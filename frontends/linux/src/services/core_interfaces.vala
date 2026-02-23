@@ -6,7 +6,9 @@ public interface IHolderApi : Object {
     public abstract async void health_check() throws Error;
     public abstract async Gee.ArrayList<Project> list_projects() throws Error;
     public abstract async string create_project(string name) throws Error;
-    public abstract async Gee.ArrayList<CardSummary> list_cards(string project_id) throws Error;
+    public abstract async Gee.ArrayList<CardSummary> list_cards(string project_id,
+                                                                 string scope = "root",
+                                                                 string? parent_card_id = null) throws Error;
     public abstract async CardDetail get_card(string card_id) throws Error;
     public abstract async Gee.ArrayList<SearchCardResult> search_cards(string project_id,
                                                                        string query_text,

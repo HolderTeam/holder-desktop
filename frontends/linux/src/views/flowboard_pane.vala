@@ -1,6 +1,17 @@
 namespace HolderLinux {
 
+namespace GtkCompat {
+    [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
+    public extern static void add_provider_for_display(Gdk.Display display, Gtk.StyleProvider provider, uint priority);
+}
+
 public class FlowboardPane : Object {
+    private const string DROP_BEFORE_CLASS = "flowboard-drop-before";
+    private const string DROP_INTO_CLASS = "flowboard-drop-into";
+    private const string DROP_AFTER_CLASS = "flowboard-drop-after";
+    private const string DRAG_ACTIVE_CLASS = "flowboard-drag-active";
+    private static bool drop_css_installed = false;
+
     private Gtk.Label breadcrumb_label;
     private Gtk.Label empty_label;
     private Gtk.Stack state_stack;
@@ -16,6 +27,7 @@ public class FlowboardPane : Object {
     public signal void background_drop_requested(string source_card_id);
 
     public FlowboardPane() {
+        ensure_drop_css();
         selection = new Gtk.MultiSelection(null);
         widget = build_ui();
     }
@@ -91,6 +103,7 @@ public class FlowboardPane : Object {
         });
 
         grid_view = new Gtk.GridView(selection, factory);
+        grid_view.add_css_class("flowboard-grid");
         grid_view.set_enable_rubberband(true);
         grid_view.set_single_click_activate(false);
         grid_view.activate.connect((position) => {
@@ -136,13 +149,22 @@ public class FlowboardPane : Object {
         grid_view.add_controller(pointer_click);
 
         var grid_drop = new Gtk.DropTarget(typeof(string), Gdk.DragAction.MOVE);
+        grid_drop.enter.connect((x, y) => {
+            grid_view.add_css_class(DRAG_ACTIVE_CLASS);
+            return Gdk.DragAction.MOVE;
+        });
         grid_drop.drop.connect((value, x, y) => {
             string? source_card_id = value.get_string();
             if (source_card_id == null || source_card_id.strip().length == 0) {
+                grid_view.remove_css_class(DRAG_ACTIVE_CLASS);
                 return false;
             }
+            grid_view.remove_css_class(DRAG_ACTIVE_CLASS);
             background_drop_requested(source_card_id);
             return true;
+        });
+        grid_drop.leave.connect(() => {
+            grid_view.remove_css_class(DRAG_ACTIVE_CLASS);
         });
         grid_view.add_controller(grid_drop);
 
@@ -176,6 +198,7 @@ public class FlowboardPane : Object {
     }
 
     private void install_drag_and_drop(Gtk.Widget row_widget) {
+        row_widget.add_css_class("flowboard-drop-target");
         var drag_source = new Gtk.DragSource();
         drag_source.set_actions(Gdk.DragAction.MOVE);
         drag_source.prepare.connect((x, y) => {
@@ -190,13 +213,30 @@ public class FlowboardPane : Object {
         row_widget.add_controller(drag_source);
 
         var drop_target = new Gtk.DropTarget(typeof(string), Gdk.DragAction.MOVE);
+        drop_target.enter.connect((x, y) => {
+            grid_view.add_css_class(DRAG_ACTIVE_CLASS);
+            update_drop_hint(row_widget, y);
+            return Gdk.DragAction.MOVE;
+        });
+        drop_target.motion.connect((x, y) => {
+            update_drop_hint(row_widget, y);
+            return Gdk.DragAction.MOVE;
+        });
+        drop_target.leave.connect(() => {
+            clear_drop_hint(row_widget);
+            grid_view.remove_css_class(DRAG_ACTIVE_CLASS);
+        });
         drop_target.drop.connect((value, x, y) => {
             string? source_card_id = value.get_string();
             var target_card_id = row_widget.get_data<string>("flowboard-card-id");
             if (target_card_id == null || target_card_id.strip().length == 0) {
+                clear_drop_hint(row_widget);
+                grid_view.remove_css_class(DRAG_ACTIVE_CLASS);
                 return false;
             }
             if (source_card_id == null || source_card_id.strip().length == 0 || source_card_id == target_card_id) {
+                clear_drop_hint(row_widget);
+                grid_view.remove_css_class(DRAG_ACTIVE_CLASS);
                 return false;
             }
             var height = row_widget.get_height();
@@ -209,10 +249,85 @@ public class FlowboardPane : Object {
             } else if (y_fraction > 1.0) {
                 y_fraction = 1.0;
             }
+            clear_drop_hint(row_widget);
+            grid_view.remove_css_class(DRAG_ACTIVE_CLASS);
             card_drop_requested(source_card_id, target_card_id, y_fraction);
             return true;
         });
         row_widget.add_controller(drop_target);
+    }
+
+    private static void ensure_drop_css() {
+        if (drop_css_installed) {
+            return;
+        }
+        var display = Gdk.Display.get_default();
+        if (display == null) {
+            return;
+        }
+        var provider = new Gtk.CssProvider();
+        provider.load_from_string("""
+            .flowboard-grid:drop(active) {
+                outline: none;
+                box-shadow: none;
+                border-color: transparent;
+            }
+            .flowboard-drop-target {
+                transition: 120ms ease;
+            }
+            .flowboard-drag-active .flowboard-drop-target {
+                opacity: 0.45;
+            }
+            .flowboard-drag-active .flowboard-drop-before,
+            .flowboard-drag-active .flowboard-drop-into,
+            .flowboard-drag-active .flowboard-drop-after {
+                opacity: 1.0;
+            }
+            .flowboard-drop-before {
+                border-top: 0;
+                box-shadow: 0 -6px 0 0 @accent_color;
+            }
+            .flowboard-drop-into {
+                outline: 3px solid @accent_color;
+                outline-offset: -3px;
+                background-color: alpha(@accent_color, 0.16);
+            }
+            .flowboard-drop-after {
+                border-bottom: 0;
+                box-shadow: 0 6px 0 0 @accent_color;
+            }
+        """);
+        GtkCompat.add_provider_for_display(
+            display,
+            provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
+        drop_css_installed = true;
+    }
+
+    private void clear_drop_hint(Gtk.Widget row_widget) {
+        row_widget.remove_css_class(DROP_BEFORE_CLASS);
+        row_widget.remove_css_class(DROP_INTO_CLASS);
+        row_widget.remove_css_class(DROP_AFTER_CLASS);
+    }
+
+    private void update_drop_hint(Gtk.Widget row_widget, double y) {
+        ensure_drop_css();
+        clear_drop_hint(row_widget);
+        var height = row_widget.get_height();
+        double y_fraction = 0.5;
+        if (height > 0) {
+            y_fraction = y / (double) height;
+        }
+        if (y_fraction < 0.30) {
+            row_widget.add_css_class(DROP_BEFORE_CLASS);
+            return;
+        }
+        if (y_fraction > 0.70) {
+            row_widget.add_css_class(DROP_AFTER_CLASS);
+            return;
+        }
+        row_widget.add_css_class(DROP_INTO_CLASS);
     }
 }
 

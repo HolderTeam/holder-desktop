@@ -89,7 +89,7 @@ private void test_list_cards_parses_data_and_query() {
     bool done = false;
     Gee.ArrayList<HolderLinux.CardSummary>? cards = null;
     string error_message = "";
-    client.list_cards.begin("p1", (obj, res) => {
+    client.list_cards.begin("p1", "root", null, (obj, res) => {
         try {
             cards = client.list_cards.end(res);
         } catch (Error e) {
@@ -107,6 +107,28 @@ private void test_list_cards_parses_data_and_query() {
     assert(cards[0].rel_path == "cards/t1.md");
     assert(transport.last_uri.contains("/cards?"));
     assert(transport.last_uri.contains("project_id=p1"));
+    assert(transport.last_uri.contains("scope=root"));
+}
+
+private void test_list_cards_with_parent_query() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
+    var client = make_client(transport);
+
+    bool done = false;
+    client.list_cards.begin("p1", "children", "parent-1", (obj, res) => {
+        try {
+            client.list_cards.end(res);
+        } catch (Error e) {
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(transport.last_uri.contains("/cards?"));
+    assert(transport.last_uri.contains("project_id=p1"));
+    assert(transport.last_uri.contains("scope=children"));
+    assert(transport.last_uri.contains("parent_card_id=parent-1"));
 }
 
 private void test_get_card_parses_detail() {
@@ -466,7 +488,7 @@ private void test_missing_data_protocol_errors_for_parsers() {
 
     int protocol_count = 0;
     bool done = false;
-    client.list_cards.begin("p1", (o1, r1) => {
+    client.list_cards.begin("p1", "root", null, (o1, r1) => {
         try { client.list_cards.end(r1); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
         client.get_card.begin("c1", (o2, r2) => {
             try { client.get_card.end(r2); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
@@ -928,6 +950,7 @@ int main(string[] args) {
     Test.add_func("/api_client/create_project_sends_json_and_returns_id",
                   test_create_project_sends_json_and_returns_id);
     Test.add_func("/api_client/list_cards_parses_data_and_query", test_list_cards_parses_data_and_query);
+    Test.add_func("/api_client/list_cards_with_parent_query", test_list_cards_with_parent_query);
     Test.add_func("/api_client/get_card_parses_detail", test_get_card_parses_detail);
     Test.add_func("/api_client/search_cards_parses_results", test_search_cards_parses_results);
     Test.add_func("/api_client/get_ai_capabilities_parses_nested_data",

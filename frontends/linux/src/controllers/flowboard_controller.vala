@@ -5,6 +5,9 @@ public class FlowboardController : Object {
     private Gtk.SingleSelection project_selection;
     private GLib.ListStore card_store;
     private GLib.ListStore visible_tiles;
+    private string? current_project_id = null;
+    private string? current_parent_card_id = null;
+    private Gee.ArrayList<string> parent_stack_ids;
 
     public signal void breadcrumb_changed(string text);
     public signal void empty_message_changed(string text);
@@ -18,6 +21,7 @@ public class FlowboardController : Object {
         this.project_selection = project_selection;
         this.card_store = card_store;
         this.visible_tiles = new GLib.ListStore(typeof(FlowboardTile));
+        this.parent_stack_ids = new Gee.ArrayList<string>();
     }
 
     public GLib.ListModel get_visible_model() {
@@ -30,15 +34,33 @@ public class FlowboardController : Object {
             visible_tiles.remove_all();
             breadcrumb_changed("Projects");
             empty_message_changed("Select a project to browse cards.");
+            current_project_id = null;
+            current_parent_card_id = null;
+            parent_stack_ids.clear();
             return;
         }
 
-        replace_visible_flat_cards();
-        breadcrumb_changed("Projects / %s".printf(selected_project.name));
+        if (current_project_id != selected_project.project_id) {
+            current_project_id = selected_project.project_id;
+            current_parent_card_id = null;
+            parent_stack_ids.clear();
+        }
+
+        if (current_parent_card_id != null && find_card(current_parent_card_id) == null) {
+            current_parent_card_id = null;
+            parent_stack_ids.clear();
+        }
+
+        replace_visible_for_parent(current_parent_card_id);
+        breadcrumb_changed(build_breadcrumb(selected_project.name));
         if (visible_tiles.get_n_items() == 0) {
             empty_message_changed("No cards yet. Create one to get started.");
         } else {
-            empty_message_changed("Drag card center onto another card to nest. Drag top/bottom edges to reorder.");
+            if (current_parent_card_id == null) {
+                empty_message_changed("Drag card center onto another card to nest. Drag top/bottom edges to reorder.");
+            } else {
+                empty_message_changed("Inside nested cards. Enter opens item/folder. Backspace goes up.");
+            }
         }
     }
 
@@ -47,10 +69,26 @@ public class FlowboardController : Object {
         if (tile == null || tile.card_id == null) {
             return;
         }
+        if (tile.is_container) {
+            current_parent_card_id = tile.card_id;
+            parent_stack_ids.add(tile.card_id);
+            refresh();
+            return;
+        }
         card_open_requested(tile.card_id);
     }
 
     public void navigate_up() {
+        if (parent_stack_ids.size == 0) {
+            return;
+        }
+        parent_stack_ids.remove_at(parent_stack_ids.size - 1);
+        if (parent_stack_ids.size == 0) {
+            current_parent_card_id = null;
+        } else {
+            current_parent_card_id = parent_stack_ids[parent_stack_ids.size - 1];
+        }
+        refresh();
     }
 
     public void on_card_drop(string source_card_id, string target_card_id, double target_y_fraction) {
@@ -68,6 +106,9 @@ public class FlowboardController : Object {
         double new_sort;
         if (target_y_fraction >= 0.30 && target_y_fraction <= 0.70) {
             new_parent = target.card_id;
+            if (is_descendant(new_parent, source.card_id)) {
+                return;
+            }
             new_sort = next_sort_key_for_parent(new_parent, source.card_id);
         } else {
             new_parent = normalize_parent(target.parent_card_id);
@@ -76,6 +117,7 @@ public class FlowboardController : Object {
         }
 
         apply_local_move(source.card_id, new_parent, new_sort);
+        refresh();
         move_requested(source.card_id, new_parent, new_sort);
     }
 
@@ -87,33 +129,23 @@ public class FlowboardController : Object {
         string? new_parent = null;
         double new_sort = next_sort_key_for_parent(new_parent, source.card_id);
         apply_local_move(source.card_id, new_parent, new_sort);
+        refresh();
         move_requested(source.card_id, new_parent, new_sort);
     }
 
-    private void replace_visible_flat_cards() {
+    private void replace_visible_for_parent(string? parent_card_id) {
         visible_tiles.remove_all();
-        var sorted = all_cards();
-        sorted.sort((a, b) => compare_cards(a, b));
+        var sorted = siblings_for_parent(parent_card_id);
         foreach (var card in sorted) {
+            var is_container = has_children(card.card_id);
             visible_tiles.append(new FlowboardTile(
                 "card:%s".printf(card.card_id),
                 card.title,
                 card.updated_at,
-                false,
+                is_container,
                 card.card_id
             ));
         }
-    }
-
-    private Gee.ArrayList<CardSummary> all_cards() {
-        var out_cards = new Gee.ArrayList<CardSummary>();
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
-            if (card != null) {
-                out_cards.add(card);
-            }
-        }
-        return out_cards;
     }
 
     private CardSummary? find_card(string card_id) {
@@ -126,15 +158,60 @@ public class FlowboardController : Object {
         return null;
     }
 
-    private int compare_cards(CardSummary a, CardSummary b) {
-        var parent_cmp = strcmp((normalize_parent(a.parent_card_id) ?? "").down(), (normalize_parent(b.parent_card_id) ?? "").down());
-        if (parent_cmp != 0) {
-            return parent_cmp;
+    private bool has_children(string card_id) {
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null) {
+                continue;
+            }
+            if (normalize_parent(card.parent_card_id) == card_id) {
+                return true;
+            }
         }
+        return false;
+    }
+
+    private bool is_descendant(string? candidate_parent_card_id, string card_id) {
+        if (candidate_parent_card_id == null) {
+            return false;
+        }
+        string? cursor = candidate_parent_card_id;
+        int guard = 0;
+        while (cursor != null && guard < 256) {
+            if (cursor == card_id) {
+                return true;
+            }
+            var card = find_card(cursor);
+            cursor = card == null ? null : normalize_parent(card.parent_card_id);
+            guard++;
+        }
+        return false;
+    }
+
+    private string build_breadcrumb(string project_name) {
+        var parts = new Gee.ArrayList<string>();
+        parts.add("Projects");
+        parts.add(project_name);
+        foreach (var parent_id in parent_stack_ids) {
+            var card = find_card(parent_id);
+            if (card != null) {
+                parts.add(card.title);
+            }
+        }
+        return string.joinv(" / ", parts.to_array());
+    }
+
+    private int compare_for_flowboard(CardSummary a, CardSummary b) {
         if (a.sort_key < b.sort_key) {
             return -1;
         }
         if (a.sort_key > b.sort_key) {
+            return 1;
+        }
+        if (a.updated_at > b.updated_at) {
+            return -1;
+        }
+        if (a.updated_at < b.updated_at) {
             return 1;
         }
         return strcmp(a.title.down(), b.title.down());
@@ -162,15 +239,7 @@ public class FlowboardController : Object {
                 siblings.add(card);
             }
         }
-        siblings.sort((a, b) => {
-            if (a.sort_key < b.sort_key) {
-                return -1;
-            }
-            if (a.sort_key > b.sort_key) {
-                return 1;
-            }
-            return strcmp(a.title.down(), b.title.down());
-        });
+        siblings.sort((a, b) => compare_for_flowboard(a, b));
         return siblings;
     }
 

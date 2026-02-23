@@ -83,9 +83,15 @@ public class ApiClient : Object, IHolderApi {
         return data.get_string_member("project_id");
     }
 
-    public async Gee.ArrayList<CardSummary> list_cards(string project_id) throws Error {
+    public async Gee.ArrayList<CardSummary> list_cards(string project_id,
+                                                       string scope = "root",
+                                                       string? parent_card_id = null) throws Error {
         var query = new HashTable<string, string>(str_hash, str_equal);
         query.insert("project_id", project_id);
+        query.insert("scope", scope);
+        if (parent_card_id != null && parent_card_id.strip().length > 0) {
+            query.insert("parent_card_id", parent_card_id);
+        }
         var root = yield request_json("GET", "/cards", null, query);
         return parse_cards(root);
     }

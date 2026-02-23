@@ -30,7 +30,9 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public async string create_project(string name) throws Error {
         return "p1";
     }
-    public async Gee.ArrayList<HolderLinux.CardSummary> list_cards(string project_id) throws Error {
+    public async Gee.ArrayList<HolderLinux.CardSummary> list_cards(string project_id,
+                                                                    string scope = "root",
+                                                                    string? parent_card_id = null) throws Error {
         return new Gee.ArrayList<HolderLinux.CardSummary>();
     }
     public async HolderLinux.CardDetail get_card(string card_id) throws Error {
