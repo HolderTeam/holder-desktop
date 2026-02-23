@@ -80,15 +80,23 @@ public class CardSummary : Object {
 }
 
 public class FlowboardTile : Object {
-    public string card_id { get; construct; }
+    public string node_key { get; construct; }
     public string title { get; construct; }
     public int64 updated_at { get; construct; }
+    public bool is_container { get; construct; }
+    public string? card_id { get; construct; }
 
-    public FlowboardTile(string card_id, string title, int64 updated_at) {
+    public FlowboardTile(string node_key,
+                         string title,
+                         int64 updated_at,
+                         bool is_container,
+                         string? card_id = null) {
         Object(
-            card_id: card_id,
+            node_key: node_key,
             title: title,
-            updated_at: updated_at
+            updated_at: updated_at,
+            is_container: is_container,
+            card_id: card_id
         );
     }
 }

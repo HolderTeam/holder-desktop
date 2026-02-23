@@ -74,7 +74,11 @@ public class FlowboardPane : Object {
                 return;
             }
             title.set_text(tile.title);
-            meta.set_text(TextUtils.format_relative_time(new DateTime.now_utc().to_unix(), tile.updated_at));
+            if (tile.is_container) {
+                meta.set_text("Folder");
+            } else {
+                meta.set_text(TextUtils.format_relative_time(new DateTime.now_utc().to_unix(), tile.updated_at));
+            }
         });
 
         grid_view = new Gtk.GridView(selection, factory);
