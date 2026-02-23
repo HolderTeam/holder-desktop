@@ -160,7 +160,7 @@ public class FlowboardPane : Object {
                 meta.set_text(TextUtils.format_relative_time(new DateTime.now_utc().to_unix(), tile.updated_at));
             }
 
-            if (!tile.is_container && tile.card_id != null) {
+            if (tile.card_id != null) {
                 card.set_data<string>("flowboard-card-id", tile.card_id);
             } else {
                 card.set_data<string>("flowboard-card-id", "");
