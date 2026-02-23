@@ -1,6 +1,7 @@
 namespace HolderLinux {
 
 public class WorkspacePane : Object {
+    private const double DEFAULT_TOOLBOX_FRACTION = 0.5;
     private Gtk.Label title_label;
     private Gtk.ToggleButton toolbox_toggle_btn;
     private Gtk.Revealer find_revealer;
@@ -93,12 +94,38 @@ public class WorkspacePane : Object {
             toolbox.widget.set_visible(true);
             toolbox.set_reveal_child(true);
             if (content_paned.get_position() <= 0) {
-                content_paned.set_position(400);
+                apply_initial_toolbox_position(true);
             }
         } else {
             toolbox.set_reveal_child(false);
             toolbox.widget.set_visible(false);
         }
+    }
+
+    private void apply_initial_toolbox_position(bool allow_defer) {
+        var paned_height = content_paned.get_height();
+        if (paned_height <= 0) {
+            if (allow_defer) {
+                Idle.add(() => {
+                    apply_initial_toolbox_position(false);
+                    return Source.REMOVE;
+                });
+            }
+            return;
+        }
+
+        var target_top = (int) ((double) paned_height * (1.0 - DEFAULT_TOOLBOX_FRACTION));
+        var min_top = content_paned.min_position;
+        var max_top = content_paned.max_position;
+        if (max_top < min_top) {
+            max_top = min_top;
+        }
+        if (target_top < min_top) {
+            target_top = min_top;
+        } else if (target_top > max_top) {
+            target_top = max_top;
+        }
+        content_paned.set_position(target_top);
     }
 
     private void maybe_move_cursor_for_context_menu(Gtk.GestureClick click, int n_press, double x, double y) {
