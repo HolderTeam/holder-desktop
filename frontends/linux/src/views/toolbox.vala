@@ -156,7 +156,7 @@ public class ToolboxPane : Object {
 
         var scroller = new Gtk.ScrolledWindow();
         scroller.set_vexpand(true);
-        scroller.set_min_content_height(360);
+        scroller.set_min_content_height(180);
         scroller.set_child(stack);
         frame.append(scroller);
 

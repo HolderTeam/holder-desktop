@@ -93,7 +93,7 @@ public class WorkspacePane : Object {
             toolbox.widget.set_visible(true);
             toolbox.set_reveal_child(true);
             if (content_paned.get_position() <= 0) {
-                content_paned.set_position(440);
+                content_paned.set_position(400);
             }
         } else {
             toolbox.set_reveal_child(false);
