@@ -91,18 +91,21 @@ public class FlowboardTile : Object {
     public int64 updated_at { get; construct; }
     public bool is_container { get; construct; }
     public string? card_id { get; construct; }
+    public int child_count { get; construct; }
 
     public FlowboardTile(string node_key,
                          string title,
                          int64 updated_at,
                          bool is_container,
-                         string? card_id = null) {
+                         string? card_id = null,
+                         int child_count = 0) {
         Object(
             node_key: node_key,
             title: title,
             updated_at: updated_at,
             is_container: is_container,
-            card_id: card_id
+            card_id: card_id,
+            child_count: child_count
         );
     }
 }

@@ -156,13 +156,15 @@ public class FlowboardController : Object {
         visible_tiles.remove_all();
         var sorted = siblings_for_parent(parent_card_id);
         foreach (var card in sorted) {
-            var is_container = has_children(card.card_id);
+            var child_count = child_count_for_parent(card.card_id);
+            var is_container = child_count > 0;
             visible_tiles.append(new FlowboardTile(
                 "card:%s".printf(card.card_id),
                 card.title,
                 card.updated_at,
                 is_container,
-                card.card_id
+                card.card_id,
+                child_count
             ));
         }
     }
@@ -177,17 +179,18 @@ public class FlowboardController : Object {
         return null;
     }
 
-    private bool has_children(string card_id) {
+    private int child_count_for_parent(string card_id) {
+        int count = 0;
         for (uint i = 0; i < card_store.get_n_items(); i++) {
             var card = card_store.get_item(i) as CardSummary;
             if (card == null) {
                 continue;
             }
             if (normalize_parent(card.parent_card_id) == card_id) {
-                return true;
+                count++;
             }
         }
-        return false;
+        return count;
     }
 
     private bool is_descendant(string? candidate_parent_card_id, string card_id) {

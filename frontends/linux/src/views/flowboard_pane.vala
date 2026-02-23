@@ -76,18 +76,36 @@ public class FlowboardPane : Object {
             var list_item = (Gtk.ListItem) item;
             var card = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
             card.add_css_class("card");
+            card.add_css_class("flowboard-tile");
             card.set_margin_top(6);
             card.set_margin_bottom(6);
             card.set_margin_start(6);
             card.set_margin_end(6);
 
+            var folder_tab = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+            folder_tab.add_css_class("flowboard-folder-tab");
+            folder_tab.set_halign(Gtk.Align.FILL);
+            folder_tab.set_hexpand(true);
+            folder_tab.set_size_request(-1, 12);
+            card.set_data<Gtk.Widget>("flowboard-folder-tab", folder_tab);
+            card.append(folder_tab);
+
+            var header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+            card.set_data<Gtk.Widget>("flowboard-header-box", header);
+
             var title = new Gtk.Label("") { xalign = 0.0f };
             title.add_css_class("title-5");
             title.set_wrap(true);
             title.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+
+            title.set_hexpand(true);
+            header.append(title);
+
             var meta = new Gtk.Label("") { xalign = 0.0f };
             meta.add_css_class("dim-label");
-            card.append(title);
+            card.set_data<Gtk.Label>("flowboard-title-label", title);
+            card.set_data<Gtk.Label>("flowboard-meta-label", meta);
+            card.append(header);
             card.append(meta);
             install_drag_and_drop(card);
             list_item.set_child(card);
@@ -96,17 +114,32 @@ public class FlowboardPane : Object {
             var list_item = (Gtk.ListItem) item;
             var tile = list_item.get_item() as FlowboardTile;
             var card = list_item.get_child() as Gtk.Box;
-            var title = card.get_first_child() as Gtk.Label;
-            var meta = title.get_next_sibling() as Gtk.Label;
+            var folder_tab = card.get_data<Gtk.Widget>("flowboard-folder-tab");
+            var header = card.get_data<Gtk.Widget>("flowboard-header-box");
+            var title = card.get_data<Gtk.Label>("flowboard-title-label");
+            var meta = card.get_data<Gtk.Label>("flowboard-meta-label");
+            if (folder_tab == null || header == null || title == null || meta == null) {
+                return;
+            }
             if (tile == null) {
                 title.set_text("");
                 meta.set_text("");
+                folder_tab.set_visible(false);
+                header.set_margin_top(0);
+                card.remove_css_class("flowboard-branch");
                 return;
             }
-            title.set_text(tile.title);
             if (tile.is_container) {
-                meta.set_text("Folder");
+                card.add_css_class("flowboard-branch");
+                folder_tab.set_visible(true);
+                header.set_margin_top(0);
+                title.set_text(tile.title);
+                meta.set_text("%d %s".printf(tile.child_count, tile.child_count == 1 ? "item" : "items"));
             } else {
+                card.remove_css_class("flowboard-branch");
+                folder_tab.set_visible(false);
+                header.set_margin_top(15);
+                title.set_text(tile.title);
                 meta.set_text(TextUtils.format_relative_time(new DateTime.now_utc().to_unix(), tile.updated_at));
             }
 
@@ -289,6 +322,26 @@ public class FlowboardPane : Object {
             }
             .flowboard-drop-target {
                 transition: 120ms ease;
+            }
+            .flowboard-tile {
+                border-radius: 8px;
+                border: 1px solid alpha(@borders, 0.65);
+                background-color: alpha(@card_bg_color, 0.35);
+            }
+            .flowboard-branch {
+                margin-top: 0;
+                border: 1px solid alpha(@borders, 0.65);
+                background-color: alpha(@card_bg_color, 0.35);
+            }
+            .flowboard-folder-tab {
+                background-color: alpha(@card_bg_color, 0.50);
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                margin-top: 0;
+                margin-left: 0;
+                margin-right: 0;
+                margin-bottom: 3px;
+                border-bottom: 1px solid alpha(@borders, 0.65);
             }
             .flowboard-drag-active .flowboard-drop-target {
                 opacity: 0.45;
