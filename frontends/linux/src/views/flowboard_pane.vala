@@ -104,6 +104,23 @@ public class FlowboardPane : Object {
         });
         grid_view.add_controller(keys);
 
+        var background_click = new Gtk.GestureClick();
+        background_click.set_button(Gdk.BUTTON_PRIMARY);
+        background_click.pressed.connect((n_press, x, y) => {
+            if (n_press != 1) {
+                return;
+            }
+            var state = background_click.get_current_event_state();
+            if ((state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK)) != 0) {
+                return;
+            }
+            var picked = grid_view.pick(x, y, Gtk.PickFlags.DEFAULT);
+            if (picked == grid_view) {
+                selection.unselect_all();
+            }
+        });
+        grid_view.add_controller(background_click);
+
         var scroll = new Gtk.ScrolledWindow();
         scroll.set_vexpand(true);
         scroll.set_hexpand(true);
