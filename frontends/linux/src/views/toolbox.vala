@@ -151,8 +151,8 @@ public class ToolboxPane : Object {
         resources_page.set_icon_name("view-list-symbolic");
 
         flowboard = new FlowboardPane();
-        var corkboard_page = stack.add_titled(flowboard.widget, "corkboard", "Corkboard");
-        corkboard_page.set_icon_name("view-grid-symbolic");
+        var flowboard_page = stack.add_titled(flowboard.widget, "flowboard", "Flowboard");
+        flowboard_page.set_icon_name("view-grid-symbolic");
 
         var sharing_page = stack.add_titled(
             build_placeholder_tab("Sharing tools are scaffolded and planned."),
