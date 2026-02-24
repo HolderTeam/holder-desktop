@@ -579,20 +579,31 @@ public class ToolboxPane : Object {
         content.append(target_dropdown);
 
         var kind_label = new Gtk.Label("Kind") { xalign = 0.0f };
-        var kind_combo = new Gtk.ComboBoxText.with_entry();
-        kind_combo.append_text("ref");
-        kind_combo.append_text("depends_on");
-        kind_combo.append_text("example_of");
-        kind_combo.append_text("blocks");
-        kind_combo.append_text("related_to");
-        kind_combo.set_active(0);
-        var kind_entry = kind_combo.get_child() as Gtk.Entry;
-        if (kind_entry != null) {
-            kind_entry.set_text("ref");
-            kind_entry.set_placeholder_text("ref");
-        }
+        var kind_options = new Gtk.StringList(null);
+        kind_options.append("ref");
+        kind_options.append("depends_on");
+        kind_options.append("example_of");
+        kind_options.append("blocks");
+        kind_options.append("related_to");
+        kind_options.append("custom");
+        var kind_dropdown = new Gtk.DropDown(kind_options, null);
+        kind_dropdown.set_selected(0);
+        var custom_kind_entry = new Gtk.Entry();
+        custom_kind_entry.set_placeholder_text("custom kind");
+        custom_kind_entry.set_visible(false);
+        kind_dropdown.notify["selected"].connect(() => {
+            var selected = kind_dropdown.get_selected();
+            var is_custom = (selected == 5);
+            custom_kind_entry.set_visible(is_custom);
+            if (!is_custom) {
+                custom_kind_entry.set_text("");
+            }
+        });
+        var kind_row = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        kind_row.append(kind_dropdown);
+        kind_row.append(custom_kind_entry);
         content.append(kind_label);
-        content.append(kind_combo);
+        content.append(kind_row);
 
         var label_label = new Gtk.Label("Label (optional)") { xalign = 0.0f };
         var label_entry = new Gtk.Entry();
@@ -609,9 +620,16 @@ public class ToolboxPane : Object {
                     return;
                 }
                 var target_id = target_ids[(int) selected_index];
+                var selected_kind_index = kind_dropdown.get_selected();
                 string kind = "ref";
-                if (kind_entry != null) {
-                    kind = kind_entry.get_text().strip();
+                if (selected_kind_index < 5) {
+                    var chosen = kind_options.get_string(selected_kind_index);
+                    if (chosen != null && chosen.length > 0) {
+                        kind = chosen;
+                    }
+                } else {
+                    var custom_kind = custom_kind_entry.get_text().strip();
+                    kind = custom_kind.length > 0 ? custom_kind : "ref";
                 }
                 var link_label = label_entry.get_text().strip();
                 create_graph_link.begin(
