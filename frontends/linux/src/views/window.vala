@@ -249,6 +249,55 @@ public class MainWindow : Adw.ApplicationWindow {
             }
             controller.schedule_autosave();
         });
+
+        var internal_link_click = new Gtk.GestureClick();
+        internal_link_click.set_button(Gdk.BUTTON_PRIMARY);
+        internal_link_click.pressed.connect((n_press, x, y) => {
+            if (n_press != 1) {
+                return;
+            }
+            var sequence = internal_link_click.get_current_sequence();
+            var event = internal_link_click.get_last_event(sequence);
+            if (event == null) {
+                return;
+            }
+            if ((event.get_modifier_state() & Gdk.ModifierType.CONTROL_MASK) == 0) {
+                return;
+            }
+
+            int buffer_x;
+            int buffer_y;
+            editor_view.window_to_buffer_coords(
+                Gtk.TextWindowType.WIDGET,
+                (int) x,
+                (int) y,
+                out buffer_x,
+                out buffer_y
+            );
+            Gtk.TextIter iter;
+            if (!editor_view.get_iter_at_location(out iter, buffer_x, buffer_y)) {
+                return;
+            }
+            if (navigate_internal_link_at_iter(iter)) {
+                internal_link_click.set_state(Gtk.EventSequenceState.CLAIMED);
+            }
+        });
+        editor_view.add_controller(internal_link_click);
+
+        var internal_link_key = new Gtk.EventControllerKey();
+        internal_link_key.key_pressed.connect((keyval, keycode, state) => {
+            if ((state & Gdk.ModifierType.CONTROL_MASK) == 0) {
+                return false;
+            }
+            if (keyval != Gdk.Key.Return && keyval != Gdk.Key.KP_Enter) {
+                return false;
+            }
+            Gtk.TextIter cursor;
+            editor_buffer.get_iter_at_mark(out cursor, editor_buffer.get_insert());
+            return navigate_internal_link_at_iter(cursor);
+        });
+        editor_view.add_controller(internal_link_key);
+
         ai_panel.send_requested.connect(() => {
             ai_run_controller.on_send_clicked(ai_panel.get_prompt_text());
         });
@@ -559,6 +608,97 @@ public class MainWindow : Adw.ApplicationWindow {
             card_selection.set_selected(i);
             return;
         }
+    }
+
+    private string? internal_link_target_at_iter(Gtk.TextIter iter) {
+        Gtk.TextIter line_start = iter;
+        line_start.set_line_offset(0);
+        Gtk.TextIter line_end = line_start;
+        line_end.forward_to_line_end();
+
+        var line_text = editor_buffer.get_text(line_start, line_end, false);
+        if (line_text == null || line_text.length == 0) {
+            return null;
+        }
+
+        var before_cursor = editor_buffer.get_text(line_start, iter, false);
+        var cursor_byte_offset = before_cursor.length;
+
+        try {
+            var regex = new Regex("\\[\\[([^\\]\\n]+)\\]\\]");
+            MatchInfo match_info;
+            if (!regex.match(line_text, 0, out match_info)) {
+                return null;
+            }
+            do {
+                int start_pos;
+                int end_pos;
+                match_info.fetch_pos(0, out start_pos, out end_pos);
+                if (cursor_byte_offset >= start_pos && cursor_byte_offset < end_pos) {
+                    var target = match_info.fetch(1).strip();
+                    return target.length > 0 ? target : null;
+                }
+            } while (match_info.next());
+        } catch (RegexError e) {
+            toolbox.log_debug("Internal link regex failed: %s".printf(e.message));
+        }
+        return null;
+    }
+
+    private string? resolve_internal_link_target_card_id(string target) {
+        var project_id = controller.selected_project_id();
+        if (project_id == null || target.length == 0) {
+            return null;
+        }
+
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null || card.project_id != project_id) {
+                continue;
+            }
+            if (card.card_id == target) {
+                return card.card_id;
+            }
+        }
+
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null || card.project_id != project_id) {
+                continue;
+            }
+            if (card.title == target) {
+                return card.card_id;
+            }
+        }
+
+        var lowered_target = target.down();
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null || card.project_id != project_id) {
+                continue;
+            }
+            if (card.title.down() == lowered_target) {
+                return card.card_id;
+            }
+        }
+
+        return null;
+    }
+
+    private bool navigate_internal_link_at_iter(Gtk.TextIter iter) {
+        var target = internal_link_target_at_iter(iter);
+        if (target == null) {
+            return false;
+        }
+
+        var card_id = resolve_internal_link_target_card_id(target);
+        if (card_id == null) {
+            add_toast("No card matches [[%s]] in this project.".printf(target));
+            return true;
+        }
+
+        open_card_from_flowboard(card_id);
+        return true;
     }
 
     private void show_preferences_dialog() {
