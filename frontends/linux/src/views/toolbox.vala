@@ -377,6 +377,31 @@ public class ToolboxPane : Object {
                     link_markup("card", siblings[selected_index + 1].card_id, siblings[selected_index + 1].title)
                 ));
             }
+
+            var children = new Gee.ArrayList<CardSummary>();
+            for (uint i = 0; i < card_store.get_n_items(); i++) {
+                var card = card_store.get_item(i) as CardSummary;
+                if (card == null) {
+                    continue;
+                }
+                if (card.project_id != selected_card.project_id) {
+                    continue;
+                }
+                if (normalize_parent(card.parent_card_id) == selected_card.card_id) {
+                    children.add(card);
+                }
+            }
+            if (children.size > 0) {
+                children.sort((a, b) => compare_sibling_order(a, b));
+                var child_links = new StringBuilder();
+                for (int i = 0; i < children.size; i++) {
+                    if (i > 0) {
+                        child_links.append(" ");
+                    }
+                    child_links.append(link_markup("card", children[i].card_id, children[i].title));
+                }
+                parts.add("Children: %s".printf(child_links.str));
+            }
         }
 
         var builder = new StringBuilder();
