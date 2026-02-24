@@ -911,40 +911,41 @@ public class ToolboxPane : Object {
                                             Gtk.Entry uri_entry,
                                             Gtk.Entry? label_entry,
                                             bool images_only) {
-        var chooser = new Gtk.FileChooserNative(
-            images_only ? "Choose Image" : "Choose File",
-            root_window,
-            Gtk.FileChooserAction.OPEN,
-            "Select",
-            "Cancel"
-        );
+        var dialog = new Gtk.FileDialog();
+        dialog.set_title(images_only ? "Choose Image" : "Choose File");
 
         if (images_only) {
             var image_filter = new Gtk.FileFilter();
             image_filter.add_mime_type("image/*");
-            chooser.add_filter(image_filter);
-            chooser.set_filter(image_filter);
+            var filters = new GLib.ListStore(typeof(Gtk.FileFilter));
+            filters.append(image_filter);
+            dialog.set_filters(filters);
+            dialog.set_default_filter(image_filter);
         }
 
-        chooser.response.connect((response_id) => {
-            if (response_id == Gtk.ResponseType.ACCEPT) {
-                var file = chooser.get_file();
-                if (file != null) {
-                    var uri = file.get_uri();
-                    if (uri != null && uri.length > 0) {
-                        uri_entry.set_text(uri);
-                    }
-                    if (label_entry != null && label_entry.get_text().strip().length == 0) {
-                        var basename = file.get_basename();
-                        if (basename != null && basename.length > 0) {
-                            label_entry.set_text(basename);
-                        }
+        dialog.open.begin(root_window, null, (obj, res) => {
+            try {
+                var file = dialog.open.end(res);
+                if (file == null) {
+                    return;
+                }
+                var uri = file.get_uri();
+                if (uri != null && uri.length > 0) {
+                    uri_entry.set_text(uri);
+                }
+                if (label_entry != null && label_entry.get_text().strip().length == 0) {
+                    var basename = file.get_basename();
+                    if (basename != null && basename.length > 0) {
+                        label_entry.set_text(basename);
                     }
                 }
+            } catch (Error e) {
+                // User cancellation is expected; only surface unexpected errors.
+                if (!(e is IOError.CANCELLED)) {
+                    error_reported("Failed to choose file", e.message);
+                }
             }
-            chooser.destroy();
         });
-        chooser.show();
     }
 
     private Gtk.Widget build_placeholder_tab(string message) {
