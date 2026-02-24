@@ -121,6 +121,89 @@ public class ApiClient : Object, IHolderApi {
         return parse_card_links(root);
     }
 
+    public async Gee.ArrayList<ProjectResource> list_resources(string project_id) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("project_id", project_id);
+        var root = yield request_json("GET", "/resources", null, query);
+        return parse_resources(root);
+    }
+
+    public async string create_resource(string project_id,
+                                        string kind,
+                                        string uri,
+                                        string label,
+                                        string? desc = null) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("project_id");
+        body.add_string_value(project_id);
+        body.set_member_name("kind");
+        body.add_string_value(kind);
+        body.set_member_name("uri");
+        body.add_string_value(uri);
+        body.set_member_name("label");
+        body.add_string_value(label);
+        if (desc != null) {
+            body.set_member_name("desc");
+            body.add_string_value(desc);
+        }
+        body.end_object();
+
+        var root = yield request_json("POST", "/resources", json_string_from_builder(body), null);
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for resource create response");
+        }
+        var data = root.get_object_member("data");
+        return string_member_or_empty(data, "resource_id");
+    }
+
+    public async void update_resource(string resource_id,
+                                      string? kind,
+                                      string? uri,
+                                      string? label,
+                                      string? desc,
+                                      int64 updated_at) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        if (kind != null) {
+            body.set_member_name("kind");
+            body.add_string_value(kind);
+        }
+        if (uri != null) {
+            body.set_member_name("uri");
+            body.add_string_value(uri);
+        }
+        if (label != null) {
+            body.set_member_name("label");
+            body.add_string_value(label);
+        }
+        body.set_member_name("desc");
+        if (desc == null) {
+            body.add_null_value();
+        } else {
+            body.add_string_value(desc);
+        }
+        body.set_member_name("updated_at");
+        body.add_int_value(updated_at);
+        body.end_object();
+
+        yield request_json(
+            "PATCH",
+            "/resources/%s".printf(Uri.escape_string(resource_id)),
+            json_string_from_builder(body),
+            null
+        );
+    }
+
+    public async void delete_resource(string resource_id) throws Error {
+        yield request_json(
+            "DELETE",
+            "/resources/%s".printf(Uri.escape_string(resource_id)),
+            null,
+            null
+        );
+    }
+
     public async CardLink create_card_link(string from_card_id,
                                            string to_card_id,
                                            string kind = "ref",
@@ -590,6 +673,36 @@ public class ApiClient : Object, IHolderApi {
         var data = root.get_array_member("data");
         for (uint i = 0; i < data.get_length(); i++) {
             out_list.add(parse_card_link(data.get_object_element(i)));
+        }
+        return out_list;
+    }
+
+    private Gee.ArrayList<ProjectResource> parse_resources(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for resources response");
+        }
+
+        var out_list = new Gee.ArrayList<ProjectResource>();
+        var data = root.get_array_member("data");
+        for (uint i = 0; i < data.get_length(); i++) {
+            var item = data.get_object_element(i);
+            string? desc = null;
+            if (item.has_member("desc")) {
+                var desc_node = item.get_member("desc");
+                if (desc_node != null && desc_node.get_node_type() != Json.NodeType.NULL) {
+                    desc = item.get_string_member("desc");
+                }
+            }
+            out_list.add(new ProjectResource(
+                string_member_or_empty(item, "resource_id"),
+                string_member_or_empty(item, "project_id"),
+                string_member_or_empty(item, "kind"),
+                string_member_or_empty(item, "uri"),
+                string_member_or_empty(item, "label"),
+                desc,
+                item.has_member("created_at") ? item.get_int_member("created_at") : 0,
+                item.has_member("updated_at") ? item.get_int_member("updated_at") : 0
+            ));
         }
         return out_list;
     }

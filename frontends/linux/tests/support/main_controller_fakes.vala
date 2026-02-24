@@ -151,6 +151,27 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         return new Gee.ArrayList<HolderLinux.CardLink>();
     }
 
+    public async Gee.ArrayList<HolderLinux.ProjectResource> list_resources(string project_id) throws Error {
+        return new Gee.ArrayList<HolderLinux.ProjectResource>();
+    }
+
+    public async string create_resource(string project_id,
+                                        string kind,
+                                        string uri,
+                                        string label,
+                                        string? desc = null) throws Error {
+        return "r1";
+    }
+
+    public async void update_resource(string resource_id,
+                                      string? kind,
+                                      string? uri,
+                                      string? label,
+                                      string? desc,
+                                      int64 updated_at) throws Error {}
+
+    public async void delete_resource(string resource_id) throws Error {}
+
     public async HolderLinux.CardLink create_card_link(string from_card_id,
                                                        string to_card_id,
                                                        string kind = "ref",

@@ -12,6 +12,19 @@ public interface IHolderApi : Object {
     public abstract async CardDetail get_card(string card_id) throws Error;
     public abstract async Gee.ArrayList<CardLink> list_card_links(string card_id) throws Error;
     public abstract async Gee.ArrayList<CardLink> list_card_backlinks(string card_id) throws Error;
+    public abstract async Gee.ArrayList<ProjectResource> list_resources(string project_id) throws Error;
+    public abstract async string create_resource(string project_id,
+                                                 string kind,
+                                                 string uri,
+                                                 string label,
+                                                 string? desc = null) throws Error;
+    public abstract async void update_resource(string resource_id,
+                                               string? kind,
+                                               string? uri,
+                                               string? label,
+                                               string? desc,
+                                               int64 updated_at) throws Error;
+    public abstract async void delete_resource(string resource_id) throws Error;
     public abstract async CardLink create_card_link(string from_card_id,
                                                     string to_card_id,
                                                     string kind = "ref",

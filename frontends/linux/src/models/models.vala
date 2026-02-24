@@ -110,6 +110,37 @@ public class CardLink : Object {
     }
 }
 
+public class ProjectResource : Object {
+    public string resource_id { get; construct; }
+    public string project_id { get; construct; }
+    public string kind { get; set; }
+    public string uri { get; set; }
+    public string label { get; set; }
+    public string? desc { get; set; }
+    public int64 created_at { get; construct; }
+    public int64 updated_at { get; set; }
+
+    public ProjectResource(string resource_id,
+                           string project_id,
+                           string kind,
+                           string uri,
+                           string label,
+                           string? desc,
+                           int64 created_at,
+                           int64 updated_at) {
+        Object(
+            resource_id: resource_id,
+            project_id: project_id,
+            kind: kind,
+            uri: uri,
+            label: label,
+            desc: desc,
+            created_at: created_at,
+            updated_at: updated_at
+        );
+    }
+}
+
 public class FlowboardTile : Object {
     public string node_key { get; construct; }
     public string title { get; construct; }
