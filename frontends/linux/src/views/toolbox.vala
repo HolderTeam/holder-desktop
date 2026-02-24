@@ -1,6 +1,13 @@
 namespace HolderLinux {
 
 public class ToolboxPane : Object {
+    [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
+    private static extern void gtk_style_context_add_provider_for_display(
+        Gdk.Display display,
+        Gtk.StyleProvider provider,
+        uint priority
+    );
+
     private Gtk.Label connections_card_title_label;
     private Gtk.Label connections_internal_links_label;
     private Gtk.ListBox connections_graph_outgoing_list;
@@ -36,6 +43,7 @@ public class ToolboxPane : Object {
         widget = new Gtk.Revealer();
         widget.set_transition_type(Gtk.RevealerTransitionType.SLIDE_UP);
         widget.set_reveal_child(false);
+        ensure_connections_css();
         widget.set_child(build_ui());
     }
 
@@ -852,10 +860,20 @@ public class ToolboxPane : Object {
 
             var header = new Gtk.Label(kind) { xalign = 0.0f };
             header.add_css_class("heading");
-            list.append(header);
+            var header_row = new Gtk.ListBoxRow();
+            header_row.set_activatable(false);
+            header_row.set_selectable(false);
+            header_row.add_css_class("connections-kind-row");
+            header_row.set_child(header);
+            list.append(header_row);
 
             foreach (var link in bucket) {
-                list.append(build_graph_link_row(link, outgoing));
+                var row = new Gtk.ListBoxRow();
+                row.set_activatable(false);
+                row.set_selectable(false);
+                row.add_css_class("connections-link-row");
+                row.set_child(build_graph_link_row(link, outgoing));
+                list.append(row);
             }
         }
     }
@@ -924,6 +942,31 @@ public class ToolboxPane : Object {
         row.append(actions_btn);
 
         return row;
+    }
+
+    private static void ensure_connections_css() {
+        var provider = new Gtk.CssProvider();
+        provider.load_from_string("""
+.connections-kind-row {
+  background: transparent;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.connections-kind-row:hover,
+.connections-kind-row:focus,
+.connections-kind-row:focus-within,
+.connections-kind-row:selected {
+  background: transparent;
+  background-color: transparent;
+  box-shadow: none;
+}
+""");
+        gtk_style_context_add_provider_for_display(
+            Gdk.Display.get_default(),
+            provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
     }
 
     private void open_edit_graph_link_dialog(CardLink link, bool outgoing) {
