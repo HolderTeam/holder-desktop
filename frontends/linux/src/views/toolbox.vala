@@ -60,6 +60,18 @@ public class ToolboxPane : Object {
         flowboard.background_new_card_requested.connect(() => {
             controller.request_create_card_here();
         });
+        flowboard.card_open_requested.connect((card_id) => {
+            controller.open_card_from_context_menu(card_id);
+        });
+        flowboard.card_move_up_level_requested.connect((card_id) => {
+            controller.move_card_up_level_from_context_menu(card_id);
+        });
+        flowboard.card_move_to_start_requested.connect((card_id) => {
+            controller.move_card_to_start_from_context_menu(card_id);
+        });
+        flowboard.card_move_to_end_requested.connect((card_id) => {
+            controller.move_card_to_end_from_context_menu(card_id);
+        });
         controller.move_requested.connect((card_id, parent_card_id, sort_key) => {
             flowboard_move_requested(card_id, parent_card_id, sort_key);
         });

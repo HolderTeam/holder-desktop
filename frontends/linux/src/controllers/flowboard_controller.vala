@@ -97,14 +97,59 @@ public class FlowboardController : Object {
         if (tile.card_id == null) {
             return;
         }
-        if (tile.is_container) {
-            card_open_requested(tile.card_id);
-            current_parent_card_id = tile.card_id;
-            parent_stack_ids.add(tile.card_id);
-            refresh();
+        activate_card(tile.card_id);
+    }
+
+    public void open_card_from_context_menu(string card_id) {
+        activate_card(card_id);
+    }
+
+    public void move_card_up_level_from_context_menu(string card_id) {
+        var card = find_card(card_id);
+        if (card == null) {
             return;
         }
-        card_open_requested(tile.card_id);
+        var parent_id = normalize_parent(card.parent_card_id);
+        if (parent_id == null) {
+            return;
+        }
+        var parent = find_card(parent_id);
+        string? new_parent = null;
+        if (parent != null) {
+            new_parent = normalize_parent(parent.parent_card_id);
+        }
+        var new_sort = next_sort_key_for_parent(new_parent, card_id);
+        apply_local_move(card_id, new_parent, new_sort);
+        refresh();
+        move_requested(card_id, new_parent, new_sort);
+    }
+
+    public void move_card_to_start_from_context_menu(string card_id) {
+        var card = find_card(card_id);
+        if (card == null) {
+            return;
+        }
+        var parent_id = normalize_parent(card.parent_card_id);
+        var siblings = siblings_for_parent(parent_id, card_id);
+        if (siblings.size == 0) {
+            return;
+        }
+        var new_sort = siblings[0].sort_key - 1024.0;
+        apply_local_move(card_id, parent_id, new_sort);
+        refresh();
+        move_requested(card_id, parent_id, new_sort);
+    }
+
+    public void move_card_to_end_from_context_menu(string card_id) {
+        var card = find_card(card_id);
+        if (card == null) {
+            return;
+        }
+        var parent_id = normalize_parent(card.parent_card_id);
+        var new_sort = next_sort_key_for_parent(parent_id, card_id);
+        apply_local_move(card_id, parent_id, new_sort);
+        refresh();
+        move_requested(card_id, parent_id, new_sort);
     }
 
     public void navigate_up() {
@@ -212,6 +257,8 @@ public class FlowboardController : Object {
                 is_container,
                 card.card_id,
                 null,
+                parent_card_id,
+                sorted.size,
                 child_count
             ));
         }
@@ -244,6 +291,8 @@ public class FlowboardController : Object {
                 true,
                 null,
                 project.project_id,
+                null,
+                0,
                 root_count
             ));
         }
@@ -428,6 +477,22 @@ public class FlowboardController : Object {
             card_store.insert(i, replacement);
             break;
         }
+    }
+
+    private void activate_card(string card_id) {
+        var card = find_card(card_id);
+        if (card == null) {
+            return;
+        }
+        var is_container = child_count_for_parent(card_id) > 0;
+        if (is_container) {
+            card_open_requested(card_id);
+            current_parent_card_id = card_id;
+            parent_stack_ids.add(card_id);
+            refresh();
+            return;
+        }
+        card_open_requested(card_id);
     }
 
     private void select_project(string project_id) {

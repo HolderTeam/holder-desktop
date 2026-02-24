@@ -27,6 +27,10 @@ public class FlowboardPane : Object {
     public signal void card_drop_requested(string source_card_id, string target_card_id, double target_x_fraction);
     public signal void background_drop_requested(string source_card_id);
     public signal void background_new_card_requested();
+    public signal void card_open_requested(string card_id);
+    public signal void card_move_up_level_requested(string card_id);
+    public signal void card_move_to_start_requested(string card_id);
+    public signal void card_move_to_end_requested(string card_id);
     public signal void breadcrumb_segment_activated(int index);
 
     public FlowboardPane() {
@@ -167,6 +171,8 @@ public class FlowboardPane : Object {
             } else {
                 card.set_data<string>("flowboard-card-id", "");
             }
+            card.set_data<string>("flowboard-parent-card-id", tile.parent_card_id ?? "");
+            card.set_data<int>("flowboard-sibling-count", tile.sibling_count);
         });
 
         grid_view = new Gtk.GridView(selection, factory);
@@ -337,6 +343,20 @@ public class FlowboardPane : Object {
             return true;
         });
         row_widget.add_controller(drop_target);
+
+        var context_click = new Gtk.GestureClick();
+        context_click.set_button(Gdk.BUTTON_SECONDARY);
+        context_click.pressed.connect((n_press, x, y) => {
+            if (n_press != 1) {
+                return;
+            }
+            var card_id = row_widget.get_data<string>("flowboard-card-id");
+            if (card_id == null || card_id.strip().length == 0) {
+                return;
+            }
+            show_card_menu_at(row_widget, card_id, x, y);
+        });
+        row_widget.add_controller(context_click);
     }
 
     private static void ensure_drop_css() {
@@ -463,6 +483,63 @@ public class FlowboardPane : Object {
         rect.height = 1;
         background_menu_popover.set_pointing_to(rect);
         background_menu_popover.popup();
+    }
+
+    private void show_card_menu_at(Gtk.Widget row_widget, string card_id, double x, double y) {
+        var popover = new Gtk.Popover();
+        popover.set_autohide(true);
+        popover.set_parent(row_widget);
+
+        var menu_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+
+        var open_btn = new Gtk.Button.with_label("Open");
+        open_btn.add_css_class("flat");
+        open_btn.clicked.connect(() => {
+            popover.popdown();
+            card_open_requested(card_id);
+        });
+        menu_box.append(open_btn);
+
+        var move_up_btn = new Gtk.Button.with_label("Move Up a Level");
+        move_up_btn.add_css_class("flat");
+        var parent_card_id = row_widget.get_data<string>("flowboard-parent-card-id");
+        move_up_btn.set_sensitive(parent_card_id != null && parent_card_id.strip().length > 0);
+        move_up_btn.clicked.connect(() => {
+            popover.popdown();
+            card_move_up_level_requested(card_id);
+        });
+        menu_box.append(move_up_btn);
+
+        var sibling_count = row_widget.get_data<int>("flowboard-sibling-count");
+        var can_reorder = sibling_count > 1;
+
+        var move_start_btn = new Gtk.Button.with_label("Move to Start");
+        move_start_btn.add_css_class("flat");
+        move_start_btn.set_sensitive(can_reorder);
+        move_start_btn.clicked.connect(() => {
+            popover.popdown();
+            card_move_to_start_requested(card_id);
+        });
+        menu_box.append(move_start_btn);
+
+        var move_end_btn = new Gtk.Button.with_label("Move to End");
+        move_end_btn.add_css_class("flat");
+        move_end_btn.set_sensitive(can_reorder);
+        move_end_btn.clicked.connect(() => {
+            popover.popdown();
+            card_move_to_end_requested(card_id);
+        });
+        menu_box.append(move_end_btn);
+
+        popover.set_child(menu_box);
+
+        var rect = Gdk.Rectangle();
+        rect.x = (int) x;
+        rect.y = (int) y;
+        rect.width = 1;
+        rect.height = 1;
+        popover.set_pointing_to(rect);
+        popover.popup();
     }
 }
 
