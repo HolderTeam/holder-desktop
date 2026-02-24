@@ -272,7 +272,8 @@ public class ApiClient : Object, IHolderApi {
 
     public async string create_card(string project_id,
                                     string title,
-                                    string content) throws Error {
+                                    string content,
+                                    string? parent_card_id = null) throws Error {
         var body = new Json.Builder();
         body.begin_object();
         body.set_member_name("project_id");
@@ -281,6 +282,10 @@ public class ApiClient : Object, IHolderApi {
         body.add_string_value(title);
         body.set_member_name("content");
         body.add_string_value(content);
+        if (parent_card_id != null && parent_card_id.strip().length > 0) {
+            body.set_member_name("parent_card_id");
+            body.add_string_value(parent_card_id);
+        }
         body.end_object();
 
         var root = yield request_json("POST", "/cards", json_string_from_builder(body), null);

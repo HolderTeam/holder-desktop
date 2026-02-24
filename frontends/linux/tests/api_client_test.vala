@@ -341,7 +341,7 @@ private void test_create_and_update_card_payloads() {
 
     bool done_create = false;
     string card_id = "";
-    client.create_card.begin("p1", "Title", "Body", (obj, res) => {
+    client.create_card.begin("p1", "Title", "Body", null, (obj, res) => {
         try {
             card_id = client.create_card.end(res);
         } catch (Error e) {

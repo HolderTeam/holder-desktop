@@ -28,7 +28,8 @@ public interface IHolderApi : Object {
                                              AiRunEventHandler on_event) throws Error;
     public abstract async string create_card(string project_id,
                                              string title,
-                                             string content) throws Error;
+                                             string content,
+                                             string? parent_card_id = null) throws Error;
     public abstract async void update_card(string card_id,
                                            string title,
                                            string content,

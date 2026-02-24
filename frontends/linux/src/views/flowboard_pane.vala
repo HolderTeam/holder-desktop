@@ -17,6 +17,7 @@ public class FlowboardPane : Object {
     private Gtk.Stack state_stack;
     private Gtk.MultiSelection selection;
     private Gtk.GridView grid_view;
+    private Gtk.Popover? background_menu_popover;
     private GLib.ListModel? model;
 
     public Gtk.Widget widget { get; private set; }
@@ -25,6 +26,7 @@ public class FlowboardPane : Object {
     public signal void navigate_up_requested();
     public signal void card_drop_requested(string source_card_id, string target_card_id, double target_x_fraction);
     public signal void background_drop_requested(string source_card_id);
+    public signal void background_new_card_requested();
     public signal void breadcrumb_segment_activated(int index);
 
     public FlowboardPane() {
@@ -212,6 +214,21 @@ public class FlowboardPane : Object {
             grid_view.set_enable_rubberband(true);
         });
         grid_view.add_controller(pointer_click);
+
+        var context_click = new Gtk.GestureClick();
+        context_click.set_button(Gdk.BUTTON_SECONDARY);
+        context_click.pressed.connect((n_press, x, y) => {
+            if (n_press != 1) {
+                return;
+            }
+            var picked = grid_view.pick(x, y, Gtk.PickFlags.DEFAULT);
+            var background_press = (picked == null || picked == grid_view);
+            if (!background_press) {
+                return;
+            }
+            show_background_menu_at(x, y);
+        });
+        grid_view.add_controller(context_click);
 
         var grid_drop = new Gtk.DropTarget(typeof(string), Gdk.DragAction.MOVE);
         grid_drop.enter.connect((x, y) => {
@@ -421,6 +438,31 @@ public class FlowboardPane : Object {
             box.remove(child);
             child = next;
         }
+    }
+
+    private void show_background_menu_at(double x, double y) {
+        if (background_menu_popover == null) {
+            var popover = new Gtk.Popover();
+            popover.set_autohide(true);
+            var menu_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+            var new_card_button = new Gtk.Button.with_label("New Card");
+            new_card_button.add_css_class("flat");
+            new_card_button.clicked.connect(() => {
+                popover.popdown();
+                background_new_card_requested();
+            });
+            menu_box.append(new_card_button);
+            popover.set_child(menu_box);
+            popover.set_parent(grid_view);
+            background_menu_popover = popover;
+        }
+        var rect = Gdk.Rectangle();
+        rect.x = (int) x;
+        rect.y = (int) y;
+        rect.width = 1;
+        rect.height = 1;
+        background_menu_popover.set_pointing_to(rect);
+        background_menu_popover.popup();
     }
 }
 

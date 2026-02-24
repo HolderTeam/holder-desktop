@@ -14,6 +14,7 @@ public class FlowboardController : Object {
     public signal void empty_message_changed(string text);
     public signal void card_open_requested(string card_id);
     public signal void move_requested(string card_id, string? parent_card_id, double sort_key);
+    public signal void create_card_requested(string? parent_card_id);
     public signal void toast_requested(string message);
 
     public FlowboardController(GLib.ListStore project_store,
@@ -188,6 +189,13 @@ public class FlowboardController : Object {
         apply_local_move(source.card_id, new_parent, new_sort);
         refresh();
         move_requested(source.card_id, new_parent, new_sort);
+    }
+
+    public void request_create_card_here() {
+        if (showing_projects || current_project_id == null) {
+            return;
+        }
+        create_card_requested(current_parent_card_id);
     }
 
     private void replace_visible_for_parent(string? parent_card_id) {

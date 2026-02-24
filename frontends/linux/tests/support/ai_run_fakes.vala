@@ -139,7 +139,8 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     }
     public async string create_card(string project_id,
                                     string title,
-                                    string content) throws Error {
+                                    string content,
+                                    string? parent_card_id = null) throws Error {
         return "c1";
     }
     public async void update_card(string card_id,

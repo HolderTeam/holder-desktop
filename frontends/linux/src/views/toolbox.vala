@@ -17,6 +17,7 @@ public class ToolboxPane : Object {
     public signal void toast_requested(string message);
     public signal void flowboard_card_open_requested(string card_id);
     public signal void flowboard_move_requested(string card_id, string? parent_card_id, double sort_key);
+    public signal void flowboard_new_card_requested(string? parent_card_id);
 
     public ToolboxPane() {
         widget = new Gtk.Revealer();
@@ -56,8 +57,14 @@ public class ToolboxPane : Object {
         flowboard.background_drop_requested.connect((source_card_id) => {
             controller.on_background_drop(source_card_id);
         });
+        flowboard.background_new_card_requested.connect(() => {
+            controller.request_create_card_here();
+        });
         controller.move_requested.connect((card_id, parent_card_id, sort_key) => {
             flowboard_move_requested(card_id, parent_card_id, sort_key);
+        });
+        controller.create_card_requested.connect((parent_card_id) => {
+            flowboard_new_card_requested(parent_card_id);
         });
         controller.toast_requested.connect((message) => {
             toast_requested(message);

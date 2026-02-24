@@ -202,7 +202,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
 
     public async string create_card(string project_id,
                                     string title,
-                                    string content) throws Error {
+                                    string content,
+                                    string? parent_card_id = null) throws Error {
         if (fail_create_card) {
             throw new IOError.FAILED("create card failed");
         }

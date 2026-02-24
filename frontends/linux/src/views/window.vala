@@ -298,6 +298,9 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.flowboard_move_requested.connect((card_id, parent_card_id, sort_key) => {
             controller.move_card.begin(card_id, parent_card_id, sort_key);
         });
+        toolbox.flowboard_new_card_requested.connect((parent_card_id) => {
+            controller.create_card.begin(parent_card_id);
+        });
         toolbox.bind_flowboard_controller(flowboard_controller);
         card_store.items_changed.connect((position, removed, added) => {
             flowboard_controller.refresh();

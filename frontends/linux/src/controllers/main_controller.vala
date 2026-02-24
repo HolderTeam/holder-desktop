@@ -200,7 +200,7 @@ public class MainController : Object, IAiRunContext {
         ai_thread_title_changed(selected.title);
     }
 
-    public async void create_card() {
+    public async void create_card(string? parent_card_id = null) {
         if (create_card_in_flight) {
             status_changed("Create card already in progress...");
             return;
@@ -224,7 +224,12 @@ public class MainController : Object, IAiRunContext {
         create_card_in_flight = true;
         status_changed("Creating new card...");
         try {
-            var new_id = yield api.create_card(current_project.project_id, "Untitled", "# Untitled\n\n");
+            var new_id = yield api.create_card(
+                current_project.project_id,
+                "Untitled",
+                "# Untitled\n\n",
+                parent_card_id
+            );
             var cards = yield api.list_cards(current_project.project_id, "all", null);
             replace_cards(cards);
 
