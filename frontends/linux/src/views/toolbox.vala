@@ -324,10 +324,6 @@ public class ToolboxPane : Object {
         graph_scroller.set_hexpand(true);
         graph_scroller.set_vexpand(true);
         graph_scroller.set_child(graph_column);
-        columns.append(graph_scroller);
-
-        var divider = new Gtk.Separator(Gtk.Orientation.VERTICAL);
-        columns.append(divider);
 
         var context_scroller = new Gtk.ScrolledWindow();
         context_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC);
@@ -335,6 +331,12 @@ public class ToolboxPane : Object {
         context_scroller.set_hexpand(false);
         context_scroller.set_vexpand(true);
         context_scroller.set_child(context_column);
+        columns.append(context_scroller);
+
+        var divider = new Gtk.Separator(Gtk.Orientation.VERTICAL);
+        columns.append(divider);
+
+        columns.append(graph_scroller);
         columns.append(context_scroller);
 
         connections_card_title_label = new Gtk.Label("No card selected") { xalign = 0.0f };
@@ -472,11 +474,10 @@ public class ToolboxPane : Object {
 
     private string compact_structure_markup(Project? project, CardSummary? selected_card) {
         var lines = new Gee.ArrayList<string>();
-        var project_parts = new Gee.ArrayList<string>();
         if (project != null) {
-            project_parts.add("Project: %s".printf(link_markup("project", project.project_id, project.name)));
+            lines.add("Project: %s".printf(link_markup("project", project.project_id, project.name)));
         } else {
-            project_parts.add("Project: None");
+            lines.add("Project: None");
         }
 
         if (selected_card != null && card_store != null) {
@@ -485,15 +486,16 @@ public class ToolboxPane : Object {
                 for (uint i = 0; i < card_store.get_n_items(); i++) {
                     var maybe_parent = card_store.get_item(i) as CardSummary;
                     if (maybe_parent != null && maybe_parent.card_id == parent_id) {
-                        project_parts.add(
-                            "Parent: %s".printf(link_markup("card", maybe_parent.card_id, maybe_parent.title))
+                        lines.add(
+                            "Parent: %s".printf(
+                                link_markup("card", maybe_parent.card_id, maybe_parent.title)
+                            )
                         );
                         break;
                     }
                 }
             }
         }
-        lines.add(string.joinv("   ", project_parts.to_array()));
 
         if (selected_card != null && card_store != null) {
             var siblings = new Gee.ArrayList<CardSummary>();
