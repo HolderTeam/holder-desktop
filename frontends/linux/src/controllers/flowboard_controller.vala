@@ -122,6 +122,8 @@ public class FlowboardController : Object {
         apply_local_move(card_id, new_parent, new_sort);
         refresh();
         move_requested(card_id, new_parent, new_sort);
+        var destination = destination_label_for_parent(new_parent);
+        toast_requested("Moved %s into %s".printf(card.title, destination));
     }
 
     public void move_card_to_start_from_context_menu(string card_id) {
@@ -493,6 +495,21 @@ public class FlowboardController : Object {
             return;
         }
         card_open_requested(card_id);
+    }
+
+    private string destination_label_for_parent(string? parent_card_id) {
+        var normalized = normalize_parent(parent_card_id);
+        if (normalized != null) {
+            var parent_card = find_card(normalized);
+            if (parent_card != null) {
+                return parent_card.title;
+            }
+        }
+        var selected_project = project_selection.get_selected_item() as Project;
+        if (selected_project != null) {
+            return selected_project.name;
+        }
+        return "project";
     }
 
     private void select_project(string project_id) {
