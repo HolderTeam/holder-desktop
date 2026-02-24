@@ -237,6 +237,30 @@ private void test_create_card_link_posts_payload_and_parses_response() {
     assert(transport.last_content_type == "application/json");
 }
 
+private void test_delete_card_link_sends_delete_payload() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool ok = false;
+    client.delete_card_link.begin("c1", "c2", "depends_on", "card", (obj, res) => {
+        try {
+            client.delete_card_link.end(res);
+            ok = true;
+        } catch (Error e) {
+            ok = false;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(ok);
+    assert(transport.last_method == "DELETE");
+    assert(transport.last_uri.has_suffix("/cards/c1/links"));
+    assert(transport.last_content_type == "application/json");
+}
+
 private void test_search_cards_parses_results() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -1030,6 +1054,8 @@ int main(string[] args) {
                   test_list_card_links_and_backlinks_parse_data);
     Test.add_func("/api_client/create_card_link_posts_payload_and_parses_response",
                   test_create_card_link_posts_payload_and_parses_response);
+    Test.add_func("/api_client/delete_card_link_sends_delete_payload",
+                  test_delete_card_link_sends_delete_payload);
     Test.add_func("/api_client/search_cards_parses_results", test_search_cards_parses_results);
     Test.add_func("/api_client/get_ai_capabilities_parses_nested_data",
                   test_get_ai_capabilities_parses_nested_data);

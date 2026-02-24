@@ -156,6 +156,32 @@ public class ApiClient : Object, IHolderApi {
         return parse_card_link(root.get_object_member("data"));
     }
 
+    public async void delete_card_link(string from_card_id,
+                                       string to_card_id,
+                                       string kind,
+                                       string to_type = "card") throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("to_card_id");
+        body.add_string_value(to_card_id);
+        if (to_type != null && to_type.length > 0) {
+            body.set_member_name("to_type");
+            body.add_string_value(to_type);
+        }
+        if (kind != null && kind.strip().length > 0) {
+            body.set_member_name("kind");
+            body.add_string_value(kind.strip());
+        }
+        body.end_object();
+
+        yield request_json(
+            "DELETE",
+            "/cards/%s/links".printf(Uri.escape_string(from_card_id)),
+            json_string_from_builder(body),
+            null
+        );
+    }
+
     public async Gee.ArrayList<SearchCardResult> search_cards(string project_id,
                                                               string query_text,
                                                               int limit = 30) throws Error {

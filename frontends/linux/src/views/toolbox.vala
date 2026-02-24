@@ -3,8 +3,10 @@ namespace HolderLinux {
 public class ToolboxPane : Object {
     private Gtk.Label connections_card_title_label;
     private Gtk.Label connections_internal_links_label;
-    private Gtk.Label connections_graph_outgoing_label;
-    private Gtk.Label connections_graph_backlinks_label;
+    private Gtk.ListBox connections_graph_outgoing_list;
+    private Gtk.ListBox connections_graph_backlinks_list;
+    private Gtk.Label connections_graph_outgoing_empty_label;
+    private Gtk.Label connections_graph_backlinks_empty_label;
     private Gtk.Button connections_add_graph_link_btn;
     private Gtk.TextBuffer debug_buffer;
     private Gtk.TextView debug_view;
@@ -329,28 +331,30 @@ public class ToolboxPane : Object {
         var outgoing_title = new Gtk.Label("Outgoing") { xalign = 0.0f };
         outgoing_title.add_css_class("heading");
         box.append(outgoing_title);
-        connections_graph_outgoing_label = new Gtk.Label("") { xalign = 0.0f };
-        connections_graph_outgoing_label.set_use_markup(true);
-        connections_graph_outgoing_label.set_wrap(true);
-        connections_graph_outgoing_label.activate_link.connect((uri) => {
-            return on_connections_link_activated(uri);
-        });
-        box.append(connections_graph_outgoing_label);
+        connections_graph_outgoing_empty_label = new Gtk.Label("Select a card to view graph links.") { xalign = 0.0f };
+        connections_graph_outgoing_empty_label.add_css_class("dim-label");
+        connections_graph_outgoing_empty_label.set_wrap(true);
+        box.append(connections_graph_outgoing_empty_label);
+        connections_graph_outgoing_list = new Gtk.ListBox();
+        connections_graph_outgoing_list.set_selection_mode(Gtk.SelectionMode.NONE);
+        box.append(connections_graph_outgoing_list);
 
         var backlinks_title = new Gtk.Label("Backlinks") { xalign = 0.0f };
         backlinks_title.add_css_class("heading");
         box.append(backlinks_title);
-        connections_graph_backlinks_label = new Gtk.Label("") { xalign = 0.0f };
-        connections_graph_backlinks_label.set_use_markup(true);
-        connections_graph_backlinks_label.set_wrap(true);
-        connections_graph_backlinks_label.activate_link.connect((uri) => {
-            return on_connections_link_activated(uri);
-        });
-        box.append(connections_graph_backlinks_label);
+        connections_graph_backlinks_empty_label = new Gtk.Label("Select a card to view graph links.") { xalign = 0.0f };
+        connections_graph_backlinks_empty_label.add_css_class("dim-label");
+        connections_graph_backlinks_empty_label.set_wrap(true);
+        box.append(connections_graph_backlinks_empty_label);
+        connections_graph_backlinks_list = new Gtk.ListBox();
+        connections_graph_backlinks_list.set_selection_mode(Gtk.SelectionMode.NONE);
+        box.append(connections_graph_backlinks_list);
 
         refresh_connections_structure();
-        set_graph_labels("<span alpha=\"70%\">Select a card to view graph links.</span>",
-                         "<span alpha=\"70%\">Select a card to view graph links.</span>");
+        set_graph_empty_state(
+            "Select a card to view graph links.",
+            "Select a card to view graph links."
+        );
         return box;
     }
 
@@ -504,12 +508,16 @@ public class ToolboxPane : Object {
         );
     }
 
-    private void set_graph_labels(string outgoing_markup, string backlinks_markup) {
-        if (connections_graph_outgoing_label != null) {
-            connections_graph_outgoing_label.set_markup(outgoing_markup);
+    private void set_graph_empty_state(string outgoing_text, string backlinks_text) {
+        clear_list_box(connections_graph_outgoing_list);
+        clear_list_box(connections_graph_backlinks_list);
+        if (connections_graph_outgoing_empty_label != null) {
+            connections_graph_outgoing_empty_label.set_text(outgoing_text);
+            connections_graph_outgoing_empty_label.set_visible(true);
         }
-        if (connections_graph_backlinks_label != null) {
-            connections_graph_backlinks_label.set_markup(backlinks_markup);
+        if (connections_graph_backlinks_empty_label != null) {
+            connections_graph_backlinks_empty_label.set_text(backlinks_text);
+            connections_graph_backlinks_empty_label.set_visible(true);
         }
         update_add_graph_link_button_state();
     }
@@ -743,13 +751,13 @@ public class ToolboxPane : Object {
     }
 
     private async void refresh_connections_graph(uint request_serial) {
-        if (connections_graph_outgoing_label == null || connections_graph_backlinks_label == null) {
+        if (connections_graph_outgoing_list == null || connections_graph_backlinks_list == null) {
             return;
         }
         if (api == null) {
-            set_graph_labels(
-                "<span alpha=\"70%\">API unavailable.</span>",
-                "<span alpha=\"70%\">API unavailable.</span>"
+            set_graph_empty_state(
+                "API unavailable.",
+                "API unavailable."
             );
             return;
         }
@@ -757,9 +765,9 @@ public class ToolboxPane : Object {
             ? card_selection.get_selected_item() as CardSummary
             : null;
         if (selected_card == null) {
-            set_graph_labels(
-                "<span alpha=\"70%\">Select a card to view graph links.</span>",
-                "<span alpha=\"70%\">Select a card to view graph links.</span>"
+            set_graph_empty_state(
+                "Select a card to view graph links.",
+                "Select a card to view graph links."
             );
             return;
         }
@@ -779,17 +787,16 @@ public class ToolboxPane : Object {
                 return;
             }
 
-            set_graph_labels(
-                format_graph_links_markup(outgoing, true),
-                format_graph_links_markup(backlinks, false)
-            );
+            populate_graph_rows(outgoing, true);
+            populate_graph_rows(backlinks, false);
+            update_add_graph_link_button_state();
         } catch (Error e) {
             if (request_serial != connections_graph_refresh_serial) {
                 return;
             }
-            set_graph_labels(
-                "<span alpha=\"70%\">Failed to load outgoing links.</span>",
-                "<span alpha=\"70%\">Failed to load backlinks.</span>"
+            set_graph_empty_state(
+                "Failed to load outgoing links.",
+                "Failed to load backlinks."
             );
             log_debug("Graph links refresh failed: %s".printf(e.message));
         }
@@ -808,9 +815,20 @@ public class ToolboxPane : Object {
         return card_id;
     }
 
-    private string format_graph_links_markup(Gee.ArrayList<CardLink> links, bool outgoing) {
+    private void populate_graph_rows(Gee.ArrayList<CardLink> links, bool outgoing) {
+        var list = outgoing ? connections_graph_outgoing_list : connections_graph_backlinks_list;
+        var empty = outgoing ? connections_graph_outgoing_empty_label : connections_graph_backlinks_empty_label;
+        clear_list_box(list);
+
         if (links.size == 0) {
-            return "<span alpha=\"70%\">None yet.</span>";
+            if (empty != null) {
+                empty.set_text("None yet.");
+                empty.set_visible(true);
+            }
+            return;
+        }
+        if (empty != null) {
+            empty.set_visible(false);
         }
 
         var grouped = new Gee.HashMap<string, Gee.ArrayList<CardLink>>();
@@ -826,40 +844,220 @@ public class ToolboxPane : Object {
             bucket.add(link);
         }
 
-        var builder = new StringBuilder();
-        bool first_group = true;
         foreach (var kind in kind_order) {
             var bucket = grouped.get(kind);
             if (bucket == null) {
                 continue;
             }
-            if (!first_group) {
-                builder.append("\n");
-            }
-            first_group = false;
-            builder.append("<b>%s</b>\n".printf(Markup.escape_text(kind)));
+
+            var header = new Gtk.Label(kind) { xalign = 0.0f };
+            header.add_css_class("heading");
+            list.append(header);
+
             foreach (var link in bucket) {
-                var target_id = outgoing ? link.to_card_id : link.from_card_id;
-                var target_type = outgoing ? link.to_type : "card";
-                var direction = outgoing ? "→" : "←";
-
-                string target_markup;
-                if (target_type == "card") {
-                    target_markup = link_markup("card", target_id, title_for_card_id(target_id));
-                } else {
-                    target_markup = Markup.escape_text("%s:%s".printf(target_type, target_id));
-                }
-
-                builder.append("• %s %s".printf(direction, target_markup));
-                if (link.label != null && link.label.strip().length > 0) {
-                    builder.append(" <span alpha=\"70%\">(%s)</span>".printf(
-                        Markup.escape_text(link.label.strip())
-                    ));
-                }
-                builder.append("\n");
+                list.append(build_graph_link_row(link, outgoing));
             }
         }
-        return builder.str.strip();
+    }
+
+    private Gtk.Widget build_graph_link_row(CardLink link, bool outgoing) {
+        var row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var target_id = outgoing ? link.to_card_id : link.from_card_id;
+        var target_type = outgoing ? link.to_type : "card";
+        var direction = outgoing ? "→" : "←";
+
+        var kind_badge = new Gtk.Label(link.kind.length > 0 ? link.kind : "ref") { xalign = 0.0f };
+        kind_badge.add_css_class("caption");
+        kind_badge.add_css_class("dim-label");
+        row.append(kind_badge);
+
+        var arrow_label = new Gtk.Label(direction) { xalign = 0.0f };
+        row.append(arrow_label);
+
+        Gtk.Widget target_widget;
+        if (target_type == "card") {
+            var target_btn = new Gtk.Button.with_label(title_for_card_id(target_id));
+            target_btn.add_css_class("flat");
+            target_btn.clicked.connect(() => {
+                select_card_by_id(target_id);
+            });
+            target_widget = target_btn;
+        } else {
+            target_widget = new Gtk.Label("%s:%s".printf(target_type, target_id)) { xalign = 0.0f };
+        }
+        target_widget.set_hexpand(true);
+        target_widget.set_halign(Gtk.Align.START);
+        row.append(target_widget);
+
+        if (link.label != null && link.label.strip().length > 0) {
+            var label = new Gtk.Label(link.label.strip()) { xalign = 0.0f };
+            label.add_css_class("caption");
+            label.add_css_class("dim-label");
+            row.append(label);
+        }
+
+        var actions_btn = new Gtk.MenuButton();
+        actions_btn.set_icon_name("open-menu-symbolic");
+        actions_btn.add_css_class("flat");
+        var popover = new Gtk.Popover();
+        var actions_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
+        actions_box.set_margin_top(6);
+        actions_box.set_margin_bottom(6);
+        actions_box.set_margin_start(6);
+        actions_box.set_margin_end(6);
+        var edit_btn = new Gtk.Button.with_label("Edit");
+        edit_btn.add_css_class("flat");
+        edit_btn.clicked.connect(() => {
+            popover.popdown();
+            open_edit_graph_link_dialog(link, outgoing);
+        });
+        var delete_btn = new Gtk.Button.with_label("Delete");
+        delete_btn.add_css_class("flat");
+        delete_btn.clicked.connect(() => {
+            popover.popdown();
+            delete_graph_link.begin(link);
+        });
+        actions_box.append(edit_btn);
+        actions_box.append(delete_btn);
+        popover.set_child(actions_box);
+        actions_btn.set_popover(popover);
+        row.append(actions_btn);
+
+        return row;
+    }
+
+    private void open_edit_graph_link_dialog(CardLink link, bool outgoing) {
+        var root = widget.get_root() as Gtk.Window;
+        if (root == null) {
+            return;
+        }
+        var target_id = outgoing ? link.to_card_id : link.from_card_id;
+        var target_title = title_for_card_id(target_id);
+
+        var dialog = new Adw.MessageDialog(root, "Edit Graph Link", "Update kind or label.");
+        dialog.add_response("cancel", "Cancel");
+        dialog.add_response("save", "Save");
+        dialog.set_response_appearance("save", Adw.ResponseAppearance.SUGGESTED);
+        dialog.set_default_response("save");
+        dialog.set_close_response("cancel");
+
+        var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
+        content.append(new Gtk.Label("Target") { xalign = 0.0f });
+        content.append(new Gtk.Label(target_title) { xalign = 0.0f });
+
+        content.append(new Gtk.Label("Kind") { xalign = 0.0f });
+        var kind_options = new Gtk.StringList(null);
+        var available_kinds = list_available_link_kinds();
+        foreach (var kind_option in available_kinds) {
+            kind_options.append(kind_option);
+        }
+        kind_options.append("custom");
+        var kind_dropdown = new Gtk.DropDown(kind_options, null);
+        var custom_kind_entry = new Gtk.Entry();
+        custom_kind_entry.set_placeholder_text("custom kind");
+        custom_kind_entry.set_visible(false);
+
+        int selected_index = -1;
+        for (uint i = 0; i < kind_options.get_n_items(); i++) {
+            if (kind_options.get_string(i) == link.kind) {
+                selected_index = (int) i;
+                break;
+            }
+        }
+        if (selected_index >= 0) {
+            kind_dropdown.set_selected((uint) selected_index);
+        } else {
+            kind_dropdown.set_selected(kind_options.get_n_items() - 1);
+            custom_kind_entry.set_text(link.kind);
+            custom_kind_entry.set_visible(true);
+        }
+
+        kind_dropdown.notify["selected"].connect(() => {
+            var selected = kind_dropdown.get_selected();
+            var is_custom = (selected == kind_options.get_n_items() - 1);
+            custom_kind_entry.set_visible(is_custom);
+            if (!is_custom) {
+                custom_kind_entry.set_text("");
+            }
+        });
+        var kind_row = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        kind_row.append(kind_dropdown);
+        kind_row.append(custom_kind_entry);
+        content.append(kind_row);
+
+        content.append(new Gtk.Label("Label (optional)") { xalign = 0.0f });
+        var label_entry = new Gtk.Entry();
+        if (link.label != null) {
+            label_entry.set_text(link.label);
+        }
+        content.append(label_entry);
+
+        dialog.set_extra_child(content);
+        dialog.response.connect((response) => {
+            if (response == "save") {
+                var custom_index = (int) kind_options.get_n_items() - 1;
+                var picked_index = (int) kind_dropdown.get_selected();
+                string new_kind = "ref";
+                bool remember_kind = false;
+                if (picked_index >= 0 && picked_index < custom_index) {
+                    var chosen = kind_options.get_string((uint) picked_index);
+                    if (chosen != null && chosen.length > 0) {
+                        new_kind = chosen;
+                    }
+                } else {
+                    var custom_kind = custom_kind_entry.get_text().strip();
+                    new_kind = custom_kind.length > 0 ? custom_kind : "ref";
+                    remember_kind = custom_kind.length > 0;
+                }
+                var new_label = label_entry.get_text().strip();
+                update_graph_link.begin(
+                    link,
+                    new_kind,
+                    new_label.length > 0 ? new_label : null,
+                    remember_kind
+                );
+            }
+            dialog.close();
+        });
+        dialog.present();
+    }
+
+    private async void update_graph_link(CardLink old_link,
+                                         string new_kind,
+                                         string? new_label,
+                                         bool remember_kind) {
+        if (api == null) {
+            return;
+        }
+        try {
+            var kind_changed = old_link.kind != new_kind;
+            if (kind_changed) {
+                yield api.create_card_link(old_link.from_card_id, old_link.to_card_id, new_kind, new_label, old_link.to_type);
+                yield api.delete_card_link(old_link.from_card_id, old_link.to_card_id, old_link.kind, old_link.to_type);
+            } else {
+                yield api.create_card_link(old_link.from_card_id, old_link.to_card_id, new_kind, new_label, old_link.to_type);
+            }
+            if (remember_kind) {
+                remember_custom_link_kind(new_kind);
+            }
+            toast_requested("Graph link updated.");
+            queue_connections_graph_refresh();
+        } catch (Error e) {
+            error_reported("Failed to edit graph link", e.message);
+        }
+    }
+
+    private async void delete_graph_link(CardLink link) {
+        if (api == null) {
+            return;
+        }
+        try {
+            yield api.delete_card_link(link.from_card_id, link.to_card_id, link.kind, link.to_type);
+            toast_requested("Graph link deleted.");
+            queue_connections_graph_refresh();
+        } catch (Error e) {
+            error_reported("Failed to delete graph link", e.message);
+        }
     }
 
     private bool on_connections_link_activated(string uri) {

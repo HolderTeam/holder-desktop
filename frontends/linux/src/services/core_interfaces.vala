@@ -17,6 +17,10 @@ public interface IHolderApi : Object {
                                                     string kind = "ref",
                                                     string? label = null,
                                                     string to_type = "card") throws Error;
+    public abstract async void delete_card_link(string from_card_id,
+                                                string to_card_id,
+                                                string kind,
+                                                string to_type = "card") throws Error;
     public abstract async Gee.ArrayList<SearchCardResult> search_cards(string project_id,
                                                                        string query_text,
                                                                        int limit = 30) throws Error;
