@@ -67,7 +67,9 @@ public class FlowboardController : Object {
             showing_projects = false;
         }
 
-        if (current_parent_card_id != null && find_card(current_parent_card_id) == null) {
+        if (current_parent_card_id != null
+            && card_store.get_n_items() > 0
+            && find_card(current_parent_card_id) == null) {
             current_parent_card_id = null;
             parent_stack_ids.clear();
         }

@@ -33,6 +33,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private AiRunController ai_run_controller;
     private FlowboardController flowboard_controller;
     private Settings? settings;
+    private uint flowboard_refresh_idle_id = 0;
 
     private bool suppress_editor_events = false;
 
@@ -303,7 +304,7 @@ public class MainWindow : Adw.ApplicationWindow {
         });
         toolbox.bind_flowboard_controller(flowboard_controller);
         card_store.items_changed.connect((position, removed, added) => {
-            flowboard_controller.refresh();
+            queue_flowboard_refresh();
         });
 
         close_request.connect(() => {
@@ -316,6 +317,17 @@ public class MainWindow : Adw.ApplicationWindow {
         }
 
         controller.bootstrap.begin();
+    }
+
+    private void queue_flowboard_refresh() {
+        if (flowboard_refresh_idle_id != 0) {
+            return;
+        }
+        flowboard_refresh_idle_id = Idle.add(() => {
+            flowboard_refresh_idle_id = 0;
+            flowboard_controller.refresh();
+            return Source.REMOVE;
+        });
     }
 
     private static void resolve_startup_window_state(
