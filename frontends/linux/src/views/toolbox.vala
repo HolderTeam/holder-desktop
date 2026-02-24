@@ -1,6 +1,10 @@
 namespace HolderLinux {
 
 public class ToolboxPane : Object {
+    private const int GRAPH_BLOCK_MARGIN_START = 0;
+    private const int GRAPH_ACTION_COL_WIDTH = 24;
+    private const int GRAPH_CONTENT_GAP = 14;
+    private const int GRAPH_TEXT_START = GRAPH_BLOCK_MARGIN_START + GRAPH_ACTION_COL_WIDTH + GRAPH_CONTENT_GAP;
     [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
     private static extern void gtk_style_context_add_provider_for_display(
         Gdk.Display display,
@@ -301,10 +305,12 @@ public class ToolboxPane : Object {
         var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
         connections_card_title_label = new Gtk.Label("No card selected") { xalign = 0.0f };
         connections_card_title_label.add_css_class("title-5");
+        connections_card_title_label.set_margin_start(GRAPH_TEXT_START);
         connections_structure_label = new Gtk.Label("") { xalign = 0.0f };
         connections_structure_label.set_wrap(true);
         connections_structure_label.set_use_markup(true);
         connections_structure_label.add_css_class("dim-label");
+        connections_structure_label.set_margin_start(GRAPH_TEXT_START);
         connections_structure_label.activate_link.connect((uri) => {
             return on_connections_link_activated(uri);
         });
@@ -312,6 +318,7 @@ public class ToolboxPane : Object {
         connections_internal_links_label.add_css_class("dim-label");
         connections_internal_links_label.set_wrap(true);
         connections_internal_links_label.set_use_markup(true);
+        connections_internal_links_label.set_margin_start(GRAPH_TEXT_START);
         connections_internal_links_label.activate_link.connect((uri) => {
             return on_connections_link_activated(uri);
         });
@@ -325,6 +332,7 @@ public class ToolboxPane : Object {
         var graph_header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         var graph_title = new Gtk.Label("Graph Connections") { xalign = 0.0f };
         graph_title.add_css_class("title-5");
+        graph_title.set_margin_start(GRAPH_TEXT_START);
         graph_title.set_hexpand(true);
         connections_add_graph_link_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
         connections_add_graph_link_btn.set_tooltip_text("Add graph link");
@@ -338,10 +346,12 @@ public class ToolboxPane : Object {
 
         var outgoing_title = new Gtk.Label("Outgoing") { xalign = 0.0f };
         outgoing_title.add_css_class("heading");
+        outgoing_title.set_margin_start(GRAPH_TEXT_START);
         box.append(outgoing_title);
         connections_graph_outgoing_empty_label = new Gtk.Label("Select a card to view graph links.") { xalign = 0.0f };
         connections_graph_outgoing_empty_label.add_css_class("dim-label");
         connections_graph_outgoing_empty_label.set_wrap(true);
+        connections_graph_outgoing_empty_label.set_margin_start(GRAPH_TEXT_START);
         box.append(connections_graph_outgoing_empty_label);
         connections_graph_outgoing_list = new Gtk.ListBox();
         connections_graph_outgoing_list.set_selection_mode(Gtk.SelectionMode.NONE);
@@ -350,10 +360,12 @@ public class ToolboxPane : Object {
 
         var backlinks_title = new Gtk.Label("Backlinks") { xalign = 0.0f };
         backlinks_title.add_css_class("heading");
+        backlinks_title.set_margin_start(GRAPH_TEXT_START);
         box.append(backlinks_title);
         connections_graph_backlinks_empty_label = new Gtk.Label("Select a card to view graph links.") { xalign = 0.0f };
         connections_graph_backlinks_empty_label.add_css_class("dim-label");
         connections_graph_backlinks_empty_label.set_wrap(true);
+        connections_graph_backlinks_empty_label.set_margin_start(GRAPH_TEXT_START);
         box.append(connections_graph_backlinks_empty_label);
         connections_graph_backlinks_list = new Gtk.ListBox();
         connections_graph_backlinks_list.set_selection_mode(Gtk.SelectionMode.NONE);
@@ -860,66 +872,58 @@ public class ToolboxPane : Object {
                 continue;
             }
 
-            var header = new Gtk.Label(kind) { xalign = 0.0f };
-            header.add_css_class("heading");
             var header_row = new Gtk.ListBoxRow();
             header_row.set_activatable(false);
             header_row.set_selectable(false);
             header_row.add_css_class("connections-kind-row");
-            header_row.set_child(header);
+            header_row.set_child(build_graph_kind_header_row(kind));
             list.append(header_row);
 
-            foreach (var link in bucket) {
+            for (int i = 0; i < bucket.size; i++) {
                 var row = new Gtk.ListBoxRow();
                 row.set_activatable(false);
                 row.set_selectable(false);
                 row.add_css_class("connections-link-row");
-                row.set_child(build_graph_link_row(link, outgoing));
+                row.set_child(build_graph_link_row(bucket[i], outgoing));
                 list.append(row);
             }
         }
     }
 
+    private Gtk.Widget build_graph_kind_header_row(string kind) {
+        var row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        row.set_margin_start(GRAPH_BLOCK_MARGIN_START);
+
+        var gutter = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        gutter.set_size_request(GRAPH_ACTION_COL_WIDTH, -1);
+        row.append(gutter);
+
+        var content = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        content.set_margin_start(GRAPH_CONTENT_GAP);
+        content.set_hexpand(true);
+        var kind_label = new Gtk.Label(kind) { xalign = 0.0f };
+        kind_label.add_css_class("heading");
+        content.append(kind_label);
+        row.append(content);
+        return row;
+    }
+
     private Gtk.Widget build_graph_link_row(CardLink link, bool outgoing) {
-        var row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        row.set_margin_start(GRAPH_BLOCK_MARGIN_START);
         var target_id = outgoing ? link.to_card_id : link.from_card_id;
         var target_type = outgoing ? link.to_type : "card";
         var direction = outgoing ? "→" : "←";
 
-        var kind_badge = new Gtk.Label(link.kind.length > 0 ? link.kind : "ref") { xalign = 0.0f };
-        kind_badge.add_css_class("caption");
-        kind_badge.add_css_class("dim-label");
-        row.append(kind_badge);
-
-        var arrow_label = new Gtk.Label(direction) { xalign = 0.0f };
-        row.append(arrow_label);
-
-        Gtk.Widget target_widget;
-        if (target_type == "card") {
-            var target_btn = new Gtk.Button.with_label(title_for_card_id(target_id));
-            target_btn.add_css_class("flat");
-            target_btn.clicked.connect(() => {
-                select_card_by_id(target_id);
-            });
-            target_widget = target_btn;
-        } else {
-            target_widget = new Gtk.Label("%s:%s".printf(target_type, target_id)) { xalign = 0.0f };
-        }
-        target_widget.set_hexpand(true);
-        target_widget.set_halign(Gtk.Align.START);
-        row.append(target_widget);
-
-        if (link.label != null && link.label.strip().length > 0) {
-            var label = new Gtk.Label(link.label.strip()) { xalign = 0.0f };
-            label.add_css_class("caption");
-            label.add_css_class("dim-label");
-            row.append(label);
-        }
+        var action_gutter = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        action_gutter.set_size_request(GRAPH_ACTION_COL_WIDTH, -1);
+        row.append(action_gutter);
 
         var actions_btn = new Gtk.MenuButton();
         actions_btn.set_icon_name("open-menu-symbolic");
         actions_btn.add_css_class("flat");
-        actions_btn.set_margin_end(12);
+        actions_btn.set_valign(Gtk.Align.START);
+        actions_btn.set_halign(Gtk.Align.CENTER);
         var popover = new Gtk.Popover();
         var actions_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
         actions_box.set_margin_top(6);
@@ -942,7 +946,43 @@ public class ToolboxPane : Object {
         actions_box.append(delete_btn);
         popover.set_child(actions_box);
         actions_btn.set_popover(popover);
-        row.append(actions_btn);
+        action_gutter.append(actions_btn);
+
+        var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
+        content.set_margin_start(GRAPH_CONTENT_GAP);
+        content.set_hexpand(true);
+        row.append(content);
+
+        var detail = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        detail.set_margin_start(0);
+        detail.set_hexpand(true);
+        content.append(detail);
+
+        var arrow_label = new Gtk.Label(direction) { xalign = 0.0f };
+        arrow_label.add_css_class("dim-label");
+        detail.append(arrow_label);
+
+        Gtk.Widget target_widget;
+        if (target_type == "card") {
+            var target_btn = new Gtk.Button.with_label(title_for_card_id(target_id));
+            target_btn.add_css_class("flat");
+            target_btn.clicked.connect(() => {
+                select_card_by_id(target_id);
+            });
+            target_widget = target_btn;
+        } else {
+            target_widget = new Gtk.Label("%s:%s".printf(target_type, target_id)) { xalign = 0.0f };
+        }
+        target_widget.set_hexpand(true);
+        target_widget.set_halign(Gtk.Align.START);
+        detail.append(target_widget);
+
+        if (link.label != null && link.label.strip().length > 0) {
+            var label = new Gtk.Label(link.label.strip()) { xalign = 0.0f };
+            label.add_css_class("caption");
+            label.add_css_class("dim-label");
+            detail.append(label);
+        }
 
         return row;
     }
