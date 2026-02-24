@@ -211,6 +211,13 @@ public class ToolboxPane : Object {
         var git_page = stack.add_titled(build_git_sync_tab(), "git", "Git Sync");
         git_page.set_icon_name("folder-remote-symbolic");
 
+        var trash_page = stack.add_titled(
+            build_placeholder_tab("Trash tools are scaffolded and planned."),
+            "trash",
+            "Trash"
+        );
+        trash_page.set_icon_name("user-trash-symbolic");
+
         var debug_page = stack.add_titled(build_debug_tab(), "debug", "Debug");
         debug_page.set_icon_name("view-reveal-symbolic");
 
