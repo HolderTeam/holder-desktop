@@ -744,6 +744,19 @@ public class ToolboxPane : Object {
         content.append(label_label);
         content.append(label_entry);
 
+        var local_picker_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var pick_file_btn = new Gtk.Button.with_label("Pick File...");
+        pick_file_btn.clicked.connect(() => {
+            open_local_resource_picker(root_window, uri_entry, label_entry, false);
+        });
+        local_picker_row.append(pick_file_btn);
+        var pick_image_btn = new Gtk.Button.with_label("Pick Image...");
+        pick_image_btn.clicked.connect(() => {
+            open_local_resource_picker(root_window, uri_entry, label_entry, true);
+        });
+        local_picker_row.append(pick_image_btn);
+        content.append(local_picker_row);
+
         var desc_label = new Gtk.Label("Description (optional)") { xalign = 0.0f };
         var desc_entry = new Gtk.Entry();
         content.append(desc_label);
@@ -892,6 +905,46 @@ public class ToolboxPane : Object {
         } catch (Error e) {
             error_reported("Failed to delete resource", e.message);
         }
+    }
+
+    private void open_local_resource_picker(Gtk.Window root_window,
+                                            Gtk.Entry uri_entry,
+                                            Gtk.Entry? label_entry,
+                                            bool images_only) {
+        var chooser = new Gtk.FileChooserNative(
+            images_only ? "Choose Image" : "Choose File",
+            root_window,
+            Gtk.FileChooserAction.OPEN,
+            "Select",
+            "Cancel"
+        );
+
+        if (images_only) {
+            var image_filter = new Gtk.FileFilter();
+            image_filter.add_mime_type("image/*");
+            chooser.add_filter(image_filter);
+            chooser.set_filter(image_filter);
+        }
+
+        chooser.response.connect((response_id) => {
+            if (response_id == Gtk.ResponseType.ACCEPT) {
+                var file = chooser.get_file();
+                if (file != null) {
+                    var uri = file.get_uri();
+                    if (uri != null && uri.length > 0) {
+                        uri_entry.set_text(uri);
+                    }
+                    if (label_entry != null && label_entry.get_text().strip().length == 0) {
+                        var basename = file.get_basename();
+                        if (basename != null && basename.length > 0) {
+                            label_entry.set_text(basename);
+                        }
+                    }
+                }
+            }
+            chooser.destroy();
+        });
+        chooser.show();
     }
 
     private Gtk.Widget build_placeholder_tab(string message) {
