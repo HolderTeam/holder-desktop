@@ -4,6 +4,7 @@ public class ToolboxPane : Object {
     private const int GRAPH_BLOCK_MARGIN_START = 0;
     private const int GRAPH_ACTION_COL_WIDTH = 24;
     private const int GRAPH_CONTENT_GAP = 14;
+    private const int GRAPH_KIND_EXTRA_INDENT = 10;
     private const int GRAPH_TEXT_START = GRAPH_BLOCK_MARGIN_START + GRAPH_ACTION_COL_WIDTH + GRAPH_CONTENT_GAP;
     [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
     private static extern void gtk_style_context_add_provider_for_display(
@@ -903,6 +904,7 @@ public class ToolboxPane : Object {
         content.set_hexpand(true);
         var kind_label = new Gtk.Label(kind) { xalign = 0.0f };
         kind_label.add_css_class("heading");
+        kind_label.set_margin_start(GRAPH_KIND_EXTRA_INDENT);
         content.append(kind_label);
         row.append(content);
         return row;
