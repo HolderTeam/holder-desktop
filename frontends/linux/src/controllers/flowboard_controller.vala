@@ -98,6 +98,7 @@ public class FlowboardController : Object {
             return;
         }
         if (tile.is_container) {
+            card_open_requested(tile.card_id);
             current_parent_card_id = tile.card_id;
             parent_stack_ids.add(tile.card_id);
             refresh();
