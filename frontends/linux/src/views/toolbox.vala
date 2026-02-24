@@ -231,6 +231,10 @@ public class ToolboxPane : Object {
         switcher.set_stack(stack);
         stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT);
 
+        flowboard = new FlowboardPane();
+        var flowboard_page = stack.add_titled(flowboard.widget, "flowboard", "Flowboard");
+        flowboard_page.set_icon_name("view-grid-symbolic");
+
         var connections_page = stack.add_titled(build_connections_tab(), "connections", "Connections");
         connections_page.set_icon_name("network-wired-symbolic");
 
@@ -240,10 +244,6 @@ public class ToolboxPane : Object {
             "Resources"
         );
         resources_page.set_icon_name("view-list-symbolic");
-
-        flowboard = new FlowboardPane();
-        var flowboard_page = stack.add_titled(flowboard.widget, "flowboard", "Flowboard");
-        flowboard_page.set_icon_name("view-grid-symbolic");
 
         var sharing_page = stack.add_titled(
             build_placeholder_tab("Sharing tools are scaffolded and planned."),
@@ -271,7 +271,7 @@ public class ToolboxPane : Object {
         var debug_page = stack.add_titled(build_debug_tab(), "debug", "Debug");
         debug_page.set_icon_name("view-reveal-symbolic");
 
-        stack.set_visible_child_name("terminals");
+        stack.set_visible_child_name("flowboard");
         stack.notify["visible-child"].connect(() => {
             var visible = stack.get_visible_child();
             if (visible == null) {
