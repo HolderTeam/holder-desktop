@@ -44,6 +44,13 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string card_id) throws Error {
         return new Gee.ArrayList<HolderLinux.CardLink>();
     }
+    public async HolderLinux.CardLink create_card_link(string from_card_id,
+                                                       string to_card_id,
+                                                       string kind = "ref",
+                                                       string? label = null,
+                                                       string to_type = "card") throws Error {
+        return new HolderLinux.CardLink(from_card_id, to_card_id, to_type, kind, label, 0);
+    }
     public async Gee.ArrayList<HolderLinux.SearchCardResult> search_cards(string project_id,
                                                                            string query_text,
                                                                            int limit = 30) throws Error {

@@ -5,6 +5,7 @@ public class ToolboxPane : Object {
     private Gtk.Label connections_internal_links_label;
     private Gtk.Label connections_graph_outgoing_label;
     private Gtk.Label connections_graph_backlinks_label;
+    private Gtk.Button connections_add_graph_link_btn;
     private Gtk.TextBuffer debug_buffer;
     private Gtk.TextView debug_view;
     private Gtk.Label connections_structure_label;
@@ -310,11 +311,14 @@ public class ToolboxPane : Object {
         var graph_title = new Gtk.Label("Graph Connections") { xalign = 0.0f };
         graph_title.add_css_class("title-5");
         graph_title.set_hexpand(true);
-        var add_graph_link_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
-        add_graph_link_btn.set_tooltip_text("Add graph link (planned)");
-        add_graph_link_btn.set_sensitive(false);
+        connections_add_graph_link_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
+        connections_add_graph_link_btn.set_tooltip_text("Add graph link");
+        connections_add_graph_link_btn.set_sensitive(false);
+        connections_add_graph_link_btn.clicked.connect(() => {
+            open_add_graph_link_dialog();
+        });
         graph_header.append(graph_title);
-        graph_header.append(add_graph_link_btn);
+        graph_header.append(connections_add_graph_link_btn);
         box.append(graph_header);
 
         var outgoing_title = new Gtk.Label("Outgoing") { xalign = 0.0f };
@@ -501,6 +505,128 @@ public class ToolboxPane : Object {
         }
         if (connections_graph_backlinks_label != null) {
             connections_graph_backlinks_label.set_markup(backlinks_markup);
+        }
+        update_add_graph_link_button_state();
+    }
+
+    private void update_add_graph_link_button_state() {
+        if (connections_add_graph_link_btn == null) {
+            return;
+        }
+        var selected_card = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary
+            : null;
+        var has_target = false;
+        if (selected_card != null && card_store != null) {
+            for (uint i = 0; i < card_store.get_n_items(); i++) {
+                var card = card_store.get_item(i) as CardSummary;
+                if (card == null) {
+                    continue;
+                }
+                if (card.project_id != selected_card.project_id) {
+                    continue;
+                }
+                if (card.card_id != selected_card.card_id) {
+                    has_target = true;
+                    break;
+                }
+            }
+        }
+        connections_add_graph_link_btn.set_sensitive(api != null && selected_card != null && has_target);
+    }
+
+    private void open_add_graph_link_dialog() {
+        var selected_card = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary
+            : null;
+        if (selected_card == null || card_store == null || api == null) {
+            return;
+        }
+
+        var target_ids = new Gee.ArrayList<string>();
+        var target_titles = new Gtk.StringList(null);
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null || card.project_id != selected_card.project_id || card.card_id == selected_card.card_id) {
+                continue;
+            }
+            target_ids.add(card.card_id);
+            target_titles.append("%s (%s)".printf(card.title, card.card_id));
+        }
+        if (target_ids.size == 0) {
+            toast_requested("No other cards in this project to link.");
+            return;
+        }
+
+        var root = widget.get_root() as Gtk.Window;
+        if (root == null) {
+            return;
+        }
+
+        var dialog = new Adw.MessageDialog(root, "Add Graph Link", "Create an explicit card-to-card link.");
+        dialog.add_response("cancel", "Cancel");
+        dialog.add_response("add", "Add");
+        dialog.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED);
+        dialog.set_default_response("add");
+        dialog.set_close_response("cancel");
+
+        var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
+
+        var target_label = new Gtk.Label("Target card") { xalign = 0.0f };
+        var target_dropdown = new Gtk.DropDown(target_titles, null);
+        target_dropdown.set_selected(0);
+        content.append(target_label);
+        content.append(target_dropdown);
+
+        var kind_label = new Gtk.Label("Kind") { xalign = 0.0f };
+        var kind_entry = new Gtk.Entry();
+        kind_entry.set_text("ref");
+        kind_entry.set_placeholder_text("ref");
+        content.append(kind_label);
+        content.append(kind_entry);
+
+        var label_label = new Gtk.Label("Label (optional)") { xalign = 0.0f };
+        var label_entry = new Gtk.Entry();
+        label_entry.set_placeholder_text("optional note");
+        content.append(label_label);
+        content.append(label_entry);
+
+        dialog.set_extra_child(content);
+        dialog.response.connect((response) => {
+            if (response == "add") {
+                var selected_index = target_dropdown.get_selected();
+                if (selected_index >= target_ids.size) {
+                    dialog.close();
+                    return;
+                }
+                var target_id = target_ids[(int) selected_index];
+                var kind = kind_entry.get_text().strip();
+                var link_label = label_entry.get_text().strip();
+                create_graph_link.begin(
+                    selected_card.card_id,
+                    target_id,
+                    kind.length > 0 ? kind : "ref",
+                    link_label.length > 0 ? link_label : null
+                );
+            }
+            dialog.close();
+        });
+        dialog.present();
+    }
+
+    private async void create_graph_link(string from_card_id,
+                                         string to_card_id,
+                                         string kind,
+                                         string? label) {
+        if (api == null) {
+            return;
+        }
+        try {
+            yield api.create_card_link(from_card_id, to_card_id, kind, label, "card");
+            toast_requested("Graph link added.");
+            queue_connections_graph_refresh();
+        } catch (Error e) {
+            error_reported("Failed to add graph link", e.message);
         }
     }
 
@@ -782,6 +908,7 @@ public class ToolboxPane : Object {
             );
         }
         connections_structure_label.set_markup(compact_structure_markup(selected_project, selected_card));
+        update_add_graph_link_button_state();
     }
 
     private Gtk.Widget build_debug_tab() {

@@ -121,6 +121,41 @@ public class ApiClient : Object, IHolderApi {
         return parse_card_links(root);
     }
 
+    public async CardLink create_card_link(string from_card_id,
+                                           string to_card_id,
+                                           string kind = "ref",
+                                           string? label = null,
+                                           string to_type = "card") throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("to_card_id");
+        body.add_string_value(to_card_id);
+        if (to_type != null && to_type.length > 0 && to_type != "card") {
+            body.set_member_name("to_type");
+            body.add_string_value(to_type);
+        }
+        if (kind != null && kind.strip().length > 0) {
+            body.set_member_name("kind");
+            body.add_string_value(kind.strip());
+        }
+        if (label != null && label.strip().length > 0) {
+            body.set_member_name("label");
+            body.add_string_value(label.strip());
+        }
+        body.end_object();
+
+        var root = yield request_json(
+            "POST",
+            "/cards/%s/links".printf(Uri.escape_string(from_card_id)),
+            json_string_from_builder(body),
+            null
+        );
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for card link create response");
+        }
+        return parse_card_link(root.get_object_member("data"));
+    }
+
     public async Gee.ArrayList<SearchCardResult> search_cards(string project_id,
                                                               string query_text,
                                                               int limit = 30) throws Error {
@@ -528,17 +563,20 @@ public class ApiClient : Object, IHolderApi {
         var out_list = new Gee.ArrayList<CardLink>();
         var data = root.get_array_member("data");
         for (uint i = 0; i < data.get_length(); i++) {
-            var item = data.get_object_element(i);
-            out_list.add(new CardLink(
-                item.get_string_member("from_card_id"),
-                item.get_string_member("to_card_id"),
-                item.has_member("to_type") ? string_member_or_empty(item, "to_type") : "card",
-                item.has_member("kind") ? string_member_or_empty(item, "kind") : "ref",
-                item.has_member("label") ? string_member_or_empty(item, "label") : null,
-                item.has_member("created_at") ? item.get_int_member("created_at") : 0
-            ));
+            out_list.add(parse_card_link(data.get_object_element(i)));
         }
         return out_list;
+    }
+
+    private CardLink parse_card_link(Json.Object item) {
+        return new CardLink(
+            item.get_string_member("from_card_id"),
+            item.get_string_member("to_card_id"),
+            item.has_member("to_type") ? string_member_or_empty(item, "to_type") : "card",
+            item.has_member("kind") ? string_member_or_empty(item, "kind") : "ref",
+            item.has_member("label") ? string_member_or_empty(item, "label") : null,
+            item.has_member("created_at") ? item.get_int_member("created_at") : 0
+        );
     }
 
     private Gee.ArrayList<SearchCardResult> parse_search_cards(Json.Object root) throws Error {
