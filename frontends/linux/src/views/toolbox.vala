@@ -278,8 +278,11 @@ public class ToolboxPane : Object {
         connections_card_title_label.add_css_class("title-5");
         connections_structure_label = new Gtk.Label("") { xalign = 0.0f };
         connections_structure_label.set_wrap(true);
-        connections_structure_label.set_selectable(true);
+        connections_structure_label.set_use_markup(true);
         connections_structure_label.add_css_class("dim-label");
+        connections_structure_label.activate_link.connect((uri) => {
+            return on_connections_link_activated(uri);
+        });
         box.append(connections_card_title_label);
         box.append(connections_structure_label);
         refresh_connections_structure();
@@ -319,7 +322,7 @@ public class ToolboxPane : Object {
         return strcmp(a.title.down(), b.title.down());
     }
 
-    private string compact_structure_text(Project? project, CardSummary? selected_card) {
+    private string compact_structure_markup(Project? project, CardSummary? selected_card) {
         var parts = new Gee.ArrayList<string>();
         if (selected_card != null && card_store != null) {
             var parent_id = normalize_parent(selected_card.parent_card_id);
@@ -327,14 +330,18 @@ public class ToolboxPane : Object {
                 for (uint i = 0; i < card_store.get_n_items(); i++) {
                     var maybe_parent = card_store.get_item(i) as CardSummary;
                     if (maybe_parent != null && maybe_parent.card_id == parent_id) {
-                        parts.add("Parent: %s".printf(maybe_parent.title));
+                        parts.add("Parent: %s".printf(link_markup("card", maybe_parent.card_id, maybe_parent.title)));
                         break;
                     }
                 }
             }
         }
 
-        parts.add("Project: %s".printf(project != null ? project.name : "None"));
+        if (project != null) {
+            parts.add("Project: %s".printf(link_markup("project", project.project_id, project.name)));
+        } else {
+            parts.add("Project: None");
+        }
 
         if (selected_card != null && card_store != null) {
             var siblings = new Gee.ArrayList<CardSummary>();
@@ -361,10 +368,14 @@ public class ToolboxPane : Object {
                 }
             }
             if (selected_index > 0) {
-                parts.add("Previous: %s".printf(siblings[selected_index - 1].title));
+                parts.add("Previous: %s".printf(
+                    link_markup("card", siblings[selected_index - 1].card_id, siblings[selected_index - 1].title)
+                ));
             }
             if (selected_index >= 0 && selected_index < siblings.size - 1) {
-                parts.add("Next: %s".printf(siblings[selected_index + 1].title));
+                parts.add("Next: %s".printf(
+                    link_markup("card", siblings[selected_index + 1].card_id, siblings[selected_index + 1].title)
+                ));
             }
         }
 
@@ -376,6 +387,84 @@ public class ToolboxPane : Object {
             builder.append(parts[i]);
         }
         return builder.str;
+    }
+
+    private string link_markup(string kind, string id, string title) {
+        var href = "%s:%s".printf(kind, Uri.escape_string(id, null, false));
+        return "<a href=\"%s\">%s</a>".printf(
+            Markup.escape_text(href),
+            Markup.escape_text(title)
+        );
+    }
+
+    private bool on_connections_link_activated(string uri) {
+        if (uri == null || uri.length == 0) {
+            return false;
+        }
+
+        if (uri.has_prefix("card:")) {
+            var encoded = uri.substring("card:".length);
+            var card_id = Uri.unescape_string(encoded, null);
+            if (card_id != null) {
+                Idle.add(() => {
+                    select_card_by_id(card_id);
+                    return Source.REMOVE;
+                });
+                return true;
+            }
+            return false;
+        }
+
+        if (uri.has_prefix("project:")) {
+            var encoded = uri.substring("project:".length);
+            var project_id = Uri.unescape_string(encoded, null);
+            if (project_id != null) {
+                Idle.add(() => {
+                    select_project_by_id(project_id);
+                    return Source.REMOVE;
+                });
+                return true;
+            }
+            return false;
+        }
+
+        return false;
+    }
+
+    private bool select_project_by_id(string project_id) {
+        if (project_selection == null) {
+            return false;
+        }
+        var model = project_selection.get_model();
+        if (model == null) {
+            return false;
+        }
+        for (uint i = 0; i < model.get_n_items(); i++) {
+            var project = model.get_item(i) as Project;
+            if (project != null && project.project_id == project_id) {
+                project_selection.set_selected(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private bool select_card_by_id(string card_id) {
+        if (card_selection == null) {
+            return false;
+        }
+        var model = card_selection.get_model();
+        if (model == null) {
+            return false;
+        }
+        for (uint i = 0; i < model.get_n_items(); i++) {
+            var card = model.get_item(i) as CardSummary;
+            if (card != null && card.card_id == card_id) {
+                card_selection.set_selected(i);
+                return true;
+            }
+        }
+        return false;
     }
 
     private void refresh_connections_structure() {
@@ -393,7 +482,7 @@ public class ToolboxPane : Object {
                 selected_card != null ? selected_card.title : "No card selected"
             );
         }
-        connections_structure_label.set_text(compact_structure_text(selected_project, selected_card));
+        connections_structure_label.set_markup(compact_structure_markup(selected_project, selected_card));
     }
 
     private Gtk.Widget build_debug_tab() {
