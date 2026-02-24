@@ -222,6 +222,26 @@ public class ToolboxPane : Object {
         debug_page.set_icon_name("view-reveal-symbolic");
 
         stack.set_visible_child_name("terminals");
+        stack.notify["visible-child"].connect(() => {
+            var visible = stack.get_visible_child();
+            if (visible == null) {
+                title.set_label("Toolbox");
+                return;
+            }
+            var page = stack.get_page(visible);
+            if (page == null || page.title == null || page.title.length == 0) {
+                title.set_label("Toolbox");
+                return;
+            }
+            title.set_label("Toolbox: %s".printf(page.title));
+        });
+        var initial_visible = stack.get_visible_child();
+        if (initial_visible != null) {
+            var initial_page = stack.get_page(initial_visible);
+            if (initial_page != null && initial_page.title != null && initial_page.title.length > 0) {
+                title.set_label("Toolbox: %s".printf(initial_page.title));
+            }
+        }
 
         var scroller = new Gtk.ScrolledWindow();
         scroller.set_vexpand(true);
