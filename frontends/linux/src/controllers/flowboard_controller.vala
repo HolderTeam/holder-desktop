@@ -235,6 +235,7 @@ public class FlowboardController : Object {
             return strcmp(a.name.down(), b.name.down());
         });
         foreach (var project in projects) {
+            var root_count = root_card_count_for_project(project.project_id);
             visible_tiles.append(new FlowboardTile(
                 "project:%s".printf(project.project_id),
                 project.name,
@@ -242,9 +243,23 @@ public class FlowboardController : Object {
                 true,
                 null,
                 project.project_id,
-                0
+                root_count
             ));
         }
+    }
+
+    private int root_card_count_for_project(string project_id) {
+        int count = 0;
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null) {
+                continue;
+            }
+            if (card.project_id == project_id && normalize_parent(card.parent_card_id) == null) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private CardSummary? find_card(string card_id) {
