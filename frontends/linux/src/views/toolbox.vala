@@ -343,11 +343,11 @@ public class ToolboxPane : Object {
         connections_card_title_label.add_css_class("title-5");
         connections_card_title_label.set_ellipsize(Pango.EllipsizeMode.END);
         connections_card_title_label.set_max_width_chars(30);
+        connections_card_title_label.set_margin_top(10);
         connections_card_title_label.set_margin_start(0);
         connections_structure_label = new Gtk.Label("") { xalign = 0.0f };
         connections_structure_label.set_wrap(true);
         connections_structure_label.set_use_markup(true);
-        connections_structure_label.add_css_class("dim-label");
         connections_structure_label.set_lines(4);
         connections_structure_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
         connections_structure_label.set_yalign(0.0f);
@@ -357,7 +357,6 @@ public class ToolboxPane : Object {
             return on_connections_link_activated(uri);
         });
         connections_internal_links_label = new Gtk.Label("Internal Links:") { xalign = 0.0f };
-        connections_internal_links_label.add_css_class("dim-label");
         connections_internal_links_label.set_wrap(true);
         connections_internal_links_label.set_use_markup(true);
         connections_internal_links_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
@@ -400,7 +399,7 @@ public class ToolboxPane : Object {
         connections_graph_outgoing_list.add_css_class("connections-graph-list");
         graph_column.append(connections_graph_outgoing_list);
 
-        var backlinks_title = new Gtk.Label("Backlinks") { xalign = 0.0f };
+        var backlinks_title = new Gtk.Label("Incoming") { xalign = 0.0f };
         backlinks_title.add_css_class("heading");
         backlinks_title.set_margin_start(GRAPH_TEXT_START);
         graph_column.append(backlinks_title);
@@ -960,7 +959,7 @@ public class ToolboxPane : Object {
         content.set_margin_start(GRAPH_CONTENT_GAP);
         content.set_hexpand(true);
         var kind_label = new Gtk.Label(kind) { xalign = 0.0f };
-        kind_label.add_css_class("heading");
+        kind_label.add_css_class("dim-label");
         kind_label.set_margin_start(GRAPH_KIND_EXTRA_INDENT);
         content.append(kind_label);
         row.append(content);
@@ -1027,6 +1026,7 @@ public class ToolboxPane : Object {
                 ellipsize_connections_title(title_for_card_id(target_id))
             );
             target_btn.add_css_class("flat");
+            target_btn.add_css_class("link");
             target_btn.clicked.connect(() => {
                 select_card_by_id(target_id);
             });
