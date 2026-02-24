@@ -579,11 +579,20 @@ public class ToolboxPane : Object {
         content.append(target_dropdown);
 
         var kind_label = new Gtk.Label("Kind") { xalign = 0.0f };
-        var kind_entry = new Gtk.Entry();
-        kind_entry.set_text("ref");
-        kind_entry.set_placeholder_text("ref");
+        var kind_combo = new Gtk.ComboBoxText.with_entry();
+        kind_combo.append_text("ref");
+        kind_combo.append_text("depends_on");
+        kind_combo.append_text("example_of");
+        kind_combo.append_text("blocks");
+        kind_combo.append_text("related_to");
+        kind_combo.set_active(0);
+        var kind_entry = kind_combo.get_child() as Gtk.Entry;
+        if (kind_entry != null) {
+            kind_entry.set_text("ref");
+            kind_entry.set_placeholder_text("ref");
+        }
         content.append(kind_label);
-        content.append(kind_entry);
+        content.append(kind_combo);
 
         var label_label = new Gtk.Label("Label (optional)") { xalign = 0.0f };
         var label_entry = new Gtk.Entry();
@@ -600,7 +609,10 @@ public class ToolboxPane : Object {
                     return;
                 }
                 var target_id = target_ids[(int) selected_index];
-                var kind = kind_entry.get_text().strip();
+                string kind = "ref";
+                if (kind_entry != null) {
+                    kind = kind_entry.get_text().strip();
+                }
                 var link_label = label_entry.get_text().strip();
                 create_graph_link.begin(
                     selected_card.card_id,
