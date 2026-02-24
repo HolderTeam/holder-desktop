@@ -247,6 +247,7 @@ public class MainWindow : Adw.ApplicationWindow {
             if (suppress_editor_events || controller.get_current_card() == null) {
                 return;
             }
+            refresh_connections_internal_links_from_editor();
             controller.schedule_autosave();
         });
 
@@ -547,6 +548,7 @@ public class MainWindow : Adw.ApplicationWindow {
         suppress_editor_events = true;
         workspace.set_editor_state(text, editable);
         suppress_editor_events = false;
+        refresh_connections_internal_links_from_editor();
     }
 
     private void update_window_title(string title_text) {
@@ -815,6 +817,41 @@ public class MainWindow : Adw.ApplicationWindow {
         about.set_comments("Holder Linux frontend");
         about.set_website("https://github.com/HolderTeam");
         about.present();
+    }
+
+    private void refresh_connections_internal_links_from_editor() {
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        editor_buffer.get_bounds(out start, out end);
+        var text = editor_buffer.get_text(start, end, false);
+        var links = extract_internal_links(text);
+        toolbox.set_connections_internal_links(links);
+    }
+
+    private Gee.ArrayList<string> extract_internal_links(string text) {
+        var results = new Gee.ArrayList<string>();
+        if (text == null || text.length == 0) {
+            return results;
+        }
+        var seen = new Gee.HashSet<string>();
+        try {
+            var regex = new Regex("\\[\\[([^\\]\\n]+)\\]\\]");
+            MatchInfo match_info;
+            if (!regex.match(text, 0, out match_info)) {
+                return results;
+            }
+            do {
+                var target = match_info.fetch(1).strip();
+                if (target.length == 0 || seen.contains(target)) {
+                    continue;
+                }
+                seen.add(target);
+                results.add(target);
+            } while (match_info.next());
+        } catch (RegexError e) {
+            toolbox.log_debug("Internal links parse failed: %s".printf(e.message));
+        }
+        return results;
     }
 
     protected override void dispose() {

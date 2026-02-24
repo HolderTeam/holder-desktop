@@ -2,6 +2,7 @@ namespace HolderLinux {
 
 public class ToolboxPane : Object {
     private Gtk.Label connections_card_title_label;
+    private Gtk.Label connections_internal_links_label;
     private Gtk.TextBuffer debug_buffer;
     private Gtk.TextView debug_view;
     private Gtk.Label connections_structure_label;
@@ -283,10 +284,35 @@ public class ToolboxPane : Object {
         connections_structure_label.activate_link.connect((uri) => {
             return on_connections_link_activated(uri);
         });
+        connections_internal_links_label = new Gtk.Label("Internal Links:") { xalign = 0.0f };
+        connections_internal_links_label.add_css_class("dim-label");
+        connections_internal_links_label.set_wrap(true);
+        connections_internal_links_label.set_use_markup(true);
+        connections_internal_links_label.activate_link.connect((uri) => {
+            return on_connections_link_activated(uri);
+        });
         box.append(connections_card_title_label);
         box.append(connections_structure_label);
+        box.append(connections_internal_links_label);
         refresh_connections_structure();
         return box;
+    }
+
+    public void set_connections_internal_links(Gee.ArrayList<string> link_targets) {
+        if (connections_internal_links_label == null) {
+            return;
+        }
+        if (link_targets == null || link_targets.size == 0) {
+            connections_internal_links_label.set_visible(false);
+            return;
+        }
+        connections_internal_links_label.set_visible(true);
+        var builder = new StringBuilder("Internal Links:");
+        foreach (var target in link_targets) {
+            builder.append(" ");
+            builder.append(link_markup("ilink", target, target));
+        }
+        connections_internal_links_label.set_markup(builder.str);
     }
 
     private Gtk.Widget build_placeholder_tab(string message) {
@@ -453,7 +479,74 @@ public class ToolboxPane : Object {
             return false;
         }
 
+        if (uri.has_prefix("ilink:")) {
+            var encoded = uri.substring("ilink:".length);
+            var target = Uri.unescape_string(encoded, null);
+            if (target != null) {
+                var card_id = resolve_internal_link_target_card_id(target);
+                if (card_id != null) {
+                    Idle.add(() => {
+                        select_card_by_id(card_id);
+                        return Source.REMOVE;
+                    });
+                }
+                return true;
+            }
+            return false;
+        }
+
         return false;
+    }
+
+    private string? selected_project_id() {
+        if (project_selection == null) {
+            return null;
+        }
+        var selected_project = project_selection.get_selected_item() as Project;
+        return selected_project != null ? selected_project.project_id : null;
+    }
+
+    private string? resolve_internal_link_target_card_id(string target) {
+        if (card_store == null || target.length == 0) {
+            return null;
+        }
+        var project_id = selected_project_id();
+        if (project_id == null) {
+            return null;
+        }
+
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null || card.project_id != project_id) {
+                continue;
+            }
+            if (card.card_id == target) {
+                return card.card_id;
+            }
+        }
+
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null || card.project_id != project_id) {
+                continue;
+            }
+            if (card.title == target) {
+                return card.card_id;
+            }
+        }
+
+        var lowered_target = target.down();
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null || card.project_id != project_id) {
+                continue;
+            }
+            if (card.title.down() == lowered_target) {
+                return card.card_id;
+            }
+        }
+
+        return null;
     }
 
     private bool select_project_by_id(string project_id) {
