@@ -3,6 +3,7 @@ namespace HolderLinux {
 public class ToolboxPane : Object {
     private Gtk.TextBuffer debug_buffer;
     private Gtk.TextView debug_view;
+    private Gtk.Label connections_structure_label;
     private Gtk.ListBox ai_catalog_list;
     private Gtk.Notebook terminal_notebook;
     private int next_terminal_index = 1;
@@ -10,6 +11,9 @@ public class ToolboxPane : Object {
     private Gtk.Entry git_branch_entry;
     private FlowboardPane flowboard;
     private FlowboardController? flowboard_controller;
+    private Gtk.SingleSelection? project_selection;
+    private GLib.ListStore? card_store;
+    private Gtk.SingleSelection? card_selection;
     private IHolderApi? api;
     public Gtk.Revealer widget { get; private set; }
 
@@ -28,6 +32,25 @@ public class ToolboxPane : Object {
 
     public void set_api_client(IHolderApi? api) {
         this.api = api;
+    }
+
+    public void bind_connections_context(Gtk.SingleSelection project_selection,
+                                         GLib.ListStore card_store,
+                                         Gtk.SingleSelection card_selection) {
+        this.project_selection = project_selection;
+        this.card_store = card_store;
+        this.card_selection = card_selection;
+
+        project_selection.notify["selected"].connect(() => {
+            refresh_connections_structure();
+        });
+        card_selection.notify["selected"].connect(() => {
+            refresh_connections_structure();
+        });
+        card_store.items_changed.connect((position, removed, added) => {
+            refresh_connections_structure();
+        });
+        refresh_connections_structure();
     }
 
     public void bind_flowboard_controller(FlowboardController controller) {
@@ -177,11 +200,7 @@ public class ToolboxPane : Object {
         switcher.set_stack(stack);
         stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT);
 
-        var connections_page = stack.add_titled(
-            build_placeholder_tab("Connections tools are scaffolded and planned."),
-            "connections",
-            "Connections"
-        );
+        var connections_page = stack.add_titled(build_connections_tab(), "connections", "Connections");
         connections_page.set_icon_name("network-wired-symbolic");
 
         var resources_page = stack.add_titled(
@@ -252,6 +271,20 @@ public class ToolboxPane : Object {
         return frame;
     }
 
+    private Gtk.Widget build_connections_tab() {
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        var structure_title = new Gtk.Label("Structure") { xalign = 0.0f };
+        structure_title.add_css_class("title-5");
+        connections_structure_label = new Gtk.Label("") { xalign = 0.0f };
+        connections_structure_label.set_wrap(true);
+        connections_structure_label.set_selectable(true);
+        connections_structure_label.add_css_class("dim-label");
+        box.append(structure_title);
+        box.append(connections_structure_label);
+        refresh_connections_structure();
+        return box;
+    }
+
     private Gtk.Widget build_placeholder_tab(string message) {
         var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
         var info = new Gtk.Label(message) { xalign = 0.0f };
@@ -259,6 +292,102 @@ public class ToolboxPane : Object {
         info.add_css_class("dim-label");
         box.append(info);
         return box;
+    }
+
+    private string? normalize_parent(string? parent_card_id) {
+        if (parent_card_id == null) {
+            return null;
+        }
+        var trimmed = parent_card_id.strip();
+        return trimmed.length == 0 ? null : trimmed;
+    }
+
+    private int compare_sibling_order(CardSummary a, CardSummary b) {
+        if (a.sort_key < b.sort_key) {
+            return -1;
+        }
+        if (a.sort_key > b.sort_key) {
+            return 1;
+        }
+        if (a.updated_at > b.updated_at) {
+            return -1;
+        }
+        if (a.updated_at < b.updated_at) {
+            return 1;
+        }
+        return strcmp(a.title.down(), b.title.down());
+    }
+
+    private string compact_structure_text(Project? project, CardSummary? selected_card) {
+        var parts = new Gee.ArrayList<string>();
+        if (selected_card != null && card_store != null) {
+            var parent_id = normalize_parent(selected_card.parent_card_id);
+            if (parent_id != null) {
+                for (uint i = 0; i < card_store.get_n_items(); i++) {
+                    var maybe_parent = card_store.get_item(i) as CardSummary;
+                    if (maybe_parent != null && maybe_parent.card_id == parent_id) {
+                        parts.add("Parent: %s".printf(maybe_parent.title));
+                        break;
+                    }
+                }
+            }
+        }
+
+        parts.add("Project: %s".printf(project != null ? project.name : "None"));
+
+        if (selected_card != null && card_store != null) {
+            var siblings = new Gee.ArrayList<CardSummary>();
+            var parent_id = normalize_parent(selected_card.parent_card_id);
+            for (uint i = 0; i < card_store.get_n_items(); i++) {
+                var card = card_store.get_item(i) as CardSummary;
+                if (card == null) {
+                    continue;
+                }
+                if (card.project_id != selected_card.project_id) {
+                    continue;
+                }
+                if (normalize_parent(card.parent_card_id) == parent_id) {
+                    siblings.add(card);
+                }
+            }
+            siblings.sort((a, b) => compare_sibling_order(a, b));
+
+            int selected_index = -1;
+            for (int i = 0; i < siblings.size; i++) {
+                if (siblings[i].card_id == selected_card.card_id) {
+                    selected_index = i;
+                    break;
+                }
+            }
+            if (selected_index > 0) {
+                parts.add("Previous: %s".printf(siblings[selected_index - 1].title));
+            }
+            if (selected_index >= 0 && selected_index < siblings.size - 1) {
+                parts.add("Next: %s".printf(siblings[selected_index + 1].title));
+            }
+        }
+
+        var builder = new StringBuilder();
+        for (int i = 0; i < parts.size; i++) {
+            if (i > 0) {
+                builder.append("   ");
+            }
+            builder.append(parts[i]);
+        }
+        return builder.str;
+    }
+
+    private void refresh_connections_structure() {
+        if (connections_structure_label == null) {
+            return;
+        }
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        var selected_card = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary
+            : null;
+        connections_structure_label.set_text(compact_structure_text(selected_project, selected_card));
     }
 
     private Gtk.Widget build_debug_tab() {

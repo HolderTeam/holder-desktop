@@ -305,6 +305,7 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.flowboard_new_card_requested.connect((parent_card_id) => {
             controller.create_card.begin(parent_card_id);
         });
+        toolbox.bind_connections_context(project_selection, card_store, card_selection);
         toolbox.bind_flowboard_controller(flowboard_controller);
         card_store.items_changed.connect((position, removed, added) => {
             queue_flowboard_refresh();
