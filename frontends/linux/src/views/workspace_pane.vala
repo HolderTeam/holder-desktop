@@ -3,6 +3,7 @@ namespace HolderLinux {
 public class WorkspacePane : Object {
     private const double DEFAULT_TOOLBOX_FRACTION = 0.5;
     private Gtk.Label title_label;
+    private Gtk.ToggleButton explorer_toggle_btn;
     private Gtk.ToggleButton toolbox_toggle_btn;
     private Gtk.Revealer find_revealer;
     private Gtk.Box replace_row;
@@ -25,6 +26,7 @@ public class WorkspacePane : Object {
     public signal void refresh_requested();
     public signal void new_project_requested();
     public signal void new_card_requested();
+    public signal void explorer_panel_toggled(bool visible);
     public signal void ai_panel_toggled(bool visible);
     public signal void toolbox_toggled(bool visible);
     public signal void search_activated();
@@ -184,6 +186,14 @@ public class WorkspacePane : Object {
             new_card_requested();
         });
 
+        explorer_toggle_btn = new Gtk.ToggleButton();
+        explorer_toggle_btn.set_icon_name("sidebar-show-symbolic");
+        explorer_toggle_btn.set_tooltip_text("Toggle explorer panel");
+        explorer_toggle_btn.set_active(true);
+        explorer_toggle_btn.toggled.connect(() => {
+            explorer_panel_toggled(explorer_toggle_btn.get_active());
+        });
+
         var ai_toggle_btn = new Gtk.ToggleButton();
         ai_toggle_btn.set_icon_name("preferences-desktop-keyboard-symbolic");
         ai_toggle_btn.set_tooltip_text("Toggle AI status panel");
@@ -217,6 +227,7 @@ public class WorkspacePane : Object {
         header.pack_end(main_menu_btn);
         header.pack_end(toolbox_toggle_btn);
         header.pack_end(ai_toggle_btn);
+        header.pack_end(explorer_toggle_btn);
         header.pack_end(new_project_btn);
         header.pack_end(new_card_btn);
         outer.append(header);

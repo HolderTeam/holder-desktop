@@ -151,6 +151,9 @@ public class MainWindow : Adw.ApplicationWindow {
         workspace.new_card_requested.connect(() => {
             controller.create_card.begin();
         });
+        workspace.explorer_panel_toggled.connect((visible) => {
+            root_split.set_show_sidebar(visible);
+        });
         workspace.ai_panel_toggled.connect((visible) => {
             ai_split.set_show_sidebar(visible);
             ai_run_controller.set_panel_visible(visible);
