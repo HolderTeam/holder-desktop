@@ -57,5 +57,12 @@
         Counts consecutive closes below the minimum recommended size.
       </description>
     </key>
+    <key name="custom-card-link-kinds" type="as">
+      <default>[]</default>
+      <summary>Custom graph link kinds used in the add-link dialog</summary>
+      <description>
+        User-defined card link kinds shown alongside default presets.
+      </description>
+    </key>
   </schema>
 </schemalist>

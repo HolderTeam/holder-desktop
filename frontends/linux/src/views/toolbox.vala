@@ -20,6 +20,7 @@ public class ToolboxPane : Object {
     private GLib.ListStore? card_store;
     private Gtk.SingleSelection? card_selection;
     private IHolderApi? api;
+    private Settings? settings;
     private uint connections_graph_refresh_serial = 0;
     public Gtk.Revealer widget { get; private set; }
 
@@ -39,6 +40,10 @@ public class ToolboxPane : Object {
     public void set_api_client(IHolderApi? api) {
         this.api = api;
         queue_connections_graph_refresh();
+    }
+
+    public void set_settings(Settings? settings) {
+        this.settings = settings;
     }
 
     public void bind_connections_context(Gtk.SingleSelection project_selection,
@@ -580,11 +585,10 @@ public class ToolboxPane : Object {
 
         var kind_label = new Gtk.Label("Kind") { xalign = 0.0f };
         var kind_options = new Gtk.StringList(null);
-        kind_options.append("ref");
-        kind_options.append("depends_on");
-        kind_options.append("example_of");
-        kind_options.append("blocks");
-        kind_options.append("related_to");
+        var available_kinds = list_available_link_kinds();
+        foreach (var kind_option in available_kinds) {
+            kind_options.append(kind_option);
+        }
         kind_options.append("custom");
         var kind_dropdown = new Gtk.DropDown(kind_options, null);
         kind_dropdown.set_selected(0);
@@ -593,7 +597,7 @@ public class ToolboxPane : Object {
         custom_kind_entry.set_visible(false);
         kind_dropdown.notify["selected"].connect(() => {
             var selected = kind_dropdown.get_selected();
-            var is_custom = (selected == 5);
+            var is_custom = (selected == kind_options.get_n_items() - 1);
             custom_kind_entry.set_visible(is_custom);
             if (!is_custom) {
                 custom_kind_entry.set_text("");
@@ -620,23 +624,27 @@ public class ToolboxPane : Object {
                     return;
                 }
                 var target_id = target_ids[(int) selected_index];
-                var selected_kind_index = kind_dropdown.get_selected();
+                var selected_kind_index = (int) kind_dropdown.get_selected();
+                var custom_index = (int) kind_options.get_n_items() - 1;
                 string kind = "ref";
-                if (selected_kind_index < 5) {
-                    var chosen = kind_options.get_string(selected_kind_index);
+                bool remember_kind = false;
+                if (selected_kind_index >= 0 && selected_kind_index < custom_index) {
+                    var chosen = kind_options.get_string((uint) selected_kind_index);
                     if (chosen != null && chosen.length > 0) {
                         kind = chosen;
                     }
                 } else {
                     var custom_kind = custom_kind_entry.get_text().strip();
                     kind = custom_kind.length > 0 ? custom_kind : "ref";
+                    remember_kind = custom_kind.length > 0;
                 }
                 var link_label = label_entry.get_text().strip();
                 create_graph_link.begin(
                     selected_card.card_id,
                     target_id,
                     kind.length > 0 ? kind : "ref",
-                    link_label.length > 0 ? link_label : null
+                    link_label.length > 0 ? link_label : null,
+                    remember_kind
                 );
             }
             dialog.close();
@@ -647,17 +655,86 @@ public class ToolboxPane : Object {
     private async void create_graph_link(string from_card_id,
                                          string to_card_id,
                                          string kind,
-                                         string? label) {
+                                         string? label,
+                                         bool remember_kind) {
         if (api == null) {
             return;
         }
         try {
             yield api.create_card_link(from_card_id, to_card_id, kind, label, "card");
+            if (remember_kind) {
+                remember_custom_link_kind(kind);
+            }
             toast_requested("Graph link added.");
             queue_connections_graph_refresh();
         } catch (Error e) {
             error_reported("Failed to add graph link", e.message);
         }
+    }
+
+    private Gee.ArrayList<string> list_available_link_kinds() {
+        var values = new Gee.ArrayList<string>();
+        values.add("ref");
+        values.add("depends_on");
+        values.add("example_of");
+        values.add("blocks");
+        values.add("related_to");
+
+        if (settings == null) {
+            return values;
+        }
+
+        foreach (var kind in settings.get_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS)) {
+            var cleaned = kind.strip();
+            if (cleaned.length == 0 || cleaned == "custom" || values.contains(cleaned)) {
+                continue;
+            }
+            values.add(cleaned);
+        }
+        return values;
+    }
+
+    private void remember_custom_link_kind(string kind) {
+        if (settings == null) {
+            return;
+        }
+        var cleaned = kind.strip();
+        if (cleaned.length == 0 || cleaned == "custom") {
+            return;
+        }
+
+        var defaults = new Gee.HashSet<string>();
+        defaults.add("ref");
+        defaults.add("depends_on");
+        defaults.add("example_of");
+        defaults.add("blocks");
+        defaults.add("related_to");
+        if (defaults.contains(cleaned)) {
+            return;
+        }
+
+        var custom = new Gee.ArrayList<string>();
+        foreach (var existing in settings.get_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS)) {
+            var item = existing.strip();
+            if (item.length == 0 || item == "custom" || defaults.contains(item) || custom.contains(item)) {
+                continue;
+            }
+            custom.add(item);
+        }
+        if (custom.contains(cleaned)) {
+            return;
+        }
+
+        custom.add(cleaned);
+        while (custom.size > 20) {
+            custom.remove_at(0);
+        }
+
+        string[] stored = new string[custom.size];
+        for (int i = 0; i < custom.size; i++) {
+            stored[i] = custom[i];
+        }
+        settings.set_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS, stored);
     }
 
     private void queue_connections_graph_refresh() {

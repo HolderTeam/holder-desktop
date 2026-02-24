@@ -10,6 +10,7 @@ public class AppSettings : Object {
     public const string KEY_WINDOW_HEIGHT = "window-height";
     public const string KEY_WINDOW_MAXIMIZED = "window-maximized";
     public const string KEY_TINY_CLOSE_STREAK = "tiny-close-streak";
+    public const string KEY_CUSTOM_CARD_LINK_KINDS = "custom-card-link-kinds";
 
     public static Settings? open_or_null() {
         var default_source = SettingsSchemaSource.get_default();
