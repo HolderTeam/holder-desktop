@@ -1,6 +1,7 @@
 namespace HolderLinux {
 
 public class ToolboxPane : Object {
+    private Gtk.Label connections_card_title_label;
     private Gtk.TextBuffer debug_buffer;
     private Gtk.TextView debug_view;
     private Gtk.Label connections_structure_label;
@@ -273,13 +274,13 @@ public class ToolboxPane : Object {
 
     private Gtk.Widget build_connections_tab() {
         var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
-        var structure_title = new Gtk.Label("Structure") { xalign = 0.0f };
-        structure_title.add_css_class("title-5");
+        connections_card_title_label = new Gtk.Label("No card selected") { xalign = 0.0f };
+        connections_card_title_label.add_css_class("title-5");
         connections_structure_label = new Gtk.Label("") { xalign = 0.0f };
         connections_structure_label.set_wrap(true);
         connections_structure_label.set_selectable(true);
         connections_structure_label.add_css_class("dim-label");
-        box.append(structure_title);
+        box.append(connections_card_title_label);
         box.append(connections_structure_label);
         refresh_connections_structure();
         return box;
@@ -387,6 +388,11 @@ public class ToolboxPane : Object {
         var selected_card = card_selection != null
             ? card_selection.get_selected_item() as CardSummary
             : null;
+        if (connections_card_title_label != null) {
+            connections_card_title_label.set_text(
+                selected_card != null ? selected_card.title : "No card selected"
+            );
+        }
         connections_structure_label.set_text(compact_structure_text(selected_project, selected_card));
     }
 
