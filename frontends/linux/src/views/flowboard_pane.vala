@@ -403,11 +403,11 @@ public class FlowboardPane : Object {
         if (width > 0) {
             x_fraction = x / (double) width;
         }
-        if (x_fraction < 0.30) {
+        if (x_fraction < 0.25) {
             row_widget.add_css_class(DROP_BEFORE_CLASS);
             return;
         }
-        if (x_fraction > 0.70) {
+        if (x_fraction > 0.75) {
             row_widget.add_css_class(DROP_AFTER_CLASS);
             return;
         }

@@ -160,7 +160,7 @@ public class FlowboardController : Object {
 
         string? new_parent;
         double new_sort;
-        if (target_x_fraction >= 0.30 && target_x_fraction <= 0.70) {
+        if (target_x_fraction >= 0.25 && target_x_fraction <= 0.75) {
             new_parent = target.card_id;
             if (is_descendant(new_parent, source.card_id)) {
                 return;
@@ -169,7 +169,7 @@ public class FlowboardController : Object {
             toast_requested("Moved \"%s\" into \"%s\"".printf(source.title, target.title));
         } else {
             new_parent = normalize_parent(target.parent_card_id);
-            var after = target_x_fraction > 0.70;
+            var after = target_x_fraction > 0.75;
             new_sort = sort_key_around_target(source.card_id, target.card_id, new_parent, after);
         }
 
