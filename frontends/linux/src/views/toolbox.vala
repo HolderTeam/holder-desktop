@@ -345,6 +345,7 @@ public class ToolboxPane : Object {
         box.append(connections_graph_outgoing_empty_label);
         connections_graph_outgoing_list = new Gtk.ListBox();
         connections_graph_outgoing_list.set_selection_mode(Gtk.SelectionMode.NONE);
+        connections_graph_outgoing_list.add_css_class("connections-graph-list");
         box.append(connections_graph_outgoing_list);
 
         var backlinks_title = new Gtk.Label("Backlinks") { xalign = 0.0f };
@@ -356,6 +357,7 @@ public class ToolboxPane : Object {
         box.append(connections_graph_backlinks_empty_label);
         connections_graph_backlinks_list = new Gtk.ListBox();
         connections_graph_backlinks_list.set_selection_mode(Gtk.SelectionMode.NONE);
+        connections_graph_backlinks_list.add_css_class("connections-graph-list");
         box.append(connections_graph_backlinks_list);
 
         refresh_connections_structure();
@@ -917,6 +919,7 @@ public class ToolboxPane : Object {
         var actions_btn = new Gtk.MenuButton();
         actions_btn.set_icon_name("open-menu-symbolic");
         actions_btn.add_css_class("flat");
+        actions_btn.set_margin_end(12);
         var popover = new Gtk.Popover();
         var actions_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
         actions_box.set_margin_top(6);
@@ -957,6 +960,17 @@ public class ToolboxPane : Object {
 .connections-kind-row:focus,
 .connections-kind-row:focus-within,
 .connections-kind-row:selected {
+  background: transparent;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.connections-graph-list,
+.connections-graph-list row,
+.connections-graph-list row:hover,
+.connections-graph-list row:selected,
+.connections-graph-list row:focus,
+.connections-graph-list row:focus-within {
   background: transparent;
   background-color: transparent;
   box-shadow: none;
