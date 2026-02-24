@@ -23,7 +23,7 @@ public class FlowboardPane : Object {
 
     public signal void tile_activated(uint position);
     public signal void navigate_up_requested();
-    public signal void card_drop_requested(string source_card_id, string target_card_id, double target_y_fraction);
+    public signal void card_drop_requested(string source_card_id, string target_card_id, double target_x_fraction);
     public signal void background_drop_requested(string source_card_id);
     public signal void breadcrumb_segment_activated(int index);
 
@@ -280,11 +280,11 @@ public class FlowboardPane : Object {
         var drop_target = new Gtk.DropTarget(typeof(string), Gdk.DragAction.MOVE);
         drop_target.enter.connect((x, y) => {
             grid_view.add_css_class(DRAG_ACTIVE_CLASS);
-            update_drop_hint(row_widget, y);
+            update_drop_hint(row_widget, x);
             return Gdk.DragAction.MOVE;
         });
         drop_target.motion.connect((x, y) => {
-            update_drop_hint(row_widget, y);
+            update_drop_hint(row_widget, x);
             return Gdk.DragAction.MOVE;
         });
         drop_target.leave.connect(() => {
@@ -304,19 +304,19 @@ public class FlowboardPane : Object {
                 grid_view.remove_css_class(DRAG_ACTIVE_CLASS);
                 return false;
             }
-            var height = row_widget.get_height();
-            double y_fraction = 0.5;
-            if (height > 0) {
-                y_fraction = y / (double) height;
+            var width = row_widget.get_width();
+            double x_fraction = 0.5;
+            if (width > 0) {
+                x_fraction = x / (double) width;
             }
-            if (y_fraction < 0.0) {
-                y_fraction = 0.0;
-            } else if (y_fraction > 1.0) {
-                y_fraction = 1.0;
+            if (x_fraction < 0.0) {
+                x_fraction = 0.0;
+            } else if (x_fraction > 1.0) {
+                x_fraction = 1.0;
             }
             clear_drop_hint(row_widget);
             grid_view.remove_css_class(DRAG_ACTIVE_CLASS);
-            card_drop_requested(source_card_id, target_card_id, y_fraction);
+            card_drop_requested(source_card_id, target_card_id, x_fraction);
             return true;
         });
         row_widget.add_controller(drop_target);
@@ -370,8 +370,7 @@ public class FlowboardPane : Object {
                 opacity: 1.0;
             }
             .flowboard-drop-before {
-                border-top: 0;
-                box-shadow: 0 -6px 0 0 @accent_color;
+                box-shadow: -6px 0 0 0 @accent_color;
             }
             .flowboard-drop-into {
                 outline: 3px solid @accent_color;
@@ -379,8 +378,7 @@ public class FlowboardPane : Object {
                 background-color: alpha(@accent_color, 0.16);
             }
             .flowboard-drop-after {
-                border-bottom: 0;
-                box-shadow: 0 6px 0 0 @accent_color;
+                box-shadow: 6px 0 0 0 @accent_color;
             }
         """);
         GtkCompat.add_provider_for_display(
@@ -397,19 +395,19 @@ public class FlowboardPane : Object {
         row_widget.remove_css_class(DROP_AFTER_CLASS);
     }
 
-    private void update_drop_hint(Gtk.Widget row_widget, double y) {
+    private void update_drop_hint(Gtk.Widget row_widget, double x) {
         ensure_drop_css();
         clear_drop_hint(row_widget);
-        var height = row_widget.get_height();
-        double y_fraction = 0.5;
-        if (height > 0) {
-            y_fraction = y / (double) height;
+        var width = row_widget.get_width();
+        double x_fraction = 0.5;
+        if (width > 0) {
+            x_fraction = x / (double) width;
         }
-        if (y_fraction < 0.30) {
+        if (x_fraction < 0.30) {
             row_widget.add_css_class(DROP_BEFORE_CLASS);
             return;
         }
-        if (y_fraction > 0.70) {
+        if (x_fraction > 0.70) {
             row_widget.add_css_class(DROP_AFTER_CLASS);
             return;
         }

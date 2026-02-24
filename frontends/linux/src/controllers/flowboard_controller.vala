@@ -77,7 +77,7 @@ public class FlowboardController : Object {
             empty_message_changed("No cards yet. Create one to get started.");
         } else {
             if (current_parent_card_id == null) {
-                empty_message_changed("Drag card center onto another card to nest. Drag top/bottom edges to reorder.");
+                empty_message_changed("Drag card center onto another card to nest. Drag left/right edges to reorder.");
             } else {
                 empty_message_changed("Inside nested cards. Enter opens item/folder. Backspace goes up.");
             }
@@ -147,7 +147,7 @@ public class FlowboardController : Object {
         refresh();
     }
 
-    public void on_card_drop(string source_card_id, string target_card_id, double target_y_fraction) {
+    public void on_card_drop(string source_card_id, string target_card_id, double target_x_fraction) {
         if (source_card_id == target_card_id) {
             return;
         }
@@ -160,7 +160,7 @@ public class FlowboardController : Object {
 
         string? new_parent;
         double new_sort;
-        if (target_y_fraction >= 0.30 && target_y_fraction <= 0.70) {
+        if (target_x_fraction >= 0.30 && target_x_fraction <= 0.70) {
             new_parent = target.card_id;
             if (is_descendant(new_parent, source.card_id)) {
                 return;
@@ -169,7 +169,7 @@ public class FlowboardController : Object {
             toast_requested("Moved \"%s\" into \"%s\"".printf(source.title, target.title));
         } else {
             new_parent = normalize_parent(target.parent_card_id);
-            var after = target_y_fraction > 0.70;
+            var after = target_x_fraction > 0.70;
             new_sort = sort_key_around_target(source.card_id, target.card_id, new_parent, after);
         }
 

@@ -50,8 +50,8 @@ public class ToolboxPane : Object {
         flowboard.breadcrumb_segment_activated.connect((index) => {
             controller.navigate_to_breadcrumb_index(index);
         });
-        flowboard.card_drop_requested.connect((source_card_id, target_card_id, target_y_fraction) => {
-            controller.on_card_drop(source_card_id, target_card_id, target_y_fraction);
+        flowboard.card_drop_requested.connect((source_card_id, target_card_id, target_x_fraction) => {
+            controller.on_card_drop(source_card_id, target_card_id, target_x_fraction);
         });
         flowboard.background_drop_requested.connect((source_card_id) => {
             controller.on_background_drop(source_card_id);
