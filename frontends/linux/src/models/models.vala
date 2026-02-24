@@ -85,6 +85,31 @@ public class CardSummary : Object {
     }
 }
 
+public class CardLink : Object {
+    public string from_card_id { get; construct; }
+    public string to_card_id { get; construct; }
+    public string to_type { get; construct; }
+    public string kind { get; construct; }
+    public string? label { get; construct; }
+    public int64 created_at { get; construct; }
+
+    public CardLink(string from_card_id,
+                    string to_card_id,
+                    string to_type,
+                    string kind,
+                    string? label,
+                    int64 created_at) {
+        Object(
+            from_card_id: from_card_id,
+            to_card_id: to_card_id,
+            to_type: to_type,
+            kind: kind,
+            label: label,
+            created_at: created_at
+        );
+    }
+}
+
 public class FlowboardTile : Object {
     public string node_key { get; construct; }
     public string title { get; construct; }

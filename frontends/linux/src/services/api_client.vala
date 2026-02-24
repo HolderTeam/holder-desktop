@@ -101,6 +101,26 @@ public class ApiClient : Object, IHolderApi {
         return parse_card_detail(root);
     }
 
+    public async Gee.ArrayList<CardLink> list_card_links(string card_id) throws Error {
+        var root = yield request_json(
+            "GET",
+            "/cards/%s/links".printf(Uri.escape_string(card_id)),
+            null,
+            null
+        );
+        return parse_card_links(root);
+    }
+
+    public async Gee.ArrayList<CardLink> list_card_backlinks(string card_id) throws Error {
+        var root = yield request_json(
+            "GET",
+            "/cards/%s/backlinks".printf(Uri.escape_string(card_id)),
+            null,
+            null
+        );
+        return parse_card_links(root);
+    }
+
     public async Gee.ArrayList<SearchCardResult> search_cards(string project_id,
                                                               string query_text,
                                                               int limit = 30) throws Error {
@@ -498,6 +518,27 @@ public class ApiClient : Object, IHolderApi {
             data.get_string_member("content"),
             data.has_member("updated_at") ? data.get_int_member("updated_at") : 0
         );
+    }
+
+    private Gee.ArrayList<CardLink> parse_card_links(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for card links response");
+        }
+
+        var out_list = new Gee.ArrayList<CardLink>();
+        var data = root.get_array_member("data");
+        for (uint i = 0; i < data.get_length(); i++) {
+            var item = data.get_object_element(i);
+            out_list.add(new CardLink(
+                item.get_string_member("from_card_id"),
+                item.get_string_member("to_card_id"),
+                item.has_member("to_type") ? string_member_or_empty(item, "to_type") : "card",
+                item.has_member("kind") ? string_member_or_empty(item, "kind") : "ref",
+                item.has_member("label") ? string_member_or_empty(item, "label") : null,
+                item.has_member("created_at") ? item.get_int_member("created_at") : 0
+            ));
+        }
+        return out_list;
     }
 
     private Gee.ArrayList<SearchCardResult> parse_search_cards(Json.Object root) throws Error {

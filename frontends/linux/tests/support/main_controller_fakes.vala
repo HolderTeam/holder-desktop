@@ -143,6 +143,14 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         return new HolderLinux.CardDetail(card_id, "p1", "Card 1", "# Card 1\n\nBody", 20);
     }
 
+    public async Gee.ArrayList<HolderLinux.CardLink> list_card_links(string card_id) throws Error {
+        return new Gee.ArrayList<HolderLinux.CardLink>();
+    }
+
+    public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string card_id) throws Error {
+        return new Gee.ArrayList<HolderLinux.CardLink>();
+    }
+
     public async Gee.ArrayList<HolderLinux.SearchCardResult> search_cards(string project_id,
                                                                            string query_text,
                                                                            int limit = 30) throws Error {

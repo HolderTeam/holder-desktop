@@ -163,6 +163,50 @@ private void test_get_card_parses_detail() {
     assert(card.content == "Body");
 }
 
+private void test_list_card_links_and_backlinks_parse_data() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"from_card_id\":\"c1\",\"to_card_id\":\"c2\",\"to_type\":\"card\",\"kind\":\"depends_on\",\"label\":\"critical\",\"created_at\":12}]}"
+    );
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"from_card_id\":\"c3\",\"to_card_id\":\"c1\",\"to_type\":\"card\",\"kind\":\"ref\",\"created_at\":13}]}"
+    );
+    var client = make_client(transport);
+
+    bool done_links = false;
+    Gee.ArrayList<HolderLinux.CardLink>? links = null;
+    client.list_card_links.begin("c1", (obj, res) => {
+        try {
+            links = client.list_card_links.end(res);
+        } catch (Error e) {
+            links = null;
+        }
+        done_links = true;
+    });
+    assert(wait_for_condition(() => done_links));
+    assert(links != null && links.size == 1);
+    assert(links[0].kind == "depends_on");
+    assert(links[0].label == "critical");
+    assert(transport.last_uri.has_suffix("/cards/c1/links"));
+
+    bool done_backlinks = false;
+    Gee.ArrayList<HolderLinux.CardLink>? backlinks = null;
+    client.list_card_backlinks.begin("c1", (obj, res) => {
+        try {
+            backlinks = client.list_card_backlinks.end(res);
+        } catch (Error e) {
+            backlinks = null;
+        }
+        done_backlinks = true;
+    });
+    assert(wait_for_condition(() => done_backlinks));
+    assert(backlinks != null && backlinks.size == 1);
+    assert(backlinks[0].from_card_id == "c3");
+    assert(transport.last_uri.has_suffix("/cards/c1/backlinks"));
+}
+
 private void test_search_cards_parses_results() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -952,6 +996,8 @@ int main(string[] args) {
     Test.add_func("/api_client/list_cards_parses_data_and_query", test_list_cards_parses_data_and_query);
     Test.add_func("/api_client/list_cards_with_parent_query", test_list_cards_with_parent_query);
     Test.add_func("/api_client/get_card_parses_detail", test_get_card_parses_detail);
+    Test.add_func("/api_client/list_card_links_and_backlinks_parse_data",
+                  test_list_card_links_and_backlinks_parse_data);
     Test.add_func("/api_client/search_cards_parses_results", test_search_cards_parses_results);
     Test.add_func("/api_client/get_ai_capabilities_parses_nested_data",
                   test_get_ai_capabilities_parses_nested_data);
