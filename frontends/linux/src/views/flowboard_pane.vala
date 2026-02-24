@@ -29,6 +29,8 @@ public class FlowboardPane : Object {
     public signal void background_new_card_requested();
     public signal void card_open_requested(string card_id);
     public signal void card_move_up_level_requested(string card_id);
+    public signal void card_move_left_requested(string card_id);
+    public signal void card_move_right_requested(string card_id);
     public signal void card_move_to_start_requested(string card_id);
     public signal void card_move_to_end_requested(string card_id);
     public signal void breadcrumb_segment_activated(int index);
@@ -173,6 +175,7 @@ public class FlowboardPane : Object {
             }
             card.set_data<string>("flowboard-parent-card-id", tile.parent_card_id ?? "");
             card.set_data<int>("flowboard-sibling-count", tile.sibling_count);
+            card.set_data<int>("flowboard-sibling-index", tile.sibling_index);
         });
 
         grid_view = new Gtk.GridView(selection, factory);
@@ -511,7 +514,26 @@ public class FlowboardPane : Object {
         menu_box.append(move_up_btn);
 
         var sibling_count = row_widget.get_data<int>("flowboard-sibling-count");
+        var sibling_index = row_widget.get_data<int>("flowboard-sibling-index");
         var can_reorder = sibling_count > 1;
+
+        var move_left_btn = new Gtk.Button.with_label("Move Left");
+        move_left_btn.add_css_class("flat");
+        move_left_btn.set_sensitive(can_reorder && sibling_index > 0);
+        move_left_btn.clicked.connect(() => {
+            popover.popdown();
+            card_move_left_requested(card_id);
+        });
+        menu_box.append(move_left_btn);
+
+        var move_right_btn = new Gtk.Button.with_label("Move Right");
+        move_right_btn.add_css_class("flat");
+        move_right_btn.set_sensitive(can_reorder && sibling_index < sibling_count - 1);
+        move_right_btn.clicked.connect(() => {
+            popover.popdown();
+            card_move_right_requested(card_id);
+        });
+        menu_box.append(move_right_btn);
 
         var move_start_btn = new Gtk.Button.with_label("Move to Start");
         move_start_btn.add_css_class("flat");

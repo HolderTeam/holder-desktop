@@ -66,6 +66,12 @@ public class ToolboxPane : Object {
         flowboard.card_move_up_level_requested.connect((card_id) => {
             controller.move_card_up_level_from_context_menu(card_id);
         });
+        flowboard.card_move_left_requested.connect((card_id) => {
+            controller.move_card_left_from_context_menu(card_id);
+        });
+        flowboard.card_move_right_requested.connect((card_id) => {
+            controller.move_card_right_from_context_menu(card_id);
+        });
         flowboard.card_move_to_start_requested.connect((card_id) => {
             controller.move_card_to_start_from_context_menu(card_id);
         });

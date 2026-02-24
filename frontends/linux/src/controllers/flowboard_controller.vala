@@ -142,6 +142,54 @@ public class FlowboardController : Object {
         move_requested(card_id, parent_id, new_sort);
     }
 
+    public void move_card_left_from_context_menu(string card_id) {
+        var card = find_card(card_id);
+        if (card == null) {
+            return;
+        }
+        var parent_id = normalize_parent(card.parent_card_id);
+        var siblings = siblings_for_parent(parent_id, null);
+        int index = -1;
+        for (int i = 0; i < siblings.size; i++) {
+            if (siblings[i].card_id == card_id) {
+                index = i;
+                break;
+            }
+        }
+        if (index <= 0) {
+            return;
+        }
+        var target_id = siblings[index - 1].card_id;
+        var new_sort = sort_key_around_target(card_id, target_id, parent_id, false);
+        apply_local_move(card_id, parent_id, new_sort);
+        refresh();
+        move_requested(card_id, parent_id, new_sort);
+    }
+
+    public void move_card_right_from_context_menu(string card_id) {
+        var card = find_card(card_id);
+        if (card == null) {
+            return;
+        }
+        var parent_id = normalize_parent(card.parent_card_id);
+        var siblings = siblings_for_parent(parent_id, null);
+        int index = -1;
+        for (int i = 0; i < siblings.size; i++) {
+            if (siblings[i].card_id == card_id) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0 || index >= siblings.size - 1) {
+            return;
+        }
+        var target_id = siblings[index + 1].card_id;
+        var new_sort = sort_key_around_target(card_id, target_id, parent_id, true);
+        apply_local_move(card_id, parent_id, new_sort);
+        refresh();
+        move_requested(card_id, parent_id, new_sort);
+    }
+
     public void move_card_to_end_from_context_menu(string card_id) {
         var card = find_card(card_id);
         if (card == null) {
@@ -249,7 +297,8 @@ public class FlowboardController : Object {
     private void replace_visible_for_parent(string? parent_card_id) {
         visible_tiles.remove_all();
         var sorted = siblings_for_parent(parent_card_id);
-        foreach (var card in sorted) {
+        for (int i = 0; i < sorted.size; i++) {
+            var card = sorted[i];
             var child_count = child_count_for_parent(card.card_id);
             var is_container = child_count > 0;
             visible_tiles.append(new FlowboardTile(
@@ -261,6 +310,7 @@ public class FlowboardController : Object {
                 null,
                 parent_card_id,
                 sorted.size,
+                i,
                 child_count
             ));
         }
@@ -294,6 +344,7 @@ public class FlowboardController : Object {
                 null,
                 project.project_id,
                 null,
+                0,
                 0,
                 root_count
             ));
