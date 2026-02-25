@@ -54,6 +54,7 @@ public class ToolboxPane : Object {
     public signal void flowboard_move_requested(string card_id, string? parent_card_id, double sort_key);
     public signal void flowboard_new_card_requested(string? parent_card_id);
     public signal void send_card_as_email_requested();
+    public signal void terminal_copy_to_card_requested(string text);
 
     public ToolboxPane() {
         widget = new Gtk.Revealer();
@@ -2103,12 +2104,38 @@ public class ToolboxPane : Object {
         });
         actions.add_action(select_all_action);
 
+        var copy_to_card_action = new SimpleAction("copy-to-card", null);
+        copy_to_card_action.activate.connect(() => {
+            var text = terminal.get_text_selected(Vte.Format.TEXT);
+            if (text == null || text.strip().length == 0) {
+                toast_requested("Select terminal text first.");
+                return;
+            }
+            terminal_copy_to_card_requested(text);
+        });
+        actions.add_action(copy_to_card_action);
+
+        var copy_all_to_card_action = new SimpleAction("copy-all-to-card", null);
+        copy_all_to_card_action.activate.connect(() => {
+            terminal.select_all();
+            var text = terminal.get_text_selected(Vte.Format.TEXT);
+            terminal.unselect_all();
+            if (text == null || text.strip().length == 0) {
+                toast_requested("Terminal has no text to copy.");
+                return;
+            }
+            terminal_copy_to_card_requested(text);
+        });
+        actions.add_action(copy_all_to_card_action);
+
         terminal.insert_action_group("terminal", actions);
 
         var menu = new GLib.Menu();
         menu.append("Copy", "terminal.copy");
         menu.append("Paste", "terminal.paste");
         menu.append("Select All", "terminal.select-all");
+        menu.append("Copy to Card", "terminal.copy-to-card");
+        menu.append("Copy All to Card", "terminal.copy-all-to-card");
         terminal.set_context_menu_model(menu);
 
         var key_controller = new Gtk.EventControllerKey();

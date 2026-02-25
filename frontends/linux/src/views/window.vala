@@ -358,6 +358,9 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.send_card_as_email_requested.connect(() => {
             send_current_card_as_email();
         });
+        toolbox.terminal_copy_to_card_requested.connect((text) => {
+            append_text_to_current_card(text);
+        });
         toolbox.set_settings(settings);
         toolbox.bind_connections_context(project_selection, card_store, card_selection);
         toolbox.bind_flowboard_controller(flowboard_controller);
@@ -771,6 +774,35 @@ public class MainWindow : Adw.ApplicationWindow {
         } catch (Error e) {
             show_error("Email share failed", e.message);
         }
+    }
+
+    private void append_text_to_current_card(string text) {
+        var card = controller.get_current_card();
+        if (card == null) {
+            add_toast("Select a card first.");
+            return;
+        }
+        if (text == null || text.length == 0) {
+            add_toast("Nothing to copy.");
+            return;
+        }
+
+        Gtk.TextIter end_iter;
+        editor_buffer.get_end_iter(out end_iter);
+        Gtk.TextIter start_iter;
+        editor_buffer.get_start_iter(out start_iter);
+        var existing = editor_buffer.get_text(
+            start_iter,
+            end_iter,
+            false
+        );
+
+        var needs_gap = existing.length > 0 && !existing.has_suffix("\n");
+        var prefix = needs_gap ? "\n\n" : "\n";
+        var insert_text = "%s%s".printf(prefix, text);
+        editor_buffer.insert(ref end_iter, insert_text, -1);
+        show_editor_mode();
+        add_toast("Copied terminal output into card.");
     }
 
     private GtkSource.SearchContext create_search_context(string find_text) {
