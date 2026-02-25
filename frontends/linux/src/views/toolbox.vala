@@ -485,6 +485,7 @@ public class ToolboxPane : Object {
         view.append_column(build_resource_text_column("Label", "label"));
         view.append_column(build_resource_text_column("Kind", "kind"));
         view.append_column(build_resource_text_column("URI", "uri"));
+        view.append_column(build_resource_text_column("Desc", "desc"));
         view.append_column(build_resource_text_column("Updated", "updated"));
 
         var scroller = new Gtk.ScrolledWindow();
@@ -559,6 +560,11 @@ public class ToolboxPane : Object {
                 case "uri":
                     label.set_text(ellipsize_connections_title(resource.uri));
                     label.set_tooltip_text(resource.uri);
+                    break;
+                case "desc":
+                    var desc = resource.desc ?? "";
+                    label.set_text(ellipsize_connections_title(desc));
+                    label.set_tooltip_text(desc);
                     break;
                 case "updated":
                     label.set_text(format_epoch(resource.updated_at));

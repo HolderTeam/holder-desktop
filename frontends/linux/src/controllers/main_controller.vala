@@ -186,6 +186,36 @@ public class MainController : Object, IAiRunContext {
         reload_cards_for_selected_project.begin();
     }
 
+    public async void show_project_overview() {
+        var selected = project_selection.get_selected_item() as Project;
+        if (selected == null) {
+            current_project = null;
+            current_card = null;
+            editor_state_changed("# No Project Selected\n\nSelect a project to view its overview.", false);
+            return;
+        }
+
+        current_project = selected;
+        current_card = null;
+
+        int card_count = (int) card_store.get_n_items();
+        int thread_count = (int) ai_thread_store.get_n_items();
+        string resources_text = "unknown";
+        if (api != null) {
+            try {
+                var resources = yield api.list_resources(selected.project_id);
+                resources_text = resources.size.to_string();
+            } catch (Error e) {
+                resources_text = "unknown";
+            }
+        }
+
+        editor_state_changed(build_project_overview_text(selected, card_count, resources_text, thread_count), false);
+        show_editor_requested();
+        window_title_changed(selected.name);
+        status_changed("Loaded project overview");
+    }
+
     public void on_card_selected() {
         load_selected_card.begin();
     }
@@ -468,28 +498,50 @@ public class MainController : Object, IAiRunContext {
             var cards = yield api.list_cards(selected.project_id, "all", null);
             replace_cards(cards);
             yield reload_ai_threads_for_project(selected.project_id);
-            if (card_store.get_n_items() == 0) {
-                current_card = null;
-                editor_state_changed(
-                    "# %s\n\nNo cards yet. Create one with the + button.".printf(selected.name),
-                    false
-                );
+            if (preferred_card_id != null) {
+                var selected_card = select_card_by_id(preferred_card_id);
+                if (!selected_card && card_store.get_n_items() > 0) {
+                    suppress_card_selection_events = true;
+                    card_selection.set_selected_index(0);
+                    suppress_card_selection_events = false;
+                }
+                load_selected_card.begin();
                 return;
             }
 
-            var selected_card = false;
-            if (preferred_card_id != null) {
-                selected_card = select_card_by_id(preferred_card_id);
-            }
-            if (!selected_card) {
-                suppress_card_selection_events = true;
-                card_selection.set_selected_index(0);
-                suppress_card_selection_events = false;
-            }
-            load_selected_card.begin();
+            suppress_card_selection_events = true;
+            card_selection.set_selected_index(uint.MAX);
+            suppress_card_selection_events = false;
+            yield show_project_overview();
         } catch (Error e) {
             error_reported("Failed to load cards", e.message);
         }
+    }
+
+    private string build_project_overview_text(Project project,
+                                               int card_count,
+                                               string resource_count_text,
+                                               int thread_count) {
+        var sb = new StringBuilder();
+        sb.append("# %s\n\n".printf(project.name));
+        sb.append("## Overview\n");
+        sb.append("- Cards: %d\n".printf(card_count));
+        sb.append("- Resources: %s\n".printf(resource_count_text));
+        sb.append("- AI Threads: %d\n\n".printf(thread_count));
+        sb.append("## Metadata\n");
+        sb.append("- Project ID: `%s`\n".printf(project.project_id));
+        sb.append("- Root Path: `%s`\n".printf(project.root_path));
+        sb.append("- Created: %s\n".printf(format_timestamp(project.created_at)));
+        sb.append("- Updated: %s\n".printf(format_timestamp(project.updated_at)));
+        return sb.str;
+    }
+
+    private string format_timestamp(int64 epoch) {
+        if (epoch <= 0) {
+            return "unknown";
+        }
+        var dt = new DateTime.from_unix_local(epoch);
+        return dt.format("%Y-%m-%d %H:%M");
     }
 
     private async void load_selected_card() {

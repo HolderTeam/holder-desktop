@@ -52,15 +52,23 @@ private void test_reload_everything_loads_project_and_card() {
     var editor_text = new MutableTextProvider();
 
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    bool saw_overview = false;
+    controller.editor_state_changed.connect((text, editable) => {
+        if (text.contains("## Overview")) {
+            saw_overview = true;
+        }
+    });
+
     controller.reload_everything.begin();
 
-    assert(wait_for_condition(() => controller.get_current_card() != null));
+    assert(wait_for_condition(() => saw_overview));
     assert(controller.get_current_project() != null);
     assert(controller.get_current_project().project_id == "p1");
-    assert(controller.get_current_card().card_id == "c1");
+    assert(controller.get_current_card() == null);
+    assert(controller.selected_card_id() == null);
     assert(api.list_projects_calls >= 1);
     assert(api.list_cards_calls >= 1);
-    assert(api.get_card_calls >= 1);
+    assert(api.get_card_calls == 0);
 }
 
 private void test_search_debounce_runs_once() {
@@ -87,14 +95,16 @@ private void test_autosave_debounce_runs_once() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
-    var search_text = new MutableTextProvider();
-    var editor_text = new MutableTextProvider();
-
-    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
     controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    assert(controller.selected_card_id() == null);
+    harness.card_selection.set_selected_index(0);
+    controller.on_card_selected();
     assert(wait_for_condition(() => controller.get_current_card() != null));
 
-    editor_text.value = "# Updated Title\n\nNew body";
+    harness.editor_text.value = "# Updated Title\n\nNew body";
     clock.now_value = 4242;
 
     controller.schedule_autosave();
@@ -315,7 +325,9 @@ private void test_open_search_result_existing_card_skips_reload() {
     assert(wait_for_condition(() => api.search_calls == 1));
     var list_cards_before = api.list_cards_calls;
     controller.open_search_result_at.begin(0);
-    assert(wait_for_condition(() => api.get_card_calls >= 2));
+    assert(wait_for_condition(() => controller.get_current_card() != null &&
+                          controller.get_current_card().card_id == "c2"));
+    assert(api.get_card_calls >= 1);
     assert(api.list_cards_calls == list_cards_before);
 }
 
@@ -509,14 +521,14 @@ private void test_reload_everything_with_no_cards_sets_empty_state() {
     var editor_text = new MutableTextProvider();
     var controller = make_controller(api, scheduler, clock, search_text, editor_text);
 
-    bool saw_no_cards = false;
+    bool saw_overview = false;
     controller.editor_state_changed.connect((text, editable) => {
-        if (text.contains("No cards yet")) {
-            saw_no_cards = true;
+        if (text.contains("## Overview") && text.contains("- Cards: 0")) {
+            saw_overview = true;
         }
     });
     controller.reload_everything.begin();
-    assert(wait_for_condition(() => saw_no_cards));
+    assert(wait_for_condition(() => saw_overview));
     assert(controller.get_current_card() == null);
 }
 
@@ -743,9 +755,8 @@ private void test_load_selected_card_failure_emits_error() {
     api.fail_get_card = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
-    var search_text = new MutableTextProvider();
-    var editor_text = new MutableTextProvider();
-    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
 
     bool got_error = false;
     controller.error_reported.connect((title, details) => {
@@ -754,6 +765,9 @@ private void test_load_selected_card_failure_emits_error() {
         }
     });
     controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    controller.on_card_selected();
     assert(wait_for_condition(() => got_error));
 }
 
@@ -762,10 +776,12 @@ private void test_autosave_failure_emits_error() {
     api.fail_update_card = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
-    var search_text = new MutableTextProvider();
-    var editor_text = new MutableTextProvider();
-    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
     controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    controller.on_card_selected();
     assert(wait_for_condition(() => controller.get_current_card() != null));
 
     bool got_error = false;
@@ -774,7 +790,7 @@ private void test_autosave_failure_emits_error() {
             got_error = true;
         }
     });
-    editor_text.value = "# New title";
+    harness.editor_text.value = "# New title";
     controller.autosave_current_card.begin();
     assert(wait_for_condition(() => got_error));
 }
@@ -887,7 +903,7 @@ private void test_on_card_selected_triggers_load() {
     var controller = harness.controller;
 
     controller.reload_everything.begin();
-    assert(wait_for_condition(() => controller.get_current_card() != null));
+    assert(wait_for_condition(() => controller.get_current_project() != null));
     harness.card_selection.set_selected_index(1);
     var before = api.get_card_calls;
     controller.on_card_selected();

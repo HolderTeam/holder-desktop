@@ -361,6 +361,9 @@ public class MainWindow : Adw.ApplicationWindow {
         card_store.items_changed.connect((position, removed, added) => {
             queue_flowboard_refresh();
         });
+        flowboard_controller.project_overview_requested.connect((_project_id) => {
+            controller.show_project_overview.begin();
+        });
 
         close_request.connect(() => {
             persist_window_state();

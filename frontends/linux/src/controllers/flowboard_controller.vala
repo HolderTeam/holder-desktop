@@ -16,6 +16,7 @@ public class FlowboardController : Object {
     public signal void move_requested(string card_id, string? parent_card_id, double sort_key);
     public signal void create_card_requested(string? parent_card_id);
     public signal void toast_requested(string message);
+    public signal void project_overview_requested(string project_id);
 
     public FlowboardController(GLib.ListStore project_store,
                                Gtk.SingleSelection project_selection,
@@ -94,6 +95,7 @@ public class FlowboardController : Object {
         }
         if (tile.project_id != null) {
             select_project(tile.project_id);
+            project_overview_requested(tile.project_id);
             return;
         }
         if (tile.card_id == null) {
@@ -231,6 +233,10 @@ public class FlowboardController : Object {
             current_parent_card_id = null;
             parent_stack_ids.clear();
             refresh();
+            var selected_project = project_selection.get_selected_item() as Project;
+            if (selected_project != null) {
+                project_overview_requested(selected_project.project_id);
+            }
             return;
         }
 
