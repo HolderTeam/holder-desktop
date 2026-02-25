@@ -629,26 +629,35 @@ public class MainWindow : Adw.ApplicationWindow {
 
         var before_cursor = editor_buffer.get_text(line_start, iter, false);
         var cursor_byte_offset = before_cursor.length;
-
-        try {
-            var regex = new Regex("\\[\\[([^\\]\\n]+)\\]\\]");
-            MatchInfo match_info;
-            if (!regex.match(line_text, 0, out match_info)) {
-                return null;
-            }
-            do {
-                int start_pos;
-                int end_pos;
-                match_info.fetch_pos(0, out start_pos, out end_pos);
-                if (cursor_byte_offset >= start_pos && cursor_byte_offset < end_pos) {
-                    var target = match_info.fetch(1).strip();
-                    return target.length > 0 ? target : null;
-                }
-            } while (match_info.next());
-        } catch (RegexError e) {
-            toolbox.log_debug("Internal link regex failed: %s".printf(e.message));
+        if (cursor_byte_offset < 0) {
+            return null;
         }
-        return null;
+        if (cursor_byte_offset > line_text.length) {
+            cursor_byte_offset = line_text.length;
+        }
+
+        var search_upto = line_text.substring(0, cursor_byte_offset);
+        int open_pos = search_upto.last_index_of("[[");
+        if (open_pos < 0 && cursor_byte_offset < line_text.length) {
+            search_upto = line_text.substring(0, cursor_byte_offset + 1);
+            open_pos = search_upto.last_index_of("[[");
+        }
+        if (open_pos < 0) {
+            return null;
+        }
+
+        int close_pos = line_text.index_of("]]", open_pos + 2);
+        if (close_pos < 0) {
+            return null;
+        }
+
+        if (cursor_byte_offset < open_pos || cursor_byte_offset > close_pos + 2) {
+            return null;
+        }
+
+        var raw_target = line_text.substring(open_pos + 2, close_pos - (open_pos + 2));
+        var target = raw_target.strip();
+        return target.length > 0 ? target : null;
     }
 
     private string? resolve_internal_link_target_card_id(string target) {
@@ -699,12 +708,39 @@ public class MainWindow : Adw.ApplicationWindow {
 
         var card_id = resolve_internal_link_target_card_id(target);
         if (card_id == null) {
-            add_toast("No card matches [[%s]] in this project.".printf(target));
+            add_toast("No card matches [[%s]].".printf(target));
+            var target_copy = target;
+            Idle.add(() => {
+                show_create_internal_link_card_dialog(target_copy);
+                return Source.REMOVE;
+            });
             return true;
         }
 
         open_card_from_flowboard(card_id);
         return true;
+    }
+
+    private void show_create_internal_link_card_dialog(string target) {
+        var dialog = new Adw.MessageDialog(
+            this,
+            "Create Linked Card?",
+            "No card matches [[%s]] in this project.".printf(target)
+        );
+        dialog.add_response("cancel", "Cancel");
+        dialog.add_response("create", "Create Card");
+        dialog.set_response_appearance("create", Adw.ResponseAppearance.SUGGESTED);
+        dialog.set_default_response("create");
+        dialog.set_close_response("cancel");
+
+        dialog.response.connect((response) => {
+            if (response == "create") {
+                controller.create_card_with_title.begin(target);
+            }
+            dialog.close();
+        });
+
+        dialog.present();
     }
 
     private void show_preferences_dialog() {

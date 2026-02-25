@@ -231,6 +231,32 @@ public class MainController : Object, IAiRunContext {
     }
 
     public async void create_card(string? parent_card_id = null) {
+        yield create_card_with_content(
+            "Untitled",
+            "# Untitled\n\n",
+            parent_card_id,
+            "New card created"
+        );
+    }
+
+    public async void create_card_with_title(string title, string? parent_card_id = null) {
+        var clean_title = title.strip();
+        if (clean_title.length == 0) {
+            error_reported("Card title required", "Please enter a non-empty title.");
+            return;
+        }
+        yield create_card_with_content(
+            clean_title,
+            "# %s\n\n".printf(clean_title),
+            parent_card_id,
+            "Created card: %s".printf(clean_title)
+        );
+    }
+
+    private async void create_card_with_content(string title,
+                                                string content,
+                                                string? parent_card_id,
+                                                string success_toast) {
         if (create_card_in_flight) {
             status_changed("Create card already in progress...");
             return;
@@ -256,8 +282,8 @@ public class MainController : Object, IAiRunContext {
         try {
             var new_id = yield api.create_card(
                 current_project.project_id,
-                "Untitled",
-                "# Untitled\n\n",
+                title,
+                content,
                 parent_card_id
             );
             var cards = yield api.list_cards(current_project.project_id, "all", null);
@@ -271,7 +297,7 @@ public class MainController : Object, IAiRunContext {
                 }
             }
 
-            toast_requested("New card created");
+            toast_requested(success_toast);
             status_changed("Created new card");
         } catch (Error e) {
             error_reported("Failed to create card", e.message);
