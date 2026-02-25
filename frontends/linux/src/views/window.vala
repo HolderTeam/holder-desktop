@@ -355,6 +355,9 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.flowboard_new_card_requested.connect((parent_card_id) => {
             controller.create_card.begin(parent_card_id);
         });
+        toolbox.send_card_as_email_requested.connect(() => {
+            send_current_card_as_email();
+        });
         toolbox.set_settings(settings);
         toolbox.bind_connections_context(project_selection, card_store, card_selection);
         toolbox.bind_flowboard_controller(flowboard_controller);
@@ -746,6 +749,28 @@ public class MainWindow : Adw.ApplicationWindow {
     private void show_preferences_dialog() {
         var dialog = new PreferencesDialog(editor_buffer, editor_view, spelling_adapter, settings);
         dialog.present(this);
+    }
+
+    private void send_current_card_as_email() {
+        var card = controller.get_current_card();
+        if (card == null) {
+            add_toast("Select a card first.");
+            return;
+        }
+
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        editor_buffer.get_bounds(out start, out end);
+        var body_text = editor_buffer.get_text(start, end, false);
+        var subject = Uri.escape_string(card.title, null, false);
+        var body = Uri.escape_string(body_text, null, false);
+        var mailto_uri = "mailto:?subject=%s&body=%s".printf(subject, body);
+        try {
+            AppInfo.launch_default_for_uri(mailto_uri, null);
+            add_toast("Opened default email app.");
+        } catch (Error e) {
+            show_error("Email share failed", e.message);
+        }
     }
 
     private GtkSource.SearchContext create_search_context(string find_text) {

@@ -23,6 +23,7 @@ public class ToolboxPane : Object {
     private Gtk.TextBuffer debug_buffer;
     private Gtk.TextView debug_view;
     private Gtk.Label connections_structure_label;
+    private Gtk.Button sharing_email_btn;
     private GLib.ListStore resources_store;
     private Gtk.SingleSelection resources_selection;
     private Gtk.SearchEntry resources_search_entry;
@@ -52,6 +53,7 @@ public class ToolboxPane : Object {
     public signal void flowboard_card_open_requested(string card_id);
     public signal void flowboard_move_requested(string card_id, string? parent_card_id, double sort_key);
     public signal void flowboard_new_card_requested(string? parent_card_id);
+    public signal void send_card_as_email_requested();
 
     public ToolboxPane() {
         widget = new Gtk.Revealer();
@@ -82,18 +84,22 @@ public class ToolboxPane : Object {
             refresh_connections_structure();
             queue_connections_graph_refresh();
             queue_resources_refresh();
+            refresh_sharing_action_state();
         });
         card_selection.notify["selected"].connect(() => {
             refresh_connections_structure();
             queue_connections_graph_refresh();
+            refresh_sharing_action_state();
         });
         card_store.items_changed.connect((position, removed, added) => {
             refresh_connections_structure();
             queue_connections_graph_refresh();
+            refresh_sharing_action_state();
         });
         refresh_connections_structure();
         queue_connections_graph_refresh();
         queue_resources_refresh();
+        refresh_sharing_action_state();
     }
 
     public void bind_flowboard_controller(FlowboardController controller) {
@@ -254,7 +260,7 @@ public class ToolboxPane : Object {
         resources_page.set_icon_name("view-list-symbolic");
 
         var sharing_page = stack.add_titled(
-            build_placeholder_tab("Sharing tools are scaffolded and planned."),
+            build_sharing_tab(),
             "sharing",
             "Sharing"
         );
@@ -961,6 +967,37 @@ public class ToolboxPane : Object {
         info.add_css_class("dim-label");
         box.append(info);
         return box;
+    }
+
+    private Gtk.Widget build_sharing_tab() {
+        var root = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
+
+        var info = new Gtk.Label(
+            "Share the currently selected card using desktop integrations."
+        ) { xalign = 0.0f };
+        info.set_wrap(true);
+        info.add_css_class("dim-label");
+        root.append(info);
+
+        sharing_email_btn = new Gtk.Button.with_label("Send card as email");
+        sharing_email_btn.set_halign(Gtk.Align.START);
+        sharing_email_btn.clicked.connect(() => {
+            send_card_as_email_requested();
+        });
+        root.append(sharing_email_btn);
+
+        refresh_sharing_action_state();
+        return root;
+    }
+
+    private void refresh_sharing_action_state() {
+        if (sharing_email_btn == null) {
+            return;
+        }
+        var selected_card = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary
+            : null;
+        sharing_email_btn.set_sensitive(selected_card != null);
     }
 
     private string? normalize_parent(string? parent_card_id) {
