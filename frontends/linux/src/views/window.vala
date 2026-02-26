@@ -922,6 +922,23 @@ public class MainWindow : Adw.ApplicationWindow {
         try {
             var health = yield api.get_health_info();
             var uptime_seconds = health.uptime_ms / 1000;
+            var projects = yield api.list_projects();
+            var project_count = projects.size;
+            int total_card_count = 0;
+            foreach (var project in projects) {
+                try {
+                    var cards = yield api.list_cards(project.project_id, "all", null);
+                    total_card_count += cards.size;
+                } catch (Error e) {
+                    toolbox.log_debug(
+                        "Local info: failed to count cards for project %s: %s".printf(
+                            project.project_id,
+                            e.message
+                        )
+                    );
+                }
+            }
+            var thread_count = (int) ai_thread_store.get_n_items();
             var text =
                 "# Local info\n\n" +
                 "## Health\n" +
@@ -930,7 +947,11 @@ public class MainWindow : Adw.ApplicationWindow {
                 "- uptime_seconds: `%lld`\n".printf(uptime_seconds) +
                 "- api_version: `%s`\n".printf(health.api_version) +
                 "- server_version: `%s`\n".printf(health.server_version) +
-                "- pid: `%d`\n".printf(health.pid);
+                "- pid: `%d`\n\n".printf(health.pid) +
+                "## Content\n" +
+                "- Projects: `%d`\n".printf(project_count) +
+                "- Cards: `%d`\n".printf(total_card_count) +
+                "- AI Threads: `%d`\n".printf(thread_count);
             set_editor_state(text, false);
             show_editor_mode();
             update_window_title("Local info");
