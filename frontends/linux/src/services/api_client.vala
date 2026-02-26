@@ -330,8 +330,13 @@ public class ApiClient : Object, IHolderApi {
     }
 
     public async Gee.ArrayList<AiCatalogProvider> list_ai_provider_catalog() throws Error {
-        var root = yield request_json("GET", "/ai/providers/catalog", null, null);
+        var root = yield request_json_unwrapped("GET", "/ai_catalog.json", null, null);
         return parse_ai_provider_catalog(root);
+    }
+
+    public async Gee.ArrayList<GitProviderCatalogEntry> list_git_provider_catalog() throws Error {
+        var root = yield request_json_unwrapped("GET", "/git_providers.json", null, null);
+        return parse_git_provider_catalog(root);
     }
 
     public async void run_ai_stream(string prompt,
@@ -554,6 +559,50 @@ public class ApiClient : Object, IHolderApi {
 
         if (!root.has_member("ok") || !root.get_boolean_member("ok")) {
             throw new ApiError.PROTOCOL("Response missing ok=true for %s %s".printf(method, path));
+        }
+
+        return root;
+    }
+
+    private async Json.Object request_json_unwrapped(string method,
+                                                     string path,
+                                                     string? request_body,
+                                                     HashTable<string, string>? query) throws Error {
+        var url = build_url(path, query);
+        var message = new Soup.Message(method, url);
+
+        message.request_headers.append("Authorization", "Bearer %s".printf(auth_token));
+        message.request_headers.append("Accept", "application/json");
+
+        if (request_body != null) {
+            var bytes = new Bytes((uint8[]) request_body.data);
+            message.set_request_body_from_bytes("application/json", bytes);
+        }
+
+        ApiHttpBytesResponse response;
+        try {
+            response = yield transport.send_and_read(message);
+        } catch (Error e) {
+            throw new ApiError.TRANSPORT("Transport error for %s %s: %s".printf(method, path, e.message));
+        }
+
+        var status = response.status;
+        var response_text = (string) response.body.get_data();
+
+        Json.Object root;
+        try {
+            root = parse_response_object(response_text);
+        } catch (Error e) {
+            if (status >= 200 && status < 300) {
+                throw e;
+            }
+            throw new ApiError.HTTP(
+                "HTTP %u for %s %s".printf((uint) status, method, path)
+            );
+        }
+
+        if (status < 200 || status >= 300) {
+            throw new ApiError.HTTP("HTTP %u for %s %s".printf((uint) status, method, path));
         }
 
         return root;
@@ -840,24 +889,75 @@ public class ApiClient : Object, IHolderApi {
     }
 
     private Gee.ArrayList<AiCatalogProvider> parse_ai_provider_catalog(Json.Object root) throws Error {
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for ai provider catalog response");
-        }
-        var data = root.get_object_member("data");
         var providers = new Gee.ArrayList<AiCatalogProvider>();
-        if (!data.has_member("providers")) {
+        var models_node = object_member_or_null(root, "models");
+        if (models_node == null) {
             return providers;
         }
-        var items = data.get_array_member("providers");
+        var defaults = object_member_or_null(models_node, "provider_defaults");
+        if (defaults == null) {
+            return providers;
+        }
+        var names = defaults.get_members();
+        if (names == null) {
+            return providers;
+        }
+        for (unowned List<weak string>? cursor = names; cursor != null; cursor = cursor.next) {
+            unowned string provider_id = cursor.data;
+            var node = defaults.get_member(provider_id);
+            if (node != null && node.get_node_type() == Json.NodeType.OBJECT) {
+                var provider = defaults.get_object_member(provider_id);
+                var display_name = string_member_or_empty(provider, "provider");
+                if (display_name.length == 0) {
+                    display_name = provider_id;
+                }
+                providers.add(new AiCatalogProvider(
+                    provider_id,
+                    display_name,
+                    provider.has_member("enabled") ? provider.get_boolean_member("enabled") : false,
+                    false,
+                    string_member_or_empty(provider, "setup_url"),
+                    string_member_or_empty(provider, "docs_url")
+                ));
+            }
+        }
+        return providers;
+    }
+
+    private Gee.ArrayList<GitProviderCatalogEntry> parse_git_provider_catalog(Json.Object root) throws Error {
+        var providers = new Gee.ArrayList<GitProviderCatalogEntry>();
+        if (!root.has_member("providers")) {
+            return providers;
+        }
+        var items = root.get_array_member("providers");
         for (uint i = 0; i < items.get_length(); i++) {
             var item = items.get_object_element(i);
-            providers.add(new AiCatalogProvider(
+            var preferred_transport = "";
+            var defaults = object_member_or_null(item, "defaults");
+            if (defaults != null) {
+                preferred_transport = string_member_or_empty(defaults, "preferred_transport");
+            }
+
+            var transports_summary = "";
+            var git = object_member_or_null(item, "git");
+            if (git != null && git.has_member("transports")) {
+                var transports = git.get_array_member("transports");
+                var sb = new StringBuilder();
+                for (uint idx = 0; idx < transports.get_length(); idx++) {
+                    if (idx > 0) {
+                        sb.append(", ");
+                    }
+                    sb.append(transports.get_string_element(idx));
+                }
+                transports_summary = sb.str;
+            }
+
+            providers.add(new GitProviderCatalogEntry(
                 string_member_or_empty(item, "id"),
-                string_member_or_empty(item, "display_name"),
-                item.has_member("enabled") ? item.get_boolean_member("enabled") : false,
-                item.has_member("configured") ? item.get_boolean_member("configured") : false,
-                string_member_or_empty(item, "setup_url"),
-                string_member_or_empty(item, "docs_url")
+                string_member_or_empty(item, "name"),
+                string_member_or_empty(item, "kind"),
+                preferred_transport,
+                transports_summary
             ));
         }
         return providers;

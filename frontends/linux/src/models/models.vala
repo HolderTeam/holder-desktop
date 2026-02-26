@@ -336,4 +336,26 @@ public class AiCatalogProvider : Object {
     }
 }
 
+public class GitProviderCatalogEntry : Object {
+    public string id { get; construct; }
+    public string name { get; construct; }
+    public string kind { get; construct; }
+    public string preferred_transport { get; construct; }
+    public string transports_summary { get; construct; }
+
+    public GitProviderCatalogEntry(string id,
+                                   string name,
+                                   string kind,
+                                   string preferred_transport,
+                                   string transports_summary) {
+        Object(
+            id: id,
+            name: name,
+            kind: kind,
+            preferred_transport: preferred_transport,
+            transports_summary: transports_summary
+        );
+    }
+}
+
 }

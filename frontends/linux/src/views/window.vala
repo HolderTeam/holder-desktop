@@ -162,7 +162,7 @@ public class MainWindow : Adw.ApplicationWindow {
             workspace.set_toolbox_visible(visible);
             if (visible) {
                 toolbox.log_debug("Toolbox opened");
-                toolbox.refresh_ai_catalog.begin();
+                toolbox.refresh_catalogs();
             } else {
                 toolbox.log_debug("Toolbox closed");
             }

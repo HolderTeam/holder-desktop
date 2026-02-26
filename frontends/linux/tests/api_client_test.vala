@@ -409,7 +409,7 @@ private void test_list_ai_provider_catalog_parses_providers() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"providers\":[{\"id\":\"openai\",\"display_name\":\"OpenAI\",\"enabled\":true,\"configured\":false,\"setup_url\":\"https://s\",\"docs_url\":\"https://d\"}]}}"
+        "{\"models\":{\"provider_defaults\":{\"openai\":{\"provider\":\"OpenAI\",\"enabled\":true,\"setup_url\":\"https://s\",\"docs_url\":\"https://d\"}}}}"
     );
     var client = make_client(transport);
 
@@ -429,6 +429,35 @@ private void test_list_ai_provider_catalog_parses_providers() {
     assert(providers.size == 1);
     assert(providers[0].id == "openai");
     assert(providers[0].enabled);
+    assert(transport.last_uri.has_suffix("/ai_catalog.json"));
+}
+
+private void test_list_git_provider_catalog_parses_providers() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"providers\":[{\"id\":\"github\",\"name\":\"GitHub\",\"kind\":\"hosted\",\"defaults\":{\"preferred_transport\":\"ssh\"},\"git\":{\"transports\":[\"ssh\",\"https\"]}}]}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.GitProviderCatalogEntry>? providers = null;
+    client.list_git_provider_catalog.begin((obj, res) => {
+        try {
+            providers = client.list_git_provider_catalog.end(res);
+        } catch (Error e) {
+            providers = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(providers != null);
+    assert(providers.size == 1);
+    assert(providers[0].id == "github");
+    assert(providers[0].preferred_transport == "ssh");
+    assert(providers[0].transports_summary == "ssh, https");
+    assert(transport.last_uri.has_suffix("/git_providers.json"));
 }
 
 private void test_create_and_update_card_payloads() {
@@ -610,7 +639,7 @@ private void test_missing_data_protocol_errors_for_parsers() {
     });
 
     assert(wait_for_condition(() => done));
-    assert(protocol_count == 7);
+    assert(protocol_count == 6);
 }
 
 private void test_start_runner_pull_missing_data_is_protocol_error_and_missing_job_returns_empty() {
@@ -748,7 +777,7 @@ private void test_ai_status_missing_pull_fields_uses_defaults() {
 
 private void test_provider_catalog_missing_providers_returns_empty() {
     var transport = new FakeApiHttpTransport();
-    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    transport.enqueue_read(200, "{\"models\":{}}");
     var client = make_client(transport);
 
     bool done = false;
@@ -1066,6 +1095,8 @@ int main(string[] args) {
                   test_list_ai_threads_and_create_ai_thread);
     Test.add_func("/api_client/list_ai_provider_catalog_parses_providers",
                   test_list_ai_provider_catalog_parses_providers);
+    Test.add_func("/api_client/list_git_provider_catalog_parses_providers",
+                  test_list_git_provider_catalog_parses_providers);
     Test.add_func("/api_client/create_and_update_card_payloads", test_create_and_update_card_payloads);
     Test.add_func("/api_client/health_check_missing_data_is_protocol_error",
                   test_health_check_missing_data_is_protocol_error);

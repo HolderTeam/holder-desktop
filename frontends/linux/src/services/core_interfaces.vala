@@ -43,6 +43,7 @@ public interface IHolderApi : Object {
     public abstract async Gee.ArrayList<AiThreadSummary> list_ai_threads(string project_id) throws Error;
     public abstract async string create_ai_thread(string project_id, string title) throws Error;
     public abstract async Gee.ArrayList<AiCatalogProvider> list_ai_provider_catalog() throws Error;
+    public abstract async Gee.ArrayList<GitProviderCatalogEntry> list_git_provider_catalog() throws Error;
     public abstract async void run_ai_stream(string prompt,
                                              string? project_id,
                                              string? thread_id,

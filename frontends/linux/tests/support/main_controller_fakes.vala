@@ -234,6 +234,10 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         return new Gee.ArrayList<HolderLinux.AiCatalogProvider>();
     }
 
+    public async Gee.ArrayList<HolderLinux.GitProviderCatalogEntry> list_git_provider_catalog() throws Error {
+        return new Gee.ArrayList<HolderLinux.GitProviderCatalogEntry>();
+    }
+
     public async void run_ai_stream(string prompt,
                                     string? project_id,
                                     string? thread_id,
