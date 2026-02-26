@@ -4,6 +4,7 @@ public delegate void AiRunEventHandler(string event_name, Json.Object data);
 
 public interface IHolderApi : Object {
     public abstract async void health_check() throws Error;
+    public abstract async HealthInfo get_health_info() throws Error;
     public abstract async Gee.ArrayList<Project> list_projects() throws Error;
     public abstract async string create_project(string name) throws Error;
     public abstract async Gee.ArrayList<CardSummary> list_cards(string project_id,

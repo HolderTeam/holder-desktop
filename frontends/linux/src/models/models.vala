@@ -32,6 +32,28 @@ public class ServerInfo : Object {
     }
 }
 
+public class HealthInfo : Object {
+    public bool db_ok { get; construct; }
+    public int64 uptime_ms { get; construct; }
+    public string api_version { get; construct; }
+    public string server_version { get; construct; }
+    public int pid { get; construct; }
+
+    public HealthInfo(bool db_ok,
+                      int64 uptime_ms,
+                      string api_version,
+                      string server_version,
+                      int pid) {
+        Object(
+            db_ok: db_ok,
+            uptime_ms: uptime_ms,
+            api_version: api_version,
+            server_version: server_version,
+            pid: pid
+        );
+    }
+}
+
 public class Project : Object {
     public string project_id { get; construct; }
     public string name { get; set; }

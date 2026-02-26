@@ -29,6 +29,34 @@ private void test_health_check_success() {
     assert(transport.last_auth == "Bearer token-123");
 }
 
+private void test_get_health_info_parses_data() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"db_ok\":true,\"uptime_ms\":4321,\"api_version\":\"0.1\",\"server_version\":\"1.2.3\",\"pid\":999}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    HolderLinux.HealthInfo? info = null;
+    client.get_health_info.begin((obj, res) => {
+        try {
+            info = client.get_health_info.end(res);
+        } catch (Error e) {
+            info = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(info != null);
+    assert(info.db_ok);
+    assert(info.uptime_ms == 4321);
+    assert(info.api_version == "0.1");
+    assert(info.server_version == "1.2.3");
+    assert(info.pid == 999);
+}
+
 private void test_list_projects_parses_data() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -1073,6 +1101,7 @@ int main(string[] args) {
     Test.init(ref args);
 
     Test.add_func("/api_client/health_check_success", test_health_check_success);
+    Test.add_func("/api_client/get_health_info_parses_data", test_get_health_info_parses_data);
     Test.add_func("/api_client/list_projects_parses_data", test_list_projects_parses_data);
     Test.add_func("/api_client/create_project_sends_json_and_returns_id",
                   test_create_project_sends_json_and_returns_id);

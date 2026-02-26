@@ -496,6 +496,12 @@ public class MainWindow : Adw.ApplicationWindow {
         });
         add_action(print_action);
 
+        var show_local_info_action = new SimpleAction("show-local-info", null);
+        show_local_info_action.activate.connect(() => {
+            show_local_info_page.begin();
+        });
+        add_action(show_local_info_action);
+
         var show_preferences_action = new SimpleAction("show-preferences", null);
         show_preferences_action.activate.connect(() => {
             show_preferences_dialog();
@@ -902,6 +908,44 @@ public class MainWindow : Adw.ApplicationWindow {
         } finally {
             FileUtils.remove(tmp_path);
             DirUtils.remove(tmp_dir);
+        }
+    }
+
+    private async void show_local_info_page() {
+        var api = controller.get_api_client();
+        if (api == null) {
+            set_editor_state("# Local info\n\nAPI client not connected.", false);
+            show_editor_mode();
+            return;
+        }
+
+        try {
+            var health = yield api.get_health_info();
+            var uptime_seconds = health.uptime_ms / 1000;
+            var text =
+                "# Local info\n\n" +
+                "## Health\n" +
+                "- db_ok: `%s`\n".printf(health.db_ok ? "true" : "false") +
+                "- uptime_ms: `%lld`\n".printf(health.uptime_ms) +
+                "- uptime_seconds: `%lld`\n".printf(uptime_seconds) +
+                "- api_version: `%s`\n".printf(health.api_version) +
+                "- server_version: `%s`\n".printf(health.server_version) +
+                "- pid: `%d`\n".printf(health.pid);
+            set_editor_state(text, false);
+            show_editor_mode();
+            update_window_title("Local info");
+            set_status("Loaded local info");
+        } catch (Error e) {
+            set_editor_state(
+                "# Local info\n\n" +
+                "Could not load `/health`.\n\n" +
+                e.message,
+                false
+            );
+            show_editor_mode();
+            update_window_title("Local info");
+            set_status("Failed to load local info");
+            show_error("Local info failed", e.message);
         }
     }
 

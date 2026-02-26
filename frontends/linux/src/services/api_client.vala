@@ -66,6 +66,11 @@ public class ApiClient : Object, IHolderApi {
         }
     }
 
+    public async HealthInfo get_health_info() throws Error {
+        var root = yield request_json("GET", "/health", null, null);
+        return parse_health_info(root);
+    }
+
     public async Gee.ArrayList<Project> list_projects() throws Error {
         var root = yield request_json("GET", "/projects", null, null);
         return parse_projects(root);
@@ -671,6 +676,20 @@ public class ApiClient : Object, IHolderApi {
             ));
         }
         return out_list;
+    }
+
+    private HealthInfo parse_health_info(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for health response");
+        }
+        var data = root.get_object_member("data");
+        return new HealthInfo(
+            data.has_member("db_ok") ? data.get_boolean_member("db_ok") : false,
+            data.has_member("uptime_ms") ? data.get_int_member("uptime_ms") : 0,
+            string_member_or_empty(data, "api_version"),
+            string_member_or_empty(data, "server_version"),
+            data.has_member("pid") ? (int) data.get_int_member("pid") : 0
+        );
     }
 
     private Gee.ArrayList<CardSummary> parse_cards(Json.Object root) throws Error {

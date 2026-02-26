@@ -86,6 +86,13 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         }
     }
 
+    public async HolderLinux.HealthInfo get_health_info() throws Error {
+        if (fail_health) {
+            throw new IOError.FAILED("health failed");
+        }
+        return new HolderLinux.HealthInfo(true, 1234, "0.1", "dev", 42);
+    }
+
     public async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
         if (fail_list_projects) {
             throw new IOError.FAILED("list projects failed");

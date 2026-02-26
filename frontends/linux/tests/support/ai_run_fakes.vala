@@ -24,6 +24,9 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public int64 status_active_pull_jobs = 0;
 
     public async void health_check() throws Error {}
+    public async HolderLinux.HealthInfo get_health_info() throws Error {
+        return new HolderLinux.HealthInfo(true, 1000, "0.1", "test", 1);
+    }
     public async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
         return new Gee.ArrayList<HolderLinux.Project>();
     }
