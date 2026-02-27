@@ -57,18 +57,21 @@ public class HealthInfo : Object {
 public class Project : Object {
     public string project_id { get; construct; }
     public string name { get; set; }
+    public string privacy_mode { get; construct; }
     public string root_path { get; construct; }
     public int64 created_at { get; construct; }
     public int64 updated_at { get; set; }
 
     public Project(string project_id,
                    string name,
+                   string privacy_mode,
                    string root_path,
                    int64 created_at,
                    int64 updated_at) {
         Object(
             project_id: project_id,
             name: name,
+            privacy_mode: privacy_mode,
             root_path: root_path,
             created_at: created_at,
             updated_at: updated_at

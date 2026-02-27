@@ -470,7 +470,7 @@ private void test_selected_ids_and_api_getter() {
     assert(controller.selected_project_id() == null);
     assert(controller.selected_card_id() == null);
 
-    harness.project_store.append(new HolderLinux.Project("p1", "P1", "/tmp", 1, 1));
+    harness.project_store.append(new HolderLinux.Project("p1", "P1", "encrypted_git", "/tmp", 1, 1));
     harness.card_store.append(new HolderLinux.CardSummary("c1", "p1", "C1", "c1.md", 1024.0, null, 1, 1));
     harness.project_selection.set_selected_index(0);
     harness.card_selection.set_selected_index(0);
@@ -557,7 +557,7 @@ private void test_reload_everything_uses_preferred_project_selection() {
     var harness = make_harness(api, scheduler, clock);
     var controller = harness.controller;
 
-    harness.project_store.append(new HolderLinux.Project("p1", "Old P1", "/tmp", 1, 1));
+    harness.project_store.append(new HolderLinux.Project("p1", "Old P1", "encrypted_git", "/tmp", 1, 1));
     harness.project_selection.set_selected_index(0);
     controller.reload_everything.begin();
     assert(wait_for_condition(() => controller.get_current_project() != null));

@@ -4,8 +4,8 @@ namespace HolderLinuxTests {
 
 private void test_single_selection_state_round_trip() {
     var store = new GLib.ListStore(typeof(HolderLinux.Project));
-    var p1 = new HolderLinux.Project("p1", "One", "/tmp/one", 1, 1);
-    var p2 = new HolderLinux.Project("p2", "Two", "/tmp/two", 2, 2);
+    var p1 = new HolderLinux.Project("p1", "One", "encrypted_git", "/tmp/one", 1, 1);
+    var p2 = new HolderLinux.Project("p2", "Two", "encrypted_git", "/tmp/two", 2, 2);
     store.append(p1);
     store.append(p2);
 

@@ -673,6 +673,7 @@ public class ApiClient : Object, IHolderApi {
             out_list.add(new Project(
                 item.get_string_member("project_id"),
                 item.get_string_member("name"),
+                item.has_member("privacy_mode") ? item.get_string_member("privacy_mode") : "encrypted_git",
                 item.has_member("root_path") ? item.get_string_member("root_path") : "",
                 item.has_member("created_at") ? item.get_int_member("created_at") : 0,
                 item.has_member("updated_at") ? item.get_int_member("updated_at") : 0

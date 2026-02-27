@@ -106,7 +106,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         if (list_projects_empty) {
             return projects;
         }
-        projects.add(new HolderLinux.Project("p1", "Project 1", "/tmp/p1", 10, 10));
+        projects.add(new HolderLinux.Project("p1", "Project 1", "encrypted_git", "/tmp/p1", 10, 10));
         return projects;
     }
 

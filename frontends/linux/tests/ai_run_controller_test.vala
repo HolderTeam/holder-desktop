@@ -6,7 +6,7 @@ private void test_send_with_existing_thread_streams_and_completes() {
     var api = new AiRunFakeApi();
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
     ctx.card = new HolderLinux.CardDetail("c1", "p1", "Card", "Body", 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
@@ -38,7 +38,7 @@ private void test_send_without_thread_creates_thread_then_runs() {
     var api = new AiRunFakeApi();
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     ctx.thread = null;
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
@@ -80,7 +80,7 @@ private void test_send_requires_prompt() {
     var api = new AiRunFakeApi();
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
@@ -100,7 +100,7 @@ private void test_start_model_pull_emits_status_and_toast() {
     var api = new AiRunFakeApi();
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
     bool saw_toast = false;
@@ -127,7 +127,7 @@ private void test_start_model_pull_with_empty_job_id_reports_started() {
     api.pull_returns_empty_job_id = true;
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
     bool saw_started = false;
@@ -146,7 +146,7 @@ private void test_refresh_status_emits_render_status() {
     var api = new AiRunFakeApi();
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
     bool rendered = false;
@@ -163,7 +163,7 @@ private void test_refresh_status_error_emits_render_status_error() {
     api.fail_capabilities = true;
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
     bool got_error = false;
@@ -182,7 +182,7 @@ private void test_start_model_pull_error_emits_error() {
     api.fail_pull = true;
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
     bool got_error = false;
@@ -203,7 +203,7 @@ private void test_stream_progress_fallback_failed_events_are_rendered() {
     api.emit_failed = true;
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
@@ -232,7 +232,7 @@ private void test_stream_failed_without_error_uses_default_message() {
     api.done_without_model = true;
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
@@ -275,7 +275,7 @@ private void test_set_panel_visible_starts_and_stops_polling() {
     api.status_active_pull_jobs = 1;
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     var scheduler = new TestScheduler();
     var controller = new HolderLinux.AiRunController(ctx, scheduler);
 
@@ -324,7 +324,7 @@ private void test_create_thread_failure_emits_error() {
     var api = new AiRunFakeApi();
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     ctx.fail_create_thread = true;
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
@@ -343,7 +343,7 @@ private void test_create_thread_empty_id_then_prompt_errors_missing_context() {
     var api = new AiRunFakeApi();
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     ctx.create_thread_id = "";
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
@@ -364,7 +364,7 @@ private void test_send_stream_failure_reports_error_and_recovers_send_enabled() 
     api.fail_stream = true;
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
@@ -396,7 +396,7 @@ private void test_send_while_in_flight_emits_busy_status() {
     api.slow_stream = true;
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
@@ -424,7 +424,7 @@ private void test_stream_event_edge_defaults() {
     api.done_without_model = true;
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
@@ -458,7 +458,7 @@ private void test_stop_without_polling_is_noop() {
     var api = new AiRunFakeApi();
     var ctx = new AiRunFakeContext();
     ctx.api = api;
-    ctx.project = new HolderLinux.Project("p1", "P", "/tmp", 1, 1);
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     var scheduler = new TestScheduler();
     var controller = new HolderLinux.AiRunController(ctx, scheduler);
 

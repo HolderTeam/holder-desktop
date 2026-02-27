@@ -554,12 +554,18 @@ public class MainController : Object, IAiRunContext {
         sb.append("- Cards: %d\n".printf(card_count));
         sb.append("- Resources: %s\n".printf(resource_count_text));
         sb.append("- AI Threads: %d\n\n".printf(thread_count));
+        sb.append("## Sync\n");
+        sb.append("- Visibility: %s\n\n".printf(project_visibility_label(project)));
         sb.append("## Metadata\n");
         sb.append("- Project ID: `%s`\n".printf(project.project_id));
         sb.append("- Root Path: `%s`\n".printf(project.root_path));
         sb.append("- Created: %s\n".printf(format_timestamp(project.created_at)));
         sb.append("- Updated: %s\n".printf(format_timestamp(project.updated_at)));
         return sb.str;
+    }
+
+    private string project_visibility_label(Project project) {
+        return project.privacy_mode == "plain" ? "Shared" : "Private";
     }
 
     private string format_timestamp(int64 epoch) {
