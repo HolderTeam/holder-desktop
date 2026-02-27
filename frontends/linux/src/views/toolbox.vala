@@ -323,11 +323,7 @@ public class ToolboxPane : Object {
         var git_page = stack.add_titled(build_git_sync_tab(), "git", "Git Sync");
         git_page.set_icon_name("folder-remote-symbolic");
 
-        var recovery_page = stack.add_titled(
-            build_placeholder_tab("Recovery key tools are scaffolded and planned."),
-            "recovery",
-            "Recovery Key"
-        );
+        var recovery_page = stack.add_titled(build_recovery_key_tab(), "recovery", "Recovery Key");
         recovery_page.set_icon_name("dialog-password-symbolic");
 
         var trash_page = stack.add_titled(
@@ -1042,6 +1038,35 @@ public class ToolboxPane : Object {
         root.append(sharing_email_btn);
 
         refresh_sharing_action_state();
+        return root;
+    }
+
+    private Gtk.Widget build_recovery_key_tab() {
+        var root = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
+
+        var info = new Gtk.Label(
+            "Keep a copy of your recovery key somewhere safe in case your computer is lost or damaged. " +
+            "Email it to yourself, or store it on a USB stick."
+        ) { xalign = 0.0f };
+        info.set_wrap(true);
+        info.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        info.add_css_class("dim-label");
+        root.append(info);
+
+        var email_btn = new Gtk.Button.with_label("Email Recovery Key");
+        email_btn.set_halign(Gtk.Align.START);
+        email_btn.clicked.connect(() => {
+            toast_requested("Recovery key email flow is scaffolded and planned.");
+        });
+        root.append(email_btn);
+
+        var usb_btn = new Gtk.Button.with_label("Save Recovery Key to USB Drive");
+        usb_btn.set_halign(Gtk.Align.START);
+        usb_btn.clicked.connect(() => {
+            toast_requested("Recovery key USB export flow is scaffolded and planned.");
+        });
+        root.append(usb_btn);
+
         return root;
     }
 
