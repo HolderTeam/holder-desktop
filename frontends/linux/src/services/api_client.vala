@@ -76,11 +76,14 @@ public class ApiClient : Object, IHolderApi {
         return parse_projects(root);
     }
 
-    public async string create_project(string name) throws Error {
+    public async string create_project(string name,
+                                       string privacy_mode = "encrypted_git") throws Error {
         var body = new Json.Builder();
         body.begin_object();
         body.set_member_name("name");
         body.add_string_value(name);
+        body.set_member_name("privacy_mode");
+        body.add_string_value(privacy_mode);
         body.end_object();
 
         var root = yield request_json("POST", "/projects", json_string_from_builder(body), null);

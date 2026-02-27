@@ -90,7 +90,7 @@ private void test_create_project_sends_json_and_returns_id() {
 
     bool done = false;
     string created_id = "";
-    client.create_project.begin("New Project", (obj, res) => {
+    client.create_project.begin("New Project", "encrypted_git", (obj, res) => {
         try {
             created_id = client.create_project.end(res);
         } catch (Error e) {

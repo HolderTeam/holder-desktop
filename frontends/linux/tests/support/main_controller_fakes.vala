@@ -110,7 +110,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         return projects;
     }
 
-    public async string create_project(string name) throws Error {
+    public async string create_project(string name, string privacy_mode = "encrypted_git") throws Error {
         if (fail_create_project) {
             throw new IOError.FAILED("create project failed");
         }

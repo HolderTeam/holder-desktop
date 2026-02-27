@@ -530,7 +530,34 @@ public class MainWindow : Adw.ApplicationWindow {
 
         var entry = new Gtk.Entry();
         entry.set_placeholder_text("Project name");
-        dialog.set_extra_child(entry);
+        var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
+        content.append(entry);
+
+        var chooser_label = new Gtk.Label("Choose project visibility");
+        chooser_label.set_halign(Gtk.Align.CENTER);
+        content.append(chooser_label);
+
+        var privacy_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 12);
+        privacy_row.set_halign(Gtk.Align.CENTER);
+        var private_btn = new Gtk.CheckButton.with_label("Private");
+        var shared_btn = new Gtk.CheckButton.with_label("Shared");
+        shared_btn.set_group(private_btn);
+        private_btn.set_active(true);
+        privacy_row.append(private_btn);
+        privacy_row.append(shared_btn);
+        content.append(privacy_row);
+
+        var help = new Gtk.Label(
+            "A private project is encrypted, only you can read it.\n\n" +
+            "A shared project is useful for collaboration. You must be very careful not store sensitive information (passwords, personal data, private notes)."
+        );
+        help.set_xalign(0.0f);
+        help.set_wrap(true);
+        help.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        help.add_css_class("dim-label");
+        content.append(help);
+
+        dialog.set_extra_child(content);
 
         dialog.response.connect((response) => {
             if (response == "create") {
@@ -538,7 +565,8 @@ public class MainWindow : Adw.ApplicationWindow {
                 if (name.length == 0) {
                     show_error("Project name required", "Please enter a non-empty project name.");
                 } else {
-                    create_project_named.begin(name);
+                    var privacy_mode = private_btn.get_active() ? "encrypted_git" : "plain";
+                    create_project_named.begin(name, privacy_mode);
                 }
             }
             dialog.close();
@@ -547,8 +575,8 @@ public class MainWindow : Adw.ApplicationWindow {
         dialog.present();
     }
 
-    private async void create_project_named(string name) {
-        yield controller.create_project_named(name);
+    private async void create_project_named(string name, string privacy_mode = "encrypted_git") {
+        yield controller.create_project_named(name, privacy_mode);
     }
 
     private void set_status(string text) {
@@ -925,6 +953,7 @@ public class MainWindow : Adw.ApplicationWindow {
             var projects = yield api.list_projects();
             var project_count = projects.size;
             int total_card_count = 0;
+            int total_thread_count = 0;
             foreach (var project in projects) {
                 try {
                     var cards = yield api.list_cards(project.project_id, "all", null);
@@ -937,8 +966,18 @@ public class MainWindow : Adw.ApplicationWindow {
                         )
                     );
                 }
+                try {
+                    var threads = yield api.list_ai_threads(project.project_id);
+                    total_thread_count += threads.size;
+                } catch (Error e) {
+                    toolbox.log_debug(
+                        "Local info: failed to count threads for project %s: %s".printf(
+                            project.project_id,
+                            e.message
+                        )
+                    );
+                }
             }
-            var thread_count = (int) ai_thread_store.get_n_items();
             var text =
                 "# Local info\n\n" +
                 "## Health\n" +
@@ -951,7 +990,10 @@ public class MainWindow : Adw.ApplicationWindow {
                 "## Content\n" +
                 "- Projects: `%d`\n".printf(project_count) +
                 "- Cards: `%d`\n".printf(total_card_count) +
-                "- AI Threads: `%d`\n".printf(thread_count);
+                "- AI Threads: `%d`\n\n".printf(total_thread_count) +
+                "## Sync\n" +
+                "- Default: no default repository set\n" +
+                "- Projects: no project repositories set\n";
             set_editor_state(text, false);
             show_editor_mode();
             update_window_title("Local info");

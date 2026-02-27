@@ -421,14 +421,14 @@ public class MainController : Object, IAiRunContext {
         }
     }
 
-    public async void create_project_named(string name) {
+    public async void create_project_named(string name, string privacy_mode = "encrypted_git") {
         if (api == null) {
             return;
         }
 
         status_changed("Creating project...");
         try {
-            var project_id = yield api.create_project(name);
+            var project_id = yield api.create_project(name, privacy_mode);
             toast_requested("Created project: %s".printf(name));
             status_changed("Project created");
             yield reload_everything_with_selection(project_id, null);

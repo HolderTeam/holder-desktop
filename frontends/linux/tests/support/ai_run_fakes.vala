@@ -30,7 +30,7 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
         return new Gee.ArrayList<HolderLinux.Project>();
     }
-    public async string create_project(string name) throws Error {
+    public async string create_project(string name, string privacy_mode = "encrypted_git") throws Error {
         return "p1";
     }
     public async Gee.ArrayList<HolderLinux.CardSummary> list_cards(string project_id,
