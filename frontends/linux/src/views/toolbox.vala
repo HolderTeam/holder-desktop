@@ -323,6 +323,13 @@ public class ToolboxPane : Object {
         var git_page = stack.add_titled(build_git_sync_tab(), "git", "Git Sync");
         git_page.set_icon_name("folder-remote-symbolic");
 
+        var recovery_page = stack.add_titled(
+            build_placeholder_tab("Recovery key tools are scaffolded and planned."),
+            "recovery",
+            "Recovery Key"
+        );
+        recovery_page.set_icon_name("dialog-password-symbolic");
+
         var trash_page = stack.add_titled(
             build_placeholder_tab("Trash tools are scaffolded and planned."),
             "trash",
