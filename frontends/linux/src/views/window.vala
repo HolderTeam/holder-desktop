@@ -363,7 +363,7 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.send_recovery_key_as_email_requested.connect(() => {
             request_recovery_key_pin(
                 "Email Recovery Key",
-                "Enter your recovery key PIN to export and email your `.hrk` file.",
+                "Set a recovery key PIN to export and email your `.hrk` file.",
                 (pin) => {
                     send_recovery_key_as_email.begin(pin);
                 }
@@ -372,7 +372,7 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.save_recovery_key_to_usb_requested.connect(() => {
             request_recovery_key_pin(
                 "Save Recovery Key",
-                "Enter your recovery key PIN to export a `.hrk` file.",
+                "Set a recovery key PIN to export a `.hrk` file.",
                 (pin) => {
                     save_recovery_key_to_usb.begin(pin);
                 }
