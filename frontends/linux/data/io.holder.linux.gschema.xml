@@ -64,5 +64,12 @@
         User-defined card link kinds shown alongside default presets.
       </description>
     </key>
+    <key name="git-github-username" type="s">
+      <default>''</default>
+      <summary>Last used GitHub username in guided setup</summary>
+      <description>
+        Used to prefill the guided Git sync setup for subsequent projects.
+      </description>
+    </key>
   </schema>
 </schemalist>

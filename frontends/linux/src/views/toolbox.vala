@@ -39,6 +39,18 @@ public class ToolboxPane : Object {
     private int next_terminal_index = 1;
     private Gtk.Entry git_remote_entry;
     private Gtk.Entry git_branch_entry;
+    private Gtk.Stack git_sync_stack;
+    private Gtk.Entry git_guided_username_entry;
+    private Gtk.Button git_guided_next_btn;
+    private Gtk.Label git_guided_ssh_status_label;
+    private Gtk.Entry git_guided_email_entry;
+    private Gtk.Button git_guided_generate_key_btn;
+    private Gtk.Button git_guided_copy_key_btn;
+    private Gtk.TextView git_guided_pubkey_view;
+    private Gtk.Box git_guided_missing_key_box;
+    private Gtk.Box git_guided_key_ready_box;
+    private string git_guided_public_key = "";
+    private bool git_guided_check_running = false;
     private FlowboardPane flowboard;
     private FlowboardController? flowboard_controller;
     private Gtk.SingleSelection? project_selection;
@@ -76,6 +88,7 @@ public class ToolboxPane : Object {
 
     public void set_settings(Settings? settings) {
         this.settings = settings;
+        refresh_guided_github_username();
     }
 
     public void bind_connections_context(Gtk.SingleSelection project_selection,
@@ -2089,58 +2102,437 @@ public class ToolboxPane : Object {
     }
 
     private Gtk.Widget build_git_sync_tab() {
-        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
+        git_sync_stack = new Gtk.Stack();
+        git_sync_stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT);
+        git_sync_stack.set_vexpand(true);
+        git_sync_stack.set_hexpand(true);
 
-        var catalog_actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var catalog_refresh_btn = new Gtk.Button.with_label("Refresh Providers");
-        catalog_refresh_btn.clicked.connect(() => {
-            refresh_git_provider_catalog.begin();
+        var start_page = build_git_sync_start_page();
+        git_sync_stack.add_named(start_page, "start");
+
+        var guided_page = build_git_sync_guided_part1_page();
+        git_sync_stack.add_named(guided_page, "guided-part1");
+        var guided_ssh_page = build_git_sync_guided_part2_page();
+        git_sync_stack.add_named(guided_ssh_page, "guided-part2");
+        git_sync_stack.set_visible_child_name("start");
+
+        return git_sync_stack;
+    }
+
+    private Gtk.Widget build_git_sync_start_page() {
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
+
+        var intro = new Gtk.Label(
+            "Syncing your project to a Git provider keeps your cards in sync across devices,\n" +
+            "provides an additional copy in case of computer loss or failure,\n" +
+            "and optionally enables collaboration with others."
+        ) { xalign = 0.0f };
+        intro.set_wrap(true);
+        intro.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        intro.add_css_class("dim-label");
+        box.append(intro);
+
+        var guided_btn = new Gtk.Button.with_label("Guided (I'm new to this)");
+        guided_btn.set_halign(Gtk.Align.START);
+        guided_btn.clicked.connect(() => {
+            refresh_guided_github_username();
+            git_sync_stack.set_visible_child_name("guided-part1");
         });
-        catalog_actions.append(catalog_refresh_btn);
-        box.append(catalog_actions);
+        box.append(guided_btn);
 
-        git_catalog_list = new Gtk.ListBox();
-        git_catalog_list.set_selection_mode(Gtk.SelectionMode.NONE);
-        var catalog_scroll = new Gtk.ScrolledWindow();
-        catalog_scroll.set_min_content_height(140);
-        catalog_scroll.set_child(git_catalog_list);
-        box.append(catalog_scroll);
+        var provider_btn = new Gtk.Button.with_label("Provider setup (I know git)");
+        provider_btn.set_halign(Gtk.Align.START);
+        provider_btn.clicked.connect(() => {
+            log_debug("Git sync provider setup requested (not wired)");
+            toast_requested("Provider setup wizard is planned.");
+        });
+        box.append(provider_btn);
 
-        var remote_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var remote_label = new Gtk.Label("Remote URL") { xalign = 0.0f };
-        remote_label.set_size_request(100, -1);
+        var section = new Gtk.Label("I already have a remote URL:") { xalign = 0.0f };
+        section.add_css_class("heading");
+        section.set_margin_top(6);
+        box.append(section);
+
+        var remote_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+        var remote_label = new Gtk.Label("Remote URL:") { xalign = 0.0f };
+        remote_label.set_size_request(110, -1);
         git_remote_entry = new Gtk.Entry();
         git_remote_entry.set_hexpand(true);
         git_remote_entry.set_placeholder_text("https://example.com/repo.git");
-        remote_row.append(remote_label);
-        remote_row.append(git_remote_entry);
-        box.append(remote_row);
-
-        var branch_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var branch_label = new Gtk.Label("Branch") { xalign = 0.0f };
-        branch_label.set_size_request(100, -1);
+        var branch_label = new Gtk.Label("Branch:") { xalign = 0.0f };
+        branch_label.set_size_request(70, -1);
         git_branch_entry = new Gtk.Entry();
-        git_branch_entry.set_placeholder_text("main");
-        branch_row.append(branch_label);
-        branch_row.append(git_branch_entry);
-        box.append(branch_row);
-
-        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var save_btn = new Gtk.Button.with_label("Save (Planned)");
+        git_branch_entry.set_width_chars(10);
+        git_branch_entry.set_text("main");
+        var save_btn = new Gtk.Button.with_label("Save");
         save_btn.clicked.connect(() => {
             log_debug("Git config save requested (not wired)");
             toast_requested("Git sync config wiring planned.");
         });
-        actions.append(save_btn);
+        remote_row.append(remote_label);
+        remote_row.append(git_remote_entry);
+        remote_row.append(branch_label);
+        remote_row.append(git_branch_entry);
+        remote_row.append(save_btn);
+        box.append(remote_row);
+
+        return box;
+    }
+
+    private Gtk.Widget build_git_sync_guided_part1_page() {
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
+
+        var part_title = new Gtk.Label("Part 1/4: Username") { xalign = 0.0f };
+        part_title.add_css_class("title-5");
+        box.append(part_title);
+
+        var body = new Gtk.Label(
+            "There are many remote Git providers. In this guided setup, we'll use GitHub, the most widely used Git hosting platform.\n" +
+            "If you prefer another provider, you can use the provider setup instead.\n\n" +
+            "First thing you need is a GitHub username."
+        ) { xalign = 0.0f };
+        body.set_wrap(true);
+        body.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        body.add_css_class("dim-label");
+        box.append(body);
+
+        var signup = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var signup_prefix = new Gtk.Label("If you don't have one:") { xalign = 0.0f };
+        signup_prefix.add_css_class("dim-label");
+        var signup_link = new Gtk.LinkButton.with_label("https://github.com/signup",
+                                                         "click here to go to your browser to make one");
+        signup_link.set_halign(Gtk.Align.START);
+        signup.append(signup_prefix);
+        signup.append(signup_link);
+        box.append(signup);
+
+        var username_label = new Gtk.Label("GitHub username") { xalign = 0.0f };
+        box.append(username_label);
+        git_guided_username_entry = new Gtk.Entry();
+        git_guided_username_entry.set_placeholder_text("your-github-username");
+        git_guided_username_entry.changed.connect(() => {
+            refresh_guided_next_button_state();
+        });
+        box.append(git_guided_username_entry);
+
+        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var back_btn = new Gtk.Button.with_label("Back");
+        back_btn.clicked.connect(() => {
+            git_sync_stack.set_visible_child_name("start");
+        });
+        git_guided_next_btn = new Gtk.Button.with_label("Next");
+        git_guided_next_btn.set_sensitive(false);
+        git_guided_next_btn.clicked.connect(() => {
+            persist_guided_github_username();
+            git_sync_stack.set_visible_child_name("guided-part2");
+            refresh_guided_ssh_email_default();
+            check_guided_ssh_state.begin();
+        });
+        actions.append(back_btn);
+        actions.append(git_guided_next_btn);
         box.append(actions);
 
-        var help = new Gtk.Label(
-            "This tab is scaffolded. It will map to project git configuration and sync actions."
-        ) { xalign = 0.0f };
-        help.add_css_class("dim-label");
-        help.set_wrap(true);
-        box.append(help);
+        refresh_guided_github_username();
+        refresh_guided_next_button_state();
         return box;
+    }
+
+    private void refresh_guided_github_username() {
+        if (git_guided_username_entry == null) {
+            return;
+        }
+        if (settings == null) {
+            git_guided_username_entry.set_text("");
+            refresh_guided_next_button_state();
+            return;
+        }
+        var stored = settings.get_string(AppSettings.KEY_GIT_GITHUB_USERNAME);
+        git_guided_username_entry.set_text(stored ?? "");
+        refresh_guided_next_button_state();
+    }
+
+    private Gtk.Widget build_git_sync_guided_part2_page() {
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
+
+        var part_title = new Gtk.Label("Part 2/4: SSH Key") { xalign = 0.0f };
+        part_title.add_css_class("title-5");
+        box.append(part_title);
+
+        var body = new Gtk.Label(
+            "We'll set up SSH so Holder can sync this project with GitHub without asking for your password every time."
+        ) { xalign = 0.0f };
+        body.set_wrap(true);
+        body.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        body.add_css_class("dim-label");
+        box.append(body);
+
+        git_guided_ssh_status_label = new Gtk.Label("Checking SSH setup...") { xalign = 0.0f };
+        git_guided_ssh_status_label.set_wrap(true);
+        git_guided_ssh_status_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        box.append(git_guided_ssh_status_label);
+
+        git_guided_missing_key_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        var email_label = new Gtk.Label("Email address for your SSH key") { xalign = 0.0f };
+        git_guided_email_entry = new Gtk.Entry();
+        git_guided_email_entry.set_placeholder_text("you@example.com");
+        git_guided_generate_key_btn = new Gtk.Button.with_label("Generate SSH Key");
+        git_guided_generate_key_btn.set_halign(Gtk.Align.START);
+        git_guided_generate_key_btn.clicked.connect(() => {
+            generate_guided_ssh_key.begin();
+        });
+        git_guided_missing_key_box.append(email_label);
+        git_guided_missing_key_box.append(git_guided_email_entry);
+        git_guided_missing_key_box.append(git_guided_generate_key_btn);
+        box.append(git_guided_missing_key_box);
+
+        git_guided_key_ready_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        var key_label = new Gtk.Label("Public key (copy and paste into GitHub)") { xalign = 0.0f };
+        git_guided_pubkey_view = new Gtk.TextView();
+        git_guided_pubkey_view.set_editable(false);
+        git_guided_pubkey_view.set_cursor_visible(false);
+        git_guided_pubkey_view.set_wrap_mode(Gtk.WrapMode.CHAR);
+        git_guided_pubkey_view.set_monospace(true);
+        var key_scroll = new Gtk.ScrolledWindow();
+        key_scroll.set_min_content_height(80);
+        key_scroll.set_child(git_guided_pubkey_view);
+        git_guided_copy_key_btn = new Gtk.Button.with_label("Copy Public Key");
+        git_guided_copy_key_btn.set_halign(Gtk.Align.START);
+        git_guided_copy_key_btn.clicked.connect(() => {
+            copy_guided_public_key();
+        });
+        git_guided_key_ready_box.append(key_label);
+        git_guided_key_ready_box.append(key_scroll);
+        git_guided_key_ready_box.append(git_guided_copy_key_btn);
+        box.append(git_guided_key_ready_box);
+
+        var open_keys_btn = new Gtk.Button.with_label("Open GitHub SSH Keys Page");
+        open_keys_btn.set_halign(Gtk.Align.START);
+        open_keys_btn.clicked.connect(() => {
+            open_guided_github_ssh_keys_page();
+        });
+        box.append(open_keys_btn);
+
+        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var back_btn = new Gtk.Button.with_label("Back");
+        back_btn.clicked.connect(() => {
+            git_sync_stack.set_visible_child_name("guided-part1");
+        });
+        var recheck_btn = new Gtk.Button.with_label("Re-check");
+        recheck_btn.clicked.connect(() => {
+            check_guided_ssh_state.begin();
+        });
+        var next_btn = new Gtk.Button.with_label("Next");
+        next_btn.clicked.connect(() => {
+            toast_requested("Guided setup part 3 is next (planned).");
+        });
+        actions.append(back_btn);
+        actions.append(recheck_btn);
+        actions.append(next_btn);
+        box.append(actions);
+
+        set_guided_key_ui_visibility(false);
+        return box;
+    }
+
+    private void refresh_guided_ssh_email_default() {
+        if (git_guided_email_entry == null) {
+            return;
+        }
+        if (git_guided_email_entry.get_text().strip().length > 0) {
+            return;
+        }
+        var stored_username = git_guided_username_entry != null
+            ? git_guided_username_entry.get_text().strip()
+            : "";
+        if (stored_username.length > 0) {
+            git_guided_email_entry.set_text("%s@users.noreply.github.com".printf(stored_username));
+        }
+    }
+
+    private void set_guided_key_ui_visibility(bool has_key) {
+        if (git_guided_missing_key_box != null) {
+            git_guided_missing_key_box.set_visible(!has_key);
+        }
+        if (git_guided_key_ready_box != null) {
+            git_guided_key_ready_box.set_visible(has_key);
+        }
+        if (git_guided_copy_key_btn != null) {
+            git_guided_copy_key_btn.set_sensitive(has_key && git_guided_public_key.strip().length > 0);
+        }
+    }
+
+    private string read_text_file_or_empty(string path) {
+        try {
+            string content;
+            FileUtils.get_contents(path, out content);
+            return content ?? "";
+        } catch (Error e) {
+            return "";
+        }
+    }
+
+    private string? guided_public_key_path_or_null() {
+        var home = Environment.get_home_dir();
+        if (home == null || home.strip().length == 0) {
+            return null;
+        }
+        var ed = Path.build_filename(home, ".ssh", "id_ed25519.pub");
+        if (FileUtils.test(ed, FileTest.EXISTS)) {
+            return ed;
+        }
+        var rsa = Path.build_filename(home, ".ssh", "id_rsa.pub");
+        if (FileUtils.test(rsa, FileTest.EXISTS)) {
+            return rsa;
+        }
+        return null;
+    }
+
+    private async void check_guided_ssh_state() {
+        if (git_guided_check_running) {
+            return;
+        }
+        git_guided_check_running = true;
+        git_guided_ssh_status_label.set_text("Checking SSH setup...");
+
+        var pub_path = guided_public_key_path_or_null();
+        if (pub_path == null) {
+            git_guided_public_key = "";
+            git_guided_pubkey_view.buffer.set_text("", -1);
+            set_guided_key_ui_visibility(false);
+            git_guided_ssh_status_label.set_text("No SSH key found. Enter your email address and generate one.");
+            git_guided_check_running = false;
+            return;
+        }
+
+        git_guided_public_key = read_text_file_or_empty(pub_path).strip();
+        git_guided_pubkey_view.buffer.set_text(git_guided_public_key, -1);
+        set_guided_key_ui_visibility(git_guided_public_key.length > 0);
+
+        var probe_output = yield run_capture_command_async({
+            "ssh",
+            "-o", "BatchMode=yes",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "ConnectTimeout=5",
+            "-T",
+            "git@github.com"
+        });
+        var probe = probe_output.down();
+        if (probe.contains("successfully authenticated")) {
+            git_guided_ssh_status_label.set_text("SSH key found and authenticated with GitHub.");
+        } else if (probe.contains("permission denied")) {
+            git_guided_ssh_status_label.set_text(
+                "SSH key found locally, but GitHub rejected authentication. Copy this key and add it at GitHub SSH settings."
+            );
+        } else if (probe_output.strip().length > 0) {
+            git_guided_ssh_status_label.set_text(
+                "SSH key found locally. GitHub verification result: %s".printf(probe_output.strip())
+            );
+        } else {
+            git_guided_ssh_status_label.set_text("SSH key found locally. Could not verify with GitHub.");
+        }
+        git_guided_check_running = false;
+    }
+
+    private async void generate_guided_ssh_key() {
+        var email = git_guided_email_entry != null ? git_guided_email_entry.get_text().strip() : "";
+        if (email.length == 0) {
+            toast_requested("Email address is required.");
+            return;
+        }
+
+        var home = Environment.get_home_dir();
+        if (home == null || home.strip().length == 0) {
+            error_reported("SSH key generation failed", "Home directory not available.");
+            return;
+        }
+        var ssh_dir = Path.build_filename(home, ".ssh");
+        var mkdir_result = DirUtils.create_with_parents(ssh_dir, 0700);
+        if (mkdir_result != 0) {
+            error_reported("SSH key generation failed",
+                           "Could not create %s (errno=%d).".printf(ssh_dir, mkdir_result));
+            return;
+        }
+
+        var key_path = Path.build_filename(ssh_dir, "id_ed25519");
+        if (FileUtils.test(key_path, FileTest.EXISTS)) {
+            toast_requested("Using existing id_ed25519 key.");
+            check_guided_ssh_state.begin();
+            return;
+        }
+
+        git_guided_generate_key_btn.set_sensitive(false);
+        var output = yield run_capture_command_async({
+            "ssh-keygen",
+            "-t", "ed25519",
+            "-C", email,
+            "-f", key_path,
+            "-N", ""
+        });
+        git_guided_generate_key_btn.set_sensitive(true);
+
+        if (!FileUtils.test("%s.pub".printf(key_path), FileTest.EXISTS)) {
+            error_reported("SSH key generation failed",
+                           output.strip().length > 0 ? output.strip() : "ssh-keygen did not create a public key.");
+            return;
+        }
+
+        toast_requested("SSH key generated.");
+        check_guided_ssh_state.begin();
+    }
+
+    private async string run_capture_command_async(string[] argv) {
+        try {
+            var proc = new Subprocess.newv(argv,
+                SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_PIPE);
+            string? stdout_buf = null;
+            string? stderr_buf = null;
+            yield proc.communicate_utf8_async(null, null, out stdout_buf, out stderr_buf);
+            var out_text = (stdout_buf ?? "").strip();
+            var err_text = (stderr_buf ?? "").strip();
+            if (out_text.length > 0 && err_text.length > 0) {
+                return "%s\n%s".printf(out_text, err_text);
+            }
+            return out_text.length > 0 ? out_text : err_text;
+        } catch (Error e) {
+            return e.message;
+        }
+    }
+
+    private void copy_guided_public_key() {
+        if (git_guided_public_key.strip().length == 0) {
+            toast_requested("No public key to copy.");
+            return;
+        }
+        var display = Gdk.Display.get_default();
+        if (display == null) {
+            error_reported("Clipboard unavailable", "No display available.");
+            return;
+        }
+        display.get_clipboard().set_text(git_guided_public_key);
+        toast_requested("Public key copied.");
+    }
+
+    private void open_guided_github_ssh_keys_page() {
+        try {
+            AppInfo.launch_default_for_uri("https://github.com/settings/ssh/new", null);
+        } catch (Error e) {
+            error_reported("Failed to open browser", e.message);
+        }
+    }
+
+    private void persist_guided_github_username() {
+        if (settings == null || git_guided_username_entry == null) {
+            return;
+        }
+        var username = git_guided_username_entry.get_text().strip();
+        settings.set_string(AppSettings.KEY_GIT_GITHUB_USERNAME, username);
+    }
+
+    private void refresh_guided_next_button_state() {
+        if (git_guided_next_btn == null || git_guided_username_entry == null) {
+            return;
+        }
+        git_guided_next_btn.set_sensitive(git_guided_username_entry.get_text().strip().length > 0);
     }
 
     private void add_terminal_tab() {
