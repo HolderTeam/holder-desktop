@@ -379,13 +379,7 @@ public class MainWindow : Adw.ApplicationWindow {
             );
         });
         toolbox.import_recovery_key_requested.connect(() => {
-            request_recovery_key_pin(
-                "Import Recovery Key",
-                "Set a recovery key PIN to import a `.hrk` file.",
-                (pin) => {
-                    import_recovery_key_from_file(pin);
-                }
-            );
+            import_recovery_key_from_file();
         });
         toolbox.terminal_copy_to_card_requested.connect((text) => {
             append_text_to_current_card(text);
@@ -999,7 +993,7 @@ public class MainWindow : Adw.ApplicationWindow {
         });
     }
 
-    private void import_recovery_key_from_file(string pin) {
+    private void import_recovery_key_from_file() {
         var api = controller.get_api_client();
         if (api == null) {
             show_error("Recovery key import failed", "API client not connected.");
@@ -1025,7 +1019,13 @@ public class MainWindow : Adw.ApplicationWindow {
                     show_error("Recovery key import failed", "Selected file is empty.");
                     return;
                 }
-                import_recovery_key_payload.begin(pin, recovery_token);
+                request_recovery_key_pin(
+                    "Unlock Recovery Key",
+                    "Set your recovery key PIN to unlock and import this `.hrk` file.",
+                    (pin) => {
+                        import_recovery_key_payload.begin(pin, recovery_token);
+                    }
+                );
             } catch (IOError.CANCELLED e) {
                 // User cancelled.
             } catch (Error e) {
