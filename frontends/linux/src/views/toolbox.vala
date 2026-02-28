@@ -48,6 +48,8 @@ public class ToolboxPane : Object {
     private Gtk.Button git_guided_copy_key_btn;
     private Gtk.TextView git_guided_pubkey_view;
     private Gtk.Entry git_guided_repo_name_entry;
+    private Gtk.Label git_guided_repo_status_label;
+    private Gtk.Button git_guided_repo_next_btn;
     private Gtk.Box git_guided_missing_key_box;
     private Gtk.Box git_guided_key_ready_box;
     private Gtk.Button git_guided_open_keys_btn;
@@ -2379,19 +2381,30 @@ public class ToolboxPane : Object {
         box.append(repo_label);
         git_guided_repo_name_entry = new Gtk.Entry();
         git_guided_repo_name_entry.set_hexpand(true);
+        git_guided_repo_name_entry.changed.connect(() => {
+            if (git_guided_repo_status_label != null) {
+                git_guided_repo_status_label.set_text("");
+            }
+        });
         box.append(git_guided_repo_name_entry);
+
+        git_guided_repo_status_label = new Gtk.Label("") { xalign = 0.0f };
+        git_guided_repo_status_label.set_wrap(true);
+        git_guided_repo_status_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        git_guided_repo_status_label.add_css_class("dim-label");
+        box.append(git_guided_repo_status_label);
 
         var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         var back_btn = new Gtk.Button.with_label("Back");
         back_btn.clicked.connect(() => {
             git_sync_stack.set_visible_child_name("guided-part2");
         });
-        var next_btn = new Gtk.Button.with_label("Next");
-        next_btn.clicked.connect(() => {
-            toast_requested("Guided setup part 4 is next (planned).");
+        git_guided_repo_next_btn = new Gtk.Button.with_label("Next");
+        git_guided_repo_next_btn.clicked.connect(() => {
+            verify_guided_repository_exists.begin();
         });
         actions.append(back_btn);
-        actions.append(next_btn);
+        actions.append(git_guided_repo_next_btn);
         box.append(actions);
 
         refresh_guided_repo_name_default();
@@ -2426,6 +2439,78 @@ public class ToolboxPane : Object {
         if (selected_project != null && selected_project.name != null) {
             git_guided_repo_name_entry.set_text(selected_project.name);
         }
+    }
+
+    private string guided_github_username() {
+        if (git_guided_username_entry != null) {
+            var from_entry = git_guided_username_entry.get_text().strip();
+            if (from_entry.length > 0) {
+                return from_entry;
+            }
+        }
+        if (settings != null) {
+            return settings.get_string(AppSettings.KEY_GIT_GITHUB_USERNAME).strip();
+        }
+        return "";
+    }
+
+    private async void verify_guided_repository_exists() {
+        var username = guided_github_username();
+        var repo_name = git_guided_repo_name_entry != null ? git_guided_repo_name_entry.get_text().strip() : "";
+        if (username.length == 0) {
+            toast_requested("GitHub username is required.");
+            git_sync_stack.set_visible_child_name("guided-part1");
+            return;
+        }
+        if (repo_name.length == 0) {
+            toast_requested("Repository name is required.");
+            return;
+        }
+
+        if (git_guided_repo_next_btn != null) {
+            git_guided_repo_next_btn.set_sensitive(false);
+        }
+        git_guided_repo_status_label.set_text("Checking whether repository exists on GitHub...");
+
+        string check_error = "";
+        var exists = yield guided_repository_exists_on_github(username, repo_name, out check_error);
+
+        if (git_guided_repo_next_btn != null) {
+            git_guided_repo_next_btn.set_sensitive(true);
+        }
+
+        if (exists) {
+            git_guided_repo_status_label.set_text("Repository found on GitHub.");
+            toast_requested("Repository found. Guided setup part 4 is next (planned).");
+            return;
+        }
+
+        var details = check_error.length > 0 ? check_error : "Repository not found.";
+        git_guided_repo_status_label.set_text(details);
+        error_reported("Repository check failed",
+                       "Could not find https://github.com/%s/%s . Create it first, then click Next again."
+                           .printf(username, repo_name));
+    }
+
+    private async bool guided_repository_exists_on_github(string username,
+                                                          string repo_name,
+                                                          out string error_text) {
+        error_text = "";
+        var remote = "git@github.com:%s/%s.git".printf(username, repo_name);
+        var output = yield run_capture_command_async({
+            "git",
+            "ls-remote",
+            remote
+        });
+        if (output.has_prefix("__EXIT_CODE__:0")) {
+            return true;
+        }
+        var details = output.replace("__EXIT_CODE__:", "").strip();
+        if (details.length == 0) {
+            details = "Repository not reachable over SSH.";
+        }
+        error_text = "Could not verify %s via SSH. %s".printf(remote, details);
+        return false;
     }
 
     private void set_guided_key_ui_visibility(bool has_key) {
@@ -2501,7 +2586,8 @@ public class ToolboxPane : Object {
             "-T",
             "git@github.com"
         });
-        var probe = probe_output.down();
+        var probe_plain = strip_exit_code_prefix(probe_output);
+        var probe = probe_plain.down();
         if (probe.contains("successfully authenticated")) {
             git_guided_github_authenticated = true;
             set_guided_key_ui_visibility(true);
@@ -2512,11 +2598,11 @@ public class ToolboxPane : Object {
             git_guided_ssh_status_label.set_text(
                 "SSH key found locally, but GitHub rejected authentication. Copy this key and add it at GitHub SSH settings."
             );
-        } else if (probe_output.strip().length > 0) {
+        } else if (probe_plain.strip().length > 0) {
             git_guided_github_authenticated = false;
             set_guided_key_ui_visibility(true);
             git_guided_ssh_status_label.set_text(
-                "SSH key found locally. GitHub verification result: %s".printf(probe_output.strip())
+                "SSH key found locally. GitHub verification result: %s".printf(probe_plain.strip())
             );
         } else {
             git_guided_github_authenticated = false;
@@ -2580,15 +2666,30 @@ public class ToolboxPane : Object {
             string? stdout_buf = null;
             string? stderr_buf = null;
             yield proc.communicate_utf8_async(null, null, out stdout_buf, out stderr_buf);
+            var code = proc.get_exit_status();
             var out_text = (stdout_buf ?? "").strip();
             var err_text = (stderr_buf ?? "").strip();
+            var combined = "";
             if (out_text.length > 0 && err_text.length > 0) {
-                return "%s\n%s".printf(out_text, err_text);
+                combined = "%s\n%s".printf(out_text, err_text);
+            } else {
+                combined = out_text.length > 0 ? out_text : err_text;
             }
-            return out_text.length > 0 ? out_text : err_text;
+            return "__EXIT_CODE__:%d\n%s".printf(code, combined);
         } catch (Error e) {
             return e.message;
         }
+    }
+
+    private string strip_exit_code_prefix(string output) {
+        if (output.has_prefix("__EXIT_CODE__:")) {
+            var newline = output.index_of_char('\n');
+            if (newline >= 0 && newline + 1 < output.length) {
+                return output.substring(newline + 1);
+            }
+            return "";
+        }
+        return output;
     }
 
     private void copy_guided_public_key() {
