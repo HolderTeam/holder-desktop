@@ -2358,20 +2358,18 @@ public class ToolboxPane : Object {
         box.append(create_row);
 
         var instructions = new Gtk.Label(
-            "Important, under 2. Configuration\n" +
-            "there is \"Choose visibility *\"\n" +
-            "Change the drop down to 🔒Private\n\n" +
             "Fill in the repository name, and you need to tell us the same name below.\n\n" +
             "You can leave the description blank.\n\n" +
-            "As we said before, under 2. Configuration\n" +
+            "<b>Under 2. Configuration\n" +
             "there is \"Choose visibility *\"\n" +
-            "Change the drop down to 🔒Private\n\n" +
+            "Change the drop down to 🔒Private</b>\n\n" +
             "We want the external repository to be empty, so leave the next three options alone.\n\n" +
             "So under \"Add README\", leave it \"Off\"\n" +
             "Under \"Add .gitignore\", leave it at \"No .gitignore\"\n" +
             "Under \"Add license\", leave it at \"No licence\"\n\n" +
             "Click the green button called \"Create repository\""
         ) { xalign = 0.0f };
+        instructions.set_use_markup(true);
         instructions.set_wrap(true);
         instructions.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
         instructions.add_css_class("dim-label");
