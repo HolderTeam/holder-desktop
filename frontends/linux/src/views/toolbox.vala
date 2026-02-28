@@ -57,6 +57,7 @@ public class ToolboxPane : Object {
     public signal void send_card_as_email_requested();
     public signal void send_recovery_key_as_email_requested();
     public signal void save_recovery_key_to_usb_requested();
+    public signal void import_recovery_key_requested();
     public signal void terminal_copy_to_card_requested(string text);
 
     public ToolboxPane() {
@@ -1068,6 +1069,13 @@ public class ToolboxPane : Object {
             save_recovery_key_to_usb_requested();
         });
         root.append(usb_btn);
+
+        var import_btn = new Gtk.Button.with_label("Import Recovery Key");
+        import_btn.set_halign(Gtk.Align.START);
+        import_btn.clicked.connect(() => {
+            import_recovery_key_requested();
+        });
+        root.append(import_btn);
 
         return root;
     }

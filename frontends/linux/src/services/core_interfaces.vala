@@ -17,6 +17,10 @@ public interface IHolderApi : Object {
         string pin,
         string recovery_token
     ) throws Error;
+    public abstract async RecoveryTokenImportResult import_recovery_token(
+        string pin,
+        string recovery_token
+    ) throws Error;
     public abstract async Gee.ArrayList<CardSummary> list_cards(string project_id,
                                                                  string scope = "root",
                                                                  string? parent_card_id = null) throws Error;

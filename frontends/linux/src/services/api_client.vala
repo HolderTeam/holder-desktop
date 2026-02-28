@@ -139,6 +139,55 @@ public class ApiClient : Object, IHolderApi {
         );
     }
 
+    public async RecoveryTokenImportResult import_recovery_token(
+        string pin,
+        string recovery_token
+    ) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("pin");
+        body.add_string_value(pin);
+        body.set_member_name("recovery_token");
+        body.add_string_value(recovery_token);
+        body.end_object();
+
+        var root = yield request_json(
+            "POST",
+            "/recovery-token/import",
+            json_string_from_builder(body),
+            null
+        );
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for recovery token import response");
+        }
+        var data = root.get_object_member("data");
+        string remote_error = "";
+        if (data.has_member("remote_error")) {
+            var remote_error_node = data.get_member("remote_error");
+            if (remote_error_node != null &&
+                remote_error_node.get_node_type() != Json.NodeType.NULL) {
+                remote_error = data.get_string_member("remote_error");
+            }
+        }
+        string pull_error = "";
+        if (data.has_member("pull_error")) {
+            var pull_error_node = data.get_member("pull_error");
+            if (pull_error_node != null &&
+                pull_error_node.get_node_type() != Json.NodeType.NULL) {
+                pull_error = data.get_string_member("pull_error");
+            }
+        }
+        return new RecoveryTokenImportResult(
+            string_member_or_empty(data, "project_id"),
+            data.has_member("project_created") ? data.get_boolean_member("project_created") : false,
+            data.has_member("remote_hint_present") ? data.get_boolean_member("remote_hint_present") : false,
+            data.has_member("remote_configured") ? data.get_boolean_member("remote_configured") : false,
+            remote_error,
+            string_member_or_empty(data, "pull_status"),
+            pull_error
+        );
+    }
+
     public async Gee.ArrayList<CardSummary> list_cards(string project_id,
                                                        string scope = "root",
                                                        string? parent_card_id = null) throws Error {

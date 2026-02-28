@@ -378,6 +378,15 @@ public class MainWindow : Adw.ApplicationWindow {
                 }
             );
         });
+        toolbox.import_recovery_key_requested.connect(() => {
+            request_recovery_key_pin(
+                "Import Recovery Key",
+                "Set a recovery key PIN to import a `.hrk` file.",
+                (pin) => {
+                    import_recovery_key_from_file(pin);
+                }
+            );
+        });
         toolbox.terminal_copy_to_card_requested.connect((text) => {
             append_text_to_current_card(text);
         });
@@ -988,6 +997,70 @@ public class MainWindow : Adw.ApplicationWindow {
                 show_error("Recovery key export failed", e.message);
             }
         });
+    }
+
+    private void import_recovery_key_from_file(string pin) {
+        var api = controller.get_api_client();
+        if (api == null) {
+            show_error("Recovery key import failed", "API client not connected.");
+            return;
+        }
+
+        var dialog = new Gtk.FileDialog();
+        dialog.set_title("Import Recovery Key");
+        dialog.open.begin(this, null, (obj, res) => {
+            try {
+                var file = dialog.open.end(res);
+                if (file == null) {
+                    return;
+                }
+                var path = file.get_path();
+                if (path == null || path.strip().length == 0) {
+                    show_error("Recovery key import failed", "Please choose a local filesystem path.");
+                    return;
+                }
+                string recovery_token;
+                FileUtils.get_contents(path, out recovery_token);
+                if (recovery_token == null || recovery_token.strip().length == 0) {
+                    show_error("Recovery key import failed", "Selected file is empty.");
+                    return;
+                }
+                import_recovery_key_payload.begin(pin, recovery_token);
+            } catch (IOError.CANCELLED e) {
+                // User cancelled.
+            } catch (Error e) {
+                show_error("Recovery key import failed", e.message);
+            }
+        });
+    }
+
+    private async void import_recovery_key_payload(string pin, string recovery_token) {
+        var api = controller.get_api_client();
+        if (api == null) {
+            show_error("Recovery key import failed", "API client not connected.");
+            return;
+        }
+
+        RecoveryTokenImportResult result;
+        try {
+            result = yield api.import_recovery_token(pin, recovery_token);
+        } catch (Error e) {
+            show_error("Recovery key import failed", e.message);
+            return;
+        }
+
+        yield controller.reload_everything();
+
+        var project_created_text = result.project_created ? "true" : "false";
+        var pull_status_text = result.pull_status.length > 0 ? result.pull_status : "not_attempted";
+        var remote_error_text = result.remote_error.length > 0 ? result.remote_error : "none";
+        add_toast(
+            "Recovery import: project_created=%s, pull_status=%s, remote_error=%s".printf(
+                project_created_text,
+                pull_status_text,
+                remote_error_text
+            )
+        );
     }
 
     private void append_text_to_current_card(string text) {

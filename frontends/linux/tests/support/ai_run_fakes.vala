@@ -44,6 +44,20 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
         string pin,
         string recovery_token
     ) throws Error {}
+    public async HolderLinux.RecoveryTokenImportResult import_recovery_token(
+        string pin,
+        string recovery_token
+    ) throws Error {
+        return new HolderLinux.RecoveryTokenImportResult(
+            "p1",
+            false,
+            false,
+            false,
+            "",
+            "not_attempted",
+            ""
+        );
+    }
     public async Gee.ArrayList<HolderLinux.CardSummary> list_cards(string project_id,
                                                                     string scope = "root",
                                                                     string? parent_card_id = null) throws Error {

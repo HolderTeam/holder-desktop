@@ -152,6 +152,38 @@ private void test_export_and_import_project_recovery_token() {
     assert(transport.last_uri.has_suffix("/projects/p1/recovery-token/import"));
 }
 
+private void test_import_recovery_token_parses_outcome() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        201,
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"project_created\":true,\"remote_hint_present\":true,\"remote_configured\":false,\"remote_error\":\"set remote failed\",\"pull_status\":\"not_attempted\",\"pull_error\":null}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    HolderLinux.RecoveryTokenImportResult? imported = null;
+    client.import_recovery_token.begin("1234", "{\"x\":1}", (obj, res) => {
+        try {
+            imported = client.import_recovery_token.end(res);
+        } catch (Error e) {
+            imported = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(imported != null);
+    assert(imported.project_id == "p1");
+    assert(imported.project_created);
+    assert(imported.remote_hint_present);
+    assert(!imported.remote_configured);
+    assert(imported.remote_error == "set remote failed");
+    assert(imported.pull_status == "not_attempted");
+    assert(imported.pull_error == "");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/recovery-token/import"));
+}
+
 private void test_list_cards_parses_data_and_query() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -1153,6 +1185,8 @@ int main(string[] args) {
                   test_create_project_sends_json_and_returns_id);
     Test.add_func("/api_client/export_and_import_project_recovery_token",
                   test_export_and_import_project_recovery_token);
+    Test.add_func("/api_client/import_recovery_token_parses_outcome",
+                  test_import_recovery_token_parses_outcome);
     Test.add_func("/api_client/list_cards_parses_data_and_query", test_list_cards_parses_data_and_query);
     Test.add_func("/api_client/list_cards_with_parent_query", test_list_cards_with_parent_query);
     Test.add_func("/api_client/get_card_parses_detail", test_get_card_parses_detail);
