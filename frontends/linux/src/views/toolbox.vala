@@ -47,6 +47,7 @@ public class ToolboxPane : Object {
     private Gtk.Button git_guided_generate_key_btn;
     private Gtk.Button git_guided_copy_key_btn;
     private Gtk.TextView git_guided_pubkey_view;
+    private Gtk.Entry git_guided_repo_name_entry;
     private Gtk.Box git_guided_missing_key_box;
     private Gtk.Box git_guided_key_ready_box;
     private Gtk.Button git_guided_open_keys_btn;
@@ -105,6 +106,7 @@ public class ToolboxPane : Object {
             queue_connections_graph_refresh();
             queue_resources_refresh();
             refresh_sharing_action_state();
+            refresh_guided_repo_name_default();
         });
         card_selection.notify["selected"].connect(() => {
             refresh_connections_structure();
@@ -2116,6 +2118,8 @@ public class ToolboxPane : Object {
         git_sync_stack.add_named(guided_page, "guided-part1");
         var guided_ssh_page = build_git_sync_guided_part2_page();
         git_sync_stack.add_named(guided_ssh_page, "guided-part2");
+        var guided_repo_page = build_git_sync_guided_part3_page();
+        git_sync_stack.add_named(guided_repo_page, "guided-part3");
         git_sync_stack.set_visible_child_name("start");
 
         return git_sync_stack;
@@ -2325,7 +2329,8 @@ public class ToolboxPane : Object {
         });
         var next_btn = new Gtk.Button.with_label("Next");
         next_btn.clicked.connect(() => {
-            toast_requested("Guided setup part 3 is next (planned).");
+            git_sync_stack.set_visible_child_name("guided-part3");
+            refresh_guided_repo_name_default();
         });
         actions.append(back_btn);
         actions.append(recheck_btn);
@@ -2333,6 +2338,65 @@ public class ToolboxPane : Object {
         box.append(actions);
 
         set_guided_key_ui_visibility(false);
+        return box;
+    }
+
+    private Gtk.Widget build_git_sync_guided_part3_page() {
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
+
+        var part_title = new Gtk.Label("Part 3/4: Repository") { xalign = 0.0f };
+        part_title.add_css_class("title-5");
+        box.append(part_title);
+
+        var create_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var create_label = new Gtk.Label("Create a new repository:") { xalign = 0.0f };
+        create_label.add_css_class("dim-label");
+        var create_link = new Gtk.LinkButton.with_label("https://github.com/new", "https://github.com/new");
+        create_link.set_halign(Gtk.Align.START);
+        create_row.append(create_label);
+        create_row.append(create_link);
+        box.append(create_row);
+
+        var instructions = new Gtk.Label(
+            "Important, under 2. Configuration\n" +
+            "there is \"Choose visibility *\"\n" +
+            "Change the drop down to 🔒Private\n\n" +
+            "Fill in the repository name, and you need to tell us the same name below.\n\n" +
+            "You can leave the description blank.\n\n" +
+            "As we said before, under 2. Configuration\n" +
+            "there is \"Choose visibility *\"\n" +
+            "Change the drop down to 🔒Private\n\n" +
+            "We want the external repository to be empty, so leave the next three options alone.\n\n" +
+            "So under \"Add README\", leave it \"Off\"\n" +
+            "Under \"Add .gitignore\", leave it at \"No .gitignore\"\n" +
+            "Under \"Add license\", leave it at \"No licence\"\n\n" +
+            "Click the green button called \"Create repository\""
+        ) { xalign = 0.0f };
+        instructions.set_wrap(true);
+        instructions.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        instructions.add_css_class("dim-label");
+        box.append(instructions);
+
+        var repo_label = new Gtk.Label("The repository name:") { xalign = 0.0f };
+        box.append(repo_label);
+        git_guided_repo_name_entry = new Gtk.Entry();
+        git_guided_repo_name_entry.set_hexpand(true);
+        box.append(git_guided_repo_name_entry);
+
+        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var back_btn = new Gtk.Button.with_label("Back");
+        back_btn.clicked.connect(() => {
+            git_sync_stack.set_visible_child_name("guided-part2");
+        });
+        var next_btn = new Gtk.Button.with_label("Next");
+        next_btn.clicked.connect(() => {
+            toast_requested("Guided setup part 4 is next (planned).");
+        });
+        actions.append(back_btn);
+        actions.append(next_btn);
+        box.append(actions);
+
+        refresh_guided_repo_name_default();
         return box;
     }
 
@@ -2348,6 +2412,21 @@ public class ToolboxPane : Object {
             : "";
         if (stored_username.length > 0) {
             git_guided_email_entry.set_text("%s@users.noreply.github.com".printf(stored_username));
+        }
+    }
+
+    private void refresh_guided_repo_name_default() {
+        if (git_guided_repo_name_entry == null) {
+            return;
+        }
+        if (git_guided_repo_name_entry.get_text().strip().length > 0) {
+            return;
+        }
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        if (selected_project != null && selected_project.name != null) {
+            git_guided_repo_name_entry.set_text(selected_project.name);
         }
     }
 
