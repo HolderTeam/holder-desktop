@@ -2259,7 +2259,7 @@ public class ToolboxPane : Object {
         box.append(part_title);
 
         var body = new Gtk.Label(
-            "We'll set up SSH so Holder can sync this project with GitHub without asking for your password every time."
+            "We'll set up SSH so Holder can sync your project with GitHub."
         ) { xalign = 0.0f };
         body.set_wrap(true);
         body.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
