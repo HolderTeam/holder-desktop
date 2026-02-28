@@ -49,6 +49,7 @@ public class ToolboxPane : Object {
     private Gtk.TextView git_guided_pubkey_view;
     private Gtk.Box git_guided_missing_key_box;
     private Gtk.Box git_guided_key_ready_box;
+    private Gtk.Button git_guided_open_keys_btn;
     private string git_guided_public_key = "";
     private bool git_guided_check_running = false;
     private bool git_guided_github_authenticated = false;
@@ -2306,12 +2307,12 @@ public class ToolboxPane : Object {
         git_guided_key_ready_box.append(git_guided_copy_key_btn);
         box.append(git_guided_key_ready_box);
 
-        var open_keys_btn = new Gtk.Button.with_label("Open GitHub SSH Keys Page");
-        open_keys_btn.set_halign(Gtk.Align.START);
-        open_keys_btn.clicked.connect(() => {
+        git_guided_open_keys_btn = new Gtk.Button.with_label("Open GitHub SSH Keys Page");
+        git_guided_open_keys_btn.set_halign(Gtk.Align.START);
+        git_guided_open_keys_btn.clicked.connect(() => {
             open_guided_github_ssh_keys_page();
         });
-        box.append(open_keys_btn);
+        box.append(git_guided_open_keys_btn);
 
         var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         var back_btn = new Gtk.Button.with_label("Back");
@@ -2361,6 +2362,9 @@ public class ToolboxPane : Object {
             git_guided_copy_key_btn.set_sensitive(has_key &&
                                                   !git_guided_github_authenticated &&
                                                   git_guided_public_key.strip().length > 0);
+        }
+        if (git_guided_open_keys_btn != null) {
+            git_guided_open_keys_btn.set_visible(!git_guided_github_authenticated);
         }
     }
 
