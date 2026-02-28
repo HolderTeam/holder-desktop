@@ -1051,16 +1051,35 @@ public class MainWindow : Adw.ApplicationWindow {
 
         yield controller.reload_everything();
 
-        var project_created_text = result.project_created ? "true" : "false";
+        show_recovery_import_summary(result);
+        add_toast("Recovery key imported.");
+    }
+
+    private void show_recovery_import_summary(RecoveryTokenImportResult result) {
+        var project_created_text = result.project_created ? "yes" : "no";
+        var remote_hint_text = result.remote_hint_present ? "yes" : "no";
+        var remote_configured_text = result.remote_configured ? "yes" : "no";
         var pull_status_text = result.pull_status.length > 0 ? result.pull_status : "not_attempted";
+        var pull_error_text = result.pull_error.length > 0 ? result.pull_error : "none";
         var remote_error_text = result.remote_error.length > 0 ? result.remote_error : "none";
-        add_toast(
-            "Recovery import: project_created=%s, pull_status=%s, remote_error=%s".printf(
-                project_created_text,
-                pull_status_text,
-                remote_error_text
-            )
+
+        var body = "Project ID: %s\n".printf(result.project_id) +
+                   "Project created: %s\n".printf(project_created_text) +
+                   "Remote hint in key: %s\n".printf(remote_hint_text) +
+                   "Remote configured: %s\n".printf(remote_configured_text) +
+                   "Pull status: %s\n".printf(pull_status_text) +
+                   "Pull error: %s\n".printf(pull_error_text) +
+                   "Remote error: %s".printf(remote_error_text);
+
+        var dialog = new Adw.MessageDialog(
+            this,
+            "Recovery Key Imported",
+            body
         );
+        dialog.add_response("ok", "OK");
+        dialog.set_default_response("ok");
+        dialog.set_close_response("ok");
+        dialog.present();
     }
 
     private void append_text_to_current_card(string text) {
