@@ -51,6 +51,7 @@ public class ToolboxPane : Object {
     private Gtk.Box git_guided_key_ready_box;
     private string git_guided_public_key = "";
     private bool git_guided_check_running = false;
+    private bool git_guided_github_authenticated = false;
     private FlowboardPane flowboard;
     private FlowboardController? flowboard_controller;
     private Gtk.SingleSelection? project_selection;
@@ -2354,10 +2355,12 @@ public class ToolboxPane : Object {
             git_guided_missing_key_box.set_visible(!has_key);
         }
         if (git_guided_key_ready_box != null) {
-            git_guided_key_ready_box.set_visible(has_key);
+            git_guided_key_ready_box.set_visible(has_key && !git_guided_github_authenticated);
         }
         if (git_guided_copy_key_btn != null) {
-            git_guided_copy_key_btn.set_sensitive(has_key && git_guided_public_key.strip().length > 0);
+            git_guided_copy_key_btn.set_sensitive(has_key &&
+                                                  !git_guided_github_authenticated &&
+                                                  git_guided_public_key.strip().length > 0);
         }
     }
 
@@ -2396,6 +2399,7 @@ public class ToolboxPane : Object {
 
         var pub_path = guided_public_key_path_or_null();
         if (pub_path == null) {
+            git_guided_github_authenticated = false;
             git_guided_public_key = "";
             git_guided_pubkey_view.buffer.set_text("", -1);
             set_guided_key_ui_visibility(false);
@@ -2418,16 +2422,24 @@ public class ToolboxPane : Object {
         });
         var probe = probe_output.down();
         if (probe.contains("successfully authenticated")) {
-            git_guided_ssh_status_label.set_text("SSH key found and authenticated with GitHub.");
+            git_guided_github_authenticated = true;
+            set_guided_key_ui_visibility(true);
+            git_guided_ssh_status_label.set_text("SSH key found and authenticated with GitHub. You're all set.");
         } else if (probe.contains("permission denied")) {
+            git_guided_github_authenticated = false;
+            set_guided_key_ui_visibility(true);
             git_guided_ssh_status_label.set_text(
                 "SSH key found locally, but GitHub rejected authentication. Copy this key and add it at GitHub SSH settings."
             );
         } else if (probe_output.strip().length > 0) {
+            git_guided_github_authenticated = false;
+            set_guided_key_ui_visibility(true);
             git_guided_ssh_status_label.set_text(
                 "SSH key found locally. GitHub verification result: %s".printf(probe_output.strip())
             );
         } else {
+            git_guided_github_authenticated = false;
+            set_guided_key_ui_visibility(true);
             git_guided_ssh_status_label.set_text("SSH key found locally. Could not verify with GitHub.");
         }
         git_guided_check_running = false;
