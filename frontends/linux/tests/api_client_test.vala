@@ -106,6 +106,52 @@ private void test_create_project_sends_json_and_returns_id() {
     assert(transport.last_content_type == "application/json");
 }
 
+private void test_export_and_import_project_recovery_token() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"key_id\":\"k1\",\"recovery_token\":\"{\\\"x\\\":1}\"}}"
+    );
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"project_id\":\"p1\"}}");
+    var client = make_client(transport);
+
+    bool done_export = false;
+    HolderLinux.ProjectRecoveryTokenExport? exported = null;
+    client.export_project_recovery_token.begin("p1", "1234", (obj, res) => {
+        try {
+            exported = client.export_project_recovery_token.end(res);
+        } catch (Error e) {
+            exported = null;
+        }
+        done_export = true;
+    });
+
+    assert(wait_for_condition(() => done_export));
+    assert(exported != null);
+    assert(exported.project_id == "p1");
+    assert(exported.key_id == "k1");
+    assert(exported.recovery_token.contains("\"x\":1"));
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/projects/p1/recovery-token/export"));
+
+    bool done_import = false;
+    bool ok_import = false;
+    client.import_project_recovery_token.begin("p1", "1234", "{\"x\":1}", (obj, res) => {
+        try {
+            client.import_project_recovery_token.end(res);
+            ok_import = true;
+        } catch (Error e) {
+            ok_import = false;
+        }
+        done_import = true;
+    });
+
+    assert(wait_for_condition(() => done_import));
+    assert(ok_import);
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/projects/p1/recovery-token/import"));
+}
+
 private void test_list_cards_parses_data_and_query() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -1105,6 +1151,8 @@ int main(string[] args) {
     Test.add_func("/api_client/list_projects_parses_data", test_list_projects_parses_data);
     Test.add_func("/api_client/create_project_sends_json_and_returns_id",
                   test_create_project_sends_json_and_returns_id);
+    Test.add_func("/api_client/export_and_import_project_recovery_token",
+                  test_export_and_import_project_recovery_token);
     Test.add_func("/api_client/list_cards_parses_data_and_query", test_list_cards_parses_data_and_query);
     Test.add_func("/api_client/list_cards_with_parent_query", test_list_cards_with_parent_query);
     Test.add_func("/api_client/get_card_parses_detail", test_get_card_parses_detail);

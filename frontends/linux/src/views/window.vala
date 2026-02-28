@@ -1,6 +1,8 @@
 namespace HolderLinux {
 
 public class MainWindow : Adw.ApplicationWindow {
+    private delegate void RecoveryPinHandler(string pin);
+
     private const int DEFAULT_WINDOW_WIDTH = 1200;
     private const int DEFAULT_WINDOW_HEIGHT = 800;
     private const int MIN_RESTORE_WIDTH = 690;
@@ -357,6 +359,24 @@ public class MainWindow : Adw.ApplicationWindow {
         });
         toolbox.send_card_as_email_requested.connect(() => {
             send_current_card_as_email();
+        });
+        toolbox.send_recovery_key_as_email_requested.connect(() => {
+            request_recovery_key_pin(
+                "Email Recovery Key",
+                "Enter your recovery key PIN to export and email your `.hrk` file.",
+                (pin) => {
+                    send_recovery_key_as_email.begin(pin);
+                }
+            );
+        });
+        toolbox.save_recovery_key_to_usb_requested.connect(() => {
+            request_recovery_key_pin(
+                "Save Recovery Key",
+                "Enter your recovery key PIN to export a `.hrk` file.",
+                (pin) => {
+                    save_recovery_key_to_usb.begin(pin);
+                }
+            );
         });
         toolbox.terminal_copy_to_card_requested.connect((text) => {
             append_text_to_current_card(text);
@@ -808,6 +828,166 @@ public class MainWindow : Adw.ApplicationWindow {
         } catch (Error e) {
             show_error("Email share failed", e.message);
         }
+    }
+
+    private void request_recovery_key_pin(string title,
+                                          string body,
+                                          owned RecoveryPinHandler on_pin) {
+        var dialog = new Adw.MessageDialog(this, title, body);
+        dialog.add_response("cancel", "Cancel");
+        dialog.add_response("continue", "Continue");
+        dialog.set_response_appearance("continue", Adw.ResponseAppearance.SUGGESTED);
+        dialog.set_default_response("continue");
+        dialog.set_close_response("cancel");
+
+        var pin_entry = new Gtk.Entry();
+        pin_entry.set_placeholder_text("PIN");
+        pin_entry.set_input_purpose(Gtk.InputPurpose.PASSWORD);
+        pin_entry.set_visibility(false);
+        pin_entry.set_activates_default(true);
+
+        var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        var pin_label = new Gtk.Label("PIN") { xalign = 0.0f };
+        content.append(pin_label);
+        content.append(pin_entry);
+        dialog.set_extra_child(content);
+
+        dialog.response.connect((response) => {
+            if (response != "continue") {
+                dialog.close();
+                return;
+            }
+            var pin = pin_entry.get_text().strip();
+            if (pin.length == 0) {
+                add_toast("PIN is required.");
+                return;
+            }
+            on_pin(pin);
+            dialog.close();
+        });
+        dialog.present();
+    }
+
+    private async void send_recovery_key_as_email(string pin) {
+        var project = controller.get_current_project();
+        if (project == null) {
+            add_toast("Select a project first.");
+            return;
+        }
+        var api = controller.get_api_client();
+        if (api == null) {
+            show_error("Recovery key email failed", "API client not connected.");
+            return;
+        }
+
+        ProjectRecoveryTokenExport exported;
+        try {
+            exported = yield api.export_project_recovery_token(project.project_id, pin);
+        } catch (Error e) {
+            show_error("Recovery key export failed", e.message);
+            return;
+        }
+
+        string tmp_dir;
+        try {
+            tmp_dir = DirUtils.make_tmp("holder-recovery-key-XXXXXX");
+        } catch (FileError e) {
+            show_error("Recovery key email failed", "Could not create temporary directory: %s".printf(e.message));
+            return;
+        }
+
+        var safe_name = project.name.replace(" ", "-");
+        var attachment_path = Path.build_filename(
+            tmp_dir,
+            "%s-recovery.hrk".printf(safe_name)
+        );
+        var recovery_payload = exported.recovery_token;
+        if (recovery_payload == null || recovery_payload.strip().length == 0) {
+            show_error("Recovery key export failed", "Empty recovery token payload.");
+            return;
+        }
+
+        try {
+            FileUtils.set_contents(attachment_path, recovery_payload);
+        } catch (FileError e) {
+            show_error("Recovery key email failed", "Could not create attachment: %s".printf(e.message));
+            return;
+        }
+
+        try {
+            string[] argv = {
+                "xdg-email",
+                "--subject",
+                "Holder Recovery Key",
+                "--body",
+                "See attachment",
+                "--attach",
+                attachment_path,
+                null
+            };
+            Pid child_pid;
+            Process.spawn_async(
+                null,
+                argv,
+                null,
+                SpawnFlags.SEARCH_PATH,
+                null,
+                out child_pid
+            );
+            add_toast("Opened default email app with recovery key attachment.");
+        } catch (Error e) {
+            show_error("Recovery key email failed", e.message);
+        }
+    }
+
+    private async void save_recovery_key_to_usb(string pin) {
+        var project = controller.get_current_project();
+        if (project == null) {
+            add_toast("Select a project first.");
+            return;
+        }
+        var api = controller.get_api_client();
+        if (api == null) {
+            show_error("Recovery key export failed", "API client not connected.");
+            return;
+        }
+
+        ProjectRecoveryTokenExport exported;
+        try {
+            exported = yield api.export_project_recovery_token(project.project_id, pin);
+        } catch (Error e) {
+            show_error("Recovery key export failed", e.message);
+            return;
+        }
+
+        if (exported.recovery_token == null || exported.recovery_token.strip().length == 0) {
+            show_error("Recovery key export failed", "Empty recovery token payload.");
+            return;
+        }
+
+        var safe_name = project.name.replace(" ", "-");
+        var dialog = new Gtk.FileDialog();
+        dialog.set_title("Save Recovery Key");
+        dialog.set_initial_name("%s-recovery.hrk".printf(safe_name));
+        dialog.save.begin(this, null, (obj, res) => {
+            try {
+                var file = dialog.save.end(res);
+                if (file == null) {
+                    return;
+                }
+                var path = file.get_path();
+                if (path == null || path.strip().length == 0) {
+                    show_error("Recovery key export failed", "Please choose a local filesystem path.");
+                    return;
+                }
+                FileUtils.set_contents(path, exported.recovery_token);
+                add_toast("Saved recovery key.");
+            } catch (IOError.CANCELLED e) {
+                // User cancelled.
+            } catch (Error e) {
+                show_error("Recovery key export failed", e.message);
+            }
+        });
     }
 
     private void append_text_to_current_card(string text) {

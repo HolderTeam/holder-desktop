@@ -8,6 +8,15 @@ public interface IHolderApi : Object {
     public abstract async Gee.ArrayList<Project> list_projects() throws Error;
     public abstract async string create_project(string name,
                                                 string privacy_mode = "encrypted_git") throws Error;
+    public abstract async ProjectRecoveryTokenExport export_project_recovery_token(
+        string project_id,
+        string pin
+    ) throws Error;
+    public abstract async void import_project_recovery_token(
+        string project_id,
+        string pin,
+        string recovery_token
+    ) throws Error;
     public abstract async Gee.ArrayList<CardSummary> list_cards(string project_id,
                                                                  string scope = "root",
                                                                  string? parent_card_id = null) throws Error;

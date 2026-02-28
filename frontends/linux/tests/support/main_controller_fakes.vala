@@ -118,6 +118,19 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         return "p-created";
     }
 
+    public async HolderLinux.ProjectRecoveryTokenExport export_project_recovery_token(
+        string project_id,
+        string pin
+    ) throws Error {
+        return new HolderLinux.ProjectRecoveryTokenExport(project_id, "key-1", "{\"token\":\"fake\"}");
+    }
+
+    public async void import_project_recovery_token(
+        string project_id,
+        string pin,
+        string recovery_token
+    ) throws Error {}
+
     public async Gee.ArrayList<HolderLinux.CardSummary> list_cards(string project_id,
                                                                     string scope = "root",
                                                                     string? parent_card_id = null) throws Error {

@@ -91,6 +91,54 @@ public class ApiClient : Object, IHolderApi {
         return data.get_string_member("project_id");
     }
 
+    public async ProjectRecoveryTokenExport export_project_recovery_token(
+        string project_id,
+        string pin
+    ) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("pin");
+        body.add_string_value(pin);
+        body.end_object();
+
+        var root = yield request_json(
+            "POST",
+            "/projects/%s/recovery-token/export".printf(Uri.escape_string(project_id)),
+            json_string_from_builder(body),
+            null
+        );
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for recovery token export response");
+        }
+        var data = root.get_object_member("data");
+        return new ProjectRecoveryTokenExport(
+            string_member_or_empty(data, "project_id"),
+            string_member_or_empty(data, "key_id"),
+            string_member_or_empty(data, "recovery_token")
+        );
+    }
+
+    public async void import_project_recovery_token(
+        string project_id,
+        string pin,
+        string recovery_token
+    ) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("pin");
+        body.add_string_value(pin);
+        body.set_member_name("recovery_token");
+        body.add_string_value(recovery_token);
+        body.end_object();
+
+        yield request_json(
+            "POST",
+            "/projects/%s/recovery-token/import".printf(Uri.escape_string(project_id)),
+            json_string_from_builder(body),
+            null
+        );
+    }
+
     public async Gee.ArrayList<CardSummary> list_cards(string project_id,
                                                        string scope = "root",
                                                        string? parent_card_id = null) throws Error {

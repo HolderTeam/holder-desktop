@@ -383,4 +383,20 @@ public class GitProviderCatalogEntry : Object {
     }
 }
 
+public class ProjectRecoveryTokenExport : Object {
+    public string project_id { get; construct; }
+    public string key_id { get; construct; }
+    public string recovery_token { get; construct; }
+
+    public ProjectRecoveryTokenExport(string project_id,
+                                      string key_id,
+                                      string recovery_token) {
+        Object(
+            project_id: project_id,
+            key_id: key_id,
+            recovery_token: recovery_token
+        );
+    }
+}
+
 }

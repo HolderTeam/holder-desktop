@@ -55,6 +55,8 @@ public class ToolboxPane : Object {
     public signal void flowboard_move_requested(string card_id, string? parent_card_id, double sort_key);
     public signal void flowboard_new_card_requested(string? parent_card_id);
     public signal void send_card_as_email_requested();
+    public signal void send_recovery_key_as_email_requested();
+    public signal void save_recovery_key_to_usb_requested();
     public signal void terminal_copy_to_card_requested(string text);
 
     public ToolboxPane() {
@@ -1056,14 +1058,14 @@ public class ToolboxPane : Object {
         var email_btn = new Gtk.Button.with_label("Email Recovery Key");
         email_btn.set_halign(Gtk.Align.START);
         email_btn.clicked.connect(() => {
-            toast_requested("Recovery key email flow is scaffolded and planned.");
+            send_recovery_key_as_email_requested();
         });
         root.append(email_btn);
 
         var usb_btn = new Gtk.Button.with_label("Save Recovery Key to USB Drive");
         usb_btn.set_halign(Gtk.Align.START);
         usb_btn.clicked.connect(() => {
-            toast_requested("Recovery key USB export flow is scaffolded and planned.");
+            save_recovery_key_to_usb_requested();
         });
         root.append(usb_btn);
 
