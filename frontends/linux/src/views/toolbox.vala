@@ -40,6 +40,9 @@ public class ToolboxPane : Object {
     private Gtk.Entry git_remote_entry;
     private Gtk.Entry git_branch_entry;
     private Gtk.Stack git_sync_stack;
+    private Gtk.Label git_gh_cli_status_label;
+    private Gtk.Button git_gh_cli_auto_btn;
+    private Gtk.Button git_gh_cli_guided_btn;
     private Gtk.Entry git_guided_username_entry;
     private Gtk.Button git_guided_next_btn;
     private Gtk.Label git_guided_ssh_status_label;
@@ -48,6 +51,10 @@ public class ToolboxPane : Object {
     private Gtk.Button git_guided_copy_key_btn;
     private Gtk.TextView git_guided_pubkey_view;
     private Gtk.Entry git_guided_repo_name_entry;
+    private Gtk.Label git_guided_repo_mode_label;
+    private Gtk.Label git_guided_repo_manual_label;
+    private Gtk.LinkButton git_guided_repo_create_link;
+    private Gtk.Label git_guided_repo_manual_instructions_label;
     private Gtk.Label git_guided_repo_status_label;
     private Gtk.Button git_guided_repo_next_btn;
     private Gtk.Label git_guided_push_intro_label;
@@ -61,6 +68,10 @@ public class ToolboxPane : Object {
     private string git_guided_public_key = "";
     private bool git_guided_check_running = false;
     private bool git_guided_github_authenticated = false;
+    private Gtk.Button git_guided_create_repo_cli_btn;
+    private bool git_gh_available = false;
+    private bool git_gh_authenticated = false;
+    private string git_gh_login = "";
     private FlowboardPane flowboard;
     private FlowboardController? flowboard_controller;
     private Gtk.SingleSelection? project_selection;
@@ -99,6 +110,7 @@ public class ToolboxPane : Object {
     public void set_settings(Settings? settings) {
         this.settings = settings;
         refresh_guided_github_username();
+        check_github_cli_state.begin();
     }
 
     public void bind_connections_context(Gtk.SingleSelection project_selection,
@@ -2147,6 +2159,20 @@ public class ToolboxPane : Object {
         intro.add_css_class("dim-label");
         box.append(intro);
 
+        git_gh_cli_auto_btn = new Gtk.Button.with_label("Use GitHub CLI (Automatic)");
+        git_gh_cli_auto_btn.set_halign(Gtk.Align.START);
+        git_gh_cli_auto_btn.set_sensitive(false);
+        git_gh_cli_auto_btn.clicked.connect(() => {
+            run_github_cli_auto_sync.begin();
+        });
+        box.append(git_gh_cli_auto_btn);
+
+        git_gh_cli_status_label = new Gtk.Label("Checking GitHub CLI...") { xalign = 0.0f };
+        git_gh_cli_status_label.set_wrap(true);
+        git_gh_cli_status_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        git_gh_cli_status_label.add_css_class("dim-label");
+        box.append(git_gh_cli_status_label);
+
         var guided_btn = new Gtk.Button.with_label("Guided (I'm new to this)");
         guided_btn.set_halign(Gtk.Align.START);
         guided_btn.clicked.connect(() => {
@@ -2154,6 +2180,21 @@ public class ToolboxPane : Object {
             git_sync_stack.set_visible_child_name("guided-part1");
         });
         box.append(guided_btn);
+
+        git_gh_cli_guided_btn = new Gtk.Button.with_label("Use GitHub CLI (auto-fill username)");
+        git_gh_cli_guided_btn.set_halign(Gtk.Align.START);
+        git_gh_cli_guided_btn.set_sensitive(false);
+        git_gh_cli_guided_btn.clicked.connect(() => {
+            if (git_gh_login.strip().length > 0 && git_guided_username_entry != null) {
+                git_guided_username_entry.set_text(git_gh_login);
+                persist_guided_github_username();
+            }
+            refresh_guided_github_username();
+            git_sync_stack.set_visible_child_name("guided-part2");
+            refresh_guided_ssh_email_default();
+            check_guided_ssh_state.begin();
+        });
+        box.append(git_gh_cli_guided_btn);
 
         var provider_btn = new Gtk.Button.with_label("Provider setup (I know git)");
         provider_btn.set_halign(Gtk.Align.START);
@@ -2190,6 +2231,8 @@ public class ToolboxPane : Object {
         remote_row.append(git_branch_entry);
         remote_row.append(save_btn);
         box.append(remote_row);
+
+        check_github_cli_state.begin();
 
         return box;
     }
@@ -2256,6 +2299,11 @@ public class ToolboxPane : Object {
         if (git_guided_username_entry == null) {
             return;
         }
+        if (git_gh_login.strip().length > 0) {
+            git_guided_username_entry.set_text(git_gh_login);
+            refresh_guided_next_button_state();
+            return;
+        }
         if (settings == null) {
             git_guided_username_entry.set_text("");
             refresh_guided_next_button_state();
@@ -2264,6 +2312,347 @@ public class ToolboxPane : Object {
         var stored = settings.get_string(AppSettings.KEY_GIT_GITHUB_USERNAME);
         git_guided_username_entry.set_text(stored ?? "");
         refresh_guided_next_button_state();
+    }
+
+    private void refresh_git_cli_controls() {
+        if (git_guided_repo_mode_label != null) {
+            if (git_gh_authenticated && git_gh_login.strip().length > 0) {
+                git_guided_repo_mode_label.set_text(
+                    "Recommended on this device: create the private repository with GitHub CLI."
+                );
+            } else {
+                git_guided_repo_mode_label.set_text(
+                    "Create a private repository for this project."
+                );
+            }
+        }
+        if (git_guided_repo_manual_label != null) {
+            git_guided_repo_manual_label.set_text(
+                (git_gh_authenticated && git_gh_login.strip().length > 0)
+                    ? "Browser fallback:"
+                    : "Create a new repository:"
+            );
+        }
+        if (git_guided_repo_manual_instructions_label != null) {
+            if (git_gh_authenticated && git_gh_login.strip().length > 0) {
+                git_guided_repo_manual_instructions_label.set_markup(
+                    "If you prefer the browser route, create it manually at GitHub:\n\n" +
+                    "<b>Under 2. Configuration\n" +
+                    "there is \"Choose visibility *\"\n" +
+                    "Change the drop down to 🔒Private</b>\n\n" +
+                    "Leave README/.gitignore/license unset so the remote starts empty."
+                );
+            } else {
+                git_guided_repo_manual_instructions_label.set_markup(
+                    "Fill in the repository name, and you need to tell us the same name below.\n\n" +
+                    "You can leave the description blank.\n\n" +
+                    "<b>Under 2. Configuration\n" +
+                    "there is \"Choose visibility *\"\n" +
+                    "Change the drop down to 🔒Private</b>\n\n" +
+                    "We want the external repository to be empty, so leave the next three options alone.\n\n" +
+                    "So under \"Add README\", leave it \"Off\"\n" +
+                    "Under \"Add .gitignore\", leave it at \"No .gitignore\"\n" +
+                    "Under \"Add license\", leave it at \"No licence\"\n\n" +
+                    "Click the green button called \"Create repository\""
+                );
+            }
+        }
+
+        if (git_gh_cli_status_label != null) {
+            if (!git_gh_available) {
+                git_gh_cli_status_label.set_text(
+                    "GitHub CLI not detected. Install `gh` to enable automatic username and repo creation."
+                );
+            } else if (!git_gh_authenticated) {
+                git_gh_cli_status_label.set_text(
+                    "GitHub CLI detected, but not authenticated. Run `gh auth login` in a terminal to enable automation."
+                );
+            } else {
+                git_gh_cli_status_label.set_text(
+                    "GitHub CLI authenticated as `%s`. Use the automatic button above to create repo, set remote, and push."
+                        .printf(git_gh_login)
+                );
+            }
+        }
+        if (git_gh_cli_auto_btn != null) {
+            git_gh_cli_auto_btn.set_visible(git_gh_available);
+            git_gh_cli_auto_btn.set_sensitive(git_gh_authenticated && git_gh_login.strip().length > 0);
+        }
+        if (git_gh_cli_guided_btn != null) {
+            git_gh_cli_guided_btn.set_visible(git_gh_available);
+            git_gh_cli_guided_btn.set_sensitive(git_gh_authenticated && git_gh_login.strip().length > 0);
+        }
+        if (git_guided_create_repo_cli_btn != null) {
+            git_guided_create_repo_cli_btn.set_visible(git_gh_authenticated && git_gh_login.strip().length > 0);
+            git_guided_create_repo_cli_btn.set_sensitive(git_gh_authenticated && git_gh_login.strip().length > 0);
+        }
+    }
+
+    private async void check_github_cli_state() {
+        git_gh_available = false;
+        git_gh_authenticated = false;
+        git_gh_login = "";
+
+        var auth_output = yield run_capture_command_async({
+            "gh",
+            "auth",
+            "status",
+            "-h",
+            "github.com"
+        });
+        var auth_exit = command_exit_code(auth_output);
+        if (auth_exit < 0) {
+            refresh_git_cli_controls();
+            return;
+        }
+
+        git_gh_available = true;
+        if (auth_exit != 0) {
+            refresh_git_cli_controls();
+            return;
+        }
+
+        var login_output = yield run_capture_command_async({
+            "gh",
+            "api",
+            "user",
+            "-q",
+            ".login"
+        });
+        var login_exit = command_exit_code(login_output);
+        if (login_exit != 0) {
+            refresh_git_cli_controls();
+            return;
+        }
+
+        git_gh_authenticated = true;
+        git_gh_login = strip_exit_code_prefix(login_output).strip();
+        if (git_gh_login.length > 0) {
+            if (settings != null) {
+                settings.set_string(AppSettings.KEY_GIT_GITHUB_USERNAME, git_gh_login);
+            }
+            if (git_guided_username_entry != null) {
+                git_guided_username_entry.set_text(git_gh_login);
+                refresh_guided_next_button_state();
+            }
+        }
+        refresh_git_cli_controls();
+    }
+
+    private async void create_guided_repository_with_cli() {
+        var username = guided_github_username();
+        var repo_name = git_guided_repo_name_entry != null ? git_guided_repo_name_entry.get_text().strip() : "";
+        if (username.length == 0 || repo_name.length == 0) {
+            toast_requested("GitHub username and repository name are required.");
+            return;
+        }
+        if (git_guided_create_repo_cli_btn != null) {
+            git_guided_create_repo_cli_btn.set_sensitive(false);
+        }
+        if (git_guided_repo_next_btn != null) {
+            git_guided_repo_next_btn.set_sensitive(false);
+        }
+        if (git_guided_repo_status_label != null) {
+            git_guided_repo_status_label.set_text("Creating private repository via GitHub CLI...");
+        }
+
+        var command_output = yield run_capture_command_async({
+            "gh",
+            "repo",
+            "create",
+            "%s/%s".printf(username, repo_name),
+            "--private",
+            "--disable-issues",
+            "--disable-wiki",
+            "--confirm"
+        });
+        var created_ok = command_exit_code(command_output) == 0;
+        string check_error = "";
+        var exists = yield guided_repository_exists_on_github(username, repo_name, out check_error);
+
+        if (git_guided_create_repo_cli_btn != null) {
+            git_guided_create_repo_cli_btn.set_sensitive(true);
+        }
+        if (git_guided_repo_next_btn != null) {
+            git_guided_repo_next_btn.set_sensitive(true);
+        }
+
+        if (exists) {
+            if (git_guided_repo_status_label != null) {
+                git_guided_repo_status_label.set_text(
+                    created_ok
+                        ? "Repository created with GitHub CLI and verified."
+                        : "Repository available and verified."
+                );
+            }
+            git_guided_part4_username = username;
+            git_guided_part4_repo_name = repo_name;
+            if (git_guided_push_intro_label != null) {
+                var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
+                git_guided_push_intro_label.set_text(
+                    "We'll now save this remote and push your cards.\nRemote: %s".printf(remote_url)
+                );
+            }
+            if (git_guided_push_status_label != null) {
+                git_guided_push_status_label.set_text("");
+            }
+            git_sync_stack.set_visible_child_name("guided-part4");
+            return;
+        }
+
+        var details = strip_exit_code_prefix(command_output).strip();
+        if (details.length == 0) {
+            details = check_error.length > 0 ? check_error : "Repository could not be created.";
+        }
+        if (git_guided_repo_status_label != null) {
+            git_guided_repo_status_label.set_text(details);
+        }
+        error_reported("GitHub CLI repository creation failed", details);
+    }
+
+    private string normalize_repository_name(string project_name) {
+        var name = project_name.strip();
+        if (name.length == 0) {
+            return "";
+        }
+
+        var out_name = new StringBuilder();
+        for (int i = 0; i < name.length; i++) {
+            var c = name.get_char(i);
+            if ((c >= 'a' && c <= 'z') ||
+                (c >= 'A' && c <= 'Z') ||
+                (c >= '0' && c <= '9') ||
+                c == '-' || c == '_' || c == '.') {
+                out_name.append_unichar(c);
+                continue;
+            }
+            if (c == ' ' || c == '/' || c == '\\') {
+                out_name.append_c('-');
+            }
+        }
+
+        return out_name.str.strip();
+    }
+
+    private async void run_github_cli_auto_sync() {
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        if (selected_project == null) {
+            toast_requested("Select a project first.");
+            return;
+        }
+        if (api == null) {
+            error_reported("Git sync failed", "Backend API client is not ready.");
+            return;
+        }
+        if (!git_gh_authenticated || git_gh_login.strip().length == 0) {
+            toast_requested("GitHub CLI is not authenticated. Run `gh auth login` first.");
+            return;
+        }
+
+        var username = git_gh_login.strip();
+        var repo_name = normalize_repository_name(selected_project.name ?? "");
+        if (repo_name.length == 0) {
+            error_reported("Git sync failed",
+                           "Project name does not produce a valid repository name. Rename project or use manual setup.");
+            return;
+        }
+
+        if (git_gh_cli_auto_btn != null) {
+            git_gh_cli_auto_btn.set_sensitive(false);
+        }
+        if (git_gh_cli_guided_btn != null) {
+            git_gh_cli_guided_btn.set_sensitive(false);
+        }
+        if (git_gh_cli_status_label != null) {
+            git_gh_cli_status_label.set_text(
+                "GitHub CLI: creating private repo `%s/%s`...".printf(username, repo_name)
+            );
+        }
+
+        var create_output = yield run_capture_command_async({
+            "gh",
+            "repo",
+            "create",
+            "%s/%s".printf(username, repo_name),
+            "--private",
+            "--disable-issues",
+            "--disable-wiki",
+            "--confirm"
+        });
+        var create_ok = command_exit_code(create_output) == 0;
+        string check_error = "";
+        var exists = yield guided_repository_exists_on_github(username, repo_name, out check_error);
+        if (!exists) {
+            var details = strip_exit_code_prefix(create_output).strip();
+            if (details.length == 0) {
+                details = check_error.length > 0 ? check_error : "Repository could not be created.";
+            }
+            if (git_gh_cli_status_label != null) {
+                git_gh_cli_status_label.set_text("GitHub CLI setup failed: %s".printf(details));
+            }
+            error_reported("GitHub CLI setup failed", details);
+            refresh_git_cli_controls();
+            return;
+        }
+
+        var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
+        var updated_at = new DateTime.now_utc().to_unix();
+        GitTestRemoteResult? test_result = null;
+        GitPushResult? push_result = null;
+
+        try {
+            if (git_gh_cli_status_label != null) {
+                git_gh_cli_status_label.set_text("Saving remote and testing connectivity...");
+            }
+            yield api.set_project_git_remote(selected_project.project_id, remote_url, updated_at);
+            test_result = yield api.test_project_git_remote(selected_project.project_id, remote_url, "");
+            if (test_result.status == "reachable") {
+                if (git_gh_cli_status_label != null) {
+                    git_gh_cli_status_label.set_text("Remote reachable. Pushing cards...");
+                }
+                push_result = yield api.push_project_git(selected_project.project_id, "", true);
+            }
+        } catch (Error e) {
+            if (git_gh_cli_status_label != null) {
+                git_gh_cli_status_label.set_text("GitHub CLI setup failed: %s".printf(e.message));
+            }
+            error_reported("Git sync failed", e.message);
+            refresh_git_cli_controls();
+            return;
+        }
+
+        var status = new StringBuilder();
+        status.append("GitHub CLI: %s repo `%s/%s`. ".printf(
+            create_ok ? "created" : "using existing",
+            username,
+            repo_name
+        ));
+        if (test_result != null) {
+            status.append("Remote test: %s".printf(test_result.status));
+            if (test_result.error_message.strip().length > 0) {
+                status.append(" (%s)".printf(test_result.error_message.strip()));
+            }
+            status.append(". ");
+        }
+        if (push_result != null) {
+            status.append("Push: %s".printf(push_result.status));
+            if (push_result.error_message.strip().length > 0) {
+                status.append(" (%s)".printf(push_result.error_message.strip()));
+            }
+            status.append(".");
+            if (push_result.status == "pushed" || push_result.status == "up_to_date") {
+                toast_requested("GitHub CLI sync setup completed.");
+            }
+        } else {
+            status.append("Push not run.");
+        }
+        if (git_gh_cli_status_label != null) {
+            git_gh_cli_status_label.set_text(status.str);
+        }
+
+        refresh_git_cli_controls();
     }
 
     private Gtk.Widget build_git_sync_guided_part2_page() {
@@ -2357,16 +2746,22 @@ public class ToolboxPane : Object {
         part_title.add_css_class("title-5");
         box.append(part_title);
 
+        git_guided_repo_mode_label = new Gtk.Label("") { xalign = 0.0f };
+        git_guided_repo_mode_label.set_wrap(true);
+        git_guided_repo_mode_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        git_guided_repo_mode_label.add_css_class("dim-label");
+        box.append(git_guided_repo_mode_label);
+
         var create_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var create_label = new Gtk.Label("Create a new repository:") { xalign = 0.0f };
-        create_label.add_css_class("dim-label");
-        var create_link = new Gtk.LinkButton.with_label("https://github.com/new", "https://github.com/new");
-        create_link.set_halign(Gtk.Align.START);
-        create_row.append(create_label);
-        create_row.append(create_link);
+        git_guided_repo_manual_label = new Gtk.Label("Create a new repository:") { xalign = 0.0f };
+        git_guided_repo_manual_label.add_css_class("dim-label");
+        git_guided_repo_create_link = new Gtk.LinkButton.with_label("https://github.com/new", "https://github.com/new");
+        git_guided_repo_create_link.set_halign(Gtk.Align.START);
+        create_row.append(git_guided_repo_manual_label);
+        create_row.append(git_guided_repo_create_link);
         box.append(create_row);
 
-        var instructions = new Gtk.Label(
+        git_guided_repo_manual_instructions_label = new Gtk.Label(
             "Fill in the repository name, and you need to tell us the same name below.\n\n" +
             "You can leave the description blank.\n\n" +
             "<b>Under 2. Configuration\n" +
@@ -2378,11 +2773,11 @@ public class ToolboxPane : Object {
             "Under \"Add license\", leave it at \"No licence\"\n\n" +
             "Click the green button called \"Create repository\""
         ) { xalign = 0.0f };
-        instructions.set_use_markup(true);
-        instructions.set_wrap(true);
-        instructions.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
-        instructions.add_css_class("dim-label");
-        box.append(instructions);
+        git_guided_repo_manual_instructions_label.set_use_markup(true);
+        git_guided_repo_manual_instructions_label.set_wrap(true);
+        git_guided_repo_manual_instructions_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        git_guided_repo_manual_instructions_label.add_css_class("dim-label");
+        box.append(git_guided_repo_manual_instructions_label);
 
         var repo_label = new Gtk.Label("The repository name:") { xalign = 0.0f };
         box.append(repo_label);
@@ -2401,6 +2796,14 @@ public class ToolboxPane : Object {
         git_guided_repo_status_label.add_css_class("dim-label");
         box.append(git_guided_repo_status_label);
 
+        git_guided_create_repo_cli_btn = new Gtk.Button.with_label("Create Private Repo with GitHub CLI");
+        git_guided_create_repo_cli_btn.set_halign(Gtk.Align.START);
+        git_guided_create_repo_cli_btn.set_visible(false);
+        git_guided_create_repo_cli_btn.clicked.connect(() => {
+            create_guided_repository_with_cli.begin();
+        });
+        box.append(git_guided_create_repo_cli_btn);
+
         var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         var back_btn = new Gtk.Button.with_label("Back");
         back_btn.clicked.connect(() => {
@@ -2415,6 +2818,7 @@ public class ToolboxPane : Object {
         box.append(actions);
 
         refresh_guided_repo_name_default();
+        refresh_git_cli_controls();
         return box;
     }
 
@@ -2861,6 +3265,17 @@ public class ToolboxPane : Object {
             return "";
         }
         return output;
+    }
+
+    private int command_exit_code(string output) {
+        if (!output.has_prefix("__EXIT_CODE__:")) {
+            return -1;
+        }
+        var newline = output.index_of_char('\n');
+        var code_text = newline >= 0
+            ? output.substring("__EXIT_CODE__:".length, newline - "__EXIT_CODE__:".length)
+            : output.substring("__EXIT_CODE__:".length);
+        return int.parse(code_text.strip());
     }
 
     private void copy_guided_public_key() {

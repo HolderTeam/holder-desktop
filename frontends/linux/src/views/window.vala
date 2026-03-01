@@ -1332,7 +1332,7 @@ public class MainWindow : Adw.ApplicationWindow {
                         sync_section.append("  error: `%s`\n".printf(project.sync.last_sync_error));
                     }
                 } else {
-                    sync_section.append("- %s: no project repository set\n".printf(project.name));
+                    sync_section.append("- %s: no project remote repository set\n".printf(project.name));
                 }
             }
             var text =
