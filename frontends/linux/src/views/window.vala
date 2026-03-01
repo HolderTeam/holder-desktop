@@ -1265,16 +1265,17 @@ public class MainWindow : Adw.ApplicationWindow {
             var health = yield api.get_health_info();
             var uptime_seconds = health.uptime_ms / 1000;
             var projects = yield api.list_projects();
+            Project? home_project = null;
             var ordered_projects = new Gee.ArrayList<Project>();
             foreach (var project in projects) {
-                if (project.name.strip().down() == "home") {
+                if (home_project == null && project.name.strip().down() == "home") {
+                    home_project = project;
+                } else {
                     ordered_projects.add(project);
                 }
             }
-            foreach (var project in projects) {
-                if (project.name.strip().down() != "home") {
-                    ordered_projects.add(project);
-                }
+            if (home_project != null) {
+                ordered_projects.insert(0, home_project);
             }
             var project_count = projects.size;
             int total_card_count = 0;

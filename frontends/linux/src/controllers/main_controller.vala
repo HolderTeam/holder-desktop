@@ -614,20 +614,21 @@ public class MainController : Object, IAiRunContext {
     }
 
     private void replace_projects(Gee.ArrayList<Project> projects) {
-        var ordered = new Gee.ArrayList<Project>();
+        Project? home_project = null;
+        var others = new Gee.ArrayList<Project>();
         foreach (var project in projects) {
-            if (is_home_project(project)) {
-                ordered.add(project);
-            }
-        }
-        foreach (var project in projects) {
-            if (!is_home_project(project)) {
-                ordered.add(project);
+            if (home_project == null && is_home_project(project)) {
+                home_project = project;
+            } else {
+                others.add(project);
             }
         }
 
         project_store.remove_all();
-        foreach (var project in ordered) {
+        if (home_project != null) {
+            project_store.append(home_project);
+        }
+        foreach (var project in others) {
             project_store.append(project);
         }
     }
