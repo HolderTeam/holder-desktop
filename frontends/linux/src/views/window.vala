@@ -5,6 +5,9 @@ public class MainWindow : Adw.ApplicationWindow {
 
     private const int DEFAULT_WINDOW_WIDTH = 1200;
     private const int DEFAULT_WINDOW_HEIGHT = 800;
+    private const int DEFAULT_SIDEBAR_WIDTH = 280;
+    private const int MIN_SIDEBAR_WIDTH = 180;
+    private const int MAX_SIDEBAR_WIDTH = 700;
     private const int MIN_RESTORE_WIDTH = 690;
     private const int MIN_RESTORE_HEIGHT = 590;
     private const int TINY_CLOSE_STRIKE_LIMIT = 3;
@@ -38,7 +41,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private Settings? settings;
     private uint flowboard_refresh_idle_id = 0;
     private bool sidebar_visible = true;
-    private int last_sidebar_position = 280;
+    private int last_sidebar_position = DEFAULT_SIDEBAR_WIDTH;
 
     private bool suppress_editor_events = false;
 
@@ -77,7 +80,7 @@ public class MainWindow : Adw.ApplicationWindow {
         root_paned.set_position(last_sidebar_position);
         root_paned.notify["position"].connect(() => {
             if (sidebar_visible && root_paned.get_position() > 0) {
-                last_sidebar_position = root_paned.get_position();
+                last_sidebar_position = clamp_sidebar_width(root_paned.get_position());
             }
         });
         toast_overlay.set_child(root_paned);
@@ -88,6 +91,11 @@ public class MainWindow : Adw.ApplicationWindow {
         editor_view = workspace.editor_view;
         spelling_adapter = workspace.spelling_adapter;
         settings = boot_settings;
+        if (settings != null) {
+            last_sidebar_position = clamp_sidebar_width(
+                settings.get_int(AppSettings.KEY_SIDEBAR_WIDTH)
+            );
+        }
         apply_persisted_preferences();
         search_entry = workspace.search_entry;
         search_summary_label = workspace.search_summary_label;
@@ -167,10 +175,10 @@ public class MainWindow : Adw.ApplicationWindow {
             sidebar_visible = visible;
             if (visible) {
                 root_paned.set_start_child(sidebar.widget);
-                root_paned.set_position(last_sidebar_position);
+                root_paned.set_position(clamp_sidebar_width(last_sidebar_position));
             } else {
                 if (root_paned.get_position() > 0) {
-                    last_sidebar_position = root_paned.get_position();
+                    last_sidebar_position = clamp_sidebar_width(root_paned.get_position());
                 }
                 root_paned.set_start_child(null);
             }
@@ -480,6 +488,11 @@ public class MainWindow : Adw.ApplicationWindow {
             return;
         }
 
+        settings.set_int(
+            AppSettings.KEY_SIDEBAR_WIDTH,
+            clamp_sidebar_width(last_sidebar_position)
+        );
+
         var maximized = is_maximized();
         settings.set_boolean(AppSettings.KEY_WINDOW_MAXIMIZED, maximized);
 
@@ -499,6 +512,16 @@ public class MainWindow : Adw.ApplicationWindow {
         }
 
         settings.set_int(AppSettings.KEY_TINY_CLOSE_STREAK, 0);
+    }
+
+    private static int clamp_sidebar_width(int width) {
+        if (width < MIN_SIDEBAR_WIDTH) {
+            return MIN_SIDEBAR_WIDTH;
+        }
+        if (width > MAX_SIDEBAR_WIDTH) {
+            return MAX_SIDEBAR_WIDTH;
+        }
+        return width;
     }
 
     construct {
@@ -1242,10 +1265,22 @@ public class MainWindow : Adw.ApplicationWindow {
             var health = yield api.get_health_info();
             var uptime_seconds = health.uptime_ms / 1000;
             var projects = yield api.list_projects();
+            var ordered_projects = new Gee.ArrayList<Project>();
+            foreach (var project in projects) {
+                if (project.name.strip().down() == "home") {
+                    ordered_projects.add(project);
+                }
+            }
+            foreach (var project in projects) {
+                if (project.name.strip().down() != "home") {
+                    ordered_projects.add(project);
+                }
+            }
             var project_count = projects.size;
             int total_card_count = 0;
             int total_thread_count = 0;
-            foreach (var project in projects) {
+            var sync_section = new StringBuilder();
+            foreach (var project in ordered_projects) {
                 try {
                     var cards = yield api.list_cards(project.project_id, "all", null);
                     total_card_count += cards.size;
@@ -1268,6 +1303,36 @@ public class MainWindow : Adw.ApplicationWindow {
                         )
                     );
                 }
+
+                if (project.git_remote_url != null && project.git_remote_url.strip().length > 0) {
+                    var push_time = format_sync_time(
+                        project.sync.has_last_push_at,
+                        project.sync.last_push_at
+                    );
+                    var pull_time = format_sync_time(
+                        project.sync.has_last_pull_at,
+                        project.sync.last_pull_at
+                    );
+                    var push_status = project.sync.last_push_status.strip().length > 0
+                        ? project.sync.last_push_status
+                        : "unknown";
+                    sync_section.append(
+                        "- %s: push `%s` (%s), pull `%s`, uncommitted `%d`, unpushed `%d`, retry_count `%d`\n".printf(
+                            project.name,
+                            push_status,
+                            push_time,
+                            pull_time,
+                            project.sync.uncommitted_changes_count,
+                            project.sync.unpushed_commits_count,
+                            project.sync.retry_count
+                        )
+                    );
+                    if (project.sync.last_sync_error.strip().length > 0) {
+                        sync_section.append("  error: `%s`\n".printf(project.sync.last_sync_error));
+                    }
+                } else {
+                    sync_section.append("- %s: no project repository set\n".printf(project.name));
+                }
             }
             var text =
                 "# Local info\n\n" +
@@ -1283,8 +1348,7 @@ public class MainWindow : Adw.ApplicationWindow {
                 "- Cards: `%d`\n".printf(total_card_count) +
                 "- AI Threads: `%d`\n\n".printf(total_thread_count) +
                 "## Sync\n" +
-                "- Default: no default repository set\n" +
-                "- Projects: no project repositories set\n";
+                sync_section.str;
             set_editor_state(text, false);
             show_editor_mode();
             update_window_title("Local info");
@@ -1301,6 +1365,14 @@ public class MainWindow : Adw.ApplicationWindow {
             set_status("Failed to load local info");
             show_error("Local info failed", e.message);
         }
+    }
+
+    private string format_sync_time(bool has_timestamp, int64 timestamp) {
+        if (!has_timestamp || timestamp <= 0) {
+            return "never";
+        }
+        var now = new DateTime.now_utc().to_unix();
+        return TextUtils.format_relative_time(now, timestamp);
     }
 
     private void show_about_dialog() {

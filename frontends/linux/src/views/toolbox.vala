@@ -2565,6 +2565,7 @@ public class ToolboxPane : Object {
         var updated_at = new DateTime.now_utc().to_unix();
         GitTestRemoteResult? test_result = null;
         GitPushResult? push_result = null;
+        Project? refreshed_project = null;
 
         if (git_guided_push_btn != null) {
             git_guided_push_btn.set_sensitive(false);
@@ -2585,6 +2586,13 @@ public class ToolboxPane : Object {
             } else {
                 if (git_guided_push_status_label != null) {
                     git_guided_push_status_label.set_text("Remote test result: %s".printf(test_result.status));
+                }
+            }
+            var projects = yield api.list_projects();
+            foreach (var project in projects) {
+                if (project.project_id == selected_project.project_id) {
+                    refreshed_project = project;
+                    break;
                 }
             }
         } catch (Error e) {
@@ -2625,8 +2633,34 @@ public class ToolboxPane : Object {
             } else {
                 lines.append("Push: not run\n");
             }
+            if (refreshed_project != null) {
+                lines.append("\n");
+                lines.append("Sync state: ");
+                var status = refreshed_project.sync.last_push_status.strip();
+                lines.append(status.length > 0 ? status : "unknown");
+                lines.append("\n");
+                lines.append("Last push: ");
+                lines.append(format_sync_time(
+                    refreshed_project.sync.has_last_push_at,
+                    refreshed_project.sync.last_push_at
+                ));
+                lines.append("\n");
+                lines.append("Retry count: %d".printf(refreshed_project.sync.retry_count));
+                if (refreshed_project.sync.last_sync_error.strip().length > 0) {
+                    lines.append("\n");
+                    lines.append("Error: %s".printf(refreshed_project.sync.last_sync_error));
+                }
+            }
             git_guided_push_status_label.set_text(lines.str.strip());
         }
+    }
+
+    private string format_sync_time(bool has_timestamp, int64 timestamp) {
+        if (!has_timestamp || timestamp <= 0) {
+            return "never";
+        }
+        var now = new DateTime.now_utc().to_unix();
+        return TextUtils.format_relative_time(now, timestamp);
     }
 
     private async bool guided_repository_exists_on_github(string username,

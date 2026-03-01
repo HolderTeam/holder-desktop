@@ -614,10 +614,26 @@ public class MainController : Object, IAiRunContext {
     }
 
     private void replace_projects(Gee.ArrayList<Project> projects) {
-        project_store.remove_all();
+        var ordered = new Gee.ArrayList<Project>();
         foreach (var project in projects) {
+            if (is_home_project(project)) {
+                ordered.add(project);
+            }
+        }
+        foreach (var project in projects) {
+            if (!is_home_project(project)) {
+                ordered.add(project);
+            }
+        }
+
+        project_store.remove_all();
+        foreach (var project in ordered) {
             project_store.append(project);
         }
+    }
+
+    private bool is_home_project(Project project) {
+        return project.name.strip().down() == "home";
     }
 
     private void replace_cards(Gee.ArrayList<CardSummary> cards) {

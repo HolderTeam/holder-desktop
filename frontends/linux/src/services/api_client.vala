@@ -846,13 +846,22 @@ public class ApiClient : Object, IHolderApi {
         var data = root.get_array_member("data");
         for (uint i = 0; i < data.get_length(); i++) {
             var item = data.get_object_element(i);
+            ProjectSyncState sync = new ProjectSyncState();
+            if (item.has_member("sync")) {
+                var sync_node = item.get_member("sync");
+                if (sync_node != null && sync_node.get_node_type() == Json.NodeType.OBJECT) {
+                    sync = parse_project_sync_state(item.get_object_member("sync"));
+                }
+            }
             out_list.add(new Project(
                 item.get_string_member("project_id"),
                 item.get_string_member("name"),
                 item.has_member("privacy_mode") ? item.get_string_member("privacy_mode") : "encrypted_git",
                 item.has_member("root_path") ? item.get_string_member("root_path") : "",
                 item.has_member("created_at") ? item.get_int_member("created_at") : 0,
-                item.has_member("updated_at") ? item.get_int_member("updated_at") : 0
+                item.has_member("updated_at") ? item.get_int_member("updated_at") : 0,
+                nullable_string_member_or_null(item, "git_remote_url"),
+                sync
             ));
         }
         return out_list;
@@ -1197,6 +1206,49 @@ public class ApiClient : Object, IHolderApi {
             return "";
         }
         return obj.get_string_member(key);
+    }
+
+    private string? nullable_string_member_or_null(Json.Object obj, string key) {
+        if (!obj.has_member(key)) {
+            return null;
+        }
+        var node = obj.get_member(key);
+        if (node == null || node.get_node_type() == Json.NodeType.NULL) {
+            return null;
+        }
+        return obj.get_string_member(key);
+    }
+
+    private int64? nullable_int_member_or_null(Json.Object obj, string key) {
+        if (!obj.has_member(key)) {
+            return null;
+        }
+        var node = obj.get_member(key);
+        if (node == null || node.get_node_type() == Json.NodeType.NULL) {
+            return null;
+        }
+        return obj.get_int_member(key);
+    }
+
+    private ProjectSyncState parse_project_sync_state(Json.Object obj) {
+        return new ProjectSyncState(
+            nullable_int_member_or_null(obj, "last_commit_at"),
+            nullable_int_member_or_null(obj, "last_push_at"),
+            nullable_int_member_or_null(obj, "last_pull_at"),
+            obj.has_member("uncommitted_changes_count")
+                ? (int) obj.get_int_member("uncommitted_changes_count")
+                : 0,
+            obj.has_member("unpushed_commits_count")
+                ? (int) obj.get_int_member("unpushed_commits_count")
+                : 0,
+            string_member_or_empty(obj, "last_push_status"),
+            string_member_or_empty(obj, "last_pull_status"),
+            string_member_or_empty(obj, "last_sync_error"),
+            nullable_int_member_or_null(obj, "last_sync_error_at"),
+            obj.has_member("retry_count") ? (int) obj.get_int_member("retry_count") : 0,
+            nullable_int_member_or_null(obj, "next_retry_at"),
+            nullable_int_member_or_null(obj, "updated_at")
+        );
     }
 
     private Json.Object? object_member_or_null(Json.Object obj, string key) {

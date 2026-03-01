@@ -50,6 +50,13 @@
         If true, startup restores maximized state.
       </description>
     </key>
+    <key name="sidebar-width" type="i">
+      <default>280</default>
+      <summary>Explorer sidebar width in pixels</summary>
+      <description>
+        Last width used for the left explorer sidebar.
+      </description>
+    </key>
     <key name="tiny-close-streak" type="i">
       <default>0</default>
       <summary>Consecutive closes with tiny window size</summary>
