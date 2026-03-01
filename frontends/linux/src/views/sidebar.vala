@@ -32,6 +32,10 @@ public class SidebarPane : Object {
         status_label = new Gtk.Label("") { xalign = 0.0f };
         status_label.add_css_class("caption");
         status_label.add_css_class("dim-label");
+        status_label.set_wrap(true);
+        status_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        status_label.set_ellipsize(Pango.EllipsizeMode.NONE);
+        status_label.set_max_width_chars(30);
         box.append(status_label);
 
         var projects_title = new Gtk.Label("Projects") { xalign = 0.0f };

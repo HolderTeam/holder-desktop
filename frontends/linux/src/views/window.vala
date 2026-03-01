@@ -28,6 +28,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private Gtk.SingleSelection search_selection;
     private Gtk.ListView search_list;
     private SidebarPane sidebar;
+    private Gtk.Paned root_paned;
     private Adw.OverlaySplitView ai_split;
     private AiPanel ai_panel;
     private ToolboxPane toolbox;
@@ -36,6 +37,8 @@ public class MainWindow : Adw.ApplicationWindow {
     private FlowboardController flowboard_controller;
     private Settings? settings;
     private uint flowboard_refresh_idle_id = 0;
+    private bool sidebar_visible = true;
+    private int last_sidebar_position = 280;
 
     private bool suppress_editor_events = false;
 
@@ -68,11 +71,16 @@ public class MainWindow : Adw.ApplicationWindow {
         ai_thread_selection = new Gtk.SingleSelection(ai_thread_store);
         search_store = new GLib.ListStore(typeof(SearchCardResult));
 
-        var root_split = new Adw.OverlaySplitView();
-        root_split.set_sidebar_position(Gtk.PackType.START);
-
         toast_overlay = new Adw.ToastOverlay();
-        toast_overlay.set_child(root_split);
+        root_paned = new Gtk.Paned(Gtk.Orientation.HORIZONTAL);
+        root_paned.set_wide_handle(true);
+        root_paned.set_position(last_sidebar_position);
+        root_paned.notify["position"].connect(() => {
+            if (sidebar_visible && root_paned.get_position() > 0) {
+                last_sidebar_position = root_paned.get_position();
+            }
+        });
+        toast_overlay.set_child(root_paned);
         set_content(toast_overlay);
 
         workspace = new WorkspacePane(search_store);
@@ -106,9 +114,11 @@ public class MainWindow : Adw.ApplicationWindow {
         flowboard_controller = new FlowboardController(project_store, project_selection, card_store);
 
         sidebar = new SidebarPane(project_selection, card_selection, ai_thread_selection);
-        root_split.set_sidebar(sidebar.widget);
-        root_split.set_content(workspace.widget);
-        root_split.set_show_sidebar(true);
+        root_paned.set_start_child(sidebar.widget);
+        root_paned.set_end_child(workspace.widget);
+        root_paned.set_resize_start_child(true);
+        root_paned.set_shrink_start_child(false);
+        root_paned.set_position(last_sidebar_position);
 
         controller.status_changed.connect((text) => {
             set_status(text);
@@ -154,7 +164,16 @@ public class MainWindow : Adw.ApplicationWindow {
             controller.create_card.begin();
         });
         workspace.explorer_panel_toggled.connect((visible) => {
-            root_split.set_show_sidebar(visible);
+            sidebar_visible = visible;
+            if (visible) {
+                root_paned.set_start_child(sidebar.widget);
+                root_paned.set_position(last_sidebar_position);
+            } else {
+                if (root_paned.get_position() > 0) {
+                    last_sidebar_position = root_paned.get_position();
+                }
+                root_paned.set_start_child(null);
+            }
         });
         workspace.ai_panel_toggled.connect((visible) => {
             ai_split.set_show_sidebar(visible);
