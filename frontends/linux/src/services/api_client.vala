@@ -444,6 +444,85 @@ public class ApiClient : Object, IHolderApi {
         return parse_git_provider_catalog(root);
     }
 
+    public async void set_project_git_remote(string project_id,
+                                             string? git_remote_url,
+                                             int64 updated_at) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("git_remote_url");
+        if (git_remote_url == null || git_remote_url.strip().length == 0) {
+            body.add_null_value();
+        } else {
+            body.add_string_value(git_remote_url);
+        }
+        body.set_member_name("updated_at");
+        body.add_int_value(updated_at);
+        body.end_object();
+
+        yield request_json(
+            "PATCH",
+            "/projects/%s".printf(Uri.escape_string(project_id)),
+            json_string_from_builder(body),
+            null
+        );
+    }
+
+    public async GitTestRemoteResult test_project_git_remote(string project_id,
+                                                             string? remote_url = null,
+                                                             string branch = "") throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        if (remote_url != null) {
+            body.set_member_name("remote_url");
+            if (remote_url.strip().length == 0) {
+                body.add_null_value();
+            } else {
+                body.add_string_value(remote_url);
+            }
+        }
+        if (branch.strip().length > 0) {
+            body.set_member_name("branch");
+            body.add_string_value(branch);
+        }
+        body.end_object();
+
+        var root = yield request_json(
+            "POST",
+            "/projects/%s/git/test-remote".printf(Uri.escape_string(project_id)),
+            json_string_from_builder(body),
+            null
+        );
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for git test-remote response");
+        }
+        return parse_git_test_remote_result(root.get_object_member("data"));
+    }
+
+    public async GitPushResult push_project_git(string project_id,
+                                                string branch = "",
+                                                bool set_upstream = true) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        if (branch.strip().length > 0) {
+            body.set_member_name("branch");
+            body.add_string_value(branch);
+        }
+        body.set_member_name("set_upstream");
+        body.add_boolean_value(set_upstream);
+        body.end_object();
+
+        var root = yield request_json(
+            "POST",
+            "/projects/%s/git/push".printf(Uri.escape_string(project_id)),
+            json_string_from_builder(body),
+            null
+        );
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for git push response");
+        }
+        return parse_git_push_result(root.get_object_member("data"));
+    }
+
     public async void run_ai_stream(string prompt,
                                     string? project_id,
                                     string? thread_id,
@@ -906,6 +985,32 @@ public class ApiClient : Object, IHolderApi {
             ));
         }
         return out_list;
+    }
+
+    private GitTestRemoteResult parse_git_test_remote_result(Json.Object data) {
+        return new GitTestRemoteResult(
+            string_member_or_empty(data, "project_id"),
+            string_member_or_empty(data, "remote_url"),
+            string_member_or_empty(data, "branch"),
+            string_member_or_empty(data, "status"),
+            data.has_member("remote_has_head") ? data.get_boolean_member("remote_has_head") : false,
+            string_member_or_empty(data, "error_code"),
+            string_member_or_empty(data, "error_message")
+        );
+    }
+
+    private GitPushResult parse_git_push_result(Json.Object data) {
+        return new GitPushResult(
+            string_member_or_empty(data, "project_id"),
+            string_member_or_empty(data, "remote_url"),
+            string_member_or_empty(data, "branch"),
+            string_member_or_empty(data, "status"),
+            data.has_member("ahead_count") ? (int) data.get_int_member("ahead_count") : 0,
+            data.has_member("behind_count") ? (int) data.get_int_member("behind_count") : 0,
+            string_member_or_empty(data, "error_code"),
+            string_member_or_empty(data, "error_message"),
+            string_member_or_empty(data, "next_action")
+        );
     }
 
     private AiCapabilitiesInfo parse_ai_capabilities(Json.Object root) throws Error {

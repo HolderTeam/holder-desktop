@@ -50,6 +50,11 @@ public class ToolboxPane : Object {
     private Gtk.Entry git_guided_repo_name_entry;
     private Gtk.Label git_guided_repo_status_label;
     private Gtk.Button git_guided_repo_next_btn;
+    private Gtk.Label git_guided_push_intro_label;
+    private Gtk.Label git_guided_push_status_label;
+    private Gtk.Button git_guided_push_btn;
+    private string git_guided_part4_username = "";
+    private string git_guided_part4_repo_name = "";
     private Gtk.Box git_guided_missing_key_box;
     private Gtk.Box git_guided_key_ready_box;
     private Gtk.Button git_guided_open_keys_btn;
@@ -2122,6 +2127,8 @@ public class ToolboxPane : Object {
         git_sync_stack.add_named(guided_ssh_page, "guided-part2");
         var guided_repo_page = build_git_sync_guided_part3_page();
         git_sync_stack.add_named(guided_repo_page, "guided-part3");
+        var guided_push_page = build_git_sync_guided_part4_page();
+        git_sync_stack.add_named(guided_push_page, "guided-part4");
         git_sync_stack.set_visible_child_name("start");
 
         return git_sync_stack;
@@ -2171,7 +2178,7 @@ public class ToolboxPane : Object {
         branch_label.set_size_request(70, -1);
         git_branch_entry = new Gtk.Entry();
         git_branch_entry.set_width_chars(10);
-        git_branch_entry.set_text("main");
+        git_branch_entry.set_placeholder_text("local default");
         var save_btn = new Gtk.Button.with_label("Save");
         save_btn.clicked.connect(() => {
             log_debug("Git config save requested (not wired)");
@@ -2411,6 +2418,45 @@ public class ToolboxPane : Object {
         return box;
     }
 
+    private Gtk.Widget build_git_sync_guided_part4_page() {
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
+
+        var part_title = new Gtk.Label("Part 4/4: Push Cards") { xalign = 0.0f };
+        part_title.add_css_class("title-5");
+        box.append(part_title);
+
+        git_guided_push_intro_label = new Gtk.Label("") { xalign = 0.0f };
+        git_guided_push_intro_label.set_wrap(true);
+        git_guided_push_intro_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        git_guided_push_intro_label.add_css_class("dim-label");
+        box.append(git_guided_push_intro_label);
+
+        git_guided_push_status_label = new Gtk.Label("") { xalign = 0.0f };
+        git_guided_push_status_label.set_wrap(true);
+        git_guided_push_status_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        git_guided_push_status_label.add_css_class("dim-label");
+        box.append(git_guided_push_status_label);
+
+        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var back_btn = new Gtk.Button.with_label("Back");
+        back_btn.clicked.connect(() => {
+            git_sync_stack.set_visible_child_name("guided-part3");
+        });
+        git_guided_push_btn = new Gtk.Button.with_label("Push Cards");
+        git_guided_push_btn.clicked.connect(() => {
+            if (git_guided_part4_username.length == 0 || git_guided_part4_repo_name.length == 0) {
+                toast_requested("GitHub username and repository name are required.");
+                git_sync_stack.set_visible_child_name("guided-part3");
+                return;
+            }
+            run_guided_part4_setup.begin(git_guided_part4_username, git_guided_part4_repo_name);
+        });
+        actions.append(back_btn);
+        actions.append(git_guided_push_btn);
+        box.append(actions);
+        return box;
+    }
+
     private void refresh_guided_ssh_email_default() {
         if (git_guided_email_entry == null) {
             return;
@@ -2430,14 +2476,13 @@ public class ToolboxPane : Object {
         if (git_guided_repo_name_entry == null) {
             return;
         }
-        if (git_guided_repo_name_entry.get_text().strip().length > 0) {
-            return;
-        }
         var selected_project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
         if (selected_project != null && selected_project.name != null) {
             git_guided_repo_name_entry.set_text(selected_project.name);
+        } else {
+            git_guided_repo_name_entry.set_text("");
         }
     }
 
@@ -2481,7 +2526,18 @@ public class ToolboxPane : Object {
 
         if (exists) {
             git_guided_repo_status_label.set_text("Repository found on GitHub.");
-            toast_requested("Repository found. Guided setup part 4 is next (planned).");
+            git_guided_part4_username = username;
+            git_guided_part4_repo_name = repo_name;
+            if (git_guided_push_intro_label != null) {
+                var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
+                git_guided_push_intro_label.set_text(
+                    "We'll now save this remote and push your cards.\nRemote: %s".printf(remote_url)
+                );
+            }
+            if (git_guided_push_status_label != null) {
+                git_guided_push_status_label.set_text("");
+            }
+            git_sync_stack.set_visible_child_name("guided-part4");
             return;
         }
 
@@ -2490,6 +2546,87 @@ public class ToolboxPane : Object {
         error_reported("Repository check failed",
                        "Could not find https://github.com/%s/%s . Create it first, then click Next again."
                            .printf(username, repo_name));
+    }
+
+    private async void run_guided_part4_setup(string username, string repo_name) {
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        if (selected_project == null) {
+            toast_requested("Select a project first.");
+            return;
+        }
+        if (api == null) {
+            error_reported("Git sync failed", "Backend API client is not ready.");
+            return;
+        }
+
+        var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
+        var updated_at = new DateTime.now_utc().to_unix();
+        GitTestRemoteResult? test_result = null;
+        GitPushResult? push_result = null;
+
+        if (git_guided_push_btn != null) {
+            git_guided_push_btn.set_sensitive(false);
+        }
+        if (git_guided_push_status_label != null) {
+            git_guided_push_status_label.set_text("Saving remote and testing connectivity...");
+        }
+
+        try {
+            yield api.set_project_git_remote(selected_project.project_id, remote_url, updated_at);
+            test_result = yield api.test_project_git_remote(selected_project.project_id, remote_url, "");
+
+            if (test_result.status == "reachable") {
+                if (git_guided_push_status_label != null) {
+                    git_guided_push_status_label.set_text("Remote reachable. Pushing project data...");
+                }
+                push_result = yield api.push_project_git(selected_project.project_id, "", true);
+            } else {
+                if (git_guided_push_status_label != null) {
+                    git_guided_push_status_label.set_text("Remote test result: %s".printf(test_result.status));
+                }
+            }
+        } catch (Error e) {
+            if (git_guided_push_btn != null) {
+                git_guided_push_btn.set_sensitive(true);
+            }
+            error_reported("Git sync failed", e.message);
+            return;
+        }
+
+        if (git_guided_push_btn != null) {
+            git_guided_push_btn.set_sensitive(true);
+        }
+        if (git_guided_push_status_label != null) {
+            var lines = new StringBuilder();
+            if (test_result != null) {
+                lines.append("Remote test: %s".printf(test_result.status));
+                if (test_result.error_message.strip().length > 0) {
+                    lines.append(" (%s)".printf(test_result.error_message.strip()));
+                }
+                lines.append("\n");
+            } else {
+                lines.append("Remote test: not run\n");
+            }
+
+            if (push_result != null) {
+                lines.append("Push: %s".printf(push_result.status));
+                if (push_result.error_message.strip().length > 0) {
+                    lines.append(" (%s)".printf(push_result.error_message.strip()));
+                }
+                lines.append("\n");
+                if (push_result.next_action.strip().length > 0) {
+                    lines.append("Next action: %s\n".printf(push_result.next_action));
+                }
+                if (push_result.status == "pushed" || push_result.status == "up_to_date") {
+                    toast_requested("Git sync setup completed.");
+                }
+            } else {
+                lines.append("Push: not run\n");
+            }
+            git_guided_push_status_label.set_text(lines.str.strip());
+        }
     }
 
     private async bool guided_repository_exists_on_github(string username,

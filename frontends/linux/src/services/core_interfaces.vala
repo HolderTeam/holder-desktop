@@ -59,6 +59,15 @@ public interface IHolderApi : Object {
     public abstract async string create_ai_thread(string project_id, string title) throws Error;
     public abstract async Gee.ArrayList<AiCatalogProvider> list_ai_provider_catalog() throws Error;
     public abstract async Gee.ArrayList<GitProviderCatalogEntry> list_git_provider_catalog() throws Error;
+    public abstract async void set_project_git_remote(string project_id,
+                                                      string? git_remote_url,
+                                                      int64 updated_at) throws Error;
+    public abstract async GitTestRemoteResult test_project_git_remote(string project_id,
+                                                                      string? remote_url = null,
+                                                                      string branch = "") throws Error;
+    public abstract async GitPushResult push_project_git(string project_id,
+                                                         string branch = "",
+                                                         bool set_upstream = true) throws Error;
     public abstract async void run_ai_stream(string prompt,
                                              string? project_id,
                                              string? thread_id,
