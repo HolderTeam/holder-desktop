@@ -39,6 +39,8 @@ public class ToolboxPane : Object {
     private int next_terminal_index = 1;
     private Gtk.Entry git_remote_entry;
     private Gtk.Entry git_branch_entry;
+    private Gtk.Button git_manual_save_btn;
+    private Gtk.Label git_manual_status_label;
     private Gtk.Stack git_sync_stack;
     private Gtk.Label git_gh_cli_status_label;
     private Gtk.Button git_gh_cli_auto_btn;
@@ -2221,9 +2223,9 @@ public class ToolboxPane : Object {
         git_branch_entry.set_width_chars(10);
         git_branch_entry.set_placeholder_text("local default");
         var save_btn = new Gtk.Button.with_label("Save");
+        git_manual_save_btn = save_btn;
         save_btn.clicked.connect(() => {
-            log_debug("Git config save requested (not wired)");
-            toast_requested("Git sync config wiring planned.");
+            run_manual_remote_setup.begin();
         });
         remote_row.append(remote_label);
         remote_row.append(git_remote_entry);
@@ -2232,9 +2234,103 @@ public class ToolboxPane : Object {
         remote_row.append(save_btn);
         box.append(remote_row);
 
+        git_manual_status_label = new Gtk.Label("") { xalign = 0.0f };
+        git_manual_status_label.set_wrap(true);
+        git_manual_status_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        git_manual_status_label.add_css_class("dim-label");
+        box.append(git_manual_status_label);
+
         check_github_cli_state.begin();
 
         return box;
+    }
+
+    private async void run_manual_remote_setup() {
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        if (selected_project == null) {
+            toast_requested("Select a project first.");
+            return;
+        }
+        if (api == null) {
+            error_reported("Git sync failed", "Backend API client is not ready.");
+            return;
+        }
+        var remote_url = git_remote_entry != null ? git_remote_entry.get_text().strip() : "";
+        var branch = git_branch_entry != null ? git_branch_entry.get_text().strip() : "";
+        if (remote_url.length == 0) {
+            toast_requested("Remote URL is required.");
+            return;
+        }
+
+        if (git_manual_save_btn != null) {
+            git_manual_save_btn.set_sensitive(false);
+        }
+        if (git_manual_status_label != null) {
+            git_manual_status_label.set_text("Saving remote and testing connectivity...");
+        }
+
+        var updated_at = new DateTime.now_utc().to_unix();
+        GitTestRemoteResult? test_result = null;
+        GitPushResult? push_result = null;
+
+        try {
+            yield api.set_project_git_remote(selected_project.project_id, remote_url, updated_at);
+            test_result = yield api.test_project_git_remote(selected_project.project_id, remote_url, branch);
+            if (test_result.status == "reachable") {
+                if (git_manual_status_label != null) {
+                    git_manual_status_label.set_text("Remote reachable. Pushing project data...");
+                }
+                push_result = yield api.push_project_git(selected_project.project_id, branch, true);
+            }
+        } catch (Error e) {
+            if (git_manual_save_btn != null) {
+                git_manual_save_btn.set_sensitive(true);
+            }
+            if (git_manual_status_label != null) {
+                git_manual_status_label.set_text("Git sync failed: %s".printf(e.message));
+            }
+            error_reported("Git sync failed", e.message);
+            return;
+        }
+
+        if (git_manual_save_btn != null) {
+            git_manual_save_btn.set_sensitive(true);
+        }
+
+        var lines = new StringBuilder();
+        lines.append("Project: %s\n".printf(selected_project.name));
+        lines.append("Remote: %s\n".printf(remote_url));
+        if (branch.length > 0) {
+            lines.append("Branch: %s\n".printf(branch));
+        }
+        if (test_result != null) {
+            lines.append("\nRemote test: %s".printf(test_result.status));
+            if (test_result.error_message.strip().length > 0) {
+                lines.append(" (%s)".printf(test_result.error_message.strip()));
+            }
+            lines.append("\n");
+        } else {
+            lines.append("\nRemote test: not run\n");
+        }
+        if (push_result != null) {
+            lines.append("Push: %s".printf(push_result.status));
+            if (push_result.error_message.strip().length > 0) {
+                lines.append(" (%s)".printf(push_result.error_message.strip()));
+            }
+            if (push_result.next_action.strip().length > 0) {
+                lines.append("\nNext action: %s".printf(push_result.next_action));
+            }
+            if (push_result.status == "pushed" || push_result.status == "up_to_date") {
+                toast_requested("Git remote configured and synced.");
+            }
+        } else {
+            lines.append("Push: not run");
+        }
+        if (git_manual_status_label != null) {
+            git_manual_status_label.set_text(lines.str.strip());
+        }
     }
 
     private Gtk.Widget build_git_sync_guided_part1_page() {
