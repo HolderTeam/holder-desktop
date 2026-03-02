@@ -426,18 +426,24 @@ public class GitProviderCatalogEntry : Object {
     public string kind { get; construct; }
     public string preferred_transport { get; construct; }
     public string transports_summary { get; construct; }
+    public string ssh_example { get; construct; }
+    public string https_example { get; construct; }
 
     public GitProviderCatalogEntry(string id,
                                    string name,
                                    string kind,
                                    string preferred_transport,
-                                   string transports_summary) {
+                                   string transports_summary,
+                                   string ssh_example,
+                                   string https_example) {
         Object(
             id: id,
             name: name,
             kind: kind,
             preferred_transport: preferred_transport,
-            transports_summary: transports_summary
+            transports_summary: transports_summary,
+            ssh_example: ssh_example,
+            https_example: https_example
         );
     }
 }

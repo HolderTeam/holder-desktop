@@ -41,6 +41,19 @@ public class ToolboxPane : Object {
     private Gtk.Entry git_branch_entry;
     private Gtk.Button git_manual_save_btn;
     private Gtk.Label git_manual_status_label;
+    private Gtk.DropDown git_provider_dropdown;
+    private Gtk.StringList git_provider_name_model;
+    private Gee.ArrayList<GitProviderCatalogEntry> git_provider_entries = new Gee.ArrayList<GitProviderCatalogEntry>();
+    private Gtk.DropDown git_provider_transport_dropdown;
+    private Gtk.Entry git_provider_namespace_entry;
+    private Gtk.Entry git_provider_repo_entry;
+    private Gtk.Box git_provider_host_row;
+    private Gtk.Entry git_provider_host_entry;
+    private Gtk.Entry git_provider_remote_entry;
+    private Gtk.Entry git_provider_branch_entry;
+    private Gtk.Label git_provider_status_label;
+    private Gtk.Label git_provider_template_label;
+    private Gtk.Button git_provider_apply_btn;
     private Gtk.Stack git_sync_stack;
     private Gtk.Label git_gh_cli_status_label;
     private Gtk.Button git_gh_cli_auto_btn;
@@ -128,6 +141,7 @@ public class ToolboxPane : Object {
             queue_resources_refresh();
             refresh_sharing_action_state();
             refresh_guided_repo_name_default();
+            refresh_provider_setup_defaults();
         });
         card_selection.notify["selected"].connect(() => {
             refresh_connections_structure();
@@ -2143,6 +2157,8 @@ public class ToolboxPane : Object {
         git_sync_stack.add_named(guided_repo_page, "guided-part3");
         var guided_push_page = build_git_sync_guided_part4_page();
         git_sync_stack.add_named(guided_push_page, "guided-part4");
+        var provider_page = build_git_sync_provider_page();
+        git_sync_stack.add_named(provider_page, "provider");
         git_sync_stack.set_visible_child_name("start");
 
         return git_sync_stack;
@@ -2201,8 +2217,9 @@ public class ToolboxPane : Object {
         var provider_btn = new Gtk.Button.with_label("Provider setup (I know git)");
         provider_btn.set_halign(Gtk.Align.START);
         provider_btn.clicked.connect(() => {
-            log_debug("Git sync provider setup requested (not wired)");
-            toast_requested("Provider setup wizard is planned.");
+            refresh_provider_setup_defaults();
+            refresh_provider_setup_catalog.begin();
+            git_sync_stack.set_visible_child_name("provider");
         });
         box.append(provider_btn);
 
@@ -2263,42 +2280,56 @@ public class ToolboxPane : Object {
             toast_requested("Remote URL is required.");
             return;
         }
+        yield apply_project_git_remote_and_sync(
+            selected_project,
+            remote_url,
+            branch,
+            git_manual_status_label,
+            git_manual_save_btn
+        );
+    }
 
-        if (git_manual_save_btn != null) {
-            git_manual_save_btn.set_sensitive(false);
+    private async void apply_project_git_remote_and_sync(Project selected_project,
+                                                         string remote_url,
+                                                         string branch,
+                                                         Gtk.Label? status_label,
+                                                         Gtk.Button? action_button) {
+        if (api == null) {
+            error_reported("Git sync failed", "Backend API client is not ready.");
+            return;
         }
-        if (git_manual_status_label != null) {
-            git_manual_status_label.set_text("Saving remote and testing connectivity...");
+        if (action_button != null) {
+            action_button.set_sensitive(false);
+        }
+        if (status_label != null) {
+            status_label.set_text("Saving remote and testing connectivity...");
         }
 
         var updated_at = new DateTime.now_utc().to_unix();
         GitTestRemoteResult? test_result = null;
         GitPushResult? push_result = null;
-
         try {
             yield api.set_project_git_remote(selected_project.project_id, remote_url, updated_at);
             test_result = yield api.test_project_git_remote(selected_project.project_id, remote_url, branch);
             if (test_result.status == "reachable") {
-                if (git_manual_status_label != null) {
-                    git_manual_status_label.set_text("Remote reachable. Pushing project data...");
+                if (status_label != null) {
+                    status_label.set_text("Remote reachable. Pushing project data...");
                 }
                 push_result = yield api.push_project_git(selected_project.project_id, branch, true);
             }
         } catch (Error e) {
-            if (git_manual_save_btn != null) {
-                git_manual_save_btn.set_sensitive(true);
+            if (action_button != null) {
+                action_button.set_sensitive(true);
             }
-            if (git_manual_status_label != null) {
-                git_manual_status_label.set_text("Git sync failed: %s".printf(e.message));
+            if (status_label != null) {
+                status_label.set_text("Git sync failed: %s".printf(e.message));
             }
             error_reported("Git sync failed", e.message);
             return;
         }
-
-        if (git_manual_save_btn != null) {
-            git_manual_save_btn.set_sensitive(true);
+        if (action_button != null) {
+            action_button.set_sensitive(true);
         }
-
         var lines = new StringBuilder();
         lines.append("Project: %s\n".printf(selected_project.name));
         lines.append("Remote: %s\n".printf(remote_url));
@@ -2328,8 +2359,8 @@ public class ToolboxPane : Object {
         } else {
             lines.append("Push: not run");
         }
-        if (git_manual_status_label != null) {
-            git_manual_status_label.set_text(lines.str.strip());
+        if (status_label != null) {
+            status_label.set_text(lines.str.strip());
         }
     }
 
@@ -2957,6 +2988,132 @@ public class ToolboxPane : Object {
         return box;
     }
 
+    private Gtk.Widget build_git_sync_provider_page() {
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
+
+        var part_title = new Gtk.Label("Provider setup") { xalign = 0.0f };
+        part_title.add_css_class("title-5");
+        box.append(part_title);
+
+        var intro = new Gtk.Label(
+            "Choose a provider and transport, then set namespace and repository. " +
+            "Holder will generate a remote URL that you can edit before saving."
+        ) { xalign = 0.0f };
+        intro.set_wrap(true);
+        intro.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        intro.add_css_class("dim-label");
+        box.append(intro);
+
+        var provider_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+        var provider_label = new Gtk.Label("Provider:") { xalign = 0.0f };
+        provider_label.set_size_request(130, -1);
+        git_provider_name_model = new Gtk.StringList(null);
+        git_provider_dropdown = new Gtk.DropDown(git_provider_name_model, null);
+        git_provider_dropdown.set_hexpand(true);
+        git_provider_dropdown.notify["selected"].connect(() => {
+            refresh_provider_transport_options();
+            update_provider_remote_preview();
+        });
+        provider_row.append(provider_label);
+        provider_row.append(git_provider_dropdown);
+        box.append(provider_row);
+
+        var transport_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+        var transport_label = new Gtk.Label("Transport:") { xalign = 0.0f };
+        transport_label.set_size_request(130, -1);
+        git_provider_transport_dropdown = new Gtk.DropDown(new Gtk.StringList(null), null);
+        git_provider_transport_dropdown.notify["selected"].connect(() => {
+            update_provider_remote_preview();
+        });
+        transport_row.append(transport_label);
+        transport_row.append(git_provider_transport_dropdown);
+        box.append(transport_row);
+
+        var namespace_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+        var namespace_label = new Gtk.Label("Account/Namespace:") { xalign = 0.0f };
+        namespace_label.set_size_request(130, -1);
+        git_provider_namespace_entry = new Gtk.Entry();
+        git_provider_namespace_entry.set_hexpand(true);
+        git_provider_namespace_entry.changed.connect(() => {
+            update_provider_remote_preview();
+        });
+        namespace_row.append(namespace_label);
+        namespace_row.append(git_provider_namespace_entry);
+        box.append(namespace_row);
+
+        var repo_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+        var repo_label = new Gtk.Label("Repository:") { xalign = 0.0f };
+        repo_label.set_size_request(130, -1);
+        git_provider_repo_entry = new Gtk.Entry();
+        git_provider_repo_entry.set_hexpand(true);
+        git_provider_repo_entry.changed.connect(() => {
+            update_provider_remote_preview();
+        });
+        repo_row.append(repo_label);
+        repo_row.append(git_provider_repo_entry);
+        box.append(repo_row);
+
+        var host_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+        git_provider_host_row = host_row;
+        var host_label = new Gtk.Label("Host (if needed):") { xalign = 0.0f };
+        host_label.set_size_request(130, -1);
+        git_provider_host_entry = new Gtk.Entry();
+        git_provider_host_entry.set_placeholder_text("git.example.com");
+        git_provider_host_entry.set_hexpand(true);
+        git_provider_host_entry.changed.connect(() => {
+            update_provider_remote_preview();
+        });
+        host_row.append(host_label);
+        host_row.append(git_provider_host_entry);
+        box.append(host_row);
+
+        var preview_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+        var preview_label = new Gtk.Label("Remote URL:") { xalign = 0.0f };
+        preview_label.set_size_request(130, -1);
+        git_provider_remote_entry = new Gtk.Entry();
+        git_provider_remote_entry.set_hexpand(true);
+        preview_row.append(preview_label);
+        preview_row.append(git_provider_remote_entry);
+        box.append(preview_row);
+
+        git_provider_template_label = new Gtk.Label("") { xalign = 0.0f };
+        git_provider_template_label.set_wrap(true);
+        git_provider_template_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        git_provider_template_label.add_css_class("dim-label");
+        box.append(git_provider_template_label);
+
+        var branch_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+        var branch_label = new Gtk.Label("Branch:") { xalign = 0.0f };
+        branch_label.set_size_request(130, -1);
+        git_provider_branch_entry = new Gtk.Entry();
+        git_provider_branch_entry.set_placeholder_text("local default");
+        branch_row.append(branch_label);
+        branch_row.append(git_provider_branch_entry);
+        box.append(branch_row);
+
+        git_provider_status_label = new Gtk.Label("") { xalign = 0.0f };
+        git_provider_status_label.set_wrap(true);
+        git_provider_status_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        git_provider_status_label.add_css_class("dim-label");
+        box.append(git_provider_status_label);
+
+        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var back_btn = new Gtk.Button.with_label("Back");
+        back_btn.clicked.connect(() => {
+            git_sync_stack.set_visible_child_name("start");
+        });
+        git_provider_apply_btn = new Gtk.Button.with_label("Save + Test + Push");
+        git_provider_apply_btn.clicked.connect(() => {
+            run_provider_remote_setup.begin();
+        });
+        actions.append(back_btn);
+        actions.append(git_provider_apply_btn);
+        box.append(actions);
+
+        refresh_provider_setup_defaults();
+        return box;
+    }
+
     private void refresh_guided_ssh_email_default() {
         if (git_guided_email_entry == null) {
             return;
@@ -2970,6 +3127,211 @@ public class ToolboxPane : Object {
         if (stored_username.length > 0) {
             git_guided_email_entry.set_text("%s@users.noreply.github.com".printf(stored_username));
         }
+    }
+
+    private void refresh_provider_setup_defaults() {
+        if (git_provider_repo_entry != null) {
+            var selected_project = project_selection != null
+                ? project_selection.get_selected_item() as Project
+                : null;
+            var name = selected_project != null ? selected_project.name : "";
+            git_provider_repo_entry.set_text(normalize_repository_name(name));
+        }
+        if (git_provider_namespace_entry != null &&
+            git_provider_namespace_entry.get_text().strip().length == 0) {
+            var username = guided_github_username();
+            if (username.length > 0) {
+                git_provider_namespace_entry.set_text(username);
+            }
+        }
+        update_provider_remote_preview();
+    }
+
+    private async void refresh_provider_setup_catalog() {
+        if (api == null) {
+            return;
+        }
+        try {
+            var providers = yield api.list_git_provider_catalog();
+            git_provider_entries.clear();
+            if (git_provider_name_model != null) {
+                git_provider_name_model.splice(0, git_provider_name_model.get_n_items(), null);
+            }
+            foreach (var provider in providers) {
+                git_provider_entries.add(provider);
+                if (git_provider_name_model != null) {
+                    git_provider_name_model.append("%s (%s)".printf(provider.name, provider.id));
+                }
+            }
+            if (git_provider_dropdown != null && providers.size > 0) {
+                git_provider_dropdown.set_selected(0);
+            }
+            refresh_provider_transport_options();
+            update_provider_remote_preview();
+        } catch (Error e) {
+            if (git_provider_status_label != null) {
+                git_provider_status_label.set_text("Provider catalog load failed: %s".printf(e.message));
+            }
+            error_reported("Git provider catalog refresh failed", e.message);
+        }
+    }
+
+    private GitProviderCatalogEntry? selected_git_provider_entry() {
+        if (git_provider_dropdown == null) {
+            return null;
+        }
+        var selected = git_provider_dropdown.get_selected();
+        if (selected == Gtk.INVALID_LIST_POSITION || selected >= git_provider_entries.size) {
+            return null;
+        }
+        return git_provider_entries[(int) selected];
+    }
+
+    private void refresh_provider_transport_options() {
+        if (git_provider_transport_dropdown == null) {
+            return;
+        }
+        var provider = selected_git_provider_entry();
+        string[] options = {};
+        if (provider != null && provider.transports_summary.strip().length > 0) {
+            options = provider.transports_summary.split(",");
+        }
+        var normalized = new Gee.ArrayList<string>();
+        foreach (var raw in options) {
+            var item = raw.strip();
+            if (item.length > 0) {
+                normalized.add(item);
+            }
+        }
+        if (normalized.size == 0) {
+            normalized.add("ssh");
+            normalized.add("https");
+        }
+
+        var model = new Gtk.StringList(null);
+        foreach (var item in normalized) {
+            model.append(item);
+        }
+        git_provider_transport_dropdown.set_model(model);
+
+        uint selected_idx = 0;
+        if (provider != null && provider.preferred_transport.strip().length > 0) {
+            for (int i = 0; i < normalized.size; i++) {
+                if (normalized[i] == provider.preferred_transport) {
+                    selected_idx = (uint) i;
+                    break;
+                }
+            }
+        }
+        git_provider_transport_dropdown.set_selected(selected_idx);
+    }
+
+    private string selected_provider_transport() {
+        if (git_provider_transport_dropdown == null) {
+            return "ssh";
+        }
+        var model = git_provider_transport_dropdown.get_model() as Gtk.StringList;
+        if (model == null || model.get_n_items() == 0) {
+            return "ssh";
+        }
+        var idx = git_provider_transport_dropdown.get_selected();
+        if (idx == Gtk.INVALID_LIST_POSITION || idx >= model.get_n_items()) {
+            idx = 0;
+        }
+        var value = model.get_string(idx);
+        return value != null ? value : "ssh";
+    }
+
+    private string fill_remote_template(string template_text,
+                                        string namespace_value,
+                                        string repo_value,
+                                        string host_value) {
+        var output = template_text;
+        output = output.replace("{owner}", namespace_value);
+        output = output.replace("{workspace}", namespace_value);
+        output = output.replace("{user}", namespace_value);
+        output = output.replace("{org}", namespace_value);
+        output = output.replace("{project}", namespace_value);
+        output = output.replace("{repo}", repo_value);
+        output = output.replace("{host}", host_value);
+        output = output.replace("{region}", host_value);
+        return output;
+    }
+
+    private void update_provider_remote_preview() {
+        if (git_provider_remote_entry == null) {
+            return;
+        }
+        var provider = selected_git_provider_entry();
+        if (provider == null) {
+            git_provider_remote_entry.set_text("");
+            if (git_provider_template_label != null) {
+                git_provider_template_label.set_text("No provider selected.");
+            }
+            return;
+        }
+
+        var namespace_value = git_provider_namespace_entry != null
+            ? git_provider_namespace_entry.get_text().strip()
+            : "";
+        var repo_value = git_provider_repo_entry != null
+            ? git_provider_repo_entry.get_text().strip()
+            : "";
+        var host_value = git_provider_host_entry != null
+            ? git_provider_host_entry.get_text().strip()
+            : "";
+        var transport = selected_provider_transport();
+        var template_text = transport == "https" ? provider.https_example : provider.ssh_example;
+        if (template_text.strip().length == 0) {
+            template_text = transport == "https"
+                ? "https://{host}/{owner}/{repo}.git"
+                : "git@{host}:{owner}/{repo}.git";
+        }
+        if (host_value.length == 0) {
+            if (provider.id == "github") host_value = "github.com";
+            else if (provider.id == "gitlab") host_value = "gitlab.com";
+            else if (provider.id == "bitbucket") host_value = "bitbucket.org";
+            else if (provider.id == "codeberg") host_value = "codeberg.org";
+            else if (provider.id == "sourcehut") host_value = "git.sr.ht";
+        }
+
+        var remote_url = fill_remote_template(template_text, namespace_value, repo_value, host_value);
+        if (git_provider_host_row != null) {
+            var needs_host = template_text.contains("{host}") || template_text.contains("{region}");
+            git_provider_host_row.set_visible(needs_host);
+            if (!needs_host) {
+                git_provider_host_entry.set_text("");
+            }
+        }
+        git_provider_remote_entry.set_text(remote_url);
+        if (git_provider_template_label != null) {
+            git_provider_template_label.set_text(
+                "Template: %s\nYou can edit Remote URL directly before saving.".printf(template_text)
+            );
+        }
+    }
+
+    private async void run_provider_remote_setup() {
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        if (selected_project == null) {
+            toast_requested("Select a project first.");
+            return;
+        }
+        var remote_url = git_provider_remote_entry != null ? git_provider_remote_entry.get_text().strip() : "";
+        var branch = git_provider_branch_entry != null ? git_provider_branch_entry.get_text().strip() : "";
+        if (remote_url.length == 0) {
+            toast_requested("Remote URL is required.");
+            return;
+        }
+        yield apply_project_git_remote_and_sync(
+            selected_project,
+            remote_url,
+            branch,
+            git_provider_status_label,
+            git_provider_apply_btn
+        );
     }
 
     private void refresh_guided_repo_name_default() {

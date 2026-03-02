@@ -1167,6 +1167,8 @@ public class ApiClient : Object, IHolderApi {
         for (uint i = 0; i < items.get_length(); i++) {
             var item = items.get_object_element(i);
             var preferred_transport = "";
+            var ssh_example = "";
+            var https_example = "";
             var defaults = object_member_or_null(item, "defaults");
             if (defaults != null) {
                 preferred_transport = string_member_or_empty(defaults, "preferred_transport");
@@ -1184,6 +1186,11 @@ public class ApiClient : Object, IHolderApi {
                     sb.append(transports.get_string_element(idx));
                 }
                 transports_summary = sb.str;
+                var examples = object_member_or_null(git, "examples");
+                if (examples != null) {
+                    ssh_example = string_member_or_empty(examples, "ssh");
+                    https_example = string_member_or_empty(examples, "https");
+                }
             }
 
             providers.add(new GitProviderCatalogEntry(
@@ -1191,7 +1198,9 @@ public class ApiClient : Object, IHolderApi {
                 string_member_or_empty(item, "name"),
                 string_member_or_empty(item, "kind"),
                 preferred_transport,
-                transports_summary
+                transports_summary,
+                ssh_example,
+                https_example
             ));
         }
         return providers;
