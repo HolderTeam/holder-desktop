@@ -9,8 +9,7 @@ public class ToolboxPane : Object {
     private SharingToolView sharing_tool;
     private DebugToolView debug_tool;
     private TerminalToolView terminal_tool;
-    private FlowboardPane flowboard;
-    private FlowboardController? flowboard_controller;
+    private FlowboardToolView flowboard_tool;
     private Gtk.SingleSelection? project_selection;
     private GLib.ListStore? card_store;
     private Gtk.SingleSelection? card_selection;
@@ -92,63 +91,10 @@ public class ToolboxPane : Object {
     }
 
     public void bind_flowboard_controller(FlowboardController controller) {
-        flowboard_controller = controller;
-        flowboard.set_model(controller.get_visible_model());
-        controller.breadcrumb_segments_changed.connect((segments) => {
-            flowboard.set_breadcrumb_segments(segments);
-        });
-        controller.empty_message_changed.connect((text) => {
-            flowboard.set_empty_message(text);
-        });
-        controller.card_open_requested.connect((card_id) => {
-            flowboard_card_open_requested(card_id);
-        });
-        flowboard.tile_activated.connect((position) => {
-            controller.activate_position(position);
-        });
-        flowboard.navigate_up_requested.connect(() => {
-            controller.navigate_up();
-        });
-        flowboard.breadcrumb_segment_activated.connect((index) => {
-            controller.navigate_to_breadcrumb_index(index);
-        });
-        flowboard.card_drop_requested.connect((source_card_id, target_card_id, target_x_fraction) => {
-            controller.on_card_drop(source_card_id, target_card_id, target_x_fraction);
-        });
-        flowboard.background_drop_requested.connect((source_card_id) => {
-            controller.on_background_drop(source_card_id);
-        });
-        flowboard.background_new_card_requested.connect(() => {
-            controller.request_create_card_here();
-        });
-        flowboard.card_open_requested.connect((card_id) => {
-            controller.open_card_from_context_menu(card_id);
-        });
-        flowboard.card_move_up_level_requested.connect((card_id) => {
-            controller.move_card_up_level_from_context_menu(card_id);
-        });
-        flowboard.card_move_left_requested.connect((card_id) => {
-            controller.move_card_left_from_context_menu(card_id);
-        });
-        flowboard.card_move_right_requested.connect((card_id) => {
-            controller.move_card_right_from_context_menu(card_id);
-        });
-        flowboard.card_move_to_start_requested.connect((card_id) => {
-            controller.move_card_to_start_from_context_menu(card_id);
-        });
-        flowboard.card_move_to_end_requested.connect((card_id) => {
-            controller.move_card_to_end_from_context_menu(card_id);
-        });
-        controller.move_requested.connect((card_id, parent_card_id, sort_key) => {
-            flowboard_move_requested(card_id, parent_card_id, sort_key);
-        });
-        controller.create_card_requested.connect((parent_card_id) => {
-            flowboard_new_card_requested(parent_card_id);
-        });
-        controller.toast_requested.connect((message) => {
-            toast_requested(message);
-        });
-        controller.refresh();
+        if (flowboard_tool == null) {
+            return;
+        }
+        flowboard_tool.bind_controller(controller);
     }
 
     public void set_reveal_child(bool reveal) {
@@ -159,6 +105,21 @@ public class ToolboxPane : Object {
         if (debug_tool != null) {
             debug_tool.append_log_line(line);
         }
+    }
+
+    private void bind_flowboard_listener_signals() {
+        flowboard_tool.card_open_requested.connect((card_id) => {
+            flowboard_card_open_requested(card_id);
+        });
+        flowboard_tool.move_requested.connect((card_id, parent_card_id, sort_key) => {
+            flowboard_move_requested(card_id, parent_card_id, sort_key);
+        });
+        flowboard_tool.new_card_requested.connect((parent_card_id) => {
+            flowboard_new_card_requested(parent_card_id);
+        });
+        flowboard_tool.toast_requested.connect((message) => {
+            toast_requested(message);
+        });
     }
 
     public void refresh_catalogs() {
@@ -191,8 +152,9 @@ public class ToolboxPane : Object {
         switcher.set_stack(stack);
         stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT);
 
-        flowboard = new FlowboardPane();
-        var flowboard_page = stack.add_titled(flowboard.widget, "flowboard", "Flowboard");
+        flowboard_tool = new FlowboardToolView();
+        bind_flowboard_listener_signals();
+        var flowboard_page = stack.add_titled(flowboard_tool.widget, "flowboard", "Flowboard");
         flowboard_page.set_icon_name("view-grid-symbolic");
 
         connections_tool = new ConnectionsToolView();
