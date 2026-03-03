@@ -32,6 +32,7 @@ sources = [
   'src/views/toolbox.vala',
   'src/views/toolbox/connections_tool_view.vala',
   'src/views/toolbox/ai_catalog_tool_view.vala',
+  'src/views/toolbox/debug_tool_view.vala',
   'src/views/toolbox/git_sync_tool_view.vala',
   'src/views/toolbox/recovery_key_tool_view.vala',
   'src/views/toolbox/resources_tool_view.vala',

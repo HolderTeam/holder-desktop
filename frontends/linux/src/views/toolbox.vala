@@ -1,14 +1,13 @@
 namespace HolderLinux {
 
 public class ToolboxPane : Object {
-    private Gtk.TextBuffer debug_buffer;
-    private Gtk.TextView debug_view;
     private AiCatalogToolView ai_catalog_tool;
     private ConnectionsToolView connections_tool;
     private GitSyncToolView git_sync_tool;
     private RecoveryKeyToolView recovery_key_tool;
     private ResourcesToolView resources_tool;
     private SharingToolView sharing_tool;
+    private DebugToolView debug_tool;
     private TerminalToolView terminal_tool;
     private FlowboardPane flowboard;
     private FlowboardController? flowboard_controller;
@@ -157,18 +156,8 @@ public class ToolboxPane : Object {
     }
 
     public void log_debug(string line) {
-        Gtk.TextIter end;
-        debug_buffer.get_end_iter(out end);
-        var stamp = new DateTime.now_local().format("%H:%M:%S");
-        debug_buffer.insert(ref end, "[%s] %s\n".printf(stamp, line), -1);
-        if (debug_view != null) {
-            Idle.add(() => {
-                Gtk.TextIter latest_end;
-                debug_buffer.get_end_iter(out latest_end);
-                debug_buffer.place_cursor(latest_end);
-                debug_view.scroll_to_iter(latest_end, 0.0, false, 0.0, 1.0);
-                return Source.REMOVE;
-            });
+        if (debug_tool != null) {
+            debug_tool.append_log_line(line);
         }
     }
 
@@ -302,7 +291,8 @@ public class ToolboxPane : Object {
         );
         trash_page.set_icon_name("user-trash-symbolic");
 
-        var debug_page = stack.add_titled(build_debug_tab(), "debug", "Debug");
+        debug_tool = new DebugToolView();
+        var debug_page = stack.add_titled(debug_tool.widget, "debug", "Debug");
         debug_page.set_icon_name("view-reveal-symbolic");
 
         stack.set_visible_child_name("flowboard");
@@ -368,30 +358,6 @@ public class ToolboxPane : Object {
             ? card_selection.get_selected_item() as CardSummary
             : null;
         sharing_tool.set_has_selected_card(selected_card != null);
-    }
-
-    private Gtk.Widget build_debug_tab() {
-        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
-        debug_buffer = new Gtk.TextBuffer(null);
-        debug_view = new Gtk.TextView.with_buffer(debug_buffer);
-        debug_view.set_editable(false);
-        debug_view.set_monospace(true);
-        debug_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
-        debug_view.set_vexpand(true);
-
-        var controls = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var clear = new Gtk.Button.with_label("Clear");
-        clear.clicked.connect(() => {
-            debug_buffer.set_text("", -1);
-        });
-        controls.append(clear);
-        box.append(controls);
-
-        var scroll = new Gtk.ScrolledWindow();
-        scroll.set_vexpand(true);
-        scroll.set_child(debug_view);
-        box.append(scroll);
-        return box;
     }
 
 }
