@@ -4,8 +4,7 @@ public class ToolboxPane : Object {
     private Gtk.TextBuffer debug_buffer;
     private Gtk.TextView debug_view;
     private Gtk.Button sharing_email_btn;
-    private Gtk.ListBox ai_catalog_list;
-    private Gtk.ListBox git_catalog_list;
+    private AiCatalogToolView ai_catalog_tool;
     private ConnectionsToolView connections_tool;
     private GitSyncToolView git_sync_tool;
     private ResourcesToolView resources_tool;
@@ -39,6 +38,9 @@ public class ToolboxPane : Object {
 
     public void set_api_client(IHolderApi? api) {
         this.api = api;
+        if (ai_catalog_tool != null) {
+            ai_catalog_tool.set_api_client(api);
+        }
         if (connections_tool != null) {
             connections_tool.set_api_client(api);
         }
@@ -169,93 +171,10 @@ public class ToolboxPane : Object {
         }
     }
 
-    public async void refresh_ai_catalog() {
-        if (api == null) {
-            return;
-        }
-        clear_list_box(ai_catalog_list);
-        try {
-            var providers = yield api.list_ai_provider_catalog();
-            if (providers.size == 0) {
-                ai_catalog_list.append(new Gtk.Label("No providers in catalog.") { xalign = 0.0f });
-                return;
-            }
-            foreach (var provider in providers) {
-                var row = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
-                var title = "%s (%s)".printf(provider.display_name, provider.id);
-                var title_label = new Gtk.Label(title) { xalign = 0.0f };
-                title_label.add_css_class("title-5");
-                var detail = "enabled=%s configured=%s".printf(
-                    provider.enabled ? "yes" : "no",
-                    provider.configured ? "yes" : "no"
-                );
-                var detail_label = new Gtk.Label(detail) { xalign = 0.0f };
-                detail_label.add_css_class("dim-label");
-                detail_label.set_wrap(true);
-                row.append(title_label);
-                row.append(detail_label);
-                if (provider.setup_url.length > 0 || provider.docs_url.length > 0) {
-                    var urls = new Gtk.Label(
-                        "setup: %s\ndocs: %s".printf(provider.setup_url, provider.docs_url)
-                    ) { xalign = 0.0f };
-                    urls.add_css_class("caption");
-                    urls.add_css_class("dim-label");
-                    urls.set_wrap(true);
-                    row.append(urls);
-                }
-                ai_catalog_list.append(row);
-            }
-            log_debug("AI catalog refreshed: %d providers".printf(providers.size));
-        } catch (Error e) {
-            log_debug("AI catalog refresh failed: %s".printf(e.message));
-            error_reported("AI catalog refresh failed", e.message);
-        }
-    }
-
-    public async void refresh_git_provider_catalog() {
-        if (api == null || git_catalog_list == null) {
-            return;
-        }
-        clear_list_box(git_catalog_list);
-        try {
-            var providers = yield api.list_git_provider_catalog();
-            if (providers.size == 0) {
-                git_catalog_list.append(new Gtk.Label("No git providers in catalog.") { xalign = 0.0f });
-                return;
-            }
-            foreach (var provider in providers) {
-                var row = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
-                var title = "%s (%s)".printf(provider.name, provider.id);
-                var title_label = new Gtk.Label(title) { xalign = 0.0f };
-                title_label.add_css_class("title-5");
-                var detail = "kind=%s default=%s".printf(
-                    provider.kind,
-                    provider.preferred_transport.length > 0 ? provider.preferred_transport : "-"
-                );
-                var detail_label = new Gtk.Label(detail) { xalign = 0.0f };
-                detail_label.add_css_class("dim-label");
-                detail_label.set_wrap(true);
-                row.append(title_label);
-                row.append(detail_label);
-                if (provider.transports_summary.length > 0) {
-                    var transports = new Gtk.Label("transports: %s".printf(provider.transports_summary)) { xalign = 0.0f };
-                    transports.add_css_class("caption");
-                    transports.add_css_class("dim-label");
-                    transports.set_wrap(true);
-                    row.append(transports);
-                }
-                git_catalog_list.append(row);
-            }
-            log_debug("Git providers catalog refreshed: %d providers".printf(providers.size));
-        } catch (Error e) {
-            log_debug("Git providers catalog refresh failed: %s".printf(e.message));
-            error_reported("Git providers catalog refresh failed", e.message);
-        }
-    }
-
     public void refresh_catalogs() {
-        refresh_ai_catalog.begin();
-        refresh_git_provider_catalog.begin();
+        if (ai_catalog_tool != null) {
+            ai_catalog_tool.refresh.begin();
+        }
     }
 
     private Gtk.Widget build_ui() {
@@ -337,7 +256,15 @@ public class ToolboxPane : Object {
         var terminals_page = stack.add_titled(terminal_tool.widget, "terminals", "Terminals");
         terminals_page.set_icon_name("utilities-terminal-symbolic");
 
-        var catalog_page = stack.add_titled(build_ai_catalog_tab(), "catalog", "AI Catalog");
+        ai_catalog_tool = new AiCatalogToolView();
+        ai_catalog_tool.error_reported.connect((title_text, details) => {
+            error_reported(title_text, details);
+        });
+        ai_catalog_tool.debug_log_requested.connect((line) => {
+            log_debug(line);
+        });
+        ai_catalog_tool.set_api_client(api);
+        var catalog_page = stack.add_titled(ai_catalog_tool.widget, "catalog", "AI Catalog");
         catalog_page.set_icon_name("x-office-address-book-symbolic");
 
         git_sync_tool = new GitSyncToolView();
@@ -504,34 +431,6 @@ public class ToolboxPane : Object {
         return box;
     }
 
-    private Gtk.Widget build_ai_catalog_tab() {
-        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
-        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var refresh_btn = new Gtk.Button.with_label("Refresh Catalog");
-        refresh_btn.clicked.connect(() => {
-            refresh_ai_catalog.begin();
-        });
-        actions.append(refresh_btn);
-        box.append(actions);
-
-        ai_catalog_list = new Gtk.ListBox();
-        ai_catalog_list.set_selection_mode(Gtk.SelectionMode.NONE);
-
-        var scroll = new Gtk.ScrolledWindow();
-        scroll.set_vexpand(true);
-        scroll.set_child(ai_catalog_list);
-        box.append(scroll);
-        return box;
-    }
-
-    private void clear_list_box(Gtk.ListBox list) {
-        Gtk.Widget? child = list.get_first_child();
-        while (child != null) {
-            var next = child.get_next_sibling();
-            list.remove(child);
-            child = next;
-        }
-    }
 }
 
 }

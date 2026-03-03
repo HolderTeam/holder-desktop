@@ -31,6 +31,7 @@ sources = [
   'src/views/flowboard_pane.vala',
   'src/views/toolbox.vala',
   'src/views/toolbox/connections_tool_view.vala',
+  'src/views/toolbox/ai_catalog_tool_view.vala',
   'src/views/toolbox/git_sync_tool_view.vala',
   'src/views/toolbox/resources_tool_view.vala',
   'src/views/toolbox/terminal_tool_view.vala',
@@ -40,6 +41,7 @@ sources = [
   'src/controllers/ai_run_controller.vala',
   'src/controllers/git_sync_controller.vala',
   'src/controllers/resources_controller.vala',
+  'src/controllers/ai_catalog_controller.vala',
   'src/controllers/connections_controller.vala',
   'src/controllers/terminal_controller.vala',
   'src/controllers/flowboard_controller.vala',
@@ -66,6 +68,8 @@ test_exe = executable(
   ],
   dependencies: [
     dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
   ],
   vala_args: [
     '--target-glib=2.70',
@@ -200,6 +204,8 @@ terminal_controller_test_exe = executable(
   ],
   dependencies: [
     dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
   ],
   vala_args: [
     '--target-glib=2.70',
@@ -208,6 +214,26 @@ terminal_controller_test_exe = executable(
 )
 
 test('holder-linux-terminal-controller-tests', terminal_controller_test_exe)
+
+ai_catalog_controller_test_exe = executable(
+  'holder-linux-ai-catalog-controller-tests',
+  [
+    'src/models/models.vala',
+    'src/controllers/ai_catalog_controller.vala',
+    'tests/ai_catalog_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-ai-catalog-controller-tests', ai_catalog_controller_test_exe)
 
 api_client_test_exe = executable(
   'holder-linux-api-client-tests',
