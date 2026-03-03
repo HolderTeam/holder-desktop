@@ -33,6 +33,7 @@ sources = [
   'src/views/toolbox/connections_tool_view.vala',
   'src/views/toolbox/git_sync_tool_view.vala',
   'src/views/toolbox/resources_tool_view.vala',
+  'src/views/toolbox/terminal_tool_view.vala',
   'src/services/ui_adapters.vala',
   'src/views/workspace_pane.vala',
   'src/controllers/main_controller.vala',
@@ -40,6 +41,7 @@ sources = [
   'src/controllers/git_sync_controller.vala',
   'src/controllers/resources_controller.vala',
   'src/controllers/connections_controller.vala',
+  'src/controllers/terminal_controller.vala',
   'src/controllers/flowboard_controller.vala',
   'src/services/discovery.vala',
   'src/services/api_client.vala',
@@ -189,6 +191,23 @@ connections_controller_test_exe = executable(
 )
 
 test('holder-linux-connections-controller-tests', connections_controller_test_exe)
+
+terminal_controller_test_exe = executable(
+  'holder-linux-terminal-controller-tests',
+  [
+    'src/controllers/terminal_controller.vala',
+    'tests/terminal_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-terminal-controller-tests', terminal_controller_test_exe)
 
 api_client_test_exe = executable(
   'holder-linux-api-client-tests',
