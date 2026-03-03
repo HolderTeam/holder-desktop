@@ -30,6 +30,7 @@ sources = [
   'src/views/preferences_dialog.vala',
   'src/views/flowboard_pane.vala',
   'src/views/toolbox.vala',
+  'src/views/toolbox/connections_tool_view.vala',
   'src/views/toolbox/git_sync_tool_view.vala',
   'src/views/toolbox/resources_tool_view.vala',
   'src/services/ui_adapters.vala',
@@ -38,6 +39,7 @@ sources = [
   'src/controllers/ai_run_controller.vala',
   'src/controllers/git_sync_controller.vala',
   'src/controllers/resources_controller.vala',
+  'src/controllers/connections_controller.vala',
   'src/controllers/flowboard_controller.vala',
   'src/services/discovery.vala',
   'src/services/api_client.vala',
@@ -164,6 +166,29 @@ resources_controller_test_exe = executable(
 )
 
 test('holder-linux-resources-controller-tests', resources_controller_test_exe)
+
+connections_controller_test_exe = executable(
+  'holder-linux-connections-controller-tests',
+  [
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/app_settings.vala',
+    'src/controllers/connections_controller.vala',
+    'tests/connections_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-connections-controller-tests', connections_controller_test_exe)
 
 api_client_test_exe = executable(
   'holder-linux-api-client-tests',
