@@ -3,11 +3,12 @@ namespace HolderLinux {
 public class ToolboxPane : Object {
     private Gtk.TextBuffer debug_buffer;
     private Gtk.TextView debug_view;
-    private Gtk.Button sharing_email_btn;
     private AiCatalogToolView ai_catalog_tool;
     private ConnectionsToolView connections_tool;
     private GitSyncToolView git_sync_tool;
+    private RecoveryKeyToolView recovery_key_tool;
     private ResourcesToolView resources_tool;
+    private SharingToolView sharing_tool;
     private TerminalToolView terminal_tool;
     private FlowboardPane flowboard;
     private FlowboardController? flowboard_controller;
@@ -281,7 +282,17 @@ public class ToolboxPane : Object {
         var git_page = stack.add_titled(git_sync_tool.widget, "git", "Git Sync");
         git_page.set_icon_name("folder-remote-symbolic");
 
-        var recovery_page = stack.add_titled(build_recovery_key_tab(), "recovery", "Recovery Key");
+        recovery_key_tool = new RecoveryKeyToolView();
+        recovery_key_tool.send_recovery_key_as_email_requested.connect(() => {
+            send_recovery_key_as_email_requested();
+        });
+        recovery_key_tool.save_recovery_key_to_usb_requested.connect(() => {
+            save_recovery_key_to_usb_requested();
+        });
+        recovery_key_tool.import_recovery_key_requested.connect(() => {
+            import_recovery_key_requested();
+        });
+        var recovery_page = stack.add_titled(recovery_key_tool.widget, "recovery", "Recovery Key");
         recovery_page.set_icon_name("dialog-password-symbolic");
 
         var trash_page = stack.add_titled(
@@ -341,70 +352,22 @@ public class ToolboxPane : Object {
     }
 
     private Gtk.Widget build_sharing_tab() {
-        var root = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
-
-        var info = new Gtk.Label(
-            "Share the currently selected card using desktop integrations."
-        ) { xalign = 0.0f };
-        info.set_wrap(true);
-        info.add_css_class("dim-label");
-        root.append(info);
-
-        sharing_email_btn = new Gtk.Button.with_label("Send card as email");
-        sharing_email_btn.set_halign(Gtk.Align.START);
-        sharing_email_btn.clicked.connect(() => {
+        sharing_tool = new SharingToolView();
+        sharing_tool.send_card_as_email_requested.connect(() => {
             send_card_as_email_requested();
         });
-        root.append(sharing_email_btn);
-
         refresh_sharing_action_state();
-        return root;
-    }
-
-    private Gtk.Widget build_recovery_key_tab() {
-        var root = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
-
-        var info = new Gtk.Label(
-            "Keep a copy of your recovery key somewhere safe in case your computer is lost or damaged. " +
-            "Email it to yourself, or store it on a USB stick."
-        ) { xalign = 0.0f };
-        info.set_wrap(true);
-        info.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
-        info.add_css_class("dim-label");
-        root.append(info);
-
-        var email_btn = new Gtk.Button.with_label("Email Recovery Key");
-        email_btn.set_halign(Gtk.Align.START);
-        email_btn.clicked.connect(() => {
-            send_recovery_key_as_email_requested();
-        });
-        root.append(email_btn);
-
-        var usb_btn = new Gtk.Button.with_label("Save Recovery Key to USB Drive");
-        usb_btn.set_halign(Gtk.Align.START);
-        usb_btn.clicked.connect(() => {
-            save_recovery_key_to_usb_requested();
-        });
-        root.append(usb_btn);
-
-        var import_btn = new Gtk.Button.with_label("Import Recovery Key");
-        import_btn.set_halign(Gtk.Align.START);
-        import_btn.clicked.connect(() => {
-            import_recovery_key_requested();
-        });
-        root.append(import_btn);
-
-        return root;
+        return sharing_tool.widget;
     }
 
     private void refresh_sharing_action_state() {
-        if (sharing_email_btn == null) {
+        if (sharing_tool == null) {
             return;
         }
         var selected_card = card_selection != null
             ? card_selection.get_selected_item() as CardSummary
             : null;
-        sharing_email_btn.set_sensitive(selected_card != null);
+        sharing_tool.set_has_selected_card(selected_card != null);
     }
 
     private Gtk.Widget build_debug_tab() {
