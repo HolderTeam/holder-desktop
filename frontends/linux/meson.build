@@ -22,16 +22,19 @@ sources = [
   'src/models/models.vala',
   'src/services/core_interfaces.vala',
   'src/services/app_settings.vala',
+  'src/services/git_sync_service.vala',
   'src/utils/text_utils.vala',
   'src/views/sidebar.vala',
   'src/views/ai_panel.vala',
   'src/views/preferences_dialog.vala',
   'src/views/flowboard_pane.vala',
   'src/views/toolbox.vala',
+  'src/views/toolbox/git_sync_tool_view.vala',
   'src/services/ui_adapters.vala',
   'src/views/workspace_pane.vala',
   'src/controllers/main_controller.vala',
   'src/controllers/ai_run_controller.vala',
+  'src/controllers/git_sync_controller.vala',
   'src/controllers/flowboard_controller.vala',
   'src/services/discovery.vala',
   'src/services/api_client.vala',
@@ -111,6 +114,31 @@ main_controller_test_exe = executable(
 )
 
 test('holder-linux-main-controller-tests', main_controller_test_exe)
+
+git_sync_controller_test_exe = executable(
+  'holder-linux-git-sync-controller-tests',
+  [
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/app_settings.vala',
+    'src/services/git_sync_service.vala',
+    'src/controllers/git_sync_controller.vala',
+    'tests/git_sync_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-git-sync-controller-tests', git_sync_controller_test_exe)
 
 api_client_test_exe = executable(
   'holder-linux-api-client-tests',
