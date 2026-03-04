@@ -80,6 +80,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool include_card2 = false;
     public bool search_returns_card2 = false;
     public bool list_projects_empty = false;
+    public bool include_home_project = false;
     public bool list_projects_empty_first = false;
     public bool fail_list_projects = false;
     public bool list_cards_empty = false;
@@ -137,6 +138,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
             return projects;
         }
         projects.add(new HolderLinux.Project("p1", "Project 1", "encrypted_git", "/tmp/p1", 10, 10));
+        if (include_home_project) {
+            projects.add(new HolderLinux.Project("p-home", "Home", "encrypted_git", "/tmp/home", 11, 11));
+        }
         return projects;
     }
 

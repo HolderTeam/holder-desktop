@@ -741,6 +741,23 @@ private void test_reload_everything_uses_preferred_project_selection() {
     assert(controller.selected_project_id() == "p1");
 }
 
+private void test_reload_everything_hoists_home_project_to_top() {
+    var api = new MainControllerFakeApi();
+    api.include_home_project = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => harness.project_store.get_n_items() == 2));
+
+    var first = harness.project_store.get_item(0) as HolderLinux.Project;
+    var second = harness.project_store.get_item(1) as HolderLinux.Project;
+    assert(first != null && first.name == "Home");
+    assert(second != null && second.name == "Project 1");
+}
+
 private void test_ignore_flags_public_accessors_default_false() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -1083,6 +1100,49 @@ private void test_autosave_without_card_is_noop() {
     controller.autosave_current_card.begin();
     assert(wait_for_condition(() => true));
     assert(api.update_card_calls == 0);
+}
+
+private void test_update_selected_card_summary_without_current_card_is_noop() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    harness.card_store.append(
+        new HolderLinux.CardSummary("c1", "p1", "Card 1", "c1.md", 1000.0, null, 1, 20)
+    );
+    harness.card_selection.set_selected_index(0);
+    assert(controller.get_current_card() == null);
+
+    controller.update_selected_card_summary_for_tests("Renamed", 999);
+
+    assert(harness.card_store.get_n_items() == 1);
+    var card = harness.card_store.get_item(0) as HolderLinux.CardSummary;
+    assert(card != null);
+    assert(card.title == "Card 1");
+    assert(card.updated_at == 20);
+}
+
+private void test_rebuild_card_summaries_handles_null_and_non_target_cards() {
+    var source = new Gee.ArrayList<HolderLinux.CardSummary?>();
+    source.add(null);
+    source.add(new HolderLinux.CardSummary("c1", "p1", "Card 1", "c1.md", 1000.0, null, 1, 20));
+    source.add(new HolderLinux.CardSummary("c2", "p1", "Card 2", "c2.md", 2000.0, null, 2, 30));
+
+    var rebuilt = HolderLinux.MainController.rebuild_card_summaries(
+        source,
+        "c2",
+        "Renamed C2",
+        999
+    );
+
+    assert(rebuilt.size == 2);
+    assert(rebuilt[0].card_id == "c1");
+    assert(rebuilt[0].title == "Card 1");
+    assert(rebuilt[1].card_id == "c2");
+    assert(rebuilt[1].title == "Renamed C2");
+    assert(rebuilt[1].updated_at == 999);
 }
 
 private void test_create_ai_thread_success() {
@@ -1522,6 +1582,10 @@ int main(string[] args) {
         test_reload_everything_uses_preferred_project_selection
     );
     Test.add_func(
+        "/main_controller/reload_everything_hoists_home_project_to_top",
+        test_reload_everything_hoists_home_project_to_top
+    );
+    Test.add_func(
         "/main_controller/ignore_flags_public_accessors_default_false",
         test_ignore_flags_public_accessors_default_false
     );
@@ -1592,6 +1656,14 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/autosave_without_card_is_noop",
         test_autosave_without_card_is_noop
+    );
+    Test.add_func(
+        "/main_controller/update_selected_card_summary_without_current_card_is_noop",
+        test_update_selected_card_summary_without_current_card_is_noop
+    );
+    Test.add_func(
+        "/main_controller/rebuild_card_summaries_handles_null_and_non_target_cards",
+        test_rebuild_card_summaries_handles_null_and_non_target_cards
     );
     Test.add_func(
         "/main_controller/create_ai_thread_success",

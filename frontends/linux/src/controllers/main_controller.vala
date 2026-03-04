@@ -706,10 +706,35 @@ public class MainController : Object, IAiRunContext {
         }
         var target_card_id = current_card.card_id;
         var selected_card_id = selected_card_id();
-        var updated_cards = new Gee.ArrayList<CardSummary>();
-        suppress_card_selection_events = true;
+        var source_cards = new Gee.ArrayList<CardSummary?>();
         for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
+            source_cards.add(card_store.get_item(i) as CardSummary);
+        }
+        var updated_cards = rebuild_card_summaries(source_cards, target_card_id, title, updated_at);
+        suppress_card_selection_events = true;
+        updated_cards.sort((a, b) => compare_cards_for_sidebar(a, b));
+        card_store.remove_all();
+        foreach (var card in updated_cards) {
+            card_store.append(card);
+        }
+        if (selected_card_id != null) {
+            select_card_by_id(selected_card_id);
+        }
+        suppress_card_selection_events = false;
+    }
+
+    public void update_selected_card_summary_for_tests(string title, int64 updated_at) {
+        update_selected_card_summary(title, updated_at);
+    }
+
+    public static Gee.ArrayList<CardSummary> rebuild_card_summaries(
+        Gee.ArrayList<CardSummary?> source_cards,
+        string target_card_id,
+        string title,
+        int64 updated_at
+    ) {
+        var updated_cards = new Gee.ArrayList<CardSummary>();
+        foreach (var card in source_cards) {
             if (card == null) {
                 continue;
             }
@@ -728,15 +753,7 @@ public class MainController : Object, IAiRunContext {
                 updated_at
             ));
         }
-        updated_cards.sort((a, b) => compare_cards_for_sidebar(a, b));
-        card_store.remove_all();
-        foreach (var card in updated_cards) {
-            card_store.append(card);
-        }
-        if (selected_card_id != null) {
-            select_card_by_id(selected_card_id);
-        }
-        suppress_card_selection_events = false;
+        return updated_cards;
     }
 
     private void apply_card_position_update(string card_id,
