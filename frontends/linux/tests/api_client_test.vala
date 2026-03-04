@@ -152,6 +152,26 @@ private void test_export_and_import_project_recovery_token() {
     assert(transport.last_uri.has_suffix("/projects/p1/recovery-token/import"));
 }
 
+private void test_export_project_recovery_token_missing_data_is_protocol_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_protocol = false;
+    client.export_project_recovery_token.begin("p1", "1234", (obj, res) => {
+        try {
+            client.export_project_recovery_token.end(res);
+        } catch (Error e) {
+            got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_protocol);
+}
+
 private void test_import_recovery_token_parses_outcome() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -182,6 +202,76 @@ private void test_import_recovery_token_parses_outcome() {
     assert(imported.pull_error == "");
     assert(transport.last_method == "POST");
     assert(transport.last_uri.has_suffix("/recovery-token/import"));
+}
+
+private void test_import_recovery_token_missing_data_is_protocol_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_protocol = false;
+    client.import_recovery_token.begin("1234", "{\"x\":1}", (obj, res) => {
+        try {
+            client.import_recovery_token.end(res);
+        } catch (Error e) {
+            got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_protocol);
+}
+
+private void test_import_recovery_token_parses_non_null_pull_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"project_created\":false,\"remote_hint_present\":false,\"remote_configured\":false,\"remote_error\":null,\"pull_status\":\"failed\",\"pull_error\":\"git pull failed\"}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    HolderLinux.RecoveryTokenImportResult? imported = null;
+    client.import_recovery_token.begin("1234", "{\"x\":1}", (obj, res) => {
+        try {
+            imported = client.import_recovery_token.end(res);
+        } catch (Error e) {
+            imported = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(imported != null);
+    assert(imported.pull_status == "failed");
+    assert(imported.pull_error == "git pull failed");
+}
+
+private void test_list_cards_parses_non_null_parent_card_id() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"T1\",\"parent_card_id\":\"p-root\"}]}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.CardSummary>? cards = null;
+    client.list_cards.begin("p1", "all", null, (obj, res) => {
+        try {
+            cards = client.list_cards.end(res);
+        } catch (Error e) {
+            cards = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(cards != null);
+    assert(cards.size == 1);
+    assert(cards[0].parent_card_id == "p-root");
 }
 
 private void test_list_cards_parses_data_and_query() {
@@ -335,6 +425,118 @@ private void test_resources_crud_and_parse() {
     assert(transport.last_uri.has_suffix("/resources/r2"));
 }
 
+private void test_create_resource_with_desc_succeeds() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(201, "{\"ok\":true,\"data\":{\"resource_id\":\"r3\"}}");
+    var client = make_client(transport);
+
+    bool done = false;
+    string resource_id = "";
+    client.create_resource.begin("p1", "file", "/tmp/note.txt", "Note", "a description", (obj, res) => {
+        try {
+            resource_id = client.create_resource.end(res);
+        } catch (Error e) {
+            resource_id = "";
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(resource_id == "r3");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/resources"));
+    assert(transport.last_content_type == "application/json");
+}
+
+private void test_create_resource_missing_data_is_protocol_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(201, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_protocol = false;
+    client.create_resource.begin("p1", "url", "https://example.com", "Example", null, (obj, res) => {
+        try {
+            client.create_resource.end(res);
+        } catch (Error e) {
+            got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_protocol);
+}
+
+private void test_update_resource_with_desc_succeeds() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool ok = false;
+    client.update_resource.begin("r2", "file", "/tmp/a.txt", "A", "has desc", 8, (obj, res) => {
+        try {
+            client.update_resource.end(res);
+            ok = true;
+        } catch (Error e) {
+            ok = false;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(ok);
+    assert(transport.last_method == "PATCH");
+    assert(transport.last_uri.has_suffix("/resources/r2"));
+    assert(transport.last_content_type == "application/json");
+}
+
+private void test_list_resources_parses_non_null_desc() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"resource_id\":\"r1\",\"project_id\":\"p1\",\"kind\":\"file\",\"uri\":\"/tmp/a.txt\",\"label\":\"A\",\"desc\":\"local file\"}]}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.ProjectResource>? resources = null;
+    client.list_resources.begin("p1", (obj, res) => {
+        try {
+            resources = client.list_resources.end(res);
+        } catch (Error e) {
+            resources = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(resources != null);
+    assert(resources.size == 1);
+    assert(resources[0].desc == "local file");
+}
+
+private void test_list_resources_missing_data_is_protocol_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_protocol = false;
+    client.list_resources.begin("p1", (obj, res) => {
+        try {
+            client.list_resources.end(res);
+        } catch (Error e) {
+            got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_protocol);
+}
+
 private void test_get_card_parses_detail() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -411,6 +613,26 @@ private void test_list_card_links_and_backlinks_parse_data() {
     assert(transport.last_uri.has_suffix("/cards/c1/backlinks"));
 }
 
+private void test_list_card_links_missing_data_is_protocol_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_protocol = false;
+    client.list_card_links.begin("c1", (obj, res) => {
+        try {
+            client.list_card_links.end(res);
+        } catch (Error e) {
+            got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_protocol);
+}
+
 private void test_create_card_link_posts_payload_and_parses_response() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -436,6 +658,54 @@ private void test_create_card_link_posts_payload_and_parses_response() {
     assert(created.to_card_id == "c2");
     assert(created.kind == "depends_on");
     assert(created.label == "critical");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/cards/c1/links"));
+    assert(transport.last_content_type == "application/json");
+}
+
+private void test_create_card_link_missing_data_is_protocol_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_protocol = false;
+    client.create_card_link.begin("c1", "c2", "ref", null, "card", (obj, res) => {
+        try {
+            client.create_card_link.end(res);
+        } catch (Error e) {
+            got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_protocol);
+}
+
+private void test_create_card_link_with_non_card_to_type_succeeds() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        201,
+        "{\"ok\":true,\"data\":{\"from_card_id\":\"c1\",\"to_card_id\":\"r1\",\"to_type\":\"resource\",\"kind\":\"ref\",\"created_at\":50}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    HolderLinux.CardLink? created = null;
+    client.create_card_link.begin("c1", "r1", "ref", null, "resource", (obj, res) => {
+        try {
+            created = client.create_card_link.end(res);
+        } catch (Error e) {
+            created = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(created != null);
+    assert(created.to_card_id == "r1");
+    assert(created.to_type == "resource");
     assert(transport.last_method == "POST");
     assert(transport.last_uri.has_suffix("/cards/c1/links"));
     assert(transport.last_content_type == "application/json");
@@ -636,6 +906,56 @@ private void test_list_ai_provider_catalog_parses_providers() {
     assert(transport.last_uri.has_suffix("/ai_catalog.json"));
 }
 
+private void test_list_ai_provider_catalog_falls_back_to_provider_id_display_name() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"models\":{\"provider_defaults\":{\"openrouter\":{\"provider\":\"\",\"enabled\":false}}}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.AiCatalogProvider>? providers = null;
+    client.list_ai_provider_catalog.begin((obj, res) => {
+        try {
+            providers = client.list_ai_provider_catalog.end(res);
+        } catch (Error e) {
+            providers = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(providers != null);
+    assert(providers.size == 1);
+    assert(providers[0].id == "openrouter");
+    assert(providers[0].display_name == "openrouter");
+}
+
+private void test_list_ai_provider_catalog_empty_provider_defaults_returns_empty() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"models\":{\"provider_defaults\":{}}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.AiCatalogProvider>? providers = null;
+    client.list_ai_provider_catalog.begin((obj, res) => {
+        try {
+            providers = client.list_ai_provider_catalog.end(res);
+        } catch (Error e) {
+            providers = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(providers != null);
+    assert(providers.size == 0);
+}
+
 private void test_list_git_provider_catalog_parses_providers() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -662,6 +982,32 @@ private void test_list_git_provider_catalog_parses_providers() {
     assert(providers[0].preferred_transport == "ssh");
     assert(providers[0].transports_summary == "ssh, https");
     assert(transport.last_uri.has_suffix("/git_providers.json"));
+}
+
+private void test_list_git_provider_catalog_parses_examples() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"providers\":[{\"id\":\"github\",\"name\":\"GitHub\",\"kind\":\"hosted\",\"git\":{\"transports\":[\"ssh\",\"https\"],\"examples\":{\"ssh\":\"git@github.com:owner/repo.git\",\"https\":\"https://github.com/owner/repo.git\"}}}]}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.GitProviderCatalogEntry>? providers = null;
+    client.list_git_provider_catalog.begin((obj, res) => {
+        try {
+            providers = client.list_git_provider_catalog.end(res);
+        } catch (Error e) {
+            providers = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(providers != null);
+    assert(providers.size == 1);
+    assert(providers[0].ssh_example == "git@github.com:owner/repo.git");
+    assert(providers[0].https_example == "https://github.com/owner/repo.git");
 }
 
 private void test_list_git_provider_catalog_missing_providers_returns_empty() {
@@ -817,6 +1163,33 @@ private void test_git_remote_optional_inputs_are_accepted() {
     assert(transport.last_uri.has_suffix("/projects/p1/git/push"));
 }
 
+private void test_test_project_git_remote_whitespace_remote_url_maps_to_null() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"\",\"branch\":\"cards\",\"status\":\"missing_remote\",\"remote_has_head\":false,\"error_code\":\"\",\"error_message\":\"\"}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    HolderLinux.GitTestRemoteResult? test_result = null;
+    client.test_project_git_remote.begin("p1", "   ", "cards", (obj, res) => {
+        try {
+            test_result = client.test_project_git_remote.end(res);
+        } catch (Error e) {
+            test_result = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(test_result != null);
+    assert(test_result.status == "missing_remote");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/projects/p1/git/test-remote"));
+    assert(transport.last_content_type == "application/json");
+}
+
 private void test_git_remote_test_and_push_missing_data_are_protocol_errors() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(200, "{\"ok\":true}");
@@ -886,6 +1259,29 @@ private void test_create_and_update_card_payloads() {
     assert(update_ok);
     assert(transport.last_method == "PATCH");
     assert(transport.last_uri.has_suffix("/cards/c42"));
+    assert(transport.last_content_type == "application/json");
+}
+
+private void test_create_card_with_parent_id_succeeds() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"card_id\":\"c43\"}}");
+    var client = make_client(transport);
+
+    bool done = false;
+    string card_id = "";
+    client.create_card.begin("p1", "Child", "Body", "parent-1", (obj, res) => {
+        try {
+            card_id = client.create_card.end(res);
+        } catch (Error e) {
+            card_id = "";
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(card_id == "c43");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/cards"));
     assert(transport.last_content_type == "application/json");
 }
 
@@ -1576,6 +1972,102 @@ private void test_request_json_protocol_error_when_ok_missing() {
     assert(got_protocol);
 }
 
+private void test_request_json_unwrapped_with_request_body_sets_json_content_type() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"any\":1}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool ok = false;
+    client.request_json_unwrapped_for_tests.begin("POST", "/git_providers.json", "{\"x\":1}", null, (obj, res) => {
+        try {
+            var root = client.request_json_unwrapped_for_tests.end(res);
+            ok = (root != null);
+        } catch (Error e) {
+            ok = false;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(ok);
+    assert(transport.last_method == "POST");
+    assert(transport.last_content_type == "application/json");
+}
+
+private void test_request_json_unwrapped_transport_error_maps_to_api_transport() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read_throw("socket down");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_transport = false;
+    client.request_json_unwrapped_for_tests.begin("GET", "/git_providers.json", null, null, (obj, res) => {
+        try {
+            client.request_json_unwrapped_for_tests.end(res);
+        } catch (Error e) {
+            got_transport = (e is HolderLinux.ApiError.TRANSPORT);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_transport);
+}
+
+private void test_request_json_unwrapped_parse_error_on_2xx_rethrows_parse() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "not-json");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_parse = false;
+    client.request_json_unwrapped_for_tests.begin("GET", "/ai_catalog.json", null, null, (obj, res) => {
+        try {
+            client.request_json_unwrapped_for_tests.end(res);
+        } catch (Error e) {
+            got_parse = (e is HolderLinux.ApiError.PARSE);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_parse);
+}
+
+private void test_request_json_unwrapped_non_2xx_paths_map_to_http() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(500, "not-json");
+    transport.enqueue_read(500, "{\"x\":1}");
+    var client = make_client(transport);
+
+    bool done_invalid_json = false;
+    bool invalid_json_http = false;
+    client.request_json_unwrapped_for_tests.begin("GET", "/ai_catalog.json", null, null, (obj, res) => {
+        try {
+            client.request_json_unwrapped_for_tests.end(res);
+        } catch (Error e) {
+            invalid_json_http = (e is HolderLinux.ApiError.HTTP);
+        }
+        done_invalid_json = true;
+    });
+    assert(wait_for_condition(() => done_invalid_json));
+    assert(invalid_json_http);
+
+    bool done_parsed_json = false;
+    bool parsed_json_http = false;
+    client.request_json_unwrapped_for_tests.begin("GET", "/git_providers.json", null, null, (obj, res) => {
+        try {
+            client.request_json_unwrapped_for_tests.end(res);
+        } catch (Error e) {
+            parsed_json_http = (e is HolderLinux.ApiError.HTTP);
+        }
+        done_parsed_json = true;
+    });
+    assert(wait_for_condition(() => done_parsed_json));
+    assert(parsed_json_http);
+}
+
 private void test_run_ai_stream_parses_sse_and_raw_data() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_stream(
@@ -1687,6 +2179,44 @@ private void test_run_ai_stream_transport_error() {
     assert(got_transport);
 }
 
+private void test_run_ai_stream_sse_read_error_maps_to_transport_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_stream_read_throw(200, "boom read");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_transport = false;
+    bool message_has_prefix = false;
+    client.run_ai_stream.begin(
+        "Prompt",
+        "p1",
+        "t1",
+        null,
+        null,
+        null,
+        (event_name, data) => {},
+        (obj, res) => {
+            try {
+                client.run_ai_stream.end(res);
+            } catch (Error e) {
+                got_transport = (e is HolderLinux.ApiError.TRANSPORT);
+                message_has_prefix = e.message.contains("SSE read error:");
+            }
+            done = true;
+        }
+    );
+
+    assert(wait_for_condition(() => done));
+    assert(got_transport);
+    assert(message_has_prefix);
+}
+
+private void test_default_api_factory_create_returns_api_client() {
+    var factory = new HolderLinux.DefaultApiFactory();
+    var api = factory.create("http://127.0.0.1:8080", "token-abc");
+    assert(api is HolderLinux.ApiClient);
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -1697,18 +2227,42 @@ int main(string[] args) {
                   test_create_project_sends_json_and_returns_id);
     Test.add_func("/api_client/export_and_import_project_recovery_token",
                   test_export_and_import_project_recovery_token);
+    Test.add_func("/api_client/export_project_recovery_token_missing_data_is_protocol_error",
+                  test_export_project_recovery_token_missing_data_is_protocol_error);
     Test.add_func("/api_client/import_recovery_token_parses_outcome",
                   test_import_recovery_token_parses_outcome);
+    Test.add_func("/api_client/import_recovery_token_missing_data_is_protocol_error",
+                  test_import_recovery_token_missing_data_is_protocol_error);
+    Test.add_func("/api_client/import_recovery_token_parses_non_null_pull_error",
+                  test_import_recovery_token_parses_non_null_pull_error);
     Test.add_func("/api_client/list_cards_parses_data_and_query", test_list_cards_parses_data_and_query);
+    Test.add_func("/api_client/list_cards_parses_non_null_parent_card_id",
+                  test_list_cards_parses_non_null_parent_card_id);
     Test.add_func("/api_client/list_cards_with_parent_query", test_list_cards_with_parent_query);
     Test.add_func("/api_client/list_cards_ignores_blank_parent_query",
                   test_list_cards_ignores_blank_parent_query);
     Test.add_func("/api_client/resources_crud_and_parse", test_resources_crud_and_parse);
+    Test.add_func("/api_client/create_resource_with_desc_succeeds",
+                  test_create_resource_with_desc_succeeds);
+    Test.add_func("/api_client/create_resource_missing_data_is_protocol_error",
+                  test_create_resource_missing_data_is_protocol_error);
+    Test.add_func("/api_client/update_resource_with_desc_succeeds",
+                  test_update_resource_with_desc_succeeds);
+    Test.add_func("/api_client/list_resources_parses_non_null_desc",
+                  test_list_resources_parses_non_null_desc);
+    Test.add_func("/api_client/list_resources_missing_data_is_protocol_error",
+                  test_list_resources_missing_data_is_protocol_error);
     Test.add_func("/api_client/get_card_parses_detail", test_get_card_parses_detail);
     Test.add_func("/api_client/list_card_links_and_backlinks_parse_data",
                   test_list_card_links_and_backlinks_parse_data);
+    Test.add_func("/api_client/list_card_links_missing_data_is_protocol_error",
+                  test_list_card_links_missing_data_is_protocol_error);
     Test.add_func("/api_client/create_card_link_posts_payload_and_parses_response",
                   test_create_card_link_posts_payload_and_parses_response);
+    Test.add_func("/api_client/create_card_link_missing_data_is_protocol_error",
+                  test_create_card_link_missing_data_is_protocol_error);
+    Test.add_func("/api_client/create_card_link_with_non_card_to_type_succeeds",
+                  test_create_card_link_with_non_card_to_type_succeeds);
     Test.add_func("/api_client/delete_card_link_sends_delete_payload",
                   test_delete_card_link_sends_delete_payload);
     Test.add_func("/api_client/search_cards_parses_results", test_search_cards_parses_results);
@@ -1721,8 +2275,14 @@ int main(string[] args) {
                   test_list_ai_threads_and_create_ai_thread);
     Test.add_func("/api_client/list_ai_provider_catalog_parses_providers",
                   test_list_ai_provider_catalog_parses_providers);
+    Test.add_func("/api_client/list_ai_provider_catalog_falls_back_to_provider_id_display_name",
+                  test_list_ai_provider_catalog_falls_back_to_provider_id_display_name);
+    Test.add_func("/api_client/list_ai_provider_catalog_empty_provider_defaults_returns_empty",
+                  test_list_ai_provider_catalog_empty_provider_defaults_returns_empty);
     Test.add_func("/api_client/list_git_provider_catalog_parses_providers",
                   test_list_git_provider_catalog_parses_providers);
+    Test.add_func("/api_client/list_git_provider_catalog_parses_examples",
+                  test_list_git_provider_catalog_parses_examples);
     Test.add_func("/api_client/list_git_provider_catalog_missing_providers_returns_empty",
                   test_list_git_provider_catalog_missing_providers_returns_empty);
     Test.add_func("/api_client/git_remote_test_and_push_parse_results",
@@ -1731,9 +2291,13 @@ int main(string[] args) {
                   test_set_project_git_remote_handles_null_and_non_empty_url);
     Test.add_func("/api_client/git_remote_optional_inputs_are_accepted",
                   test_git_remote_optional_inputs_are_accepted);
+    Test.add_func("/api_client/test_project_git_remote_whitespace_remote_url_maps_to_null",
+                  test_test_project_git_remote_whitespace_remote_url_maps_to_null);
     Test.add_func("/api_client/git_remote_test_and_push_missing_data_are_protocol_errors",
                   test_git_remote_test_and_push_missing_data_are_protocol_errors);
     Test.add_func("/api_client/create_and_update_card_payloads", test_create_and_update_card_payloads);
+    Test.add_func("/api_client/create_card_with_parent_id_succeeds",
+                  test_create_card_with_parent_id_succeeds);
     Test.add_func("/api_client/update_card_position_with_parent_and_root",
                   test_update_card_position_with_parent_and_root);
     Test.add_func("/api_client/list_projects_parses_sync_state_fields",
@@ -1782,10 +2346,22 @@ int main(string[] args) {
                   test_request_json_parse_error_on_success_response);
     Test.add_func("/api_client/request_json_protocol_error_when_ok_missing",
                   test_request_json_protocol_error_when_ok_missing);
+    Test.add_func("/api_client/request_json_unwrapped_with_request_body_sets_json_content_type",
+                  test_request_json_unwrapped_with_request_body_sets_json_content_type);
+    Test.add_func("/api_client/request_json_unwrapped_transport_error_maps_to_api_transport",
+                  test_request_json_unwrapped_transport_error_maps_to_api_transport);
+    Test.add_func("/api_client/request_json_unwrapped_parse_error_on_2xx_rethrows_parse",
+                  test_request_json_unwrapped_parse_error_on_2xx_rethrows_parse);
+    Test.add_func("/api_client/request_json_unwrapped_non_2xx_paths_map_to_http",
+                  test_request_json_unwrapped_non_2xx_paths_map_to_http);
     Test.add_func("/api_client/run_ai_stream_parses_sse_and_raw_data",
                   test_run_ai_stream_parses_sse_and_raw_data);
     Test.add_func("/api_client/run_ai_stream_http_error", test_run_ai_stream_http_error);
     Test.add_func("/api_client/run_ai_stream_transport_error", test_run_ai_stream_transport_error);
+    Test.add_func("/api_client/run_ai_stream_sse_read_error_maps_to_transport_error",
+                  test_run_ai_stream_sse_read_error_maps_to_transport_error);
+    Test.add_func("/api_client/default_api_factory_create_returns_api_client",
+                  test_default_api_factory_create_returns_api_client);
 
     return Test.run();
 }

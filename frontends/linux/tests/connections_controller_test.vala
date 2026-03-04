@@ -309,6 +309,31 @@ private void test_remember_custom_link_kind_filters_existing_entries_via_continu
     }
 }
 
+private void test_remember_custom_link_kind_duplicate_cleaned_returns_early() {
+    var controller = new ConnectionsController();
+    var settings = AppSettings.open_or_null();
+    if (settings == null) {
+        assert(true);
+        return;
+    }
+
+    string[] original = settings.get_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS);
+    try {
+        settings.set_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS, {"alpha", "beta"});
+        controller.remember_custom_link_kind(settings, "  alpha  ");
+
+        var stored = new Gee.ArrayList<string>();
+        foreach (var value in settings.get_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS)) {
+            stored.add(value);
+        }
+        assert(stored.size == 2);
+        assert(stored[0] == "alpha");
+        assert(stored[1] == "beta");
+    } finally {
+        settings.set_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS, original);
+    }
+}
+
 private void test_remember_custom_link_kind_limits_to_20_entries() {
     var controller = new ConnectionsController();
     var settings = AppSettings.open_or_null();
@@ -385,6 +410,8 @@ public static int main(string[] args) {
                   test_remember_custom_link_kind_with_settings);
     Test.add_func("/holder/connections/remember_custom_link_kind_filters_existing_entries_via_continue_path",
                   test_remember_custom_link_kind_filters_existing_entries_via_continue_path);
+    Test.add_func("/holder/connections/remember_custom_link_kind_duplicate_cleaned_returns_early",
+                  test_remember_custom_link_kind_duplicate_cleaned_returns_early);
     Test.add_func("/holder/connections/remember_custom_link_kind_limits_to_20_entries",
                   test_remember_custom_link_kind_limits_to_20_entries);
     Test.add_func("/holder/connections/remember_custom_link_kind_null_settings_noop",
