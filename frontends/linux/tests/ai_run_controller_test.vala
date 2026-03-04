@@ -543,6 +543,32 @@ private void test_ai_poll_tick_hidden_removes() {
     assert(controller.poll_tick() == Source.REMOVE);
 }
 
+private void test_handle_ai_run_event_unknown_event_is_ignored() {
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
+
+    bool saw_output = false;
+    bool saw_chunk = false;
+    bool saw_status = false;
+    controller.append_output_requested.connect((role, text) => {
+        saw_output = true;
+    });
+    controller.append_output_chunk_requested.connect((text) => {
+        saw_chunk = true;
+    });
+    controller.status_changed.connect((text) => {
+        saw_status = true;
+    });
+
+    controller.handle_ai_run_event("mystery_event", new Json.Object());
+
+    assert(!saw_output);
+    assert(!saw_chunk);
+    assert(!saw_status);
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -645,6 +671,10 @@ int main(string[] args) {
     Test.add_func(
         "/ai_run/ai_poll_tick_hidden_removes",
         test_ai_poll_tick_hidden_removes
+    );
+    Test.add_func(
+        "/ai_run/handle_ai_run_event_unknown_event_is_ignored",
+        test_handle_ai_run_event_unknown_event_is_ignored
     );
 
     return Test.run();

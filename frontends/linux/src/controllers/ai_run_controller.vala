@@ -212,7 +212,7 @@ public class AiRunController : Object {
         return Source.CONTINUE;
     }
 
-    private void handle_ai_run_event(string event_name, Json.Object data) {
+    internal void handle_ai_run_event(string event_name, Json.Object data) {
         switch (event_name) {
             case "chunk":
                 append_output_chunk_requested(json_string_member_or_empty(data, "delta"));
