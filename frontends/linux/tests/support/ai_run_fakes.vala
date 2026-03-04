@@ -243,6 +243,13 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                            string? parent_card_id,
                                            double sort_key,
                                            int64 updated_at) throws Error {}
+    public async HolderLinux.CardMoveResult move_card_by_intent(string card_id,
+                                                                 string project_id,
+                                                                 string intent,
+                                                                 string? target_card_id = null,
+                                                                 string? parent_card_id = null) throws Error {
+        return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0, 1, "");
+    }
 }
 
 public class AiRunFakeContext : Object, HolderLinux.IAiRunContext {

@@ -13,7 +13,11 @@ public class FlowboardController : Object {
     public signal void breadcrumb_segments_changed(Gee.ArrayList<FlowboardBreadcrumbSegment> segments);
     public signal void empty_message_changed(string text);
     public signal void card_open_requested(string card_id);
-    public signal void move_requested(string card_id, string? parent_card_id, double sort_key);
+    public signal void move_intent_requested(string card_id,
+                                             string project_id,
+                                             string intent,
+                                             string? target_card_id,
+                                             string? parent_card_id);
     public signal void create_card_requested(string? parent_card_id);
     public signal void toast_requested(string message);
     public signal void project_overview_requested(string project_id);
@@ -126,10 +130,7 @@ public class FlowboardController : Object {
         if (parent != null) {
             new_parent = normalize_parent(parent.parent_card_id);
         }
-        var new_sort = next_sort_key_for_parent(new_parent, card_id);
-        apply_local_move(card_id, new_parent, new_sort);
-        refresh();
-        move_requested(card_id, new_parent, new_sort);
+        emit_move_intent(card_id, "up_level", null, new_parent);
         var destination = destination_label_for_parent(new_parent);
         toast_requested("Moved %s into %s".printf(card.title, destination));
     }
@@ -144,10 +145,7 @@ public class FlowboardController : Object {
         if (siblings.size == 0) {
             return;
         }
-        var new_sort = siblings[0].sort_key - 1024.0;
-        apply_local_move(card_id, parent_id, new_sort);
-        refresh();
-        move_requested(card_id, parent_id, new_sort);
+        emit_move_intent(card_id, "to_start", null, parent_id);
     }
 
     public void move_card_left_from_context_menu(string card_id) {
@@ -168,10 +166,7 @@ public class FlowboardController : Object {
             return;
         }
         var target_id = siblings[index - 1].card_id;
-        var new_sort = sort_key_around_target(card_id, target_id, parent_id, false);
-        apply_local_move(card_id, parent_id, new_sort);
-        refresh();
-        move_requested(card_id, parent_id, new_sort);
+        emit_move_intent(card_id, "before", target_id, parent_id);
     }
 
     public void move_card_right_from_context_menu(string card_id) {
@@ -192,10 +187,7 @@ public class FlowboardController : Object {
             return;
         }
         var target_id = siblings[index + 1].card_id;
-        var new_sort = sort_key_around_target(card_id, target_id, parent_id, true);
-        apply_local_move(card_id, parent_id, new_sort);
-        refresh();
-        move_requested(card_id, parent_id, new_sort);
+        emit_move_intent(card_id, "after", target_id, parent_id);
     }
 
     public void move_card_to_end_from_context_menu(string card_id) {
@@ -204,10 +196,7 @@ public class FlowboardController : Object {
             return;
         }
         var parent_id = normalize_parent(card.parent_card_id);
-        var new_sort = next_sort_key_for_parent(parent_id, card_id);
-        apply_local_move(card_id, parent_id, new_sort);
-        refresh();
-        move_requested(card_id, parent_id, new_sort);
+        emit_move_intent(card_id, "to_end", null, parent_id);
     }
 
     public void navigate_up() {
@@ -267,24 +256,18 @@ public class FlowboardController : Object {
             return;
         }
 
-        string? new_parent;
-        double new_sort;
         if (target_x_fraction >= 0.25 && target_x_fraction <= 0.75) {
-            new_parent = target.card_id;
+            var new_parent = target.card_id;
             if (is_descendant(new_parent, source.card_id)) {
                 return;
             }
-            new_sort = next_sort_key_for_parent(new_parent, source.card_id);
             toast_requested("Moved \"%s\" into \"%s\"".printf(source.title, target.title));
+            emit_move_intent(source.card_id, "into", target.card_id, new_parent);
         } else {
-            new_parent = normalize_parent(target.parent_card_id);
-            var after = target_x_fraction > 0.75;
-            new_sort = sort_key_around_target(source.card_id, target.card_id, new_parent, after);
+            var new_parent = normalize_parent(target.parent_card_id);
+            var intent = target_x_fraction > 0.75 ? "after" : "before";
+            emit_move_intent(source.card_id, intent, target.card_id, new_parent);
         }
-
-        apply_local_move(source.card_id, new_parent, new_sort);
-        refresh();
-        move_requested(source.card_id, new_parent, new_sort);
     }
 
     public void on_background_drop(string source_card_id) {
@@ -292,11 +275,7 @@ public class FlowboardController : Object {
         if (source == null) {
             return;
         }
-        string? new_parent = null;
-        double new_sort = next_sort_key_for_parent(new_parent, source.card_id);
-        apply_local_move(source.card_id, new_parent, new_sort);
-        refresh();
-        move_requested(source.card_id, new_parent, new_sort);
+        emit_move_intent(source.card_id, "to_end", null, null);
     }
 
     public void request_create_card_here() {
@@ -403,20 +382,6 @@ public class FlowboardController : Object {
         return count_children_for_parent(source_cards, card_id);
     }
 
-    internal static int count_children_for_parent(Gee.ArrayList<CardSummary?> source_cards,
-                                                  string card_id) {
-        int count = 0;
-        foreach (var card in source_cards) {
-            if (card == null) {
-                continue;
-            }
-            if (normalize_parent(card.parent_card_id) == card_id) {
-                count++;
-            }
-        }
-        return count;
-    }
-
     private bool is_descendant(string? candidate_parent_card_id, string card_id) {
         var source_cards = new Gee.ArrayList<CardSummary?>();
         for (uint i = 0; i < card_store.get_n_items(); i++) {
@@ -448,6 +413,20 @@ public class FlowboardController : Object {
             guard++;
         }
         return false;
+    }
+
+    internal static int count_children_for_parent(Gee.ArrayList<CardSummary?> source_cards,
+                                                  string card_id) {
+        int count = 0;
+        foreach (var card in source_cards) {
+            if (card == null) {
+                continue;
+            }
+            if (normalize_parent(card.parent_card_id) == card_id) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private Gee.ArrayList<FlowboardBreadcrumbSegment> build_breadcrumb_segments(string project_name) {
@@ -521,70 +500,21 @@ public class FlowboardController : Object {
         return siblings;
     }
 
-    private double next_sort_key_for_parent(string? parent_card_id, string? exclude_card_id = null) {
-        var siblings = siblings_for_parent(parent_card_id, exclude_card_id);
-        if (siblings.size == 0) {
-            return 1024.0;
+    private void emit_move_intent(string card_id,
+                                  string intent,
+                                  string? target_card_id,
+                                  string? parent_card_id) {
+        var selected_project = project_selection.get_selected_item() as Project;
+        if (selected_project == null) {
+            return;
         }
-        return siblings[siblings.size - 1].sort_key + 1024.0;
-    }
-
-    internal double sort_key_around_target(string source_card_id,
-                                           string target_card_id,
-                                           string? parent_card_id,
-                                           bool after) {
-        var siblings = siblings_for_parent(parent_card_id, source_card_id);
-        int target_index = -1;
-        for (int i = 0; i < siblings.size; i++) {
-            if (siblings[i].card_id == target_card_id) {
-                target_index = i;
-                break;
-            }
-        }
-        if (target_index < 0) {
-            return next_sort_key_for_parent(parent_card_id, source_card_id);
-        }
-
-        double left;
-        double right;
-        if (after) {
-            left = siblings[target_index].sort_key;
-            right = target_index + 1 < siblings.size
-                ? siblings[target_index + 1].sort_key
-                : left + 1024.0;
-        } else {
-            right = siblings[target_index].sort_key;
-            left = target_index > 0
-                ? siblings[target_index - 1].sort_key
-                : right - 1024.0;
-        }
-        if (right - left < 0.0001) {
-            return after ? right + 1.0 : left - 1.0;
-        }
-        return (left + right) / 2.0;
-    }
-
-    private void apply_local_move(string card_id, string? parent_card_id, double sort_key) {
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
-            if (card == null || card.card_id != card_id) {
-                continue;
-            }
-            var updated_at = new DateTime.now_utc().to_unix();
-            var replacement = new CardSummary(
-                card.card_id,
-                card.project_id,
-                card.title,
-                card.rel_path,
-                sort_key,
-                parent_card_id,
-                card.created_at,
-                updated_at
-            );
-            card_store.remove(i);
-            card_store.insert(i, replacement);
-            break;
-        }
+        move_intent_requested(
+            card_id,
+            selected_project.project_id,
+            intent,
+            target_card_id,
+            parent_card_id
+        );
     }
 
     private void activate_card(string card_id) {

@@ -7,7 +7,11 @@ public class FlowboardToolView : Object {
     public Gtk.Widget widget { get; private set; }
 
     public signal void card_open_requested(string card_id);
-    public signal void move_requested(string card_id, string? parent_card_id, double sort_key);
+    public signal void move_intent_requested(string card_id,
+                                             string project_id,
+                                             string intent,
+                                             string? target_card_id,
+                                             string? parent_card_id);
     public signal void new_card_requested(string? parent_card_id);
     public signal void toast_requested(string message);
 
@@ -64,8 +68,8 @@ public class FlowboardToolView : Object {
         flowboard.card_move_to_end_requested.connect((card_id) => {
             controller.move_card_to_end_from_context_menu(card_id);
         });
-        controller.move_requested.connect((card_id, parent_card_id, sort_key) => {
-            move_requested(card_id, parent_card_id, sort_key);
+        controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
+            move_intent_requested(card_id, project_id, intent, target_card_id, parent_card_id);
         });
         controller.create_card_requested.connect((parent_card_id) => {
             new_card_requested(parent_card_id);

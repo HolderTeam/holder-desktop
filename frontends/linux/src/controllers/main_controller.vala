@@ -421,6 +421,38 @@ public class MainController : Object, IAiRunContext {
         }
     }
 
+    public async void move_card_by_intent(string card_id,
+                                          string intent,
+                                          string? target_card_id = null,
+                                          string? parent_card_id = null) {
+        if (api == null) {
+            return;
+        }
+        var selected = project_selection.get_selected_item() as Project;
+        if (selected == null) {
+            error_reported("Move card failed", "Select a project first.");
+            return;
+        }
+
+        try {
+            var moved = yield api.move_card_by_intent(
+                card_id,
+                selected.project_id,
+                intent,
+                target_card_id,
+                parent_card_id
+            );
+            if (intent == "into" && moved.moved_into_title.length > 0) {
+                toast_requested("Moved card into %s".printf(moved.moved_into_title));
+            }
+            status_changed("Moved card");
+            yield reload_cards_for_selected_project(card_id);
+        } catch (Error e) {
+            error_reported("Move card failed", e.message);
+            reload_cards_for_selected_project.begin(card_id);
+        }
+    }
+
     public async void create_project_named(string name, string privacy_mode = "encrypted_git") {
         if (api == null) {
             return;

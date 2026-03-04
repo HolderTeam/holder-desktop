@@ -378,8 +378,8 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.flowboard_card_open_requested.connect((card_id) => {
             open_card_from_flowboard(card_id);
         });
-        toolbox.flowboard_move_requested.connect((card_id, parent_card_id, sort_key) => {
-            controller.move_card.begin(card_id, parent_card_id, sort_key);
+        toolbox.flowboard_move_intent_requested.connect((card_id, _project_id, intent, target_card_id, parent_card_id) => {
+            controller.move_card_by_intent.begin(card_id, intent, target_card_id, parent_card_id);
         });
         toolbox.flowboard_new_card_requested.connect((parent_card_id) => {
             controller.create_card.begin(parent_card_id);

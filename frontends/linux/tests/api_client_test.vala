@@ -1325,6 +1325,36 @@ private void test_update_card_position_with_parent_and_root() {
     assert(transport.last_uri.has_suffix("/cards/c42"));
 }
 
+private void test_move_card_by_intent_posts_move_endpoint() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"card_id\":\"c42\",\"parent_card_id\":\"p1\",\"sort_key\":2048.0,\"revision\":7,\"moved_into_title\":\"Parent\"}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    HolderLinux.CardMoveResult? result = null;
+    client.move_card_by_intent.begin("c42", "proj-1", "into", "p1", null, (obj, res) => {
+        try {
+            result = client.move_card_by_intent.end(res);
+        } catch (Error e) {
+            result = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(result != null);
+    assert(result.card_id == "c42");
+    assert(result.parent_card_id == "p1");
+    assert(result.revision == 7);
+    assert(result.moved_into_title == "Parent");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/cards/c42/move"));
+    assert(transport.last_content_type == "application/json");
+}
+
 private void test_list_projects_parses_sync_state_fields() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -2407,6 +2437,8 @@ int main(string[] args) {
                   test_create_card_with_parent_id_succeeds);
     Test.add_func("/api_client/update_card_position_with_parent_and_root",
                   test_update_card_position_with_parent_and_root);
+    Test.add_func("/api_client/move_card_by_intent_posts_move_endpoint",
+                  test_move_card_by_intent_posts_move_endpoint);
     Test.add_func("/api_client/list_projects_parses_sync_state_fields",
                   test_list_projects_parses_sync_state_fields);
     Test.add_func("/api_client/list_projects_sync_null_or_non_object_uses_defaults",

@@ -554,4 +554,26 @@ public class GitPushResult : Object {
     }
 }
 
+public class CardMoveResult : Object {
+    public string card_id { get; construct; }
+    public string? parent_card_id { get; construct; }
+    public double sort_key { get; construct; }
+    public int64 revision { get; construct; }
+    public string moved_into_title { get; construct; }
+
+    public CardMoveResult(string card_id,
+                          string? parent_card_id,
+                          double sort_key,
+                          int64 revision,
+                          string moved_into_title) {
+        Object(
+            card_id: card_id,
+            parent_card_id: parent_card_id,
+            sort_key: sort_key,
+            revision: revision,
+            moved_into_title: moved_into_title
+        );
+    }
+}
+
 }

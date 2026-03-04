@@ -87,6 +87,11 @@ public interface IHolderApi : Object {
                                                     string? parent_card_id,
                                                     double sort_key,
                                                     int64 updated_at) throws Error;
+    public abstract async CardMoveResult move_card_by_intent(string card_id,
+                                                              string project_id,
+                                                              string intent,
+                                                              string? target_card_id = null,
+                                                              string? parent_card_id = null) throws Error;
 }
 
 public interface IApiFactory : Object {

@@ -115,13 +115,13 @@ private void test_drop_center_nests_and_emits_move_and_toast() {
     card_store.append(make_card("b", "p1", "Beta", 2048.0));
 
     string moved_card = "";
-    string? moved_parent = "__unset__";
-    double moved_sort = 0.0;
+    string moved_intent = "";
+    string? moved_target = "__unset__";
     string toast = "";
-    controller.move_requested.connect((card_id, parent_id, sort_key) => {
+    controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
         moved_card = card_id;
-        moved_parent = parent_id;
-        moved_sort = sort_key;
+        moved_intent = intent;
+        moved_target = target_card_id;
     });
     controller.toast_requested.connect((text) => {
         toast = text;
@@ -131,8 +131,8 @@ private void test_drop_center_nests_and_emits_move_and_toast() {
     controller.on_card_drop("a", "b", 0.5);
 
     assert(moved_card == "a");
-    assert(moved_parent == "b");
-    assert(moved_sort >= 1024.0);
+    assert(moved_intent == "into");
+    assert(moved_target == "b");
     assert(toast.contains("Moved \"Alpha\" into \"Beta\""));
 }
 
@@ -148,18 +148,20 @@ private void test_drop_right_edge_reorders_next_to_target() {
     card_store.append(make_card("b", "p1", "Beta", 2048.0));
     card_store.append(make_card("c", "p1", "Gamma", 3072.0));
 
-    double moved_sort = 0.0;
-    controller.move_requested.connect((card_id, parent_id, sort_key) => {
+    string moved_intent = "";
+    string? moved_target = null;
+    controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
         if (card_id == "a") {
-            moved_sort = sort_key;
+            moved_intent = intent;
+            moved_target = target_card_id;
         }
     });
 
     controller.refresh();
     controller.on_card_drop("a", "b", 0.9);
 
-    assert(moved_sort > 2048.0);
-    assert(moved_sort < 3072.0);
+    assert(moved_intent == "after");
+    assert(moved_target == "b");
 }
 
 private void test_move_card_up_level_uses_grandparent_and_toast() {
@@ -174,11 +176,13 @@ private void test_move_card_up_level_uses_grandparent_and_toast() {
     card_store.append(make_card("parent", "p1", "Parent", 1024.0, "root"));
     card_store.append(make_card("child", "p1", "Child", 1024.0, "parent"));
 
+    string moved_intent = "";
     string? moved_parent = "__unset__";
     string toast = "";
-    controller.move_requested.connect((card_id, parent_id, sort_key) => {
+    controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
         if (card_id == "child") {
-            moved_parent = parent_id;
+            moved_intent = intent;
+            moved_parent = parent_card_id;
         }
     });
     controller.toast_requested.connect((text) => {
@@ -188,6 +192,7 @@ private void test_move_card_up_level_uses_grandparent_and_toast() {
     controller.refresh();
     controller.move_card_up_level_from_context_menu("child");
 
+    assert(moved_intent == "up_level");
     assert(moved_parent == "root");
     assert(toast == "Moved Child into Root");
 }
@@ -292,20 +297,20 @@ private void test_on_background_drop_moves_card_to_project_root() {
     card_store.append(make_card("c", "p1", "Child", 1024.0, "p"));
 
     string moved_card = "";
+    string moved_intent = "";
     string? moved_parent = "__unset__";
-    double moved_sort = 0;
-    controller.move_requested.connect((card_id, parent_id, sort_key) => {
+    controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
         moved_card = card_id;
-        moved_parent = parent_id;
-        moved_sort = sort_key;
+        moved_intent = intent;
+        moved_parent = parent_card_id;
     });
 
     controller.refresh();
     controller.on_background_drop("c");
 
     assert(moved_card == "c");
+    assert(moved_intent == "to_end");
     assert(moved_parent == null);
-    assert(moved_sort > 2048.0);
 }
 
 private void test_on_card_drop_prevents_descendant_cycle() {
@@ -320,7 +325,7 @@ private void test_on_card_drop_prevents_descendant_cycle() {
     card_store.append(make_card("c", "p1", "Child", 1024.0, "p"));
 
     int move_emits = 0;
-    controller.move_requested.connect((card_id, parent_id, sort_key) => {
+    controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
         move_emits++;
     });
 
@@ -329,7 +334,7 @@ private void test_on_card_drop_prevents_descendant_cycle() {
     assert(move_emits == 0);
 }
 
-private void test_move_card_to_start_and_end_emit_expected_sort() {
+private void test_move_card_to_start_and_end_emit_expected_intents() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
     GLib.ListStore card_store;
@@ -341,23 +346,19 @@ private void test_move_card_to_start_and_end_emit_expected_sort() {
     card_store.append(make_card("b", "p1", "Beta", 2048.0));
     card_store.append(make_card("c", "p1", "Gamma", 3072.0));
 
-    double start_sort = 0;
-    double end_sort = 0;
-    controller.move_requested.connect((card_id, parent_id, sort_key) => {
-        if (card_id == "c") {
-            start_sort = sort_key;
-        }
-        if (card_id == "a") {
-            end_sort = sort_key;
-        }
+    bool saw_start = false;
+    bool saw_end = false;
+    controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
+        if (card_id == "c" && intent == "to_start") saw_start = true;
+        if (card_id == "a" && intent == "to_end") saw_end = true;
     });
 
     controller.refresh();
     controller.move_card_to_start_from_context_menu("c");
     controller.move_card_to_end_from_context_menu("a");
 
-    assert(start_sort < 1024.0);
-    assert(end_sort >= 3072.0);
+    assert(saw_start);
+    assert(saw_end);
 }
 
 private void test_projects_mode_with_no_projects_shows_empty_projects_message() {
@@ -525,21 +526,6 @@ private void test_siblings_for_parent_in_cards_skips_null_cards() {
     assert(siblings[1].card_id == "b");
 }
 
-private void test_sort_key_around_target_missing_target_falls_back_to_next_slot() {
-    GLib.ListStore project_store;
-    Gtk.SingleSelection project_selection;
-    GLib.ListStore card_store;
-    var controller = make_controller(out project_store, out project_selection, out card_store);
-
-    project_store.append(make_project("p1", "Project One", 10));
-    project_selection.set_selected(0);
-    card_store.append(make_card("a", "p1", "Alpha", 1024.0));
-    card_store.append(make_card("b", "p1", "Beta", 2048.0));
-
-    var sort_key = controller.sort_key_around_target("a", "missing-target", null, true);
-    assert(sort_key == 3072.0);
-}
-
 private void test_open_card_from_context_menu_leaf_opens_without_navigation() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
@@ -576,7 +562,7 @@ private void test_move_left_right_edge_cards_are_noop() {
     card_store.append(make_card("c", "p1", "Gamma", 3072.0));
 
     int move_emits = 0;
-    controller.move_requested.connect((card_id, parent_id, sort_key) => {
+    controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
         move_emits++;
     });
 
@@ -598,16 +584,19 @@ private void test_on_card_drop_tiny_gap_uses_fallback_increment() {
     card_store.append(make_card("b", "p1", "Beta", 1000.0));
     card_store.append(make_card("c", "p1", "Gamma", 1000.00001));
 
-    double moved_sort = 0.0;
-    controller.move_requested.connect((card_id, parent_id, sort_key) => {
+    string moved_intent = "";
+    string? moved_target = null;
+    controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
         if (card_id == "a") {
-            moved_sort = sort_key;
+            moved_intent = intent;
+            moved_target = target_card_id;
         }
     });
 
     controller.refresh();
     controller.on_card_drop("a", "b", 0.9);
-    assert(moved_sort > 1000.00001);
+    assert(moved_intent == "after");
+    assert(moved_target == "b");
 }
 
 private void test_move_up_with_missing_parent_uses_project_destination() {
@@ -642,7 +631,7 @@ private void test_noop_guards_for_missing_ids_and_self_drop() {
 
     int move_emits = 0;
     int open_emits = 0;
-    controller.move_requested.connect((card_id, parent_id, sort_key) => { move_emits++; });
+    controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => { move_emits++; });
     controller.card_open_requested.connect((card_id) => { open_emits++; });
 
     controller.refresh();
@@ -672,7 +661,7 @@ private void test_root_move_up_and_empty_stack_navigation_are_noop() {
     card_store.append(make_card("root", "p1", "Root", 1024.0));
 
     int move_emits = 0;
-    controller.move_requested.connect((card_id, parent_id, sort_key) => { move_emits++; });
+    controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => { move_emits++; });
 
     controller.refresh();
     controller.navigate_up();
@@ -760,17 +749,19 @@ private void test_drop_left_edge_places_before_target() {
     card_store.append(make_card("b", "p1", "Beta", 2048.0));
     card_store.append(make_card("c", "p1", "Gamma", 3072.0));
 
-    double moved_sort = 0.0;
-    controller.move_requested.connect((card_id, parent_id, sort_key) => {
+    string moved_intent = "";
+    string? moved_target = null;
+    controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
         if (card_id == "c") {
-            moved_sort = sort_key;
+            moved_intent = intent;
+            moved_target = target_card_id;
         }
     });
 
     controller.refresh();
     controller.on_card_drop("c", "b", 0.1);
-    assert(moved_sort > 1024.0);
-    assert(moved_sort < 2048.0);
+    assert(moved_intent == "before");
+    assert(moved_target == "b");
 }
 
 private void test_move_left_and_right_middle_card_emit_reorder() {
@@ -786,7 +777,7 @@ private void test_move_left_and_right_middle_card_emit_reorder() {
     card_store.append(make_card("c", "p1", "Gamma", 3072.0));
 
     int b_moves = 0;
-    controller.move_requested.connect((card_id, parent_id, sort_key) => {
+    controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
         if (card_id == "b") {
             b_moves++;
         }
@@ -809,7 +800,7 @@ private void test_move_card_to_start_single_sibling_is_noop() {
     card_store.append(make_card("only", "p1", "Only", 1024.0));
 
     int move_emits = 0;
-    controller.move_requested.connect((card_id, parent_id, sort_key) => {
+    controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
         move_emits++;
     });
 
@@ -924,16 +915,19 @@ private void test_drop_right_edge_on_last_card_uses_tail_padding() {
     card_store.append(make_card("b", "p1", "Beta", 2048.0));
     card_store.append(make_card("c", "p1", "Gamma", 3072.0));
 
-    double moved_sort = 0.0;
-    controller.move_requested.connect((card_id, parent_id, sort_key) => {
+    string moved_intent = "";
+    string? moved_target = null;
+    controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
         if (card_id == "a") {
-            moved_sort = sort_key;
+            moved_intent = intent;
+            moved_target = target_card_id;
         }
     });
 
     controller.refresh();
     controller.on_card_drop("a", "c", 0.95);
-    assert(moved_sort > 3072.0);
+    assert(moved_intent == "after");
+    assert(moved_target == "c");
 }
 
 private void test_projects_mode_sort_hits_updated_at_less_branch() {
@@ -1035,8 +1029,8 @@ int main(string[] args) {
                   test_on_background_drop_moves_card_to_project_root);
     Test.add_func("/flowboard/on_card_drop_prevents_descendant_cycle",
                   test_on_card_drop_prevents_descendant_cycle);
-    Test.add_func("/flowboard/move_card_to_start_and_end_emit_expected_sort",
-                  test_move_card_to_start_and_end_emit_expected_sort);
+    Test.add_func("/flowboard/move_card_to_start_and_end_emit_expected_intents",
+                  test_move_card_to_start_and_end_emit_expected_intents);
     Test.add_func("/flowboard/projects_mode_with_no_projects_shows_empty_projects_message",
                   test_projects_mode_with_no_projects_shows_empty_projects_message);
     Test.add_func("/flowboard/breadcrumb_index_one_requests_project_overview",
@@ -1055,8 +1049,6 @@ int main(string[] args) {
                   test_is_descendant_in_cards_null_candidate_is_false);
     Test.add_func("/flowboard/siblings_for_parent_in_cards_skips_null_cards",
                   test_siblings_for_parent_in_cards_skips_null_cards);
-    Test.add_func("/flowboard/sort_key_around_target_missing_target_falls_back_to_next_slot",
-                  test_sort_key_around_target_missing_target_falls_back_to_next_slot);
     Test.add_func("/flowboard/open_card_from_context_menu_leaf_opens_without_navigation",
                   test_open_card_from_context_menu_leaf_opens_without_navigation);
     Test.add_func("/flowboard/move_left_right_edge_cards_are_noop",

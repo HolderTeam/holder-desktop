@@ -694,6 +694,43 @@ public class ApiClient : Object, IHolderApi {
         );
     }
 
+    public async CardMoveResult move_card_by_intent(string card_id,
+                                                     string project_id,
+                                                     string intent,
+                                                     string? target_card_id = null,
+                                                     string? parent_card_id = null) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("project_id");
+        body.add_string_value(project_id);
+        body.set_member_name("intent");
+        body.add_string_value(intent);
+        if (target_card_id != null && target_card_id.strip().length > 0) {
+            body.set_member_name("target_card_id");
+            body.add_string_value(target_card_id);
+        }
+        if (intent == "to_start" || intent == "to_end") {
+            body.set_member_name("parent_card_id");
+            if (parent_card_id == null || parent_card_id.strip().length == 0) {
+                body.add_null_value();
+            } else {
+                body.add_string_value(parent_card_id);
+            }
+        }
+        body.end_object();
+
+        var root = yield request_json(
+            "POST",
+            "/cards/%s/move".printf(Uri.escape_string(card_id)),
+            json_string_from_builder(body),
+            null
+        );
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for move response");
+        }
+        return parse_card_move_result(root.get_object_member("data"));
+    }
+
     private async Json.Object request_json(string method,
                                            string path,
                                            string? request_body,
@@ -746,6 +783,24 @@ public class ApiClient : Object, IHolderApi {
         }
 
         return root;
+    }
+
+    private CardMoveResult parse_card_move_result(Json.Object data) throws Error {
+        if (!data.has_member("card_id")
+            || !data.has_member("sort_key")
+            || !data.has_member("revision")) {
+            throw new ApiError.PROTOCOL("Missing fields for card move result");
+        }
+
+        var parent = nullable_string_member_or_null(data, "parent_card_id");
+        var moved_into_title = string_member_or_empty(data, "moved_into_title");
+        return new CardMoveResult(
+            data.get_string_member("card_id"),
+            parent,
+            data.get_double_member("sort_key"),
+            data.get_int_member("revision"),
+            moved_into_title
+        );
     }
 
     private async Json.Object request_json_unwrapped(string method,

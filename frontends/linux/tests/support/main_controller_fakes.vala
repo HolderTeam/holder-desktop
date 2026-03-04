@@ -446,6 +446,20 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         last_move_sort_key = sort_key;
         last_move_updated_at = updated_at;
     }
+
+    public async HolderLinux.CardMoveResult move_card_by_intent(string card_id,
+                                                                 string project_id,
+                                                                 string intent,
+                                                                 string? target_card_id = null,
+                                                                 string? parent_card_id = null) throws Error {
+        if (fail_update_card_position) {
+            throw new IOError.FAILED("move by intent failed");
+        }
+        update_card_position_calls++;
+        last_move_card_id = card_id;
+        last_move_parent_card_id = parent_card_id;
+        return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0, 1, "");
+    }
 }
 
 public class MainControllerFakeApiFactory : Object, HolderLinux.IApiFactory {

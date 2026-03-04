@@ -20,7 +20,11 @@ public class ToolboxPane : Object {
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
     public signal void flowboard_card_open_requested(string card_id);
-    public signal void flowboard_move_requested(string card_id, string? parent_card_id, double sort_key);
+    public signal void flowboard_move_intent_requested(string card_id,
+                                                       string project_id,
+                                                       string intent,
+                                                       string? target_card_id,
+                                                       string? parent_card_id);
     public signal void flowboard_new_card_requested(string? parent_card_id);
     public signal void send_card_as_email_requested();
     public signal void send_recovery_key_as_email_requested();
@@ -111,8 +115,8 @@ public class ToolboxPane : Object {
         flowboard_tool.card_open_requested.connect((card_id) => {
             flowboard_card_open_requested(card_id);
         });
-        flowboard_tool.move_requested.connect((card_id, parent_card_id, sort_key) => {
-            flowboard_move_requested(card_id, parent_card_id, sort_key);
+        flowboard_tool.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
+            flowboard_move_intent_requested(card_id, project_id, intent, target_card_id, parent_card_id);
         });
         flowboard_tool.new_card_requested.connect((parent_card_id) => {
             flowboard_new_card_requested(parent_card_id);
