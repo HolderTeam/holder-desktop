@@ -100,6 +100,65 @@ private void test_open_or_null_for_bad_local_schema_dir_emits_warning_and_return
     DirUtils.remove(tmp_dir);
 }
 
+private void test_open_or_null_when_local_schema_missing_emits_specific_warning() {
+    string tmp_dir = "";
+    try {
+        tmp_dir = DirUtils.make_tmp("holder-linux-app-settings-missing-schema-XXXXXX");
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+
+    var fake_exe = Path.build_filename(tmp_dir, "holder-desktop");
+    var data_dir = Path.build_filename(tmp_dir, "data");
+    DirUtils.create_with_parents(data_dir, 0700);
+
+    var xml_path = Path.build_filename(data_dir, "org.example.test.gschema.xml");
+    var xml = """
+<schemalist>
+  <schema id='org.example.test' path='/org/example/test/'>
+    <key name='dummy' type='s'>
+      <default>'x'</default>
+    </key>
+  </schema>
+</schemalist>
+""";
+    try {
+        FileUtils.set_contents(fake_exe, "");
+        FileUtils.set_contents(xml_path, xml);
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+
+    int status = -1;
+    string stdout_text = "";
+    string stderr_text = "";
+    try {
+        Process.spawn_command_line_sync("glib-compile-schemas \"%s\"".printf(data_dir),
+                                        out stdout_text,
+                                        out stderr_text,
+                                        out status);
+    } catch (SpawnError e) {
+        assert_not_reached();
+    }
+    assert(status == 0);
+
+    string warning_text = "";
+    HolderLinux.AppSettings.set_warning_sink((message) => {
+        warning_text = message;
+    });
+    var settings = HolderLinux.AppSettings.open_or_null_for_executable_path(fake_exe);
+    HolderLinux.AppSettings.set_warning_sink(null);
+
+    assert(settings == null);
+    assert(warning_text.contains("missing from local schema directory"));
+
+    FileUtils.remove(Path.build_filename(data_dir, "gschemas.compiled"));
+    FileUtils.remove(xml_path);
+    DirUtils.remove(data_dir);
+    FileUtils.remove(fake_exe);
+    DirUtils.remove(tmp_dir);
+}
+
 private void test_key_constants_are_non_empty() {
     assert(HolderLinux.AppSettings.KEY_STYLE_VARIANT.length > 0);
     assert(HolderLinux.AppSettings.KEY_STYLE_SCHEME_ID.length > 0);
@@ -135,6 +194,8 @@ int main(string[] args) {
                   test_open_or_null_for_invalid_executable_emits_warning_and_returns_null);
     Test.add_func("/app_settings/open_or_null_for_bad_local_schema_dir_emits_warning_and_returns_null",
                   test_open_or_null_for_bad_local_schema_dir_emits_warning_and_returns_null);
+    Test.add_func("/app_settings/open_or_null_when_local_schema_missing_emits_specific_warning",
+                  test_open_or_null_when_local_schema_missing_emits_specific_warning);
     Test.add_func("/app_settings/key_constants_are_non_empty",
                   test_key_constants_are_non_empty);
     return Test.run();
