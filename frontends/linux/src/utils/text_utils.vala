@@ -1,7 +1,10 @@
 namespace HolderLinux {
 
 public class TextUtils : Object {
-    public static string ellipsize(string value, int max_len) {
+    public static string ellipsize(string? value, int max_len) {
+        if (value == null) {
+            return "";
+        }
         if (value.length <= max_len) {
             return value;
         }
@@ -11,14 +14,17 @@ public class TextUtils : Object {
         return value.substring(0, max_len - 3) + "...";
     }
 
-    public static string title_from_content(string text) {
+    public static string title_from_content(string? text) {
+        if (text == null) {
+            return "Untitled";
+        }
         var lines = text.split("\n");
         foreach (var raw_line in lines) {
             var line = raw_line.strip();
             if (line.length == 0) {
                 continue;
             }
-            if (line.has_prefix("#")) {
+            if (line[0] == '#') {
                 line = line.substring(1).strip();
             }
             return ellipsize(line, 80);
