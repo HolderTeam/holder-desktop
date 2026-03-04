@@ -192,14 +192,7 @@ public class AiRunController : Object {
         if (ai_poll_id != 0) {
             return;
         }
-        ai_poll_id = scheduler.schedule_repeating(AI_POLL_INTERVAL_MS, () => {
-            if (!panel_visible) {
-                ai_poll_id = 0;
-                return Source.REMOVE;
-            }
-            refresh_status.begin();
-            return Source.CONTINUE;
-        });
+        ai_poll_id = scheduler.schedule_repeating(AI_POLL_INTERVAL_MS, () => poll_tick());
     }
 
     private void stop_ai_polling() {
@@ -208,6 +201,15 @@ public class AiRunController : Object {
         }
         scheduler.cancel(ai_poll_id);
         ai_poll_id = 0;
+    }
+
+    internal bool poll_tick() {
+        if (!panel_visible) {
+            ai_poll_id = 0;
+            return Source.REMOVE;
+        }
+        refresh_status.begin();
+        return Source.CONTINUE;
     }
 
     private void handle_ai_run_event(string event_name, Json.Object data) {

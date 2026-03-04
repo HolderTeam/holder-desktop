@@ -484,6 +484,65 @@ private void test_refresh_status_stops_polling_when_no_active_pull_jobs() {
     assert(wait_for_condition(() => scheduler.cancel_calls > 0));
 }
 
+private void test_refresh_status_with_active_jobs_does_not_schedule_polling_twice() {
+    var api = new AiRunFakeApi();
+    api.status_active_pull_jobs = 1;
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
+    var scheduler = new TestScheduler();
+    var controller = new HolderLinux.AiRunController(ctx, scheduler);
+
+    int renders = 0;
+    controller.render_status_requested.connect((capabilities, status) => {
+        renders++;
+    });
+
+    controller.set_panel_visible(true);
+    assert(wait_for_condition(() => scheduler.repeating_scheduled == 1 && renders >= 1));
+
+    controller.refresh_status.begin();
+    assert(wait_for_condition(() => renders >= 2));
+    assert(scheduler.repeating_scheduled == 1);
+}
+
+private void test_ai_poll_tick_visible_continues_and_triggers_refresh() {
+    var api = new AiRunFakeApi();
+    api.status_active_pull_jobs = 1;
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
+    var scheduler = new TestScheduler();
+    var controller = new HolderLinux.AiRunController(ctx, scheduler);
+
+    int renders = 0;
+    controller.render_status_requested.connect((capabilities, status) => {
+        renders++;
+    });
+
+    controller.set_panel_visible(true);
+    assert(wait_for_condition(() => renders >= 1));
+    var before = renders;
+    assert(controller.poll_tick() == Source.CONTINUE);
+    assert(wait_for_condition(() => renders > before));
+}
+
+private void test_ai_poll_tick_hidden_removes() {
+    var api = new AiRunFakeApi();
+    api.status_active_pull_jobs = 1;
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
+    var scheduler = new TestScheduler();
+    var controller = new HolderLinux.AiRunController(ctx, scheduler);
+
+    controller.set_panel_visible(true);
+    assert(wait_for_condition(() => scheduler.repeating_scheduled > 0));
+    controller.set_panel_visible(false);
+
+    assert(controller.poll_tick() == Source.REMOVE);
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -574,6 +633,18 @@ int main(string[] args) {
     Test.add_func(
         "/ai_run/refresh_status_stops_polling_when_no_active_pull_jobs",
         test_refresh_status_stops_polling_when_no_active_pull_jobs
+    );
+    Test.add_func(
+        "/ai_run/refresh_status_with_active_jobs_does_not_schedule_polling_twice",
+        test_refresh_status_with_active_jobs_does_not_schedule_polling_twice
+    );
+    Test.add_func(
+        "/ai_run/ai_poll_tick_visible_continues_and_triggers_refresh",
+        test_ai_poll_tick_visible_continues_and_triggers_refresh
+    );
+    Test.add_func(
+        "/ai_run/ai_poll_tick_hidden_removes",
+        test_ai_poll_tick_hidden_removes
     );
 
     return Test.run();
