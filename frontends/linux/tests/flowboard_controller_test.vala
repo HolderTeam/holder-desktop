@@ -525,6 +525,21 @@ private void test_siblings_for_parent_in_cards_skips_null_cards() {
     assert(siblings[1].card_id == "b");
 }
 
+private void test_sort_key_around_target_missing_target_falls_back_to_next_slot() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("a", "p1", "Alpha", 1024.0));
+    card_store.append(make_card("b", "p1", "Beta", 2048.0));
+
+    var sort_key = controller.sort_key_around_target("a", "missing-target", null, true);
+    assert(sort_key == 3072.0);
+}
+
 private void test_open_card_from_context_menu_leaf_opens_without_navigation() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
@@ -1040,6 +1055,8 @@ int main(string[] args) {
                   test_is_descendant_in_cards_null_candidate_is_false);
     Test.add_func("/flowboard/siblings_for_parent_in_cards_skips_null_cards",
                   test_siblings_for_parent_in_cards_skips_null_cards);
+    Test.add_func("/flowboard/sort_key_around_target_missing_target_falls_back_to_next_slot",
+                  test_sort_key_around_target_missing_target_falls_back_to_next_slot);
     Test.add_func("/flowboard/open_card_from_context_menu_leaf_opens_without_navigation",
                   test_open_card_from_context_menu_leaf_opens_without_navigation);
     Test.add_func("/flowboard/move_left_right_edge_cards_are_noop",

@@ -529,10 +529,10 @@ public class FlowboardController : Object {
         return siblings[siblings.size - 1].sort_key + 1024.0;
     }
 
-    private double sort_key_around_target(string source_card_id,
-                                          string target_card_id,
-                                          string? parent_card_id,
-                                          bool after) {
+    internal double sort_key_around_target(string source_card_id,
+                                           string target_card_id,
+                                           string? parent_card_id,
+                                           bool after) {
         var siblings = siblings_for_parent(parent_card_id, source_card_id);
         int target_index = -1;
         for (int i = 0; i < siblings.size; i++) {
