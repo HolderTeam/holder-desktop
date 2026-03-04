@@ -15,9 +15,23 @@ public class AppSettings : Object {
     public const string KEY_CUSTOM_CARD_LINK_KINDS = "custom-card-link-kinds";
     public const string KEY_GIT_GITHUB_USERNAME = "git-github-username";
     private static WarningSink? warning_sink = null;
+    private static bool force_read_link_failure_for_tests = false;
+    private static bool skip_default_schema_lookup_for_tests = false;
 
     public static void set_warning_sink(owned WarningSink? sink) {
         warning_sink = (owned) sink;
+    }
+
+    internal static void emit_warning_for_tests(string message) {
+        emit_warning(message);
+    }
+
+    internal static void set_force_read_link_failure_for_tests(bool enabled) {
+        force_read_link_failure_for_tests = enabled;
+    }
+
+    internal static void set_skip_default_schema_lookup_for_tests(bool enabled) {
+        skip_default_schema_lookup_for_tests = enabled;
     }
 
     private static void emit_warning(string message) {
@@ -34,7 +48,7 @@ public class AppSettings : Object {
 
     public static Settings? open_or_null_for_executable_path(string? executable_path) {
         var default_source = SettingsSchemaSource.get_default();
-        if (default_source != null) {
+        if (!skip_default_schema_lookup_for_tests && default_source != null) {
             var schema = default_source.lookup(SCHEMA_ID, true);
             if (schema != null) {
                 return new Settings(SCHEMA_ID);
@@ -71,6 +85,9 @@ public class AppSettings : Object {
         string resolved_exe_path;
         if (executable_path == null || executable_path.strip().length == 0) {
             try {
+                if (force_read_link_failure_for_tests) {
+                    throw new FileError.NOENT("forced read_link failure");
+                }
                 resolved_exe_path = FileUtils.read_link("/proc/self/exe");
             } catch (Error e) {
                 return null;

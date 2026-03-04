@@ -67,6 +67,57 @@ private void test_open_or_null_for_invalid_executable_emits_warning_and_returns_
     assert(warning_text.contains("GSettings schema"));
 }
 
+private void test_emit_warning_without_sink_logs_warning() {
+    HolderLinux.AppSettings.set_warning_sink(null);
+    Test.expect_message(null, LogLevelFlags.LEVEL_WARNING, "*line-28-warning-test*");
+    HolderLinux.AppSettings.emit_warning_for_tests("line-28-warning-test");
+    Test.assert_expected_messages();
+}
+
+private void test_open_or_null_uses_default_schema_lookup_when_available_subprocess() {
+    if (Test.subprocess()) {
+        var settings = HolderLinux.AppSettings.open_or_null_for_executable_path("/tmp/holder-invalid-exe");
+        assert(settings != null);
+        return;
+    }
+
+    string exe_path;
+    try {
+        exe_path = FileUtils.read_link("/proc/self/exe");
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    var data_dir = HolderLinux.AppSettings.schema_candidate_dir_for_executable_path(exe_path);
+    assert(HolderLinux.AppSettings.has_compiled_schema_in_dir(data_dir));
+
+    var previous_schema_dir = Environment.get_variable("GSETTINGS_SCHEMA_DIR");
+    Environment.set_variable("GSETTINGS_BACKEND", "memory", true);
+    Environment.set_variable("GSETTINGS_SCHEMA_DIR", data_dir, true);
+    HolderLinux.AppSettings.set_skip_default_schema_lookup_for_tests(false);
+    HolderLinux.AppSettings.set_force_read_link_failure_for_tests(false);
+    Test.trap_subprocess("/app_settings/open_or_null_uses_default_schema_lookup_when_available_subprocess", 0, 0);
+    Test.trap_assert_passed();
+
+    if (previous_schema_dir == null) {
+        Environment.unset_variable("GSETTINGS_SCHEMA_DIR");
+    } else {
+        Environment.set_variable("GSETTINGS_SCHEMA_DIR", previous_schema_dir, true);
+    }
+}
+
+private void test_open_or_null_when_read_link_fails_returns_null() {
+    HolderLinux.AppSettings.set_skip_default_schema_lookup_for_tests(true);
+    HolderLinux.AppSettings.set_force_read_link_failure_for_tests(true);
+    HolderLinux.AppSettings.set_warning_sink((message) => {});
+
+    var settings = HolderLinux.AppSettings.open_or_null_for_executable_path(null);
+
+    HolderLinux.AppSettings.set_warning_sink(null);
+    HolderLinux.AppSettings.set_force_read_link_failure_for_tests(false);
+    HolderLinux.AppSettings.set_skip_default_schema_lookup_for_tests(false);
+    assert(settings == null);
+}
+
 private void test_open_or_null_for_bad_local_schema_dir_emits_warning_and_returns_null() {
     string tmp_dir = "";
     try {
@@ -192,6 +243,12 @@ int main(string[] args) {
                   test_has_compiled_schema_in_dir_true_when_file_exists);
     Test.add_func("/app_settings/open_or_null_for_invalid_executable_emits_warning_and_returns_null",
                   test_open_or_null_for_invalid_executable_emits_warning_and_returns_null);
+    Test.add_func("/app_settings/emit_warning_without_sink_logs_warning",
+                  test_emit_warning_without_sink_logs_warning);
+    Test.add_func("/app_settings/open_or_null_uses_default_schema_lookup_when_available_subprocess",
+                  test_open_or_null_uses_default_schema_lookup_when_available_subprocess);
+    Test.add_func("/app_settings/open_or_null_when_read_link_fails_returns_null",
+                  test_open_or_null_when_read_link_fails_returns_null);
     Test.add_func("/app_settings/open_or_null_for_bad_local_schema_dir_emits_warning_and_returns_null",
                   test_open_or_null_for_bad_local_schema_dir_emits_warning_and_returns_null);
     Test.add_func("/app_settings/open_or_null_when_local_schema_missing_emits_specific_warning",
