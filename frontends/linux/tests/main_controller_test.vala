@@ -289,6 +289,56 @@ private void test_create_card_without_project_emits_error() {
     assert(wait_for_condition(() => got_error));
 }
 
+private void test_create_card_with_title_success_trims_and_sets_content() {
+    var api = new MainControllerFakeApi();
+    api.include_created_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    bool saw_toast = false;
+    controller.toast_requested.connect((message) => {
+        if (message == "Created card: My Title") {
+            saw_toast = true;
+        }
+    });
+
+    controller.create_card_with_title.begin("  My Title  ");
+    assert(wait_for_condition(() => saw_toast));
+
+    assert(api.create_card_calls == 1);
+    assert(api.last_created_project_id == "p1");
+    assert(api.last_created_title == "My Title");
+    assert(api.last_created_content == "# My Title\n\n");
+    assert(api.last_created_parent_card_id == null);
+}
+
+private void test_create_card_with_title_empty_emits_error_and_skips_create() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Card title required") {
+            got_error = true;
+        }
+    });
+
+    controller.create_card_with_title.begin("   ");
+    assert(wait_for_condition(() => got_error));
+    assert(api.create_card_calls == 0);
+}
+
 private void test_reload_ai_threads_error_emits_error() {
     var api = new MainControllerFakeApi();
     api.fail_list_threads = true;
@@ -1122,6 +1172,14 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/create_card_without_project_emits_error",
         test_create_card_without_project_emits_error
+    );
+    Test.add_func(
+        "/main_controller/create_card_with_title_success_trims_and_sets_content",
+        test_create_card_with_title_success_trims_and_sets_content
+    );
+    Test.add_func(
+        "/main_controller/create_card_with_title_empty_emits_error_and_skips_create",
+        test_create_card_with_title_empty_emits_error_and_skips_create
     );
     Test.add_func(
         "/main_controller/reload_ai_threads_error_emits_error",

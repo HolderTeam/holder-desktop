@@ -61,6 +61,10 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int test_project_git_remote_calls = 0;
     public int push_project_git_calls = 0;
     public string last_updated_card_id = "";
+    public string last_created_project_id = "";
+    public string last_created_title = "";
+    public string last_created_content = "";
+    public string? last_created_parent_card_id = null;
     public string last_updated_title = "";
     public string last_updated_content = "";
     public int64 last_updated_at = 0;
@@ -384,6 +388,10 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
             throw new IOError.FAILED("create card failed");
         }
         create_card_calls++;
+        last_created_project_id = project_id;
+        last_created_title = title;
+        last_created_content = content;
+        last_created_parent_card_id = parent_card_id;
         if (slow_create_card) {
             var loop = new MainLoop();
             Timeout.add(200, () => {
