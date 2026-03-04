@@ -1145,6 +1145,39 @@ private void test_rebuild_card_summaries_handles_null_and_non_target_cards() {
     assert(rebuilt[1].updated_at == 999);
 }
 
+private void test_rebuild_card_positions_handles_null_and_non_target_cards() {
+    var source = new Gee.ArrayList<HolderLinux.CardSummary?>();
+    source.add(null);
+    source.add(new HolderLinux.CardSummary("c1", "p1", "Card 1", "c1.md", 1000.0, null, 1, 20));
+    source.add(new HolderLinux.CardSummary("c2", "p1", "Card 2", "c2.md", 2000.0, null, 2, 30));
+
+    var rebuilt = HolderLinux.MainController.rebuild_card_positions(
+        source,
+        "c2",
+        "c1",
+        1500.0,
+        999
+    );
+
+    assert(rebuilt.size == 2);
+    assert(rebuilt[0].card_id == "c1");
+    assert(rebuilt[0].sort_key == 1000.0);
+    assert(rebuilt[1].card_id == "c2");
+    assert(rebuilt[1].parent_card_id == "c1");
+    assert(rebuilt[1].sort_key == 1500.0);
+    assert(rebuilt[1].updated_at == 999);
+}
+
+private void test_compare_cards_for_sidebar_orders_older_last_and_tiebreaks_by_title() {
+    var newer = new HolderLinux.CardSummary("new", "p1", "Zulu", "new.md", 1.0, null, 1, 20);
+    var older = new HolderLinux.CardSummary("old", "p1", "Alpha", "old.md", 2.0, null, 2, 10);
+    assert(HolderLinux.MainController.compare_cards_for_sidebar(older, newer) == 1);
+
+    var tie_a = new HolderLinux.CardSummary("a", "p1", "Beta", "a.md", 1.0, null, 1, 50);
+    var tie_b = new HolderLinux.CardSummary("b", "p1", "alpha", "b.md", 2.0, null, 2, 50);
+    assert(HolderLinux.MainController.compare_cards_for_sidebar(tie_a, tie_b) > 0);
+}
+
 private void test_create_ai_thread_success() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -1664,6 +1697,14 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/rebuild_card_summaries_handles_null_and_non_target_cards",
         test_rebuild_card_summaries_handles_null_and_non_target_cards
+    );
+    Test.add_func(
+        "/main_controller/rebuild_card_positions_handles_null_and_non_target_cards",
+        test_rebuild_card_positions_handles_null_and_non_target_cards
+    );
+    Test.add_func(
+        "/main_controller/compare_cards_for_sidebar_orders_older_last_and_tiebreaks_by_title",
+        test_compare_cards_for_sidebar_orders_older_last_and_tiebreaks_by_title
     );
     Test.add_func(
         "/main_controller/create_ai_thread_success",

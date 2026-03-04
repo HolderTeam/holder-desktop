@@ -761,10 +761,41 @@ public class MainController : Object, IAiRunContext {
                                             double sort_key,
                                             int64 updated_at) {
         var selected_card_id = selected_card_id();
-        var updated_cards = new Gee.ArrayList<CardSummary>();
-        suppress_card_selection_events = true;
+        var source_cards = new Gee.ArrayList<CardSummary?>();
         for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
+            source_cards.add(card_store.get_item(i) as CardSummary);
+        }
+        var updated_cards = rebuild_card_positions(
+            source_cards,
+            card_id,
+            parent_card_id,
+            sort_key,
+            updated_at
+        );
+        suppress_card_selection_events = true;
+        if (current_card != null && current_card.card_id == card_id) {
+            current_card.updated_at = updated_at;
+        }
+        updated_cards.sort((a, b) => compare_cards_for_sidebar(a, b));
+        card_store.remove_all();
+        foreach (var card in updated_cards) {
+            card_store.append(card);
+        }
+        if (selected_card_id != null) {
+            select_card_by_id(selected_card_id);
+        }
+        suppress_card_selection_events = false;
+    }
+
+    public static Gee.ArrayList<CardSummary> rebuild_card_positions(
+        Gee.ArrayList<CardSummary?> source_cards,
+        string card_id,
+        string? parent_card_id,
+        double sort_key,
+        int64 updated_at
+    ) {
+        var updated_cards = new Gee.ArrayList<CardSummary>();
+        foreach (var card in source_cards) {
             if (card == null) {
                 continue;
             }
@@ -782,22 +813,11 @@ public class MainController : Object, IAiRunContext {
                 card.created_at,
                 updated_at
             ));
-            if (current_card != null && current_card.card_id == card_id) {
-                current_card.updated_at = updated_at;
-            }
         }
-        updated_cards.sort((a, b) => compare_cards_for_sidebar(a, b));
-        card_store.remove_all();
-        foreach (var card in updated_cards) {
-            card_store.append(card);
-        }
-        if (selected_card_id != null) {
-            select_card_by_id(selected_card_id);
-        }
-        suppress_card_selection_events = false;
+        return updated_cards;
     }
 
-    private int compare_cards_for_sidebar(CardSummary a, CardSummary b) {
+    internal static int compare_cards_for_sidebar(CardSummary a, CardSummary b) {
         if (a.updated_at > b.updated_at) {
             return -1;
         }
