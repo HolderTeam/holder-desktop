@@ -562,6 +562,55 @@ private void test_reload_everything_with_no_projects_sets_empty_state() {
     assert(controller.get_current_project() == null);
 }
 
+private void test_show_project_overview_without_selection_sets_no_project_state() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    bool saw_no_project = false;
+    bool show_editor = false;
+    controller.editor_state_changed.connect((text, editable) => {
+        if (text.contains("No Project Selected")) {
+            saw_no_project = true;
+            assert(!editable);
+        }
+    });
+    controller.show_editor_requested.connect(() => {
+        show_editor = true;
+    });
+
+    harness.project_selection.set_selected_index(uint.MAX);
+    controller.show_project_overview.begin();
+    assert(wait_for_condition(() => saw_no_project));
+    assert(!show_editor);
+    assert(controller.get_current_project() == null);
+    assert(controller.get_current_card() == null);
+}
+
+private void test_show_project_overview_resource_failure_sets_unknown() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    bool saw_unknown_resources = false;
+    controller.editor_state_changed.connect((text, editable) => {
+        if (text.contains("## Overview") && text.contains("- Resources: unknown")) {
+            saw_unknown_resources = true;
+        }
+    });
+
+    api.fail_list_resources = true;
+    controller.show_project_overview.begin();
+    assert(wait_for_condition(() => saw_unknown_resources));
+}
+
 private void test_reload_everything_with_no_cards_sets_empty_state() {
     var api = new MainControllerFakeApi();
     api.list_cards_empty = true;
@@ -1224,6 +1273,14 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/reload_everything_with_no_projects_sets_empty_state",
         test_reload_everything_with_no_projects_sets_empty_state
+    );
+    Test.add_func(
+        "/main_controller/show_project_overview_without_selection_sets_no_project_state",
+        test_show_project_overview_without_selection_sets_no_project_state
+    );
+    Test.add_func(
+        "/main_controller/show_project_overview_resource_failure_sets_unknown",
+        test_show_project_overview_resource_failure_sets_unknown
     );
     Test.add_func(
         "/main_controller/reload_everything_with_no_cards_sets_empty_state",

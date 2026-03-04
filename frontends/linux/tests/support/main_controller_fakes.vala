@@ -76,6 +76,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_create_card = false;
     public bool fail_create_project = false;
     public bool fail_list_threads = false;
+    public bool fail_list_resources = false;
     public bool include_card2 = false;
     public bool search_returns_card2 = false;
     public bool list_projects_empty = false;
@@ -215,6 +216,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async Gee.ArrayList<HolderLinux.ProjectResource> list_resources(string project_id) throws Error {
+        if (fail_list_resources) {
+            throw new IOError.FAILED("list resources failed");
+        }
         list_resources_calls++;
         last_resource_project_id = project_id;
         return new Gee.ArrayList<HolderLinux.ProjectResource>();
