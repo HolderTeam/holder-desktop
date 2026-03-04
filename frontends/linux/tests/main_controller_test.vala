@@ -1145,29 +1145,6 @@ private void test_rebuild_card_summaries_handles_null_and_non_target_cards() {
     assert(rebuilt[1].updated_at == 999);
 }
 
-private void test_rebuild_card_positions_handles_null_and_non_target_cards() {
-    var source = new Gee.ArrayList<HolderLinux.CardSummary?>();
-    source.add(null);
-    source.add(new HolderLinux.CardSummary("c1", "p1", "Card 1", "c1.md", 1000.0, null, 1, 20));
-    source.add(new HolderLinux.CardSummary("c2", "p1", "Card 2", "c2.md", 2000.0, null, 2, 30));
-
-    var rebuilt = HolderLinux.MainController.rebuild_card_positions(
-        source,
-        "c2",
-        "c1",
-        1500.0,
-        999
-    );
-
-    assert(rebuilt.size == 2);
-    assert(rebuilt[0].card_id == "c1");
-    assert(rebuilt[0].sort_key == 1000.0);
-    assert(rebuilt[1].card_id == "c2");
-    assert(rebuilt[1].parent_card_id == "c1");
-    assert(rebuilt[1].sort_key == 1500.0);
-    assert(rebuilt[1].updated_at == 999);
-}
-
 private void test_compare_cards_for_sidebar_orders_older_last_and_tiebreaks_by_title() {
     var newer = new HolderLinux.CardSummary("new", "p1", "Zulu", "new.md", 1.0, null, 1, 20);
     var older = new HolderLinux.CardSummary("old", "p1", "Alpha", "old.md", 2.0, null, 2, 10);
@@ -1370,17 +1347,7 @@ private void test_bootstrap_list_projects_failure_emits_bootstrap_error() {
     assert(wait_for_condition(() => saw_bootstrap_error));
 }
 
-private HolderLinux.CardSummary? find_card_by_id(GLib.ListStore store, string card_id) {
-    for (uint i = 0; i < store.get_n_items(); i++) {
-        var card = store.get_item(i) as HolderLinux.CardSummary;
-        if (card != null && card.card_id == card_id) {
-            return card;
-        }
-    }
-    return null;
-}
-
-private void test_move_card_success_updates_store_and_preserves_selection() {
+private void test_move_card_by_intent_success_reloads_and_preserves_selection() {
     var api = new MainControllerFakeApi();
     api.include_card2 = true;
     var scheduler = new TestScheduler();
@@ -1396,33 +1363,26 @@ private void test_move_card_success_updates_store_and_preserves_selection() {
     assert(wait_for_condition(() => controller.get_current_card() != null &&
                           controller.get_current_card().card_id == "c1"));
 
-    clock.now_value = 500;
     bool saw_status = false;
     controller.status_changed.connect((text) => {
         if (text == "Moved card") {
             saw_status = true;
         }
     });
+    var list_cards_before = api.list_cards_calls;
 
-    controller.move_card.begin("c1", "c2", 1500.0);
-    assert(wait_for_condition(() => saw_status));
+    controller.move_card_by_intent.begin("c1", "before", "c2", null);
+    assert(wait_for_condition(() => saw_status && api.list_cards_calls > list_cards_before));
 
     assert(api.update_card_position_calls == 1);
+    assert(api.last_move_project_id == "p1");
+    assert(api.last_move_intent == "before");
     assert(api.last_move_card_id == "c1");
-    assert(api.last_move_parent_card_id == "c2");
-    assert(api.last_move_sort_key == 1500.0);
-    assert(api.last_move_updated_at == 500);
-
-    var moved = find_card_by_id(harness.card_store, "c1");
-    assert(moved != null);
-    assert(moved.parent_card_id == "c2");
-    assert(moved.sort_key == 1500.0);
-    assert(moved.updated_at == 500);
-    assert(controller.get_current_card().updated_at == 500);
+    assert(api.last_move_target_card_id == "c2");
     assert(controller.selected_card_id() == "c1");
 }
 
-private void test_move_card_failure_emits_error_and_reloads_cards() {
+private void test_move_card_by_intent_failure_emits_error_and_reloads_cards() {
     var api = new MainControllerFakeApi();
     api.fail_update_card_position = true;
     var scheduler = new TestScheduler();
@@ -1436,17 +1396,17 @@ private void test_move_card_failure_emits_error_and_reloads_cards() {
     var list_cards_before = api.list_cards_calls;
     bool got_error = false;
     controller.error_reported.connect((title, details) => {
-        if (title == "Move card failed" && details.contains("update position failed")) {
+        if (title == "Move card failed" && details.contains("move by intent failed")) {
             got_error = true;
         }
     });
 
-    controller.move_card.begin("c1", "c2", 1500.0);
+    controller.move_card_by_intent.begin("c1", "after", "c2", null);
     assert(wait_for_condition(() => got_error));
     assert(wait_for_condition(() => api.list_cards_calls > list_cards_before));
 }
 
-private void test_move_card_without_api_is_noop() {
+private void test_move_card_by_intent_without_api_is_noop() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -1458,7 +1418,7 @@ private void test_move_card_without_api_is_noop() {
         got_error = true;
     });
 
-    controller.move_card.begin("c1", null, 123.0);
+    controller.move_card_by_intent.begin("c1", "to_end", null, null);
     assert(wait_for_condition(() => true));
     assert(api.update_card_position_calls == 0);
     assert(api.list_cards_calls == 0);
@@ -1699,10 +1659,6 @@ int main(string[] args) {
         test_rebuild_card_summaries_handles_null_and_non_target_cards
     );
     Test.add_func(
-        "/main_controller/rebuild_card_positions_handles_null_and_non_target_cards",
-        test_rebuild_card_positions_handles_null_and_non_target_cards
-    );
-    Test.add_func(
         "/main_controller/compare_cards_for_sidebar_orders_older_last_and_tiebreaks_by_title",
         test_compare_cards_for_sidebar_orders_older_last_and_tiebreaks_by_title
     );
@@ -1747,16 +1703,16 @@ int main(string[] args) {
         test_bootstrap_list_projects_failure_emits_bootstrap_error
     );
     Test.add_func(
-        "/main_controller/move_card_success_updates_store_and_preserves_selection",
-        test_move_card_success_updates_store_and_preserves_selection
+        "/main_controller/move_card_by_intent_success_reloads_and_preserves_selection",
+        test_move_card_by_intent_success_reloads_and_preserves_selection
     );
     Test.add_func(
-        "/main_controller/move_card_failure_emits_error_and_reloads_cards",
-        test_move_card_failure_emits_error_and_reloads_cards
+        "/main_controller/move_card_by_intent_failure_emits_error_and_reloads_cards",
+        test_move_card_by_intent_failure_emits_error_and_reloads_cards
     );
     Test.add_func(
-        "/main_controller/move_card_without_api_is_noop",
-        test_move_card_without_api_is_noop
+        "/main_controller/move_card_by_intent_without_api_is_noop",
+        test_move_card_by_intent_without_api_is_noop
     );
     Test.add_func(
         "/main_controller/ensure_first_project_without_api_is_noop",

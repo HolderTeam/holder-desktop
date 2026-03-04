@@ -72,6 +72,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public string? last_move_parent_card_id = null;
     public double last_move_sort_key = 0.0;
     public int64 last_move_updated_at = 0;
+    public string last_move_project_id = "";
+    public string last_move_intent = "";
+    public string? last_move_target_card_id = null;
     public bool fail_health = false;
     public bool fail_create_card = false;
     public bool fail_create_project = false;
@@ -456,6 +459,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
             throw new IOError.FAILED("move by intent failed");
         }
         update_card_position_calls++;
+        last_move_project_id = project_id;
+        last_move_intent = intent;
+        last_move_target_card_id = target_card_id;
         last_move_card_id = card_id;
         last_move_parent_card_id = parent_card_id;
         return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0, 1, "");

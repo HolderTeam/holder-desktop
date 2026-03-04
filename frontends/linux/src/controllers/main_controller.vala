@@ -405,22 +405,6 @@ public class MainController : Object, IAiRunContext {
         }
     }
 
-    public async void move_card(string card_id, string? parent_card_id, double sort_key) {
-        if (api == null) {
-            return;
-        }
-
-        var updated_at = now_epoch_seconds();
-        try {
-            yield api.update_card_position(card_id, parent_card_id, sort_key, updated_at);
-            apply_card_position_update(card_id, parent_card_id, sort_key, updated_at);
-            status_changed("Moved card");
-        } catch (Error e) {
-            error_reported("Move card failed", e.message);
-            reload_cards_for_selected_project.begin(card_id);
-        }
-    }
-
     public async void move_card_by_intent(string card_id,
                                           string intent,
                                           string? target_card_id = null,
@@ -781,67 +765,6 @@ public class MainController : Object, IAiRunContext {
                 card.rel_path,
                 card.sort_key,
                 card.parent_card_id,
-                card.created_at,
-                updated_at
-            ));
-        }
-        return updated_cards;
-    }
-
-    private void apply_card_position_update(string card_id,
-                                            string? parent_card_id,
-                                            double sort_key,
-                                            int64 updated_at) {
-        var selected_card_id = selected_card_id();
-        var source_cards = new Gee.ArrayList<CardSummary?>();
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            source_cards.add(card_store.get_item(i) as CardSummary);
-        }
-        var updated_cards = rebuild_card_positions(
-            source_cards,
-            card_id,
-            parent_card_id,
-            sort_key,
-            updated_at
-        );
-        suppress_card_selection_events = true;
-        if (current_card != null && current_card.card_id == card_id) {
-            current_card.updated_at = updated_at;
-        }
-        updated_cards.sort((a, b) => compare_cards_for_sidebar(a, b));
-        card_store.remove_all();
-        foreach (var card in updated_cards) {
-            card_store.append(card);
-        }
-        if (selected_card_id != null) {
-            select_card_by_id(selected_card_id);
-        }
-        suppress_card_selection_events = false;
-    }
-
-    public static Gee.ArrayList<CardSummary> rebuild_card_positions(
-        Gee.ArrayList<CardSummary?> source_cards,
-        string card_id,
-        string? parent_card_id,
-        double sort_key,
-        int64 updated_at
-    ) {
-        var updated_cards = new Gee.ArrayList<CardSummary>();
-        foreach (var card in source_cards) {
-            if (card == null) {
-                continue;
-            }
-            if (card.card_id != card_id) {
-                updated_cards.add(card);
-                continue;
-            }
-            updated_cards.add(new CardSummary(
-                card.card_id,
-                card.project_id,
-                card.title,
-                card.rel_path,
-                sort_key,
-                parent_card_id,
                 card.created_at,
                 updated_at
             ));
