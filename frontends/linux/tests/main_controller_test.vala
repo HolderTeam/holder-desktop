@@ -1000,6 +1000,82 @@ private void test_bootstrap_list_projects_failure_emits_bootstrap_error() {
     assert(wait_for_condition(() => saw_bootstrap_error));
 }
 
+private HolderLinux.CardSummary? find_card_by_id(GLib.ListStore store, string card_id) {
+    for (uint i = 0; i < store.get_n_items(); i++) {
+        var card = store.get_item(i) as HolderLinux.CardSummary;
+        if (card != null && card.card_id == card_id) {
+            return card;
+        }
+    }
+    return null;
+}
+
+private void test_move_card_success_updates_store_and_preserves_selection() {
+    var api = new MainControllerFakeApi();
+    api.include_card2 = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    harness.card_selection.set_selected_index(1);
+    controller.on_card_selected();
+    assert(wait_for_condition(() => controller.get_current_card() != null &&
+                          controller.get_current_card().card_id == "c1"));
+
+    clock.now_value = 500;
+    bool saw_status = false;
+    controller.status_changed.connect((text) => {
+        if (text == "Moved card") {
+            saw_status = true;
+        }
+    });
+
+    controller.move_card.begin("c1", "c2", 1500.0);
+    assert(wait_for_condition(() => saw_status));
+
+    assert(api.update_card_position_calls == 1);
+    assert(api.last_move_card_id == "c1");
+    assert(api.last_move_parent_card_id == "c2");
+    assert(api.last_move_sort_key == 1500.0);
+    assert(api.last_move_updated_at == 500);
+
+    var moved = find_card_by_id(harness.card_store, "c1");
+    assert(moved != null);
+    assert(moved.parent_card_id == "c2");
+    assert(moved.sort_key == 1500.0);
+    assert(moved.updated_at == 500);
+    assert(controller.get_current_card().updated_at == 500);
+    assert(controller.selected_card_id() == "c1");
+}
+
+private void test_move_card_failure_emits_error_and_reloads_cards() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card_position = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    var list_cards_before = api.list_cards_calls;
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Move card failed" && details.contains("update position failed")) {
+            got_error = true;
+        }
+    });
+
+    controller.move_card.begin("c1", "c2", 1500.0);
+    assert(wait_for_condition(() => got_error));
+    assert(wait_for_condition(() => api.list_cards_calls > list_cards_before));
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -1198,6 +1274,14 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/bootstrap_list_projects_failure_emits_bootstrap_error",
         test_bootstrap_list_projects_failure_emits_bootstrap_error
+    );
+    Test.add_func(
+        "/main_controller/move_card_success_updates_store_and_preserves_selection",
+        test_move_card_success_updates_store_and_preserves_selection
+    );
+    Test.add_func(
+        "/main_controller/move_card_failure_emits_error_and_reloads_cards",
+        test_move_card_failure_emits_error_and_reloads_cards
     );
 
     return Test.run();

@@ -82,6 +82,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool list_threads_empty = false;
     public bool include_created_card = false;
     public bool fail_update_card = false;
+    public bool fail_update_card_position = false;
     public bool fail_search = false;
     public bool fail_get_card = false;
     public bool fail_list_cards = false;
@@ -412,6 +413,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                            string? parent_card_id,
                                            double sort_key,
                                            int64 updated_at) throws Error {
+        if (fail_update_card_position) {
+            throw new IOError.FAILED("update position failed");
+        }
         update_card_position_calls++;
         last_move_card_id = card_id;
         last_move_parent_card_id = parent_card_id;
