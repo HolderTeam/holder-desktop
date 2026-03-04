@@ -480,6 +480,51 @@ private void test_activate_tile_with_null_card_id_is_noop() {
     assert(selected.project_id == "p1");
 }
 
+private void test_count_root_cards_for_project_skips_null_cards() {
+    var source_cards = new Gee.ArrayList<HolderLinux.CardSummary?>();
+    source_cards.add(null);
+    source_cards.add(make_card("root-1", "p1", "Root 1", 1024.0));
+    source_cards.add(make_card("child-1", "p1", "Child 1", 1024.0, "root-1"));
+    source_cards.add(make_card("root-2", "p1", "Root 2", 2048.0));
+    source_cards.add(make_card("other-project", "p2", "Other", 1024.0));
+
+    var count = HolderLinux.FlowboardController.count_root_cards_for_project(source_cards, "p1");
+    assert(count == 2);
+}
+
+private void test_count_children_for_parent_skips_null_cards() {
+    var source_cards = new Gee.ArrayList<HolderLinux.CardSummary?>();
+    source_cards.add(null);
+    source_cards.add(make_card("p", "p1", "Parent", 1024.0));
+    source_cards.add(make_card("c1", "p1", "Child 1", 1024.0, "p"));
+    source_cards.add(make_card("c2", "p1", "Child 2", 2048.0, "p"));
+    source_cards.add(make_card("other", "p1", "Other", 3072.0, "x"));
+
+    var count = HolderLinux.FlowboardController.count_children_for_parent(source_cards, "p");
+    assert(count == 2);
+}
+
+private void test_is_descendant_in_cards_null_candidate_is_false() {
+    var source_cards = new Gee.ArrayList<HolderLinux.CardSummary?>();
+    source_cards.add(make_card("a", "p1", "A", 1024.0));
+    source_cards.add(make_card("b", "p1", "B", 2048.0, "a"));
+
+    assert(!HolderLinux.FlowboardController.is_descendant_in_cards(source_cards, null, "a"));
+}
+
+private void test_siblings_for_parent_in_cards_skips_null_cards() {
+    var source_cards = new Gee.ArrayList<HolderLinux.CardSummary?>();
+    source_cards.add(null);
+    source_cards.add(make_card("a", "p1", "Alpha", 1024.0));
+    source_cards.add(make_card("b", "p1", "Beta", 2048.0));
+    source_cards.add(make_card("c", "p1", "Gamma", 3072.0, "a"));
+
+    var siblings = HolderLinux.FlowboardController.siblings_for_parent_in_cards(source_cards, null);
+    assert(siblings.size == 2);
+    assert(siblings[0].card_id == "a");
+    assert(siblings[1].card_id == "b");
+}
+
 private void test_open_card_from_context_menu_leaf_opens_without_navigation() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
@@ -987,6 +1032,14 @@ int main(string[] args) {
                   test_activate_position_out_of_range_is_noop);
     Test.add_func("/flowboard/activate_tile_with_null_card_id_is_noop",
                   test_activate_tile_with_null_card_id_is_noop);
+    Test.add_func("/flowboard/count_root_cards_for_project_skips_null_cards",
+                  test_count_root_cards_for_project_skips_null_cards);
+    Test.add_func("/flowboard/count_children_for_parent_skips_null_cards",
+                  test_count_children_for_parent_skips_null_cards);
+    Test.add_func("/flowboard/is_descendant_in_cards_null_candidate_is_false",
+                  test_is_descendant_in_cards_null_candidate_is_false);
+    Test.add_func("/flowboard/siblings_for_parent_in_cards_skips_null_cards",
+                  test_siblings_for_parent_in_cards_skips_null_cards);
     Test.add_func("/flowboard/open_card_from_context_menu_leaf_opens_without_navigation",
                   test_open_card_from_context_menu_leaf_opens_without_navigation);
     Test.add_func("/flowboard/move_left_right_edge_cards_are_noop",
