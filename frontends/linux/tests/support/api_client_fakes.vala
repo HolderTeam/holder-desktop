@@ -3,17 +3,37 @@ using GLib;
 namespace HolderLinuxTests {
 
 public class FakeApiHttpTransport : Object, HolderLinux.IApiHttpTransport {
+    private class ThrowingInputStream : InputStream {
+        private string message_text;
+
+        public ThrowingInputStream(string message_text) {
+            this.message_text = message_text;
+        }
+
+        public override ssize_t read(uint8[] buffer, Cancellable? cancellable = null) throws IOError {
+            throw new IOError.FAILED(message_text);
+        }
+
+        public override bool close(Cancellable? cancellable = null) throws IOError {
+            return true;
+        }
+    }
+
     private class QueuedResponse : Object {
         public int status;
         public string body;
         public bool should_throw;
         public string throw_message;
+        public bool stream_read_should_throw;
+        public string stream_read_throw_message;
 
         public QueuedResponse(int status, string body) {
             this.status = status;
             this.body = body;
             this.should_throw = false;
             this.throw_message = "";
+            this.stream_read_should_throw = false;
+            this.stream_read_throw_message = "";
         }
 
         public QueuedResponse.throwing(string message) {
@@ -21,6 +41,17 @@ public class FakeApiHttpTransport : Object, HolderLinux.IApiHttpTransport {
             this.body = "";
             this.should_throw = true;
             this.throw_message = message;
+            this.stream_read_should_throw = false;
+            this.stream_read_throw_message = "";
+        }
+
+        public QueuedResponse.stream_read_throwing(int status, string message) {
+            this.status = status;
+            this.body = "";
+            this.should_throw = false;
+            this.throw_message = "";
+            this.stream_read_should_throw = true;
+            this.stream_read_throw_message = message;
         }
     }
 
@@ -49,6 +80,10 @@ public class FakeApiHttpTransport : Object, HolderLinux.IApiHttpTransport {
         stream_responses.add(new QueuedResponse.throwing(message));
     }
 
+    public void enqueue_stream_read_throw(int status, string message) {
+        stream_responses.add(new QueuedResponse.stream_read_throwing(status, message));
+    }
+
     public async HolderLinux.ApiHttpBytesResponse send_and_read(Soup.Message message) throws Error {
         remember_message(message);
         if (read_responses.size == 0) {
@@ -72,6 +107,12 @@ public class FakeApiHttpTransport : Object, HolderLinux.IApiHttpTransport {
         var response = stream_responses.remove_at(0);
         if (response.should_throw) {
             throw new IOError.FAILED(response.throw_message);
+        }
+        if (response.stream_read_should_throw) {
+            return new HolderLinux.ApiHttpStreamResponse(
+                (uint) response.status,
+                new ThrowingInputStream(response.stream_read_throw_message)
+            );
         }
         return new HolderLinux.ApiHttpStreamResponse(
             (uint) response.status,

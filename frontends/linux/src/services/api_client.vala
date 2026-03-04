@@ -792,6 +792,13 @@ public class ApiClient : Object, IHolderApi {
         return root;
     }
 
+    public async Json.Object request_json_unwrapped_for_tests(string method,
+                                                              string path,
+                                                              string? request_body,
+                                                              HashTable<string, string>? query = null) throws Error {
+        return yield request_json_unwrapped(method, path, request_body, query);
+    }
+
     private string build_url(string path, HashTable<string, string>? query) {
         var sb = new StringBuilder();
         sb.append(base_url);

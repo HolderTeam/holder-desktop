@@ -29,7 +29,7 @@ run_app() {
 coverage() {
   setup_build "${COVERAGE_BUILD_DIR}" -Db_coverage=true
   meson compile -C "${COVERAGE_BUILD_DIR}"
-  meson test -C "${COVERAGE_BUILD_DIR}" --print-errorlogs
+  GSETTINGS_BACKEND=memory meson test -C "${COVERAGE_BUILD_DIR}" --print-errorlogs
 
   local out_dir="${COVERAGE_BUILD_DIR}/coverage"
   mkdir -p "${out_dir}"

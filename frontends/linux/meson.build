@@ -22,16 +22,33 @@ sources = [
   'src/models/models.vala',
   'src/services/core_interfaces.vala',
   'src/services/app_settings.vala',
+  'src/services/git_sync_service.vala',
+  'src/services/resources_service.vala',
   'src/utils/text_utils.vala',
   'src/views/sidebar.vala',
   'src/views/ai_panel.vala',
   'src/views/preferences_dialog.vala',
+  'src/views/search.vala',
   'src/views/flowboard_pane.vala',
   'src/views/toolbox.vala',
+  'src/views/toolbox/connections_tool_view.vala',
+  'src/views/toolbox/ai_catalog_tool_view.vala',
+  'src/views/toolbox/debug_tool_view.vala',
+  'src/views/toolbox/flowboard_tool_view.vala',
+  'src/views/toolbox/git_sync_tool_view.vala',
+  'src/views/toolbox/recovery_key_tool_view.vala',
+  'src/views/toolbox/resources_tool_view.vala',
+  'src/views/toolbox/sharing_tool_view.vala',
+  'src/views/toolbox/terminal_tool_view.vala',
   'src/services/ui_adapters.vala',
   'src/views/workspace_pane.vala',
   'src/controllers/main_controller.vala',
   'src/controllers/ai_run_controller.vala',
+  'src/controllers/git_sync_controller.vala',
+  'src/controllers/resources_controller.vala',
+  'src/controllers/ai_catalog_controller.vala',
+  'src/controllers/connections_controller.vala',
+  'src/controllers/terminal_controller.vala',
   'src/controllers/flowboard_controller.vala',
   'src/services/discovery.vala',
   'src/services/api_client.vala',
@@ -56,6 +73,8 @@ test_exe = executable(
   ],
   dependencies: [
     dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
   ],
   vala_args: [
     '--target-glib=2.70',
@@ -93,6 +112,7 @@ main_controller_test_exe = executable(
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
+    'tests/support/main_controller_harness.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/utils/text_utils.vala',
@@ -111,6 +131,188 @@ main_controller_test_exe = executable(
 )
 
 test('holder-linux-main-controller-tests', main_controller_test_exe)
+
+git_sync_controller_test_exe = executable(
+  'holder-linux-git-sync-controller-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/app_settings.vala',
+    'src/services/git_sync_service.vala',
+    'src/controllers/git_sync_controller.vala',
+    'tests/git_sync_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-git-sync-controller-tests', git_sync_controller_test_exe)
+
+resources_controller_test_exe = executable(
+  'holder-linux-resources-controller-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/resources_service.vala',
+    'src/controllers/resources_controller.vala',
+    'tests/resources_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-resources-controller-tests', resources_controller_test_exe)
+
+resources_service_test_exe = executable(
+  'holder-linux-resources-service-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/resources_service.vala',
+    'tests/resources_service_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-resources-service-tests', resources_service_test_exe)
+
+connections_controller_test_exe = executable(
+  'holder-linux-connections-controller-tests',
+  [
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/app_settings.vala',
+    'src/controllers/connections_controller.vala',
+    'tests/connections_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-connections-controller-tests', connections_controller_test_exe)
+
+terminal_controller_test_exe = executable(
+  'holder-linux-terminal-controller-tests',
+  [
+    'src/controllers/terminal_controller.vala',
+    'tests/terminal_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-terminal-controller-tests', terminal_controller_test_exe)
+
+git_sync_service_test_exe = executable(
+  'holder-linux-git-sync-service-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/git_sync_service.vala',
+    'tests/git_sync_service_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-git-sync-service-tests', git_sync_service_test_exe)
+
+ai_catalog_controller_test_exe = executable(
+  'holder-linux-ai-catalog-controller-tests',
+  [
+    'src/models/models.vala',
+    'src/controllers/ai_catalog_controller.vala',
+    'tests/ai_catalog_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-ai-catalog-controller-tests', ai_catalog_controller_test_exe)
+
+flowboard_controller_test_exe = executable(
+  'holder-linux-flowboard-controller-tests',
+  [
+    'src/models/models.vala',
+    'src/controllers/flowboard_controller.vala',
+    'tests/flowboard_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-flowboard-controller-tests', flowboard_controller_test_exe)
 
 api_client_test_exe = executable(
   'holder-linux-api-client-tests',

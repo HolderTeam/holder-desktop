@@ -40,6 +40,11 @@ private void test_holder_info_path_uses_user_data_dir() {
     assert(actual == expected);
 }
 
+private void test_discovery_class_can_be_instantiated() {
+    var discovery = new HolderLinux.Discovery();
+    assert(discovery != null);
+}
+
 private void test_discover_server_not_found() {
     setup_temp_data_home();
 
@@ -96,15 +101,40 @@ private void test_discover_server_read_failure_when_path_is_directory() {
     var path = holder_info_path_for_current_env();
     var dir = Path.get_dirname(path);
     DirUtils.create_with_parents(dir, 0755);
-    DirUtils.create(path, 0755);
+    try {
+        FileUtils.set_contents(path, "{\"pid\":1}");
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+
+    int chmod_status = -1;
+    try {
+        Process.spawn_command_line_sync("chmod 000 %s".printf(Shell.quote(path)),
+                                        null, null, out chmod_status);
+    } catch (SpawnError e) {
+        assert_not_reached();
+    }
+    assert(chmod_status == 0);
 
     bool got_invalid = false;
+    bool got_read_failure_message = false;
     try {
         HolderLinux.Discovery.discover_server();
     } catch (Error e) {
         got_invalid = (e is HolderLinux.DiscoveryError.INVALID_FORMAT);
+        got_read_failure_message = e.message.contains("Failed to read");
     }
     assert(got_invalid);
+    assert(got_read_failure_message);
+
+    int restore_status = -1;
+    try {
+        Process.spawn_command_line_sync("chmod 600 %s".printf(Shell.quote(path)),
+                                        null, null, out restore_status);
+    } catch (SpawnError e) {
+        assert_not_reached();
+    }
+    assert(restore_status == 0);
 }
 
 private void test_discover_server_success() {
@@ -166,6 +196,7 @@ int main(string[] args) {
     Test.init(ref args);
 
     Test.add_func("/discovery/holder_info_path_uses_user_data_dir", test_holder_info_path_uses_user_data_dir);
+    Test.add_func("/discovery/discovery_class_can_be_instantiated", test_discovery_class_can_be_instantiated);
     Test.add_func("/discovery/discover_server_not_found", test_discover_server_not_found);
     Test.add_func("/discovery/discover_server_invalid_json", test_discover_server_invalid_json);
     Test.add_func("/discovery/discover_server_invalid_root", test_discover_server_invalid_root);

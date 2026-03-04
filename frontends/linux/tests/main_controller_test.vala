@@ -289,6 +289,83 @@ private void test_create_card_without_project_emits_error() {
     assert(wait_for_condition(() => got_error));
 }
 
+private void test_create_card_uses_selected_project_when_current_project_null() {
+    var api = new MainControllerFakeApi();
+    api.include_created_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    harness.project_store.append(
+        new HolderLinux.Project("p-selected", "Selected", "encrypted_git", "/tmp/selected", 1, 1)
+    );
+    harness.project_selection.set_selected_index(0);
+    assert(controller.get_current_project() == null);
+
+    bool saw_toast = false;
+    controller.toast_requested.connect((message) => {
+        if (message == "New card created") {
+            saw_toast = true;
+        }
+    });
+
+    controller.create_card.begin();
+    assert(wait_for_condition(() => saw_toast));
+    assert(api.create_card_calls == 1);
+    assert(api.last_created_project_id == "p-selected");
+}
+
+private void test_create_card_with_title_success_trims_and_sets_content() {
+    var api = new MainControllerFakeApi();
+    api.include_created_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    bool saw_toast = false;
+    controller.toast_requested.connect((message) => {
+        if (message == "Created card: My Title") {
+            saw_toast = true;
+        }
+    });
+
+    controller.create_card_with_title.begin("  My Title  ");
+    assert(wait_for_condition(() => saw_toast));
+
+    assert(api.create_card_calls == 1);
+    assert(api.last_created_project_id == "p1");
+    assert(api.last_created_title == "My Title");
+    assert(api.last_created_content == "# My Title\n\n");
+    assert(api.last_created_parent_card_id == null);
+}
+
+private void test_create_card_with_title_empty_emits_error_and_skips_create() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Card title required") {
+            got_error = true;
+        }
+    });
+
+    controller.create_card_with_title.begin("   ");
+    assert(wait_for_condition(() => got_error));
+    assert(api.create_card_calls == 0);
+}
+
 private void test_reload_ai_threads_error_emits_error() {
     var api = new MainControllerFakeApi();
     api.fail_list_threads = true;
@@ -353,6 +430,31 @@ private void test_open_search_result_missing_card_triggers_reload() {
     assert(wait_for_condition(() => api.list_cards_calls > before_reload));
     assert(wait_for_condition(() => controller.get_current_card() != null &&
                           controller.get_current_card().card_id == "c2"));
+}
+
+private void test_open_search_result_missing_card_falls_back_to_first_card() {
+    var api = new MainControllerFakeApi();
+    api.include_card2 = false;
+    api.search_returns_card2 = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    search_text.value = "card2";
+    controller.run_search.begin();
+    assert(wait_for_condition(() => api.search_calls == 1));
+
+    var list_cards_before = api.list_cards_calls;
+    controller.open_search_result_at.begin(0);
+    assert(wait_for_condition(() => api.list_cards_calls > list_cards_before));
+    assert(wait_for_condition(() => controller.selected_card_id() == "c1"));
+    assert(wait_for_condition(() => controller.get_current_card() != null &&
+                          controller.get_current_card().card_id == "c1"));
 }
 
 private void test_run_search_without_project_emits_error() {
@@ -512,6 +614,81 @@ private void test_reload_everything_with_no_projects_sets_empty_state() {
     assert(controller.get_current_project() == null);
 }
 
+private void test_show_project_overview_without_selection_sets_no_project_state() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    bool saw_no_project = false;
+    bool show_editor = false;
+    controller.editor_state_changed.connect((text, editable) => {
+        if (text.contains("No Project Selected")) {
+            saw_no_project = true;
+            assert(!editable);
+        }
+    });
+    controller.show_editor_requested.connect(() => {
+        show_editor = true;
+    });
+
+    harness.project_selection.set_selected_index(uint.MAX);
+    controller.show_project_overview.begin();
+    assert(wait_for_condition(() => saw_no_project));
+    assert(!show_editor);
+    assert(controller.get_current_project() == null);
+    assert(controller.get_current_card() == null);
+}
+
+private void test_show_project_overview_resource_failure_sets_unknown() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    bool saw_unknown_resources = false;
+    controller.editor_state_changed.connect((text, editable) => {
+        if (text.contains("## Overview") && text.contains("- Resources: unknown")) {
+            saw_unknown_resources = true;
+        }
+    });
+
+    api.fail_list_resources = true;
+    controller.show_project_overview.begin();
+    assert(wait_for_condition(() => saw_unknown_resources));
+}
+
+private void test_show_project_overview_zero_timestamps_show_unknown() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock, null, null, false);
+    var controller = harness.controller;
+
+    harness.project_store.append(
+        new HolderLinux.Project("p1", "Zero Times", "encrypted_git", "/tmp/zero", 0, 0)
+    );
+    harness.project_selection.set_selected_index(0);
+
+    bool saw_unknown_timestamps = false;
+    controller.editor_state_changed.connect((text, editable) => {
+        if (text.contains("## Metadata") &&
+            text.contains("- Created: unknown") &&
+            text.contains("- Updated: unknown")) {
+            saw_unknown_timestamps = true;
+            assert(!editable);
+        }
+    });
+
+    controller.show_project_overview.begin();
+    assert(wait_for_condition(() => saw_unknown_timestamps));
+}
+
 private void test_reload_everything_with_no_cards_sets_empty_state() {
     var api = new MainControllerFakeApi();
     api.list_cards_empty = true;
@@ -562,6 +739,23 @@ private void test_reload_everything_uses_preferred_project_selection() {
     controller.reload_everything.begin();
     assert(wait_for_condition(() => controller.get_current_project() != null));
     assert(controller.selected_project_id() == "p1");
+}
+
+private void test_reload_everything_hoists_home_project_to_top() {
+    var api = new MainControllerFakeApi();
+    api.include_home_project = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => harness.project_store.get_n_items() == 2));
+
+    var first = harness.project_store.get_item(0) as HolderLinux.Project;
+    var second = harness.project_store.get_item(1) as HolderLinux.Project;
+    assert(first != null && first.name == "Home");
+    assert(second != null && second.name == "Project 1");
 }
 
 private void test_ignore_flags_public_accessors_default_false() {
@@ -678,6 +872,21 @@ private void test_on_project_selected_without_selection_noop() {
     assert(controller.get_current_project() == null);
 }
 
+private void test_on_project_selected_without_api_is_noop() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock, null, null, false);
+    var controller = harness.controller;
+
+    harness.project_store.append(new HolderLinux.Project("p1", "P1", "encrypted_git", "/tmp", 1, 1));
+    harness.project_selection.set_selected_index(0);
+
+    controller.on_project_selected();
+    assert(wait_for_condition(() => true));
+    assert(api.list_cards_calls == 0);
+}
+
 private void test_on_card_selected_without_selection_sets_empty_state() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -697,6 +906,29 @@ private void test_on_card_selected_without_selection_sets_empty_state() {
     harness.card_selection.set_selected_index(uint.MAX);
     controller.on_card_selected();
     assert(wait_for_condition(() => saw_no_selection));
+}
+
+private void test_on_card_selected_without_api_is_noop() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock, null, null, false);
+    var controller = harness.controller;
+
+    harness.card_store.append(
+        new HolderLinux.CardSummary("c1", "p1", "C1", "c1.md", 1024.0, null, 1, 1)
+    );
+    harness.card_selection.set_selected_index(0);
+
+    bool got_editor_state = false;
+    controller.editor_state_changed.connect((text, editable) => {
+        got_editor_state = true;
+    });
+
+    controller.on_card_selected();
+    assert(wait_for_condition(() => true));
+    assert(api.get_card_calls == 0);
+    assert(!got_editor_state);
 }
 
 private void test_on_ai_thread_selected_emits_title_and_sets_current_thread() {
@@ -771,6 +1003,68 @@ private void test_load_selected_card_failure_emits_error() {
     assert(wait_for_condition(() => got_error));
 }
 
+private void test_load_selected_card_stale_success_is_ignored() {
+    var api = new MainControllerFakeApi();
+    api.include_card2 = true;
+    api.slow_get_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    harness.card_selection.set_selected_index(0);
+    Timeout.add(5, () => {
+        harness.card_selection.set_selected_index(1);
+        return Source.REMOVE;
+    });
+
+    bool loaded_card1_status = false;
+    controller.status_changed.connect((text) => {
+        if (text == "Loaded Card 1") {
+            loaded_card1_status = true;
+        }
+    });
+
+    controller.on_card_selected();
+    assert(wait_for_condition(() => harness.card_selection.get_selected_index() == 1));
+    assert(wait_for_condition(() => api.get_card_calls == 1));
+    assert(!loaded_card1_status);
+    assert(controller.get_current_card() == null);
+}
+
+private void test_load_selected_card_stale_failure_is_ignored() {
+    var api = new MainControllerFakeApi();
+    api.include_card2 = true;
+    api.slow_get_card = true;
+    api.fail_get_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    harness.card_selection.set_selected_index(0);
+    Timeout.add(5, () => {
+        harness.card_selection.set_selected_index(1);
+        return Source.REMOVE;
+    });
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        got_error = true;
+    });
+
+    controller.on_card_selected();
+    assert(wait_for_condition(() => harness.card_selection.get_selected_index() == 1));
+    assert(wait_for_condition(() => api.get_card_calls == 1));
+    assert(!got_error);
+}
+
 private void test_autosave_failure_emits_error() {
     var api = new MainControllerFakeApi();
     api.fail_update_card = true;
@@ -806,6 +1100,82 @@ private void test_autosave_without_card_is_noop() {
     controller.autosave_current_card.begin();
     assert(wait_for_condition(() => true));
     assert(api.update_card_calls == 0);
+}
+
+private void test_update_selected_card_summary_without_current_card_is_noop() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    harness.card_store.append(
+        new HolderLinux.CardSummary("c1", "p1", "Card 1", "c1.md", 1000.0, null, 1, 20)
+    );
+    harness.card_selection.set_selected_index(0);
+    assert(controller.get_current_card() == null);
+
+    controller.update_selected_card_summary_for_tests("Renamed", 999);
+
+    assert(harness.card_store.get_n_items() == 1);
+    var card = harness.card_store.get_item(0) as HolderLinux.CardSummary;
+    assert(card != null);
+    assert(card.title == "Card 1");
+    assert(card.updated_at == 20);
+}
+
+private void test_rebuild_card_summaries_handles_null_and_non_target_cards() {
+    var source = new Gee.ArrayList<HolderLinux.CardSummary?>();
+    source.add(null);
+    source.add(new HolderLinux.CardSummary("c1", "p1", "Card 1", "c1.md", 1000.0, null, 1, 20));
+    source.add(new HolderLinux.CardSummary("c2", "p1", "Card 2", "c2.md", 2000.0, null, 2, 30));
+
+    var rebuilt = HolderLinux.MainController.rebuild_card_summaries(
+        source,
+        "c2",
+        "Renamed C2",
+        999
+    );
+
+    assert(rebuilt.size == 2);
+    assert(rebuilt[0].card_id == "c1");
+    assert(rebuilt[0].title == "Card 1");
+    assert(rebuilt[1].card_id == "c2");
+    assert(rebuilt[1].title == "Renamed C2");
+    assert(rebuilt[1].updated_at == 999);
+}
+
+private void test_rebuild_card_positions_handles_null_and_non_target_cards() {
+    var source = new Gee.ArrayList<HolderLinux.CardSummary?>();
+    source.add(null);
+    source.add(new HolderLinux.CardSummary("c1", "p1", "Card 1", "c1.md", 1000.0, null, 1, 20));
+    source.add(new HolderLinux.CardSummary("c2", "p1", "Card 2", "c2.md", 2000.0, null, 2, 30));
+
+    var rebuilt = HolderLinux.MainController.rebuild_card_positions(
+        source,
+        "c2",
+        "c1",
+        1500.0,
+        999
+    );
+
+    assert(rebuilt.size == 2);
+    assert(rebuilt[0].card_id == "c1");
+    assert(rebuilt[0].sort_key == 1000.0);
+    assert(rebuilt[1].card_id == "c2");
+    assert(rebuilt[1].parent_card_id == "c1");
+    assert(rebuilt[1].sort_key == 1500.0);
+    assert(rebuilt[1].updated_at == 999);
+}
+
+private void test_compare_cards_for_sidebar_orders_older_last_and_tiebreaks_by_title() {
+    var newer = new HolderLinux.CardSummary("new", "p1", "Zulu", "new.md", 1.0, null, 1, 20);
+    var older = new HolderLinux.CardSummary("old", "p1", "Alpha", "old.md", 2.0, null, 2, 10);
+    assert(HolderLinux.MainController.compare_cards_for_sidebar(older, newer) == 1);
+
+    var tie_a = new HolderLinux.CardSummary("a", "p1", "Beta", "a.md", 1.0, null, 1, 50);
+    var tie_b = new HolderLinux.CardSummary("b", "p1", "alpha", "b.md", 2.0, null, 2, 50);
+    assert(HolderLinux.MainController.compare_cards_for_sidebar(tie_a, tie_b) > 0);
 }
 
 private void test_create_ai_thread_success() {
@@ -1000,6 +1370,119 @@ private void test_bootstrap_list_projects_failure_emits_bootstrap_error() {
     assert(wait_for_condition(() => saw_bootstrap_error));
 }
 
+private HolderLinux.CardSummary? find_card_by_id(GLib.ListStore store, string card_id) {
+    for (uint i = 0; i < store.get_n_items(); i++) {
+        var card = store.get_item(i) as HolderLinux.CardSummary;
+        if (card != null && card.card_id == card_id) {
+            return card;
+        }
+    }
+    return null;
+}
+
+private void test_move_card_success_updates_store_and_preserves_selection() {
+    var api = new MainControllerFakeApi();
+    api.include_card2 = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    harness.card_selection.set_selected_index(1);
+    controller.on_card_selected();
+    assert(wait_for_condition(() => controller.get_current_card() != null &&
+                          controller.get_current_card().card_id == "c1"));
+
+    clock.now_value = 500;
+    bool saw_status = false;
+    controller.status_changed.connect((text) => {
+        if (text == "Moved card") {
+            saw_status = true;
+        }
+    });
+
+    controller.move_card.begin("c1", "c2", 1500.0);
+    assert(wait_for_condition(() => saw_status));
+
+    assert(api.update_card_position_calls == 1);
+    assert(api.last_move_card_id == "c1");
+    assert(api.last_move_parent_card_id == "c2");
+    assert(api.last_move_sort_key == 1500.0);
+    assert(api.last_move_updated_at == 500);
+
+    var moved = find_card_by_id(harness.card_store, "c1");
+    assert(moved != null);
+    assert(moved.parent_card_id == "c2");
+    assert(moved.sort_key == 1500.0);
+    assert(moved.updated_at == 500);
+    assert(controller.get_current_card().updated_at == 500);
+    assert(controller.selected_card_id() == "c1");
+}
+
+private void test_move_card_failure_emits_error_and_reloads_cards() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card_position = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    var list_cards_before = api.list_cards_calls;
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Move card failed" && details.contains("update position failed")) {
+            got_error = true;
+        }
+    });
+
+    controller.move_card.begin("c1", "c2", 1500.0);
+    assert(wait_for_condition(() => got_error));
+    assert(wait_for_condition(() => api.list_cards_calls > list_cards_before));
+}
+
+private void test_move_card_without_api_is_noop() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock, null, null, false);
+    var controller = harness.controller;
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        got_error = true;
+    });
+
+    controller.move_card.begin("c1", null, 123.0);
+    assert(wait_for_condition(() => true));
+    assert(api.update_card_position_calls == 0);
+    assert(api.list_cards_calls == 0);
+    assert(!got_error);
+}
+
+private void test_ensure_first_project_without_api_is_noop() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock, null, null, false);
+    var controller = harness.controller;
+
+    bool done = false;
+    controller.ensure_first_project_for_tests.begin((obj, res) => {
+        controller.ensure_first_project_for_tests.end(res);
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(api.list_projects_calls == 0);
+    assert(api.create_project_calls == 0);
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -1048,6 +1531,18 @@ int main(string[] args) {
         test_create_card_without_project_emits_error
     );
     Test.add_func(
+        "/main_controller/create_card_uses_selected_project_when_current_project_null",
+        test_create_card_uses_selected_project_when_current_project_null
+    );
+    Test.add_func(
+        "/main_controller/create_card_with_title_success_trims_and_sets_content",
+        test_create_card_with_title_success_trims_and_sets_content
+    );
+    Test.add_func(
+        "/main_controller/create_card_with_title_empty_emits_error_and_skips_create",
+        test_create_card_with_title_empty_emits_error_and_skips_create
+    );
+    Test.add_func(
         "/main_controller/reload_ai_threads_error_emits_error",
         test_reload_ai_threads_error_emits_error
     );
@@ -1058,6 +1553,10 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/open_search_result_missing_card_triggers_reload",
         test_open_search_result_missing_card_triggers_reload
+    );
+    Test.add_func(
+        "/main_controller/open_search_result_missing_card_falls_back_to_first_card",
+        test_open_search_result_missing_card_falls_back_to_first_card
     );
     Test.add_func(
         "/main_controller/run_search_without_project_emits_error",
@@ -1092,6 +1591,18 @@ int main(string[] args) {
         test_reload_everything_with_no_projects_sets_empty_state
     );
     Test.add_func(
+        "/main_controller/show_project_overview_without_selection_sets_no_project_state",
+        test_show_project_overview_without_selection_sets_no_project_state
+    );
+    Test.add_func(
+        "/main_controller/show_project_overview_resource_failure_sets_unknown",
+        test_show_project_overview_resource_failure_sets_unknown
+    );
+    Test.add_func(
+        "/main_controller/show_project_overview_zero_timestamps_show_unknown",
+        test_show_project_overview_zero_timestamps_show_unknown
+    );
+    Test.add_func(
         "/main_controller/reload_everything_with_no_cards_sets_empty_state",
         test_reload_everything_with_no_cards_sets_empty_state
     );
@@ -1102,6 +1613,10 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/reload_everything_uses_preferred_project_selection",
         test_reload_everything_uses_preferred_project_selection
+    );
+    Test.add_func(
+        "/main_controller/reload_everything_hoists_home_project_to_top",
+        test_reload_everything_hoists_home_project_to_top
     );
     Test.add_func(
         "/main_controller/ignore_flags_public_accessors_default_false",
@@ -1132,8 +1647,16 @@ int main(string[] args) {
         test_on_project_selected_without_selection_noop
     );
     Test.add_func(
+        "/main_controller/on_project_selected_without_api_is_noop",
+        test_on_project_selected_without_api_is_noop
+    );
+    Test.add_func(
         "/main_controller/on_card_selected_without_selection_sets_empty_state",
         test_on_card_selected_without_selection_sets_empty_state
+    );
+    Test.add_func(
+        "/main_controller/on_card_selected_without_api_is_noop",
+        test_on_card_selected_without_api_is_noop
     );
     Test.add_func(
         "/main_controller/on_ai_thread_selected_emits_title_and_sets_current_thread",
@@ -1152,12 +1675,36 @@ int main(string[] args) {
         test_load_selected_card_failure_emits_error
     );
     Test.add_func(
+        "/main_controller/load_selected_card_stale_success_is_ignored",
+        test_load_selected_card_stale_success_is_ignored
+    );
+    Test.add_func(
+        "/main_controller/load_selected_card_stale_failure_is_ignored",
+        test_load_selected_card_stale_failure_is_ignored
+    );
+    Test.add_func(
         "/main_controller/autosave_failure_emits_error",
         test_autosave_failure_emits_error
     );
     Test.add_func(
         "/main_controller/autosave_without_card_is_noop",
         test_autosave_without_card_is_noop
+    );
+    Test.add_func(
+        "/main_controller/update_selected_card_summary_without_current_card_is_noop",
+        test_update_selected_card_summary_without_current_card_is_noop
+    );
+    Test.add_func(
+        "/main_controller/rebuild_card_summaries_handles_null_and_non_target_cards",
+        test_rebuild_card_summaries_handles_null_and_non_target_cards
+    );
+    Test.add_func(
+        "/main_controller/rebuild_card_positions_handles_null_and_non_target_cards",
+        test_rebuild_card_positions_handles_null_and_non_target_cards
+    );
+    Test.add_func(
+        "/main_controller/compare_cards_for_sidebar_orders_older_last_and_tiebreaks_by_title",
+        test_compare_cards_for_sidebar_orders_older_last_and_tiebreaks_by_title
     );
     Test.add_func(
         "/main_controller/create_ai_thread_success",
@@ -1198,6 +1745,22 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/bootstrap_list_projects_failure_emits_bootstrap_error",
         test_bootstrap_list_projects_failure_emits_bootstrap_error
+    );
+    Test.add_func(
+        "/main_controller/move_card_success_updates_store_and_preserves_selection",
+        test_move_card_success_updates_store_and_preserves_selection
+    );
+    Test.add_func(
+        "/main_controller/move_card_failure_emits_error_and_reloads_cards",
+        test_move_card_failure_emits_error_and_reloads_cards
+    );
+    Test.add_func(
+        "/main_controller/move_card_without_api_is_noop",
+        test_move_card_without_api_is_noop
+    );
+    Test.add_func(
+        "/main_controller/ensure_first_project_without_api_is_noop",
+        test_ensure_first_project_without_api_is_noop
     );
 
     return Test.run();

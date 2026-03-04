@@ -93,6 +93,10 @@ public class FlowboardController : Object {
         if (tile == null) {
             return;
         }
+        activate_tile(tile);
+    }
+
+    internal void activate_tile(FlowboardTile tile) {
         if (tile.project_id != null) {
             select_project(tile.project_id);
             project_overview_requested(tile.project_id);
@@ -360,9 +364,17 @@ public class FlowboardController : Object {
     }
 
     private int root_card_count_for_project(string project_id) {
-        int count = 0;
+        var source_cards = new Gee.ArrayList<CardSummary?>();
         for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
+            source_cards.add(card_store.get_item(i) as CardSummary);
+        }
+        return count_root_cards_for_project(source_cards, project_id);
+    }
+
+    internal static int count_root_cards_for_project(Gee.ArrayList<CardSummary?> source_cards,
+                                                     string project_id) {
+        int count = 0;
+        foreach (var card in source_cards) {
             if (card == null) {
                 continue;
             }
@@ -384,9 +396,17 @@ public class FlowboardController : Object {
     }
 
     private int child_count_for_parent(string card_id) {
-        int count = 0;
+        var source_cards = new Gee.ArrayList<CardSummary?>();
         for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
+            source_cards.add(card_store.get_item(i) as CardSummary);
+        }
+        return count_children_for_parent(source_cards, card_id);
+    }
+
+    internal static int count_children_for_parent(Gee.ArrayList<CardSummary?> source_cards,
+                                                  string card_id) {
+        int count = 0;
+        foreach (var card in source_cards) {
             if (card == null) {
                 continue;
             }
@@ -398,6 +418,16 @@ public class FlowboardController : Object {
     }
 
     private bool is_descendant(string? candidate_parent_card_id, string card_id) {
+        var source_cards = new Gee.ArrayList<CardSummary?>();
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            source_cards.add(card_store.get_item(i) as CardSummary);
+        }
+        return is_descendant_in_cards(source_cards, candidate_parent_card_id, card_id);
+    }
+
+    internal static bool is_descendant_in_cards(Gee.ArrayList<CardSummary?> source_cards,
+                                                string? candidate_parent_card_id,
+                                                string card_id) {
         if (candidate_parent_card_id == null) {
             return false;
         }
@@ -407,7 +437,13 @@ public class FlowboardController : Object {
             if (cursor == card_id) {
                 return true;
             }
-            var card = find_card(cursor);
+            CardSummary? card = null;
+            foreach (var candidate in source_cards) {
+                if (candidate != null && candidate.card_id == cursor) {
+                    card = candidate;
+                    break;
+                }
+            }
             cursor = card == null ? null : normalize_parent(card.parent_card_id);
             guard++;
         }
@@ -432,7 +468,7 @@ public class FlowboardController : Object {
         return segments;
     }
 
-    private int compare_for_flowboard(CardSummary a, CardSummary b) {
+    private static int compare_for_flowboard(CardSummary a, CardSummary b) {
         if (a.sort_key < b.sort_key) {
             return -1;
         }
@@ -448,7 +484,7 @@ public class FlowboardController : Object {
         return strcmp(a.title.down(), b.title.down());
     }
 
-    private string? normalize_parent(string? parent_card_id) {
+    private static string? normalize_parent(string? parent_card_id) {
         if (parent_card_id == null) {
             return null;
         }
@@ -457,9 +493,20 @@ public class FlowboardController : Object {
     }
 
     private Gee.ArrayList<CardSummary> siblings_for_parent(string? parent_card_id, string? exclude_card_id = null) {
-        var siblings = new Gee.ArrayList<CardSummary>();
+        var source_cards = new Gee.ArrayList<CardSummary?>();
         for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
+            source_cards.add(card_store.get_item(i) as CardSummary);
+        }
+        return siblings_for_parent_in_cards(source_cards, parent_card_id, exclude_card_id);
+    }
+
+    internal static Gee.ArrayList<CardSummary> siblings_for_parent_in_cards(
+        Gee.ArrayList<CardSummary?> source_cards,
+        string? parent_card_id,
+        string? exclude_card_id = null
+    ) {
+        var siblings = new Gee.ArrayList<CardSummary>();
+        foreach (var card in source_cards) {
             if (card == null) {
                 continue;
             }
@@ -482,10 +529,10 @@ public class FlowboardController : Object {
         return siblings[siblings.size - 1].sort_key + 1024.0;
     }
 
-    private double sort_key_around_target(string source_card_id,
-                                          string target_card_id,
-                                          string? parent_card_id,
-                                          bool after) {
+    internal double sort_key_around_target(string source_card_id,
+                                           string target_card_id,
+                                           string? parent_card_id,
+                                           bool after) {
         var siblings = siblings_for_parent(parent_card_id, source_card_id);
         int target_index = -1;
         for (int i = 0; i < siblings.size; i++) {
