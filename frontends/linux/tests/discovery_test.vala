@@ -40,6 +40,11 @@ private void test_holder_info_path_uses_user_data_dir() {
     assert(actual == expected);
 }
 
+private void test_discovery_class_can_be_instantiated() {
+    var discovery = new HolderLinux.Discovery();
+    assert(discovery != null);
+}
+
 private void test_discover_server_not_found() {
     setup_temp_data_home();
 
@@ -191,6 +196,7 @@ int main(string[] args) {
     Test.init(ref args);
 
     Test.add_func("/discovery/holder_info_path_uses_user_data_dir", test_holder_info_path_uses_user_data_dir);
+    Test.add_func("/discovery/discovery_class_can_be_instantiated", test_discovery_class_can_be_instantiated);
     Test.add_func("/discovery/discover_server_not_found", test_discover_server_not_found);
     Test.add_func("/discovery/discover_server_invalid_json", test_discover_server_invalid_json);
     Test.add_func("/discovery/discover_server_invalid_root", test_discover_server_invalid_root);
