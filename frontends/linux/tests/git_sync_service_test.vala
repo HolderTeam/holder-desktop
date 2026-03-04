@@ -44,6 +44,20 @@ private void test_run_command_success_captures_stdout() {
     assert(wait_for_condition(() => done));
 }
 
+private void test_run_command_combines_stdout_and_stderr() {
+    var service = new HolderLinux.GitSyncService();
+    bool done = false;
+
+    service.run_command.begin({"/bin/sh", "-lc", "printf 'out'; printf 'err' 1>&2"}, (obj, res) => {
+        var result = service.run_command.end(res);
+        assert(result.exit_code == 0);
+        assert(result.output == "out\nerr");
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+}
+
 private void test_run_command_missing_binary_returns_error_result() {
     var service = new HolderLinux.GitSyncService();
     bool done = false;
@@ -288,6 +302,8 @@ int main(string[] args) {
 
     Test.add_func("/git_sync_service/run_command_success_captures_stdout",
                   test_run_command_success_captures_stdout);
+    Test.add_func("/git_sync_service/run_command_combines_stdout_and_stderr",
+                  test_run_command_combines_stdout_and_stderr);
     Test.add_func("/git_sync_service/run_command_missing_binary_returns_error_result",
                   test_run_command_missing_binary_returns_error_result);
     Test.add_func("/git_sync_service/configure_remote_and_sync_pushes_when_reachable",
