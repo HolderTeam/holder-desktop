@@ -1,6 +1,7 @@
 namespace HolderLinux {
 
 public class AppSettings : Object {
+    public delegate void WarningSink(string message);
     public const string SCHEMA_ID = "io.holder.linux";
     public const string KEY_STYLE_VARIANT = "style-variant";
     public const string KEY_STYLE_SCHEME_ID = "style-scheme-id";
@@ -13,8 +14,25 @@ public class AppSettings : Object {
     public const string KEY_TINY_CLOSE_STREAK = "tiny-close-streak";
     public const string KEY_CUSTOM_CARD_LINK_KINDS = "custom-card-link-kinds";
     public const string KEY_GIT_GITHUB_USERNAME = "git-github-username";
+    private static WarningSink? warning_sink = null;
+
+    public static void set_warning_sink(owned WarningSink? sink) {
+        warning_sink = (owned) sink;
+    }
+
+    private static void emit_warning(string message) {
+        if (warning_sink != null) {
+            warning_sink(message);
+            return;
+        }
+        warning("%s", message);
+    }
 
     public static Settings? open_or_null() {
+        return open_or_null_for_executable_path(null);
+    }
+
+    public static Settings? open_or_null_for_executable_path(string? executable_path) {
         var default_source = SettingsSchemaSource.get_default();
         if (default_source != null) {
             var schema = default_source.lookup(SCHEMA_ID, true);
@@ -23,41 +41,53 @@ public class AppSettings : Object {
             }
         }
 
-        var local_source = load_local_schema_source(default_source);
+        var local_source = load_local_schema_source(default_source, executable_path);
         if (local_source == null) {
-            warning("GSettings schema '%s' not found; preferences will be session-only.", SCHEMA_ID);
+            emit_warning("GSettings schema '%s' not found; preferences will be session-only.".printf(SCHEMA_ID));
             return null;
         }
 
         var local_schema = local_source.lookup(SCHEMA_ID, false);
         if (local_schema == null) {
-            warning("Schema '%s' missing from local schema directory.", SCHEMA_ID);
+            emit_warning("Schema '%s' missing from local schema directory.".printf(SCHEMA_ID));
             return null;
         }
 
         return new Settings.full(local_schema, null, null);
     }
 
-    private static SettingsSchemaSource? load_local_schema_source(SettingsSchemaSource? parent) {
-        string exe_path;
-        try {
-            exe_path = FileUtils.read_link("/proc/self/exe");
-        } catch (Error e) {
-            return null;
+    public static string schema_candidate_dir_for_executable_path(string executable_path) {
+        var exe_dir = Path.get_dirname(executable_path);
+        return Path.build_filename(exe_dir, "data");
+    }
+
+    public static bool has_compiled_schema_in_dir(string candidate_dir) {
+        var compiled_path = Path.build_filename(candidate_dir, "gschemas.compiled");
+        return FileUtils.test(compiled_path, FileTest.EXISTS);
+    }
+
+    private static SettingsSchemaSource? load_local_schema_source(SettingsSchemaSource? parent,
+                                                                  string? executable_path) {
+        string resolved_exe_path;
+        if (executable_path == null || executable_path.strip().length == 0) {
+            try {
+                resolved_exe_path = FileUtils.read_link("/proc/self/exe");
+            } catch (Error e) {
+                return null;
+            }
+        } else {
+            resolved_exe_path = executable_path;
         }
 
-        var exe_dir = Path.get_dirname(exe_path);
-        var candidate_dir = Path.build_filename(exe_dir, "data");
-        var compiled_path = Path.build_filename(candidate_dir, "gschemas.compiled");
-
-        if (!FileUtils.test(compiled_path, FileTest.EXISTS)) {
+        var candidate_dir = schema_candidate_dir_for_executable_path(resolved_exe_path);
+        if (!has_compiled_schema_in_dir(candidate_dir)) {
             return null;
         }
 
         try {
             return new SettingsSchemaSource.from_directory(candidate_dir, parent, false);
         } catch (Error e) {
-            warning("Failed to load schema dir '%s': %s", candidate_dir, e.message);
+            emit_warning("Failed to load schema dir '%s': %s".printf(candidate_dir, e.message));
             return null;
         }
     }

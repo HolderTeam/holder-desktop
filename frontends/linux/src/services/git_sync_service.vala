@@ -50,7 +50,7 @@ public class GitRemoteApplyResult : Object {
 }
 
 public class GitSyncService : Object {
-    public async GitCommandResult run_command(string[] argv) {
+    public virtual async GitCommandResult run_command(string[] argv) {
         try {
             var proc = new Subprocess.newv(argv,
                 SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_PIPE);
@@ -71,7 +71,7 @@ public class GitSyncService : Object {
         }
     }
 
-    public async GitHubCliState detect_github_cli_state() {
+    public virtual async GitHubCliState detect_github_cli_state() {
         var auth = yield run_command({
             "gh",
             "auth",
@@ -99,8 +99,8 @@ public class GitSyncService : Object {
         return new GitHubCliState(true, true, login.output.strip(), "");
     }
 
-    public async GitRepoCheckResult check_repository_exists_via_ssh(string username,
-                                                                    string repo_name) {
+    public virtual async GitRepoCheckResult check_repository_exists_via_ssh(string username,
+                                                                            string repo_name) {
         var remote = "git@github.com:%s/%s.git".printf(username, repo_name);
         var result = yield run_command({
             "git",
@@ -120,8 +120,8 @@ public class GitSyncService : Object {
         );
     }
 
-    public async GitRepoCreateResult create_private_repo_and_verify(string username,
-                                                                     string repo_name) {
+    public virtual async GitRepoCreateResult create_private_repo_and_verify(string username,
+                                                                             string repo_name) {
         var create = yield run_command({
             "gh",
             "repo",
@@ -140,7 +140,7 @@ public class GitSyncService : Object {
         return new GitRepoCreateResult(create.exit_code == 0, check.exists, details);
     }
 
-    public async string probe_github_ssh() {
+    public virtual async string probe_github_ssh() {
         var probe = yield run_command({
             "ssh",
             "-o", "BatchMode=yes",
@@ -152,7 +152,7 @@ public class GitSyncService : Object {
         return probe.output;
     }
 
-    public async GitCommandResult generate_ssh_key(string email, string key_path) {
+    public virtual async GitCommandResult generate_ssh_key(string email, string key_path) {
         return yield run_command({
             "ssh-keygen",
             "-t", "ed25519",
@@ -162,10 +162,10 @@ public class GitSyncService : Object {
         });
     }
 
-    public async GitRemoteApplyResult configure_remote_and_sync(IHolderApi api,
-                                                                 string project_id,
-                                                                 string remote_url,
-                                                                 string branch) throws Error {
+    public virtual async GitRemoteApplyResult configure_remote_and_sync(IHolderApi api,
+                                                                         string project_id,
+                                                                         string remote_url,
+                                                                         string branch) throws Error {
         var updated_at = new DateTime.now_utc().to_unix();
         yield api.set_project_git_remote(project_id, remote_url, updated_at);
         var test_result = yield api.test_project_git_remote(project_id, remote_url, branch);

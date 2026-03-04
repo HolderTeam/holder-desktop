@@ -134,6 +134,8 @@ test('holder-linux-main-controller-tests', main_controller_test_exe)
 git_sync_controller_test_exe = executable(
   'holder-linux-git-sync-controller-tests',
   [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/services/app_settings.vala',
@@ -159,6 +161,8 @@ test('holder-linux-git-sync-controller-tests', git_sync_controller_test_exe)
 resources_controller_test_exe = executable(
   'holder-linux-resources-controller-tests',
   [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/services/resources_service.vala',
