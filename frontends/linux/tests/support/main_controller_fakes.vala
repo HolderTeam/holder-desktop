@@ -90,6 +90,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_update_card_position = false;
     public bool fail_search = false;
     public bool fail_get_card = false;
+    public bool slow_get_card = false;
     public bool fail_list_cards = false;
     public bool fail_set_project_git_remote = false;
     public bool fail_test_project_git_remote = false;
@@ -200,10 +201,17 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async HolderLinux.CardDetail get_card(string card_id) throws Error {
+        if (slow_get_card) {
+            var end = GLib.get_monotonic_time() + 50 * 1000;
+            while (GLib.get_monotonic_time() < end) {
+                while (MainContext.default().iteration(false)) {}
+                Thread.usleep(1000);
+            }
+        }
+        get_card_calls++;
         if (fail_get_card) {
             throw new IOError.FAILED("get card failed");
         }
-        get_card_calls++;
         return new HolderLinux.CardDetail(card_id, "p1", "Card 1", "# Card 1\n\nBody", 20);
     }
 

@@ -471,6 +471,10 @@ public class MainController : Object, IAiRunContext {
         }
     }
 
+    public async void ensure_first_project_for_tests() {
+        yield ensure_first_project();
+    }
+
     private async void reload_everything_with_selection(string? preferred_project_id,
                                                         string? preferred_card_id) {
         if (api == null) {
