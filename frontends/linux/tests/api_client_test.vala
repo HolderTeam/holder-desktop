@@ -1325,7 +1325,7 @@ private void test_update_card_position_with_parent_and_root() {
     assert(transport.last_uri.has_suffix("/cards/c42"));
 }
 
-private void test_move_card_by_intent_posts_move_endpoint() {
+private void test_move_card_posts_move_endpoint() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
@@ -1335,9 +1335,9 @@ private void test_move_card_by_intent_posts_move_endpoint() {
 
     bool done = false;
     HolderLinux.CardMoveResult? result = null;
-    client.move_card_by_intent.begin("c42", "proj-1", "into", "p1", null, (obj, res) => {
+    client.move_card.begin("c42", "proj-1", "into", "p1", null, (obj, res) => {
         try {
-            result = client.move_card_by_intent.end(res);
+            result = client.move_card.end(res);
         } catch (Error e) {
             result = null;
         }
@@ -1353,6 +1353,63 @@ private void test_move_card_by_intent_posts_move_endpoint() {
     assert(transport.last_method == "POST");
     assert(transport.last_uri.has_suffix("/cards/c42/move"));
     assert(transport.last_content_type == "application/json");
+}
+
+private void test_get_card_context_parses_response() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"project\":{\"project_id\":\"proj-1\",\"name\":\"Project One\"},\"current_parent_card_id\":\"a1\",\"breadcrumbs\":[{\"type\":\"project\",\"title\":\"Project One\",\"project_id\":\"proj-1\",\"card_id\":null},{\"type\":\"card\",\"title\":\"A\",\"project_id\":null,\"card_id\":\"a1\"}],\"cards\":[{\"card_id\":\"b1\",\"project_id\":\"proj-1\",\"title\":\"B\",\"rel_path\":\"cards/b1.md\",\"sort_key\":42,\"parent_card_id\":\"a1\",\"created_at\":10,\"updated_at\":11,\"child_count\":3}]}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    HolderLinux.CardContextData? result = null;
+    client.get_card_context.begin("proj-1", "a1", (obj, res) => {
+        try {
+            result = client.get_card_context.end(res);
+        } catch (Error e) {
+            result = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(result != null);
+    assert(result.project.project_id == "proj-1");
+    assert(result.project.name == "Project One");
+    assert(result.current_parent_card_id == "a1");
+    assert(result.breadcrumbs.size == 2);
+    assert(result.breadcrumbs[1].card_id == "a1");
+    assert(result.cards.size == 1);
+    assert(result.cards[0].card_id == "b1");
+    assert(result.cards[0].child_count == 3);
+    assert(transport.last_method == "GET");
+    assert(transport.last_uri.contains("/cards/context?"));
+    assert(transport.last_uri.contains("project_id=proj-1"));
+    assert(transport.last_uri.contains("parent_card_id=a1"));
+}
+
+private void test_get_card_context_missing_data_is_protocol_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_protocol = false;
+    client.get_card_context.begin("proj-1", null, (obj, res) => {
+        try {
+            client.get_card_context.end(res);
+        } catch (HolderLinux.ApiError e) {
+            got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        } catch (Error e) {
+            got_protocol = false;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_protocol);
 }
 
 private void test_list_projects_parses_sync_state_fields() {
@@ -2437,8 +2494,12 @@ int main(string[] args) {
                   test_create_card_with_parent_id_succeeds);
     Test.add_func("/api_client/update_card_position_with_parent_and_root",
                   test_update_card_position_with_parent_and_root);
-    Test.add_func("/api_client/move_card_by_intent_posts_move_endpoint",
-                  test_move_card_by_intent_posts_move_endpoint);
+    Test.add_func("/api_client/move_card_posts_move_endpoint",
+                  test_move_card_posts_move_endpoint);
+    Test.add_func("/api_client/get_card_context_parses_response",
+                  test_get_card_context_parses_response);
+    Test.add_func("/api_client/get_card_context_missing_data_is_protocol_error",
+                  test_get_card_context_missing_data_is_protocol_error);
     Test.add_func("/api_client/list_projects_parses_sync_state_fields",
                   test_list_projects_parses_sync_state_fields);
     Test.add_func("/api_client/list_projects_sync_null_or_non_object_uses_defaults",

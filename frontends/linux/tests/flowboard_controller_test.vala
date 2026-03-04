@@ -15,13 +15,115 @@ private HolderLinux.CardSummary make_card(string id,
     return new HolderLinux.CardSummary(id, project_id, title, "%s.md".printf(id), sort_key, parent_id, 0, updated_at);
 }
 
+private string? normalize_parent(string? parent_id) {
+    if (parent_id == null) {
+        return null;
+    }
+    var trimmed = parent_id.strip();
+    return trimmed.length == 0 ? null : trimmed;
+}
+
+private HolderLinux.CardSummary? find_card_in_store(GLib.ListStore card_store, string card_id) {
+    for (uint i = 0; i < card_store.get_n_items(); i++) {
+        var card = card_store.get_item(i) as HolderLinux.CardSummary;
+        if (card != null && card.card_id == card_id) {
+            return card;
+        }
+    }
+    return null;
+}
+
+private int child_count_for_card(GLib.ListStore card_store, string card_id) {
+    int count = 0;
+    for (uint i = 0; i < card_store.get_n_items(); i++) {
+        var card = card_store.get_item(i) as HolderLinux.CardSummary;
+        if (card == null) {
+            continue;
+        }
+        if (normalize_parent(card.parent_card_id) == card_id) {
+            count++;
+        }
+    }
+    return count;
+}
+
+private HolderLinux.CardContextData build_context_for_request(GLib.ListStore project_store,
+                                                              GLib.ListStore card_store,
+                                                              string project_id,
+                                                              string? parent_card_id) {
+    string project_name = project_id;
+    for (uint i = 0; i < project_store.get_n_items(); i++) {
+        var project = project_store.get_item(i) as HolderLinux.Project;
+        if (project != null && project.project_id == project_id) {
+            project_name = project.name;
+            break;
+        }
+    }
+
+    var breadcrumbs = new Gee.ArrayList<HolderLinux.CardContextBreadcrumb>();
+    breadcrumbs.add(new HolderLinux.CardContextBreadcrumb("project", project_name, project_id, null));
+
+    var parent_chain = new Gee.ArrayList<HolderLinux.CardSummary>();
+    var cursor = normalize_parent(parent_card_id);
+    int guard = 0;
+    while (cursor != null && guard < 256) {
+        var card = find_card_in_store(card_store, cursor);
+        if (card == null) {
+            break;
+        }
+        parent_chain.add(card);
+        cursor = normalize_parent(card.parent_card_id);
+        guard++;
+    }
+    for (int i = parent_chain.size - 1; i >= 0; i--) {
+        var card = parent_chain[i];
+        breadcrumbs.add(new HolderLinux.CardContextBreadcrumb("card", card.title, null, card.card_id));
+    }
+
+    var cards = new Gee.ArrayList<HolderLinux.CardContextCard>();
+    for (uint i = 0; i < card_store.get_n_items(); i++) {
+        var card = card_store.get_item(i) as HolderLinux.CardSummary;
+        if (card == null || card.project_id != project_id) {
+            continue;
+        }
+        if (normalize_parent(card.parent_card_id) != normalize_parent(parent_card_id)) {
+            continue;
+        }
+        cards.add(new HolderLinux.CardContextCard(
+            card.card_id,
+            card.project_id,
+            card.title,
+            card.rel_path,
+            card.sort_key,
+            card.parent_card_id,
+            card.created_at,
+            card.updated_at,
+            child_count_for_card(card_store, card.card_id)
+        ));
+    }
+
+    return new HolderLinux.CardContextData(
+        new HolderLinux.CardContextProject(project_id, project_name),
+        normalize_parent(parent_card_id),
+        breadcrumbs,
+        cards
+    );
+}
+
 private HolderLinux.FlowboardController make_controller(out GLib.ListStore project_store,
                                                         out Gtk.SingleSelection project_selection,
                                                         out GLib.ListStore card_store) {
     project_store = new GLib.ListStore(typeof(HolderLinux.Project));
     project_selection = new Gtk.SingleSelection(project_store);
     card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
-    return new HolderLinux.FlowboardController(project_store, project_selection, card_store);
+    var controller = new HolderLinux.FlowboardController(project_store, project_selection, card_store);
+    var projects = project_store;
+    var cards = card_store;
+    controller.context_load_requested.connect((project_id, parent_card_id) => {
+        var context = build_context_for_request(projects, cards, project_id, parent_card_id);
+        controller.apply_card_context(project_id, parent_card_id, context);
+    });
+    return controller;
 }
 
 private HolderLinux.FlowboardTile? tile_at(GLib.ListModel model, uint index) {

@@ -9,6 +9,9 @@ public class FlowboardController : Object {
     private string? current_parent_card_id = null;
     private bool showing_projects = false;
     private Gee.ArrayList<string> parent_stack_ids;
+    private CardContextData? current_context = null;
+    private string? current_context_project_id = null;
+    private string? current_context_parent_card_id = null;
 
     public signal void breadcrumb_segments_changed(Gee.ArrayList<FlowboardBreadcrumbSegment> segments);
     public signal void empty_message_changed(string text);
@@ -21,6 +24,7 @@ public class FlowboardController : Object {
     public signal void create_card_requested(string? parent_card_id);
     public signal void toast_requested(string message);
     public signal void project_overview_requested(string project_id);
+    public signal void context_load_requested(string project_id, string? parent_card_id);
 
     public FlowboardController(GLib.ListStore project_store,
                                Gtk.SingleSelection project_selection,
@@ -43,6 +47,7 @@ public class FlowboardController : Object {
             current_project_id = selected_project.project_id;
             current_parent_card_id = null;
             parent_stack_ids.clear();
+            clear_context_cache();
         }
         if (showing_projects) {
             replace_visible_with_projects();
@@ -62,6 +67,7 @@ public class FlowboardController : Object {
             current_project_id = null;
             current_parent_card_id = null;
             parent_stack_ids.clear();
+            clear_context_cache();
             return;
         }
 
@@ -70,6 +76,7 @@ public class FlowboardController : Object {
             current_parent_card_id = null;
             parent_stack_ids.clear();
             showing_projects = false;
+            clear_context_cache();
         }
 
         if (current_parent_card_id != null
@@ -77,10 +84,61 @@ public class FlowboardController : Object {
             && find_card(current_parent_card_id) == null) {
             current_parent_card_id = null;
             parent_stack_ids.clear();
+            clear_context_cache();
         }
 
-        replace_visible_for_parent(current_parent_card_id);
-        breadcrumb_segments_changed(build_breadcrumb_segments(selected_project.name));
+        context_load_requested(selected_project.project_id, current_parent_card_id);
+        if (!has_matching_context()) {
+            visible_tiles.remove_all();
+            var loading_segments = new Gee.ArrayList<FlowboardBreadcrumbSegment>();
+            loading_segments.add(new FlowboardBreadcrumbSegment("Projects"));
+            loading_segments.add(new FlowboardBreadcrumbSegment(selected_project.name));
+            breadcrumb_segments_changed(loading_segments);
+            empty_message_changed("Loading cards...");
+            return;
+        }
+
+        var context = current_context;
+        if (context == null) {
+            visible_tiles.remove_all();
+            breadcrumb_segments_changed(build_breadcrumb_segments(selected_project.name));
+            empty_message_changed("Loading cards...");
+            return;
+        }
+
+        replace_visible_from_context(context.cards, current_parent_card_id);
+        breadcrumb_segments_changed(build_breadcrumb_segments(context.project.name));
+        if (visible_tiles.get_n_items() == 0) {
+            empty_message_changed("No cards yet. Create one to get started.");
+            return;
+        }
+        if (current_parent_card_id == null) {
+            empty_message_changed("Drag card center onto another card to nest. Drag left/right edges to reorder.");
+        } else {
+            empty_message_changed("Inside nested cards. Enter opens item/folder. Backspace goes up.");
+        }
+    }
+
+    public void apply_card_context(string project_id,
+                                   string? requested_parent_card_id,
+                                   CardContextData context) {
+        if (showing_projects) {
+            return;
+        }
+        if (current_project_id == null || current_project_id != project_id) {
+            return;
+        }
+        if (normalize_parent(current_parent_card_id) != normalize_parent(requested_parent_card_id)) {
+            return;
+        }
+
+        current_context = context;
+        current_context_project_id = project_id;
+        current_context_parent_card_id = normalize_parent(context.current_parent_card_id);
+        current_parent_card_id = current_context_parent_card_id;
+        rebuild_parent_stack_from_context(context);
+        replace_visible_from_context(context.cards, current_parent_card_id);
+        breadcrumb_segments_changed(build_breadcrumb_segments(context.project.name));
         if (visible_tiles.get_n_items() == 0) {
             empty_message_changed("No cards yet. Create one to get started.");
         } else {
@@ -209,6 +267,7 @@ public class FlowboardController : Object {
         } else {
             current_parent_card_id = parent_stack_ids[parent_stack_ids.size - 1];
         }
+        clear_context_cache();
         refresh();
     }
 
@@ -217,6 +276,7 @@ public class FlowboardController : Object {
             showing_projects = true;
             current_parent_card_id = null;
             parent_stack_ids.clear();
+            clear_context_cache();
             refresh();
             return;
         }
@@ -225,6 +285,7 @@ public class FlowboardController : Object {
             showing_projects = false;
             current_parent_card_id = null;
             parent_stack_ids.clear();
+            clear_context_cache();
             refresh();
             var selected_project = project_selection.get_selected_item() as Project;
             if (selected_project != null) {
@@ -242,6 +303,7 @@ public class FlowboardController : Object {
             parent_stack_ids.remove_at(parent_stack_ids.size - 1);
         }
         showing_projects = false;
+        clear_context_cache();
         refresh();
     }
 
@@ -285,24 +347,40 @@ public class FlowboardController : Object {
         create_card_requested(current_parent_card_id);
     }
 
-    private void replace_visible_for_parent(string? parent_card_id) {
+    private void replace_visible_from_context(Gee.ArrayList<CardContextCard> cards, string? parent_card_id) {
         visible_tiles.remove_all();
-        var sorted = siblings_for_parent(parent_card_id);
+        var sorted = new Gee.ArrayList<CardContextCard>();
+        foreach (var card in cards) {
+            sorted.add(card);
+        }
+        sorted.sort((a, b) => {
+            if (a.sort_key < b.sort_key) {
+                return -1;
+            }
+            if (a.sort_key > b.sort_key) {
+                return 1;
+            }
+            if (a.updated_at > b.updated_at) {
+                return -1;
+            }
+            if (a.updated_at < b.updated_at) {
+                return 1;
+            }
+            return strcmp(a.title.down(), b.title.down());
+        });
         for (int i = 0; i < sorted.size; i++) {
             var card = sorted[i];
-            var child_count = child_count_for_parent(card.card_id);
-            var is_container = child_count > 0;
             visible_tiles.append(new FlowboardTile(
                 "card:%s".printf(card.card_id),
                 card.title,
                 card.updated_at,
-                is_container,
+                card.child_count > 0,
                 card.card_id,
                 null,
                 parent_card_id,
                 sorted.size,
                 i,
-                child_count
+                card.child_count
             ));
         }
     }
@@ -435,6 +513,18 @@ public class FlowboardController : Object {
         if (showing_projects) {
             return segments;
         }
+        if (has_matching_context()) {
+            var context = current_context;
+            if (context == null) {
+                return segments;
+            }
+            foreach (var crumb in context.breadcrumbs) {
+                if (crumb.title != null && crumb.title.length > 0) {
+                    segments.add(new FlowboardBreadcrumbSegment(crumb.title));
+                }
+            }
+            return segments;
+        }
         if (project_name != null && project_name.length > 0) {
             segments.add(new FlowboardBreadcrumbSegment(project_name));
         }
@@ -445,6 +535,16 @@ public class FlowboardController : Object {
             }
         }
         return segments;
+    }
+
+    private bool has_matching_context() {
+        if (current_context == null || current_context_project_id == null || current_project_id == null) {
+            return false;
+        }
+        if (current_context_project_id != current_project_id) {
+            return false;
+        }
+        return normalize_parent(current_context_parent_card_id) == normalize_parent(current_parent_card_id);
     }
 
     private static int compare_for_flowboard(CardSummary a, CardSummary b) {
@@ -557,10 +657,26 @@ public class FlowboardController : Object {
                 current_parent_card_id = null;
                 parent_stack_ids.clear();
                 showing_projects = false;
+                clear_context_cache();
                 refresh();
                 return;
             }
         }
+    }
+
+    private void rebuild_parent_stack_from_context(CardContextData context) {
+        parent_stack_ids.clear();
+        foreach (var crumb in context.breadcrumbs) {
+            if (crumb.crumb_type == "card" && crumb.card_id != null && crumb.card_id.strip().length > 0) {
+                parent_stack_ids.add(crumb.card_id.strip());
+            }
+        }
+    }
+
+    private void clear_context_cache() {
+        current_context = null;
+        current_context_project_id = null;
+        current_context_parent_card_id = null;
     }
 }
 

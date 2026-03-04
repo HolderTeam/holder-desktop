@@ -419,7 +419,7 @@ public class MainController : Object, IAiRunContext {
         }
 
         try {
-            var moved = yield api.move_card_by_intent(
+            var moved = yield api.move_card(
                 card_id,
                 selected.project_id,
                 intent,

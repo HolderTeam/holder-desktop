@@ -201,6 +201,17 @@ public class ApiClient : Object, IHolderApi {
         return parse_cards(root);
     }
 
+    public async CardContextData get_card_context(string project_id,
+                                                  string? parent_card_id = null) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("project_id", project_id);
+        if (parent_card_id != null && parent_card_id.strip().length > 0) {
+            query.insert("parent_card_id", parent_card_id);
+        }
+        var root = yield request_json("GET", "/cards/context", null, query);
+        return parse_card_context(root);
+    }
+
     public async CardDetail get_card(string card_id) throws Error {
         var root = yield request_json("GET", "/cards/%s".printf(Uri.escape_string(card_id)), null, null);
         return parse_card_detail(root);
@@ -694,11 +705,11 @@ public class ApiClient : Object, IHolderApi {
         );
     }
 
-    public async CardMoveResult move_card_by_intent(string card_id,
-                                                     string project_id,
-                                                     string intent,
-                                                     string? target_card_id = null,
-                                                     string? parent_card_id = null) throws Error {
+    public async CardMoveResult move_card(string card_id,
+                                          string project_id,
+                                          string intent,
+                                          string? target_card_id = null,
+                                          string? parent_card_id = null) throws Error {
         var body = new Json.Builder();
         body.begin_object();
         body.set_member_name("project_id");
@@ -980,6 +991,62 @@ public class ApiClient : Object, IHolderApi {
             data.get_string_member("title"),
             data.get_string_member("content"),
             data.has_member("updated_at") ? data.get_int_member("updated_at") : 0
+        );
+    }
+
+    private CardContextData parse_card_context(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for cards context response");
+        }
+
+        var data = root.get_object_member("data");
+        if (!data.has_member("project")) {
+            throw new ApiError.PROTOCOL("Missing project for cards context response");
+        }
+        var project_obj = data.get_object_member("project");
+        var project = new CardContextProject(
+            string_member_or_empty(project_obj, "project_id"),
+            string_member_or_empty(project_obj, "name")
+        );
+
+        var breadcrumbs = new Gee.ArrayList<CardContextBreadcrumb>();
+        if (data.has_member("breadcrumbs")) {
+            var crumbs = data.get_array_member("breadcrumbs");
+            for (uint i = 0; i < crumbs.get_length(); i++) {
+                var crumb = crumbs.get_object_element(i);
+                breadcrumbs.add(new CardContextBreadcrumb(
+                    string_member_or_empty(crumb, "type"),
+                    string_member_or_empty(crumb, "title"),
+                    nullable_string_member_or_null(crumb, "project_id"),
+                    nullable_string_member_or_null(crumb, "card_id")
+                ));
+            }
+        }
+
+        var cards = new Gee.ArrayList<CardContextCard>();
+        if (data.has_member("cards")) {
+            var items = data.get_array_member("cards");
+            for (uint i = 0; i < items.get_length(); i++) {
+                var item = items.get_object_element(i);
+                cards.add(new CardContextCard(
+                    string_member_or_empty(item, "card_id"),
+                    string_member_or_empty(item, "project_id"),
+                    string_member_or_empty(item, "title"),
+                    string_member_or_empty(item, "rel_path"),
+                    item.has_member("sort_key") ? item.get_double_member("sort_key") : 0.0,
+                    nullable_string_member_or_null(item, "parent_card_id"),
+                    item.has_member("created_at") ? item.get_int_member("created_at") : 0,
+                    item.has_member("updated_at") ? item.get_int_member("updated_at") : 0,
+                    item.has_member("child_count") ? (int) item.get_int_member("child_count") : 0
+                ));
+            }
+        }
+
+        return new CardContextData(
+            project,
+            nullable_string_member_or_null(data, "current_parent_card_id"),
+            breadcrumbs,
+            cards
         );
     }
 
