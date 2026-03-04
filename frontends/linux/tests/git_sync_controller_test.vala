@@ -75,6 +75,19 @@ private class FakeGitSyncService : HolderLinux.GitSyncService {
     }
 }
 
+private Settings make_test_settings() {
+    string exe_path;
+    try {
+        exe_path = FileUtils.read_link("/proc/self/exe");
+    } catch (Error e) {
+        assert_not_reached();
+    }
+
+    var settings = HolderLinux.AppSettings.open_or_null_for_executable_path(exe_path);
+    assert(settings != null);
+    return settings;
+}
+
 private void test_normalize_repository_name_basic() {
     var controller = new HolderLinux.GitSyncController();
     var normalized = controller.normalize_repository_name("My Project/Name");
@@ -220,6 +233,37 @@ private void test_configure_remote_and_sync_passthrough() {
     assert(HolderLinuxTests.wait_for_condition(() => done));
 }
 
+private void test_get_saved_github_username_without_settings_returns_empty() {
+    var controller = new HolderLinux.GitSyncController();
+    controller.set_settings(null);
+    assert(controller.get_saved_github_username() == "");
+}
+
+private void test_set_and_get_saved_github_username_round_trip() {
+    var settings = make_test_settings();
+    var controller = new HolderLinux.GitSyncController();
+    controller.set_settings(settings);
+
+    controller.set_saved_github_username("zeth");
+    assert(controller.get_saved_github_username() == "zeth");
+}
+
+private void test_get_saved_github_username_strips_whitespace() {
+    var settings = make_test_settings();
+    var controller = new HolderLinux.GitSyncController();
+    controller.set_settings(settings);
+
+    settings.set_string(HolderLinux.AppSettings.KEY_GIT_GITHUB_USERNAME, "  zeth  ");
+    assert(controller.get_saved_github_username() == "zeth");
+}
+
+private void test_set_saved_github_username_without_settings_is_noop() {
+    var controller = new HolderLinux.GitSyncController();
+    controller.set_settings(null);
+    controller.set_saved_github_username("zeth");
+    assert(controller.get_saved_github_username() == "");
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -244,6 +288,14 @@ int main(string[] args) {
                   test_probe_and_keygen_passthrough);
     Test.add_func("/git_sync_controller/configure_remote_and_sync_passthrough",
                   test_configure_remote_and_sync_passthrough);
+    Test.add_func("/git_sync_controller/get_saved_github_username_without_settings_returns_empty",
+                  test_get_saved_github_username_without_settings_returns_empty);
+    Test.add_func("/git_sync_controller/set_and_get_saved_github_username_round_trip",
+                  test_set_and_get_saved_github_username_round_trip);
+    Test.add_func("/git_sync_controller/get_saved_github_username_strips_whitespace",
+                  test_get_saved_github_username_strips_whitespace);
+    Test.add_func("/git_sync_controller/set_saved_github_username_without_settings_is_noop",
+                  test_set_saved_github_username_without_settings_is_noop);
 
     return Test.run();
 }
