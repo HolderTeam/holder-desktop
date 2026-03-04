@@ -53,6 +53,13 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int create_project_calls = 0;
     public int list_threads_calls = 0;
     public int factory_create_calls = 0;
+    public int list_resources_calls = 0;
+    public int create_resource_calls = 0;
+    public int update_resource_calls = 0;
+    public int delete_resource_calls = 0;
+    public int set_project_git_remote_calls = 0;
+    public int test_project_git_remote_calls = 0;
+    public int push_project_git_calls = 0;
     public string last_updated_card_id = "";
     public string last_updated_title = "";
     public string last_updated_content = "";
@@ -78,7 +85,23 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_search = false;
     public bool fail_get_card = false;
     public bool fail_list_cards = false;
+    public bool fail_set_project_git_remote = false;
+    public bool fail_test_project_git_remote = false;
+    public bool fail_push_project_git = false;
+    public string test_project_git_remote_status = "reachable";
     private int list_projects_index = 0;
+    public string last_resource_project_id = "";
+    public string last_resource_kind = "";
+    public string last_resource_uri = "";
+    public string last_resource_label = "";
+    public string? last_resource_desc = null;
+    public string last_resource_id = "";
+    public int64 last_resource_updated_at = 0;
+    public string last_git_project_id = "";
+    public string? last_git_remote_url = null;
+    public int64 last_git_remote_updated_at = 0;
+    public string last_git_branch = "";
+    public bool last_git_set_upstream = false;
 
     public async void health_check() throws Error {
         if (fail_health) {
@@ -187,6 +210,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async Gee.ArrayList<HolderLinux.ProjectResource> list_resources(string project_id) throws Error {
+        list_resources_calls++;
+        last_resource_project_id = project_id;
         return new Gee.ArrayList<HolderLinux.ProjectResource>();
     }
 
@@ -195,6 +220,12 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                         string uri,
                                         string label,
                                         string? desc = null) throws Error {
+        create_resource_calls++;
+        last_resource_project_id = project_id;
+        last_resource_kind = kind;
+        last_resource_uri = uri;
+        last_resource_label = label;
+        last_resource_desc = desc;
         return "r1";
     }
 
@@ -203,9 +234,20 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                       string? uri,
                                       string? label,
                                       string? desc,
-                                      int64 updated_at) throws Error {}
+                                      int64 updated_at) throws Error {
+        update_resource_calls++;
+        last_resource_id = resource_id;
+        last_resource_kind = kind ?? "";
+        last_resource_uri = uri ?? "";
+        last_resource_label = label ?? "";
+        last_resource_desc = desc;
+        last_resource_updated_at = updated_at;
+    }
 
-    public async void delete_resource(string resource_id) throws Error {}
+    public async void delete_resource(string resource_id) throws Error {
+        delete_resource_calls++;
+        last_resource_id = resource_id;
+    }
 
     public async HolderLinux.CardLink create_card_link(string from_card_id,
                                                        string to_card_id,
@@ -275,16 +317,31 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
 
     public async void set_project_git_remote(string project_id,
                                              string? git_remote_url,
-                                             int64 updated_at) throws Error {}
+                                             int64 updated_at) throws Error {
+        if (fail_set_project_git_remote) {
+            throw new IOError.FAILED("set project git remote failed");
+        }
+        set_project_git_remote_calls++;
+        last_git_project_id = project_id;
+        last_git_remote_url = git_remote_url;
+        last_git_remote_updated_at = updated_at;
+    }
 
     public async HolderLinux.GitTestRemoteResult test_project_git_remote(string project_id,
                                                                          string? remote_url = null,
                                                                          string branch = "") throws Error {
+        if (fail_test_project_git_remote) {
+            throw new IOError.FAILED("test project git remote failed");
+        }
+        test_project_git_remote_calls++;
+        last_git_project_id = project_id;
+        last_git_remote_url = remote_url;
+        last_git_branch = branch;
         return new HolderLinux.GitTestRemoteResult(project_id,
                                                    remote_url ?? "",
                                                    branch,
-                                                   "reachable",
-                                                   true,
+                                                   test_project_git_remote_status,
+                                                   test_project_git_remote_status == "reachable",
                                                    "",
                                                    "");
     }
@@ -292,6 +349,13 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public async HolderLinux.GitPushResult push_project_git(string project_id,
                                                             string branch = "",
                                                             bool set_upstream = true) throws Error {
+        if (fail_push_project_git) {
+            throw new IOError.FAILED("push project git failed");
+        }
+        push_project_git_calls++;
+        last_git_project_id = project_id;
+        last_git_branch = branch;
+        last_git_set_upstream = set_upstream;
         return new HolderLinux.GitPushResult(project_id,
                                              "",
                                              branch,
@@ -391,55 +455,6 @@ public class FakeServerDiscovery : Object, HolderLinux.IServerDiscovery {
 
     public string holder_info_path() {
         return "/tmp/holder.json";
-    }
-}
-
-public class MainControllerTestHarness : Object {
-    public GLib.ListStore project_store;
-    public GLib.ListStore card_store;
-    public GLib.ListStore thread_store;
-    public GLib.ListStore search_store;
-    public StoreSelectionState project_selection;
-    public StoreSelectionState card_selection;
-    public StoreSelectionState thread_selection;
-    public StoreSelectionState search_selection;
-    public MutableTextProvider search_text;
-    public MutableTextProvider editor_text;
-    public HolderLinux.MainController controller;
-
-    public MainControllerTestHarness(MainControllerFakeApi api,
-                                     TestScheduler scheduler,
-                                     FakeClock clock,
-                                     FakeServerDiscovery? discovery = null,
-                                     HolderLinux.IHolderApi? initial_api = null,
-                                     bool inject_initial_api = true) {
-        project_store = new GLib.ListStore(typeof(HolderLinux.Project));
-        card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
-        thread_store = new GLib.ListStore(typeof(HolderLinux.AiThreadSummary));
-        search_store = new GLib.ListStore(typeof(HolderLinux.SearchCardResult));
-        project_selection = new StoreSelectionState(project_store);
-        card_selection = new StoreSelectionState(card_store);
-        thread_selection = new StoreSelectionState(thread_store);
-        search_selection = new StoreSelectionState(search_store);
-        search_text = new MutableTextProvider();
-        editor_text = new MutableTextProvider();
-        controller = new HolderLinux.MainController(
-            project_store,
-            project_selection,
-            card_store,
-            card_selection,
-            thread_store,
-            thread_selection,
-            search_store,
-            search_selection,
-            search_text,
-            editor_text,
-            new MainControllerFakeApiFactory(api, api),
-            discovery ?? new FakeServerDiscovery(),
-            clock,
-            scheduler,
-            inject_initial_api ? (initial_api ?? api) : null
-        );
     }
 }
 

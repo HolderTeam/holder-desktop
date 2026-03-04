@@ -39,6 +39,5 @@ int main(string[] args) {
     Test.add_func("/app_settings/key_to_color_scheme/force_dark", test_key_to_color_scheme_force_dark);
     Test.add_func("/app_settings/key_to_color_scheme/unknown_falls_back_default",
                   test_key_to_color_scheme_unknown_falls_back_default);
-
     return Test.run();
 }

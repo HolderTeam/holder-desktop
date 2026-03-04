@@ -31,6 +31,19 @@ From `frontends/linux`:
 
 This runs non-UI suites (fast, headless-safe).
 
+### 3) Coverage report
+
+From `frontends/linux`:
+
+```bash
+./make.sh coverage
+```
+
+Outputs:
+- `build-coverage/coverage/summary-lines.txt`
+- `build-coverage/coverage/summary-branches.txt`
+- `build-coverage/coverage/index.html`
+
 ## Integration/UI tests
 
 All app-launch and backend-integrated tests are owned by `integration/`.
