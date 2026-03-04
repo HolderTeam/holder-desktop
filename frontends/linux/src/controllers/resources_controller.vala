@@ -2,6 +2,7 @@ namespace HolderLinux {
 
 public class ResourcesController : Object {
     private ResourcesService service;
+    internal int ellipsize_cutoff_override_for_tests = -1;
 
     public ResourcesController(ResourcesService? service = null) {
         this.service = service ?? new ResourcesService();
@@ -42,15 +43,18 @@ public class ResourcesController : Object {
         return dt.format("%Y-%m-%d %H:%M");
     }
 
-    public string ellipsize_title(string title) {
+    public string ellipsize_title(string? title) {
         if (title == null) {
             return "";
         }
         if (title.char_count() < 47) {
             return title;
         }
-        int cutoff = title.index_of_nth_char(44);
-        if (cutoff < 0) {
+        int cutoff_chars = ellipsize_cutoff_override_for_tests >= 0
+            ? ellipsize_cutoff_override_for_tests
+            : 44;
+        int cutoff = title.index_of_nth_char(cutoff_chars);
+        if (cutoff < 0 || cutoff > title.length) {
             return title;
         }
         return title.substring(0, cutoff) + "...";

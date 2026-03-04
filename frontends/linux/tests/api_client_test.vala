@@ -1396,6 +1396,93 @@ private void test_list_projects_sync_null_or_non_object_uses_defaults() {
     assert(projects[1].sync.retry_count == 0);
 }
 
+private void test_list_projects_parses_nullable_git_remote_url() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"No Remote\",\"git_remote_url\":null},{\"project_id\":\"p2\",\"name\":\"Has Remote\",\"git_remote_url\":\"git@github.com:owner/repo.git\"}]}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.Project>? projects = null;
+    client.list_projects.begin((obj, res) => {
+        try {
+            projects = client.list_projects.end(res);
+        } catch (Error e) {
+            projects = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(projects != null);
+    assert(projects.size == 2);
+    assert(projects[0].git_remote_url == null);
+    assert(projects[1].git_remote_url == "git@github.com:owner/repo.git");
+}
+
+private void test_list_projects_sync_nullable_int_fields_missing_and_null() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"Sync Nullables\",\"sync\":{\"last_push_at\":null,\"last_pull_at\":77,\"last_sync_error_at\":null,\"next_retry_at\":88,\"updated_at\":99}}]}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.Project>? projects = null;
+    client.list_projects.begin((obj, res) => {
+        try {
+            projects = client.list_projects.end(res);
+        } catch (Error e) {
+            projects = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(projects != null);
+    assert(projects.size == 1);
+    var sync = projects[0].sync;
+    assert(!sync.has_last_commit_at);   // missing key path
+    assert(!sync.has_last_push_at);     // explicit null path
+    assert(sync.has_last_pull_at);
+    assert(sync.last_pull_at == 77);
+    assert(!sync.has_last_sync_error_at); // explicit null path
+    assert(sync.has_next_retry_at);
+    assert(sync.next_retry_at == 88);
+    assert(sync.has_updated_at);
+    assert(sync.updated_at == 99);
+}
+
+private void test_list_projects_sync_object_missing_counts_defaults_to_zero() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"Missing Counts\",\"sync\":{}}]}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.Project>? projects = null;
+    client.list_projects.begin((obj, res) => {
+        try {
+            projects = client.list_projects.end(res);
+        } catch (Error e) {
+            projects = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(projects != null);
+    assert(projects.size == 1);
+    assert(projects[0].sync.uncommitted_changes_count == 0);
+    assert(projects[0].sync.unpushed_commits_count == 0);
+    assert(projects[0].sync.retry_count == 0);
+}
+
 private void test_health_check_missing_data_is_protocol_error() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(200, "{\"ok\":true}");
@@ -1406,6 +1493,26 @@ private void test_health_check_missing_data_is_protocol_error() {
     client.health_check.begin((obj, res) => {
         try {
             client.health_check.end(res);
+        } catch (Error e) {
+            got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_protocol);
+}
+
+private void test_get_health_info_missing_data_is_protocol_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_protocol = false;
+    client.get_health_info.begin((obj, res) => {
+        try {
+            client.get_health_info.end(res);
         } catch (Error e) {
             got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
         }
@@ -2304,8 +2411,16 @@ int main(string[] args) {
                   test_list_projects_parses_sync_state_fields);
     Test.add_func("/api_client/list_projects_sync_null_or_non_object_uses_defaults",
                   test_list_projects_sync_null_or_non_object_uses_defaults);
+    Test.add_func("/api_client/list_projects_parses_nullable_git_remote_url",
+                  test_list_projects_parses_nullable_git_remote_url);
+    Test.add_func("/api_client/list_projects_sync_nullable_int_fields_missing_and_null",
+                  test_list_projects_sync_nullable_int_fields_missing_and_null);
+    Test.add_func("/api_client/list_projects_sync_object_missing_counts_defaults_to_zero",
+                  test_list_projects_sync_object_missing_counts_defaults_to_zero);
     Test.add_func("/api_client/health_check_missing_data_is_protocol_error",
                   test_health_check_missing_data_is_protocol_error);
+    Test.add_func("/api_client/get_health_info_missing_data_is_protocol_error",
+                  test_get_health_info_missing_data_is_protocol_error);
     Test.add_func("/api_client/non_2xx_with_non_json_body_maps_to_http_error",
                   test_non_2xx_with_non_json_body_maps_to_http_error);
     Test.add_func("/api_client/non_2xx_json_without_error_object_maps_to_http_fallback",

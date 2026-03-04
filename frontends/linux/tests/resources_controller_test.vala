@@ -144,6 +144,19 @@ private void test_ellipsize_title_short_and_boundary_values() {
     assert(out_47.has_suffix("..."));
 }
 
+private void test_ellipsize_title_null_returns_empty() {
+    var controller = new HolderLinux.ResourcesController();
+    assert(controller.ellipsize_title(null) == "");
+}
+
+private void test_ellipsize_title_cutoff_negative_returns_original() {
+    var controller = new HolderLinux.ResourcesController();
+    controller.ellipsize_cutoff_override_for_tests = 500;
+    var in_text = "12345678901234567890123456789012345678901234567890";
+    var out_text = controller.ellipsize_title(in_text);
+    assert(out_text == in_text);
+}
+
 private void test_default_resource_kinds_are_stable() {
     var controller = new HolderLinux.ResourcesController();
     var kinds = controller.default_resource_kinds();
@@ -176,6 +189,10 @@ int main(string[] args) {
                   test_ellipsize_title_caps_length);
     Test.add_func("/resources_controller/ellipsize_title_short_and_boundary_values",
                   test_ellipsize_title_short_and_boundary_values);
+    Test.add_func("/resources_controller/ellipsize_title_null_returns_empty",
+                  test_ellipsize_title_null_returns_empty);
+    Test.add_func("/resources_controller/ellipsize_title_cutoff_negative_returns_original",
+                  test_ellipsize_title_cutoff_negative_returns_original);
     Test.add_func("/resources_controller/default_resource_kinds_are_stable",
                   test_default_resource_kinds_are_stable);
 
