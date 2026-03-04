@@ -1,5 +1,10 @@
 using GLib;
 
+private void test_app_settings_class_can_be_instantiated() {
+    var app_settings = new HolderLinux.AppSettings();
+    assert(app_settings != null);
+}
+
 private void test_color_scheme_to_key_default() {
     assert(HolderLinux.AppSettings.color_scheme_to_key(Adw.ColorScheme.DEFAULT) == "default");
 }
@@ -235,6 +240,8 @@ private void test_key_constants_are_non_empty() {
 int main(string[] args) {
     Test.init(ref args);
 
+    Test.add_func("/app_settings/class_can_be_instantiated",
+                  test_app_settings_class_can_be_instantiated);
     Test.add_func("/app_settings/color_scheme_to_key/default", test_color_scheme_to_key_default);
     Test.add_func("/app_settings/color_scheme_to_key/force_light", test_color_scheme_to_key_force_light);
     Test.add_func("/app_settings/color_scheme_to_key/force_dark", test_color_scheme_to_key_force_dark);

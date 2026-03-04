@@ -1,5 +1,10 @@
 using GLib;
 
+private void test_text_utils_class_can_be_instantiated() {
+    var utils = new HolderLinux.TextUtils();
+    assert(utils != null);
+}
+
 private void test_title_from_markdown_heading() {
     var title = HolderLinux.TextUtils.title_from_content("# Project Plan\n\nBody");
     assert(title == "Project Plan");
@@ -71,6 +76,7 @@ private void test_relative_time_days() {
 int main(string[] args) {
     Test.init(ref args);
 
+    Test.add_func("/text/class_can_be_instantiated", test_text_utils_class_can_be_instantiated);
     Test.add_func("/text/title_from_markdown_heading", test_title_from_markdown_heading);
     Test.add_func("/text/title_from_first_non_empty_line", test_title_from_first_non_empty_line);
     Test.add_func("/text/title_fallback_for_empty_content", test_title_fallback_for_empty_content);

@@ -466,6 +466,24 @@ private void test_stop_without_polling_is_noop() {
     assert(scheduler.cancel_calls == 0);
 }
 
+private void test_refresh_status_stops_polling_when_no_active_pull_jobs() {
+    var api = new AiRunFakeApi();
+    api.status_active_pull_jobs = 1;
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
+    var scheduler = new TestScheduler();
+    var controller = new HolderLinux.AiRunController(ctx, scheduler);
+
+    controller.set_panel_visible(true);
+    assert(wait_for_condition(() => scheduler.repeating_scheduled > 0));
+    assert(scheduler.cancel_calls == 0);
+
+    api.status_active_pull_jobs = 0;
+    controller.refresh_status.begin();
+    assert(wait_for_condition(() => scheduler.cancel_calls > 0));
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -552,6 +570,10 @@ int main(string[] args) {
     Test.add_func(
         "/ai_run/stop_without_polling_is_noop",
         test_stop_without_polling_is_noop
+    );
+    Test.add_func(
+        "/ai_run/refresh_status_stops_polling_when_no_active_pull_jobs",
+        test_refresh_status_stops_polling_when_no_active_pull_jobs
     );
 
     return Test.run();
