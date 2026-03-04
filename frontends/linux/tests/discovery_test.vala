@@ -96,15 +96,40 @@ private void test_discover_server_read_failure_when_path_is_directory() {
     var path = holder_info_path_for_current_env();
     var dir = Path.get_dirname(path);
     DirUtils.create_with_parents(dir, 0755);
-    DirUtils.create(path, 0755);
+    try {
+        FileUtils.set_contents(path, "{\"pid\":1}");
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+
+    int chmod_status = -1;
+    try {
+        Process.spawn_command_line_sync("chmod 000 %s".printf(Shell.quote(path)),
+                                        null, null, out chmod_status);
+    } catch (SpawnError e) {
+        assert_not_reached();
+    }
+    assert(chmod_status == 0);
 
     bool got_invalid = false;
+    bool got_read_failure_message = false;
     try {
         HolderLinux.Discovery.discover_server();
     } catch (Error e) {
         got_invalid = (e is HolderLinux.DiscoveryError.INVALID_FORMAT);
+        got_read_failure_message = e.message.contains("Failed to read");
     }
     assert(got_invalid);
+    assert(got_read_failure_message);
+
+    int restore_status = -1;
+    try {
+        Process.spawn_command_line_sync("chmod 600 %s".printf(Shell.quote(path)),
+                                        null, null, out restore_status);
+    } catch (SpawnError e) {
+        assert_not_reached();
+    }
+    assert(restore_status == 0);
 }
 
 private void test_discover_server_success() {
