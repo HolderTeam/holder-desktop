@@ -93,6 +93,10 @@ public class FlowboardController : Object {
         if (tile == null) {
             return;
         }
+        activate_tile(tile);
+    }
+
+    internal void activate_tile(FlowboardTile tile) {
         if (tile.project_id != null) {
             select_project(tile.project_id);
             project_overview_requested(tile.project_id);

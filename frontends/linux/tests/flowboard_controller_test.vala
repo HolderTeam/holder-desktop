@@ -444,6 +444,42 @@ private void test_activate_position_out_of_range_is_noop() {
     assert(opened == 0);
 }
 
+private void test_activate_tile_with_null_card_id_is_noop() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+
+    int opened = 0;
+    int overviews = 0;
+    controller.card_open_requested.connect((card_id) => {
+        opened++;
+    });
+    controller.project_overview_requested.connect((project_id) => {
+        overviews++;
+    });
+
+    var invalid_tile = new HolderLinux.FlowboardTile(
+        "invalid",
+        "Invalid",
+        0,
+        false,
+        null,
+        null,
+        null
+    );
+    controller.activate_tile(invalid_tile);
+
+    assert(opened == 0);
+    assert(overviews == 0);
+    var selected = project_selection.get_selected_item() as HolderLinux.Project;
+    assert(selected != null);
+    assert(selected.project_id == "p1");
+}
+
 private void test_open_card_from_context_menu_leaf_opens_without_navigation() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
@@ -949,6 +985,8 @@ int main(string[] args) {
                   test_refresh_clears_missing_current_parent);
     Test.add_func("/flowboard/activate_position_out_of_range_is_noop",
                   test_activate_position_out_of_range_is_noop);
+    Test.add_func("/flowboard/activate_tile_with_null_card_id_is_noop",
+                  test_activate_tile_with_null_card_id_is_noop);
     Test.add_func("/flowboard/open_card_from_context_menu_leaf_opens_without_navigation",
                   test_open_card_from_context_menu_leaf_opens_without_navigation);
     Test.add_func("/flowboard/move_left_right_edge_cards_are_noop",
