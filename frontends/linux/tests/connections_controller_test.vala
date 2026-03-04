@@ -29,6 +29,21 @@ private void test_ellipsize_title_exact_47_is_ellipsized() {
     assert(result.has_suffix("..."));
 }
 
+private void test_ellipsize_title_null_returns_empty() {
+    var controller = new ConnectionsController();
+    string? nullable_title = null;
+    assert(controller.ellipsize_title((string) nullable_title) == "");
+}
+
+private void test_ellipsize_title_cutoff_negative_returns_original_title() {
+    var controller = new ConnectionsController();
+    ConnectionsController.ellipsize_cutoff_override_for_tests = -1;
+    var title = "123456789012345678901234567890123456789012345678901234567890";
+    var result = controller.ellipsize_title(title);
+    ConnectionsController.ellipsize_cutoff_override_for_tests = int.MIN;
+    assert(result == title);
+}
+
 private void test_resolve_internal_link() {
     var controller = new ConnectionsController();
     var cards = new Gee.ArrayList<CardSummary>();
@@ -91,6 +106,47 @@ private void test_compact_structure_markup_sibling_order_uses_updated_then_title
     assert(markup.contains("Next: <a href=\"card:next\">Z</a>"));
 }
 
+private void test_compact_structure_markup_sibling_order_updated_at_desc_returns_minus_one_path() {
+    var controller = new ConnectionsController();
+    var project = new Project("p1", "My Project", "plain", "/tmp/p1", 1, 1);
+    var cards = new Gee.ArrayList<CardSummary>();
+    // Same sort_key so comparator must use updated_at ordering.
+    cards.add(card("older", "p1", "Older", 10, null, 100));
+    cards.add(card("newer", "p1", "Newer", 10, null, 200));
+    cards.add(card("sel", "p1", "Selected", 10, null, 150));
+
+    var markup = controller.compact_structure_markup(project, cards[2], cards);
+    // Selected should sit between newer and older after updated_at-desc sort.
+    assert(markup.contains("Previous: <a href=\"card:newer\">Newer</a>"));
+    assert(markup.contains("Next: <a href=\"card:older\">Older</a>"));
+}
+
+private void test_compact_structure_markup_sibling_order_uses_sort_key_first() {
+    var controller = new ConnectionsController();
+    var project = new Project("p1", "My Project", "plain", "/tmp/p1", 1, 1);
+    var cards = new Gee.ArrayList<CardSummary>();
+    cards.add(card("sel", "p1", "Selected", 20, null, 50));
+    cards.add(card("prev", "p1", "A", 10, null, 10));
+    cards.add(card("next", "p1", "Z", 30, null, 999));
+
+    var markup = controller.compact_structure_markup(project, cards[0], cards);
+    assert(markup.contains("Previous: <a href=\"card:prev\">A</a>"));
+    assert(markup.contains("Next: <a href=\"card:next\">Z</a>"));
+}
+
+private void test_compact_structure_markup_sibling_order_tiebreaks_by_title() {
+    var controller = new ConnectionsController();
+    var project = new Project("p1", "My Project", "plain", "/tmp/p1", 1, 1);
+    var cards = new Gee.ArrayList<CardSummary>();
+    cards.add(card("z", "p1", "zulu", 10, null, 100));
+    cards.add(card("m", "p1", "mike", 10, null, 100));
+    cards.add(card("a", "p1", "alpha", 10, null, 100));
+
+    var markup = controller.compact_structure_markup(project, cards[1], cards);
+    assert(markup.contains("Previous: <a href=\"card:a\">alpha</a>"));
+    assert(markup.contains("Next: <a href=\"card:z\">zulu</a>"));
+}
+
 private void test_compact_structure_markup_cross_project_parent_is_shown_but_children_filtered() {
     var controller = new ConnectionsController();
     var project = new Project("p1", "My Project", "plain", "/tmp/p1", 1, 1);
@@ -133,6 +189,20 @@ private void test_compact_structure_markup_escapes_and_ellipsizes_links() {
     assert(markup.contains("&lt;Unsafe&gt;"));
     assert(markup.contains("..."));
     assert(markup.contains("href=\"card:child\""));
+}
+
+private void test_compact_structure_markup_children_are_space_separated() {
+    var controller = new ConnectionsController();
+    var project = new Project("p1", "My Project", "plain", "/tmp/p1", 1, 1);
+    var cards = new Gee.ArrayList<CardSummary>();
+    cards.add(card("sel", "p1", "Selected", 10, null, 10));
+    cards.add(card("child-a", "p1", "Child A", 10, "sel", 20));
+    cards.add(card("child-b", "p1", "Child B", 20, "sel", 30));
+
+    var markup = controller.compact_structure_markup(project, cards[0], cards);
+    assert(markup.contains(
+        "Children: <a href=\"card:child-a\">Child A</a> <a href=\"card:child-b\">Child B</a>"
+    ));
 }
 
 private void test_list_available_link_kinds_null_settings_defaults() {
@@ -203,6 +273,42 @@ private void test_remember_custom_link_kind_with_settings() {
     }
 }
 
+private void test_remember_custom_link_kind_filters_existing_entries_via_continue_path() {
+    var controller = new ConnectionsController();
+    var settings = AppSettings.open_or_null();
+    if (settings == null) {
+        assert(true);
+        return;
+    }
+
+    string[] original = settings.get_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS);
+    try {
+        settings.set_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS, {"ref", "blocks", "custom", "  ", "dup", "dup", "ok"});
+        controller.remember_custom_link_kind(settings, "new_kind");
+
+        var stored = new Gee.ArrayList<string>();
+        foreach (var value in settings.get_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS)) {
+            stored.add(value);
+        }
+
+        assert(!stored.contains("ref"));
+        assert(!stored.contains("blocks"));
+        assert(!stored.contains("custom"));
+        assert(stored.contains("dup"));
+        assert(stored.contains("ok"));
+        assert(stored.contains("new_kind"));
+        int dup_count = 0;
+        foreach (var item in stored) {
+            if (item == "dup") {
+                dup_count++;
+            }
+        }
+        assert(dup_count == 1);
+    } finally {
+        settings.set_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS, original);
+    }
+}
+
 private void test_remember_custom_link_kind_limits_to_20_entries() {
     var controller = new ConnectionsController();
     var settings = AppSettings.open_or_null();
@@ -243,6 +349,10 @@ public static int main(string[] args) {
     Test.add_func("/holder/connections/ellipsize_title", test_ellipsize_title);
     Test.add_func("/holder/connections/ellipsize_title_exact_47_is_ellipsized",
                   test_ellipsize_title_exact_47_is_ellipsized);
+    Test.add_func("/holder/connections/ellipsize_title_null_returns_empty",
+                  test_ellipsize_title_null_returns_empty);
+    Test.add_func("/holder/connections/ellipsize_title_cutoff_negative_returns_original_title",
+                  test_ellipsize_title_cutoff_negative_returns_original_title);
     Test.add_func("/holder/connections/resolve_internal_link", test_resolve_internal_link);
     Test.add_func("/holder/connections/resolve_internal_link_prefers_exact_title_before_casefold",
                   test_resolve_internal_link_prefers_exact_title_before_casefold);
@@ -251,6 +361,12 @@ public static int main(string[] args) {
     Test.add_func("/holder/connections/compact_structure_markup", test_compact_structure_markup);
     Test.add_func("/holder/connections/compact_structure_markup_sibling_order_uses_updated_then_title",
                   test_compact_structure_markup_sibling_order_uses_updated_then_title);
+    Test.add_func("/holder/connections/compact_structure_markup_sibling_order_updated_at_desc_returns_minus_one_path",
+                  test_compact_structure_markup_sibling_order_updated_at_desc_returns_minus_one_path);
+    Test.add_func("/holder/connections/compact_structure_markup_sibling_order_uses_sort_key_first",
+                  test_compact_structure_markup_sibling_order_uses_sort_key_first);
+    Test.add_func("/holder/connections/compact_structure_markup_sibling_order_tiebreaks_by_title",
+                  test_compact_structure_markup_sibling_order_tiebreaks_by_title);
     Test.add_func("/holder/connections/compact_structure_markup_cross_project_parent_is_shown_but_children_filtered",
                   test_compact_structure_markup_cross_project_parent_is_shown_but_children_filtered);
     Test.add_func("/holder/connections/compact_structure_markup_project_none",
@@ -259,12 +375,16 @@ public static int main(string[] args) {
                   test_compact_structure_markup_includes_parent_line);
     Test.add_func("/holder/connections/compact_structure_markup_escapes_and_ellipsizes_links",
                   test_compact_structure_markup_escapes_and_ellipsizes_links);
+    Test.add_func("/holder/connections/compact_structure_markup_children_are_space_separated",
+                  test_compact_structure_markup_children_are_space_separated);
     Test.add_func("/holder/connections/list_available_link_kinds_null_settings_defaults",
                   test_list_available_link_kinds_null_settings_defaults);
     Test.add_func("/holder/connections/list_available_link_kinds_merges_custom_kinds_from_settings",
                   test_list_available_link_kinds_merges_custom_kinds_from_settings);
     Test.add_func("/holder/connections/remember_custom_link_kind_with_settings",
                   test_remember_custom_link_kind_with_settings);
+    Test.add_func("/holder/connections/remember_custom_link_kind_filters_existing_entries_via_continue_path",
+                  test_remember_custom_link_kind_filters_existing_entries_via_continue_path);
     Test.add_func("/holder/connections/remember_custom_link_kind_limits_to_20_entries",
                   test_remember_custom_link_kind_limits_to_20_entries);
     Test.add_func("/holder/connections/remember_custom_link_kind_null_settings_noop",

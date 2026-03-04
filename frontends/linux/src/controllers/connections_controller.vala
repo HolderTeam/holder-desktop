@@ -1,6 +1,8 @@
 namespace HolderLinux {
 
 public class ConnectionsController : Object {
+    internal static int ellipsize_cutoff_override_for_tests = int.MIN;
+
     private string? normalize_parent(string? parent_card_id) {
         if (parent_card_id == null) {
             return null;
@@ -25,14 +27,17 @@ public class ConnectionsController : Object {
         return strcmp(a.title.down(), b.title.down());
     }
 
-    public string ellipsize_title(string title) {
+    public string ellipsize_title(string? title) {
         if (title == null) {
             return "";
         }
         if (title.char_count() < 47) {
             return title;
         }
-        int cutoff = title.index_of_nth_char(44);
+        int cutoff = ellipsize_cutoff_override_for_tests;
+        if (cutoff == int.MIN) {
+            cutoff = title.index_of_nth_char(44);
+        }
         if (cutoff < 0) {
             return title;
         }

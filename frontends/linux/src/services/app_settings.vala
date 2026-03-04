@@ -15,23 +15,11 @@ public class AppSettings : Object {
     public const string KEY_CUSTOM_CARD_LINK_KINDS = "custom-card-link-kinds";
     public const string KEY_GIT_GITHUB_USERNAME = "git-github-username";
     private static WarningSink? warning_sink = null;
-    private static bool force_read_link_failure_for_tests = false;
-    private static bool skip_default_schema_lookup_for_tests = false;
+    internal static bool force_read_link_failure_for_tests = false;
+    internal static bool skip_default_schema_lookup_for_tests = false;
 
     public static void set_warning_sink(owned WarningSink? sink) {
         warning_sink = (owned) sink;
-    }
-
-    internal static void emit_warning_for_tests(string message) {
-        emit_warning(message);
-    }
-
-    internal static void set_force_read_link_failure_for_tests(bool enabled) {
-        force_read_link_failure_for_tests = enabled;
-    }
-
-    internal static void set_skip_default_schema_lookup_for_tests(bool enabled) {
-        skip_default_schema_lookup_for_tests = enabled;
     }
 
     private static void emit_warning(string message) {
