@@ -702,6 +702,218 @@ private void test_move_left_and_right_middle_card_emit_reorder() {
     assert(b_moves == 2);
 }
 
+private void test_move_card_to_start_single_sibling_is_noop() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("only", "p1", "Only", 1024.0));
+
+    int move_emits = 0;
+    controller.move_requested.connect((card_id, parent_id, sort_key) => {
+        move_emits++;
+    });
+
+    controller.refresh();
+    controller.move_card_to_start_from_context_menu("only");
+    assert(move_emits == 0);
+}
+
+private void test_navigate_up_from_depth_two_keeps_parent_context() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("a", "p1", "A", 1024.0));
+    card_store.append(make_card("b", "p1", "B", 1024.0, "a"));
+    card_store.append(make_card("c", "p1", "C", 1024.0, "b"));
+
+    controller.refresh();
+    controller.activate_position(0); // enter A -> shows B
+    controller.activate_position(0); // enter B -> shows C
+    controller.navigate_up();        // back to A context -> should show B
+
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 1);
+    var only = tile_at(model, 0);
+    assert(only != null);
+    assert(only.card_id == "b");
+}
+
+private void test_navigate_to_parent_breadcrumb_trims_stack() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("a", "p1", "A", 1024.0));
+    card_store.append(make_card("b", "p1", "B", 1024.0, "a"));
+    card_store.append(make_card("c", "p1", "C", 1024.0, "b"));
+
+    controller.refresh();
+    controller.activate_position(0); // enter A
+    controller.activate_position(0); // enter B
+    controller.navigate_to_breadcrumb_index(2); // Projects / Project / A
+
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 1);
+    var only = tile_at(model, 0);
+    assert(only != null);
+    assert(only.card_id == "b");
+}
+
+private void test_projects_mode_sorts_by_name_when_timestamps_tie() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p2", "zeta", 10));
+    project_store.append(make_project("p1", "Alpha", 10));
+    project_store.append(make_project("p3", "alpha", 10));
+    project_selection.set_selected(0);
+
+    controller.refresh();
+    controller.navigate_to_breadcrumb_index(0);
+
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 3);
+    var first = tile_at(model, 0);
+    var second = tile_at(model, 1);
+    var third = tile_at(model, 2);
+    assert(first != null && second != null && third != null);
+    assert(first.title.down() == "alpha");
+    assert(second.title.down() == "alpha");
+    assert(third.title.down() == "zeta");
+}
+
+private void test_equal_sort_key_uses_updated_at_tiebreaker() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("old", "p1", "Old", 1024.0, null, 1));
+    card_store.append(make_card("new", "p1", "New", 1024.0, null, 2));
+
+    controller.refresh();
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 2);
+    var first = tile_at(model, 0);
+    var second = tile_at(model, 1);
+    assert(first != null && second != null);
+    assert(first.card_id == "new");
+    assert(second.card_id == "old");
+}
+
+private void test_drop_right_edge_on_last_card_uses_tail_padding() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("a", "p1", "Alpha", 1024.0));
+    card_store.append(make_card("b", "p1", "Beta", 2048.0));
+    card_store.append(make_card("c", "p1", "Gamma", 3072.0));
+
+    double moved_sort = 0.0;
+    controller.move_requested.connect((card_id, parent_id, sort_key) => {
+        if (card_id == "a") {
+            moved_sort = sort_key;
+        }
+    });
+
+    controller.refresh();
+    controller.on_card_drop("a", "c", 0.95);
+    assert(moved_sort > 3072.0);
+}
+
+private void test_projects_mode_sort_hits_updated_at_less_branch() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("old", "Old", 1));
+    project_store.append(make_project("new", "New", 2));
+    project_selection.set_selected(0);
+
+    controller.refresh();
+    controller.navigate_to_breadcrumb_index(0);
+
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 2);
+    var first = tile_at(model, 0);
+    var second = tile_at(model, 1);
+    assert(first != null && second != null);
+    assert(first.project_id == "new");
+    assert(second.project_id == "old");
+}
+
+private void test_equal_sort_key_inverse_insertion_still_prefers_newer_card() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("new", "p1", "New", 1024.0, null, 2));
+    card_store.append(make_card("old", "p1", "Old", 1024.0, null, 1));
+
+    controller.refresh();
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 2);
+    var first = tile_at(model, 0);
+    var second = tile_at(model, 1);
+    assert(first != null && second != null);
+    assert(first.card_id == "new");
+    assert(second.card_id == "old");
+}
+
+private void test_projects_mode_sorts_mixed_timestamps_descending() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "One", 30));
+    project_store.append(make_project("p2", "Two", 10));
+    project_store.append(make_project("p3", "Three", 50));
+    project_store.append(make_project("p4", "Four", 20));
+    project_store.append(make_project("p5", "Five", 40));
+    project_selection.set_selected(0);
+
+    controller.refresh();
+    controller.navigate_to_breadcrumb_index(0);
+
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 5);
+    var first = tile_at(model, 0);
+    var second = tile_at(model, 1);
+    var third = tile_at(model, 2);
+    var fourth = tile_at(model, 3);
+    var fifth = tile_at(model, 4);
+    assert(first != null && second != null && third != null && fourth != null && fifth != null);
+    assert(first.project_id == "p3");
+    assert(second.project_id == "p5");
+    assert(third.project_id == "p1");
+    assert(fourth.project_id == "p4");
+    assert(fifth.project_id == "p2");
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -759,6 +971,24 @@ int main(string[] args) {
                   test_drop_left_edge_places_before_target);
     Test.add_func("/flowboard/move_left_and_right_middle_card_emit_reorder",
                   test_move_left_and_right_middle_card_emit_reorder);
+    Test.add_func("/flowboard/move_card_to_start_single_sibling_is_noop",
+                  test_move_card_to_start_single_sibling_is_noop);
+    Test.add_func("/flowboard/navigate_up_from_depth_two_keeps_parent_context",
+                  test_navigate_up_from_depth_two_keeps_parent_context);
+    Test.add_func("/flowboard/navigate_to_parent_breadcrumb_trims_stack",
+                  test_navigate_to_parent_breadcrumb_trims_stack);
+    Test.add_func("/flowboard/projects_mode_sorts_by_name_when_timestamps_tie",
+                  test_projects_mode_sorts_by_name_when_timestamps_tie);
+    Test.add_func("/flowboard/equal_sort_key_uses_updated_at_tiebreaker",
+                  test_equal_sort_key_uses_updated_at_tiebreaker);
+    Test.add_func("/flowboard/drop_right_edge_on_last_card_uses_tail_padding",
+                  test_drop_right_edge_on_last_card_uses_tail_padding);
+    Test.add_func("/flowboard/projects_mode_sort_hits_updated_at_less_branch",
+                  test_projects_mode_sort_hits_updated_at_less_branch);
+    Test.add_func("/flowboard/equal_sort_key_inverse_insertion_still_prefers_newer_card",
+                  test_equal_sort_key_inverse_insertion_still_prefers_newer_card);
+    Test.add_func("/flowboard/projects_mode_sorts_mixed_timestamps_descending",
+                  test_projects_mode_sorts_mixed_timestamps_descending);
 
     return Test.run();
 }

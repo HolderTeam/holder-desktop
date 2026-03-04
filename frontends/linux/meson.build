@@ -28,6 +28,7 @@ sources = [
   'src/views/sidebar.vala',
   'src/views/ai_panel.vala',
   'src/views/preferences_dialog.vala',
+  'src/views/search.vala',
   'src/views/flowboard_pane.vala',
   'src/views/toolbox.vala',
   'src/views/toolbox/connections_tool_view.vala',
