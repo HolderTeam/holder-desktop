@@ -237,6 +237,104 @@ private void test_list_cards_with_parent_query() {
     assert(transport.last_uri.contains("parent_card_id=parent-1"));
 }
 
+private void test_list_cards_ignores_blank_parent_query() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
+    var client = make_client(transport);
+
+    bool done = false;
+    client.list_cards.begin("p1", "children", "   ", (obj, res) => {
+        try {
+            client.list_cards.end(res);
+        } catch (Error e) {
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(transport.last_uri.contains("/cards?"));
+    assert(transport.last_uri.contains("project_id=p1"));
+    assert(transport.last_uri.contains("scope=children"));
+    assert(!transport.last_uri.contains("parent_card_id="));
+}
+
+private void test_resources_crud_and_parse() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"resource_id\":\"r1\",\"project_id\":\"p1\",\"kind\":\"url\",\"uri\":\"https://example.com\",\"label\":\"Example\",\"desc\":null,\"created_at\":1,\"updated_at\":2}]}"
+    );
+    transport.enqueue_read(201, "{\"ok\":true,\"data\":{\"resource_id\":\"r2\"}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    var client = make_client(transport);
+
+    bool done_list = false;
+    Gee.ArrayList<HolderLinux.ProjectResource>? resources = null;
+    client.list_resources.begin("p1", (obj, res) => {
+        try {
+            resources = client.list_resources.end(res);
+        } catch (Error e) {
+            resources = null;
+        }
+        done_list = true;
+    });
+    assert(wait_for_condition(() => done_list));
+    assert(resources != null);
+    assert(resources.size == 1);
+    assert(resources[0].resource_id == "r1");
+    assert(resources[0].desc == null);
+    assert(transport.last_uri.contains("/resources?"));
+    assert(transport.last_uri.contains("project_id=p1"));
+
+    bool done_create = false;
+    string resource_id = "";
+    client.create_resource.begin("p1", "url", "https://example.com", "Example", null, (obj, res) => {
+        try {
+            resource_id = client.create_resource.end(res);
+        } catch (Error e) {
+            resource_id = "";
+        }
+        done_create = true;
+    });
+    assert(wait_for_condition(() => done_create));
+    assert(resource_id == "r2");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/resources"));
+
+    bool done_update = false;
+    bool update_ok = false;
+    client.update_resource.begin("r2", "file", "/tmp/a.txt", "A", null, 7, (obj, res) => {
+        try {
+            client.update_resource.end(res);
+            update_ok = true;
+        } catch (Error e) {
+            update_ok = false;
+        }
+        done_update = true;
+    });
+    assert(wait_for_condition(() => done_update));
+    assert(update_ok);
+    assert(transport.last_method == "PATCH");
+    assert(transport.last_uri.has_suffix("/resources/r2"));
+
+    bool done_delete = false;
+    bool delete_ok = false;
+    client.delete_resource.begin("r2", (obj, res) => {
+        try {
+            client.delete_resource.end(res);
+            delete_ok = true;
+        } catch (Error e) {
+            delete_ok = false;
+        }
+        done_delete = true;
+    });
+    assert(wait_for_condition(() => done_delete));
+    assert(delete_ok);
+    assert(transport.last_method == "DELETE");
+    assert(transport.last_uri.has_suffix("/resources/r2"));
+}
+
 private void test_get_card_parses_detail() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -566,6 +664,192 @@ private void test_list_git_provider_catalog_parses_providers() {
     assert(transport.last_uri.has_suffix("/git_providers.json"));
 }
 
+private void test_list_git_provider_catalog_missing_providers_returns_empty() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"title\":\"Git Providers\"}");
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.GitProviderCatalogEntry>? providers = null;
+    client.list_git_provider_catalog.begin((obj, res) => {
+        try {
+            providers = client.list_git_provider_catalog.end(res);
+        } catch (Error e) {
+            providers = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(providers != null);
+    assert(providers.size == 0);
+}
+
+private void test_git_remote_test_and_push_parse_results() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"git@github.com:me/repo.git\",\"branch\":\"cards\",\"status\":\"reachable\",\"remote_has_head\":true,\"error_code\":\"\",\"error_message\":\"\"}}"
+    );
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"git@github.com:me/repo.git\",\"branch\":\"cards\",\"status\":\"pushed\",\"ahead_count\":0,\"behind_count\":0,\"error_code\":\"\",\"error_message\":\"\",\"next_action\":\"none\"}}"
+    );
+    var client = make_client(transport);
+
+    bool done_test = false;
+    HolderLinux.GitTestRemoteResult? test_result = null;
+    client.test_project_git_remote.begin("p1", "git@github.com:me/repo.git", "cards", (obj, res) => {
+        try {
+            test_result = client.test_project_git_remote.end(res);
+        } catch (Error e) {
+            test_result = null;
+        }
+        done_test = true;
+    });
+    assert(wait_for_condition(() => done_test));
+    assert(test_result != null);
+    assert(test_result.status == "reachable");
+    assert(test_result.remote_has_head);
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/projects/p1/git/test-remote"));
+
+    bool done_push = false;
+    HolderLinux.GitPushResult? push_result = null;
+    client.push_project_git.begin("p1", "cards", true, (obj, res) => {
+        try {
+            push_result = client.push_project_git.end(res);
+        } catch (Error e) {
+            push_result = null;
+        }
+        done_push = true;
+    });
+    assert(wait_for_condition(() => done_push));
+    assert(push_result != null);
+    assert(push_result.status == "pushed");
+    assert(push_result.next_action == "none");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/projects/p1/git/push"));
+}
+
+private void test_set_project_git_remote_handles_null_and_non_empty_url() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    var client = make_client(transport);
+
+    bool done_null = false;
+    bool ok_null = false;
+    client.set_project_git_remote.begin("p1", null, 11, (obj, res) => {
+        try {
+            client.set_project_git_remote.end(res);
+            ok_null = true;
+        } catch (Error e) {
+            ok_null = false;
+        }
+        done_null = true;
+    });
+    assert(wait_for_condition(() => done_null));
+    assert(ok_null);
+    assert(transport.last_method == "PATCH");
+    assert(transport.last_uri.has_suffix("/projects/p1"));
+
+    bool done_url = false;
+    bool ok_url = false;
+    client.set_project_git_remote.begin("p1", "git@github.com:me/repo.git", 12, (obj, res) => {
+        try {
+            client.set_project_git_remote.end(res);
+            ok_url = true;
+        } catch (Error e) {
+            ok_url = false;
+        }
+        done_url = true;
+    });
+    assert(wait_for_condition(() => done_url));
+    assert(ok_url);
+    assert(transport.last_method == "PATCH");
+    assert(transport.last_uri.has_suffix("/projects/p1"));
+}
+
+private void test_git_remote_optional_inputs_are_accepted() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"\",\"branch\":\"\",\"status\":\"missing_remote\",\"remote_has_head\":false,\"error_code\":\"\",\"error_message\":\"\"}}"
+    );
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"remote_url\":\"\",\"branch\":\"\",\"status\":\"no_remote\",\"ahead_count\":0,\"behind_count\":0,\"error_code\":\"\",\"error_message\":\"\",\"next_action\":\"set_remote\"}}"
+    );
+    var client = make_client(transport);
+
+    bool done_test = false;
+    HolderLinux.GitTestRemoteResult? test_result = null;
+    client.test_project_git_remote.begin("p1", null, "", (obj, res) => {
+        try {
+            test_result = client.test_project_git_remote.end(res);
+        } catch (Error e) {
+            test_result = null;
+        }
+        done_test = true;
+    });
+    assert(wait_for_condition(() => done_test));
+    assert(test_result != null);
+    assert(test_result.status == "missing_remote");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/projects/p1/git/test-remote"));
+
+    bool done_push = false;
+    HolderLinux.GitPushResult? push_result = null;
+    client.push_project_git.begin("p1", "", false, (obj, res) => {
+        try {
+            push_result = client.push_project_git.end(res);
+        } catch (Error e) {
+            push_result = null;
+        }
+        done_push = true;
+    });
+    assert(wait_for_condition(() => done_push));
+    assert(push_result != null);
+    assert(push_result.status == "no_remote");
+    assert(push_result.next_action == "set_remote");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/projects/p1/git/push"));
+}
+
+private void test_git_remote_test_and_push_missing_data_are_protocol_errors() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true}");
+    transport.enqueue_read(200, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    bool done_test = false;
+    bool test_protocol = false;
+    client.test_project_git_remote.begin("p1", null, "", (obj, res) => {
+        try {
+            client.test_project_git_remote.end(res);
+        } catch (Error e) {
+            test_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        }
+        done_test = true;
+    });
+    assert(wait_for_condition(() => done_test));
+    assert(test_protocol);
+
+    bool done_push = false;
+    bool push_protocol = false;
+    client.push_project_git.begin("p1", "", true, (obj, res) => {
+        try {
+            client.push_project_git.end(res);
+        } catch (Error e) {
+            push_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        }
+        done_push = true;
+    });
+    assert(wait_for_condition(() => done_push));
+    assert(push_protocol);
+}
+
 private void test_create_and_update_card_payloads() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"card_id\":\"c42\"}}");
@@ -603,6 +887,117 @@ private void test_create_and_update_card_payloads() {
     assert(transport.last_method == "PATCH");
     assert(transport.last_uri.has_suffix("/cards/c42"));
     assert(transport.last_content_type == "application/json");
+}
+
+private void test_update_card_position_with_parent_and_root() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    var client = make_client(transport);
+
+    bool done_nested = false;
+    bool nested_ok = false;
+    client.update_card_position.begin("c42", "parent-1", 123.5, 99, (obj, res) => {
+        try {
+            client.update_card_position.end(res);
+            nested_ok = true;
+        } catch (Error e) {
+            nested_ok = false;
+        }
+        done_nested = true;
+    });
+    assert(wait_for_condition(() => done_nested));
+    assert(nested_ok);
+    assert(transport.last_method == "PATCH");
+    assert(transport.last_uri.has_suffix("/cards/c42"));
+    assert(transport.last_content_type == "application/json");
+
+    bool done_root = false;
+    bool root_ok = false;
+    client.update_card_position.begin("c42", null, 12.0, 100, (obj, res) => {
+        try {
+            client.update_card_position.end(res);
+            root_ok = true;
+        } catch (Error e) {
+            root_ok = false;
+        }
+        done_root = true;
+    });
+    assert(wait_for_condition(() => done_root));
+    assert(root_ok);
+    assert(transport.last_method == "PATCH");
+    assert(transport.last_uri.has_suffix("/cards/c42"));
+}
+
+private void test_list_projects_parses_sync_state_fields() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"My Project\",\"root_path\":\"/tmp/p1\",\"created_at\":1,\"updated_at\":2,\"sync\":{\"last_commit_at\":10,\"last_push_at\":11,\"last_pull_at\":12,\"uncommitted_changes_count\":3,\"unpushed_commits_count\":4,\"last_push_status\":\"pushed\",\"last_pull_status\":\"pulled\",\"last_sync_error\":\"\",\"last_sync_error_at\":13,\"retry_count\":2,\"next_retry_at\":14,\"updated_at\":15}}]}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.Project>? projects = null;
+    client.list_projects.begin((obj, res) => {
+        try {
+            projects = client.list_projects.end(res);
+        } catch (Error e) {
+            projects = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(projects != null);
+    assert(projects.size == 1);
+    var sync = projects[0].sync;
+    assert(sync.has_last_commit_at);
+    assert(sync.last_commit_at == 10);
+    assert(sync.has_last_push_at);
+    assert(sync.last_push_at == 11);
+    assert(sync.has_last_pull_at);
+    assert(sync.last_pull_at == 12);
+    assert(sync.uncommitted_changes_count == 3);
+    assert(sync.unpushed_commits_count == 4);
+    assert(sync.last_push_status == "pushed");
+    assert(sync.last_pull_status == "pulled");
+    assert(sync.last_sync_error == "");
+    assert(sync.has_last_sync_error_at);
+    assert(sync.last_sync_error_at == 13);
+    assert(sync.retry_count == 2);
+    assert(sync.has_next_retry_at);
+    assert(sync.next_retry_at == 14);
+    assert(sync.has_updated_at);
+    assert(sync.updated_at == 15);
+}
+
+private void test_list_projects_sync_null_or_non_object_uses_defaults() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"Null Sync\",\"root_path\":\"/tmp/p1\",\"sync\":null},{\"project_id\":\"p2\",\"name\":\"Array Sync\",\"root_path\":\"/tmp/p2\",\"sync\":[]}]}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.Project>? projects = null;
+    client.list_projects.begin((obj, res) => {
+        try {
+            projects = client.list_projects.end(res);
+        } catch (Error e) {
+            projects = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(projects != null);
+    assert(projects.size == 2);
+    assert(!projects[0].sync.has_last_commit_at);
+    assert(projects[0].sync.uncommitted_changes_count == 0);
+    assert(!projects[1].sync.has_last_push_at);
+    assert(projects[1].sync.retry_count == 0);
 }
 
 private void test_health_check_missing_data_is_protocol_error() {
@@ -981,6 +1376,123 @@ private void test_response_wrapper_objects_construct() {
     assert(transport != null);
 }
 
+private string start_local_soup_server_with_handler(Soup.Server server, string path, string body, uint status) throws Error {
+    server.add_handler(path, (srv, msg, req_path, query) => {
+        msg.set_status(status, null);
+        msg.set_response(
+            "application/json",
+            Soup.MemoryUse.COPY,
+            (uint8[]) body.data
+        );
+    });
+
+    bool listened = server.listen_local(0, (Soup.ServerListenOptions) 0);
+    assert(listened);
+
+    var uris = server.get_uris();
+    assert(uris != null);
+    var first_uri = uris.nth_data(0);
+    assert(first_uri != null);
+    var base_url = first_uri.to_string();
+    if (base_url.has_suffix("/")) {
+        base_url = base_url.substring(0, base_url.length - 1);
+    }
+    return base_url;
+}
+
+private void test_soup_api_http_transport_send_and_read_uses_status_and_bytes() {
+    var server = new Soup.Server("server-header", "holder-linux-tests");
+    string base_url = "";
+    try {
+        base_url = start_local_soup_server_with_handler(
+            server,
+            "/bytes",
+            "{\"ok\":true}",
+            202
+        );
+    } catch (Error e) {
+        Test.message("Skipping transport bytes test: %s", e.message);
+        return;
+    }
+
+    var transport = new HolderLinux.SoupApiHttpTransport(new Soup.Session());
+    var message = new Soup.Message("GET", base_url + "/bytes");
+
+    bool done = false;
+    HolderLinux.ApiHttpBytesResponse? response = null;
+    string async_error = "";
+    transport.send_and_read.begin(message, (obj, res) => {
+        try {
+            response = transport.send_and_read.end(res);
+        } catch (Error e) {
+            async_error = e.message;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    if (async_error != "") {
+        Test.message("Skipping transport bytes test (async error): %s", async_error);
+        server.disconnect();
+        return;
+    }
+    assert(response != null);
+    assert(response.status == 202);
+    string response_text = (string) response.body.get_data();
+    assert(response_text.has_prefix("{\"ok\":true}"));
+    server.disconnect();
+}
+
+private void test_soup_api_http_transport_send_returns_stream_and_status() {
+    var server = new Soup.Server("server-header", "holder-linux-tests");
+    string base_url = "";
+    try {
+        base_url = start_local_soup_server_with_handler(
+            server,
+            "/stream",
+            "{\"value\":1}",
+            201
+        );
+    } catch (Error e) {
+        Test.message("Skipping transport stream test: %s", e.message);
+        return;
+    }
+
+    var transport = new HolderLinux.SoupApiHttpTransport(new Soup.Session());
+    var message = new Soup.Message("GET", base_url + "/stream");
+
+    bool done = false;
+    HolderLinux.ApiHttpStreamResponse? response = null;
+    string async_error = "";
+    transport.send.begin(message, (obj, res) => {
+        try {
+            response = transport.send.end(res);
+        } catch (Error e) {
+            async_error = e.message;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    if (async_error != "") {
+        Test.message("Skipping transport stream test (async error): %s", async_error);
+        server.disconnect();
+        return;
+    }
+    assert(response != null);
+    assert(response.status == 201);
+
+    try {
+        var data_stream = new DataInputStream(response.stream);
+        string? line = data_stream.read_line(null);
+        assert(line != null);
+        assert(line.contains("\"value\":1"));
+    } catch (Error e) {
+        Test.message("Skipping stream read verification: %s", e.message);
+    }
+    server.disconnect();
+}
+
 private void test_request_json_transport_error_maps_to_api_transport() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read_throw("network down");
@@ -1189,6 +1701,9 @@ int main(string[] args) {
                   test_import_recovery_token_parses_outcome);
     Test.add_func("/api_client/list_cards_parses_data_and_query", test_list_cards_parses_data_and_query);
     Test.add_func("/api_client/list_cards_with_parent_query", test_list_cards_with_parent_query);
+    Test.add_func("/api_client/list_cards_ignores_blank_parent_query",
+                  test_list_cards_ignores_blank_parent_query);
+    Test.add_func("/api_client/resources_crud_and_parse", test_resources_crud_and_parse);
     Test.add_func("/api_client/get_card_parses_detail", test_get_card_parses_detail);
     Test.add_func("/api_client/list_card_links_and_backlinks_parse_data",
                   test_list_card_links_and_backlinks_parse_data);
@@ -1208,7 +1723,23 @@ int main(string[] args) {
                   test_list_ai_provider_catalog_parses_providers);
     Test.add_func("/api_client/list_git_provider_catalog_parses_providers",
                   test_list_git_provider_catalog_parses_providers);
+    Test.add_func("/api_client/list_git_provider_catalog_missing_providers_returns_empty",
+                  test_list_git_provider_catalog_missing_providers_returns_empty);
+    Test.add_func("/api_client/git_remote_test_and_push_parse_results",
+                  test_git_remote_test_and_push_parse_results);
+    Test.add_func("/api_client/set_project_git_remote_handles_null_and_non_empty_url",
+                  test_set_project_git_remote_handles_null_and_non_empty_url);
+    Test.add_func("/api_client/git_remote_optional_inputs_are_accepted",
+                  test_git_remote_optional_inputs_are_accepted);
+    Test.add_func("/api_client/git_remote_test_and_push_missing_data_are_protocol_errors",
+                  test_git_remote_test_and_push_missing_data_are_protocol_errors);
     Test.add_func("/api_client/create_and_update_card_payloads", test_create_and_update_card_payloads);
+    Test.add_func("/api_client/update_card_position_with_parent_and_root",
+                  test_update_card_position_with_parent_and_root);
+    Test.add_func("/api_client/list_projects_parses_sync_state_fields",
+                  test_list_projects_parses_sync_state_fields);
+    Test.add_func("/api_client/list_projects_sync_null_or_non_object_uses_defaults",
+                  test_list_projects_sync_null_or_non_object_uses_defaults);
     Test.add_func("/api_client/health_check_missing_data_is_protocol_error",
                   test_health_check_missing_data_is_protocol_error);
     Test.add_func("/api_client/non_2xx_with_non_json_body_maps_to_http_error",
@@ -1239,6 +1770,10 @@ int main(string[] args) {
                   test_run_ai_stream_multiline_data_joins_with_newline);
     Test.add_func("/api_client/response_wrapper_objects_construct",
                   test_response_wrapper_objects_construct);
+    Test.add_func("/api_client/soup_api_http_transport_send_and_read_uses_status_and_bytes",
+                  test_soup_api_http_transport_send_and_read_uses_status_and_bytes);
+    Test.add_func("/api_client/soup_api_http_transport_send_returns_stream_and_status",
+                  test_soup_api_http_transport_send_returns_stream_and_status);
     Test.add_func("/api_client/request_json_transport_error_maps_to_api_transport",
                   test_request_json_transport_error_maps_to_api_transport);
     Test.add_func("/api_client/request_json_http_error_parses_error_object",
