@@ -72,7 +72,9 @@ public class ApiClient : Object, IHolderApi {
     }
 
     public async Gee.ArrayList<Project> list_projects() throws Error {
-        var root = yield request_json("GET", "/projects", null, null);
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("count", "true");
+        var root = yield request_json("GET", "/projects", null, query);
         return parse_projects(root);
     }
 
@@ -209,6 +211,7 @@ public class ApiClient : Object, IHolderApi {
                                                   string? parent_card_id = null) throws Error {
         var query = new HashTable<string, string>(str_hash, str_equal);
         query.insert("project_id", project_id);
+        query.insert("count", "true");
         if (parent_card_id != null && parent_card_id.strip().length > 0) {
             query.insert("parent_card_id", parent_card_id);
         }
@@ -938,7 +941,9 @@ public class ApiClient : Object, IHolderApi {
                 item.has_member("created_at") ? item.get_int_member("created_at") : 0,
                 item.has_member("updated_at") ? item.get_int_member("updated_at") : 0,
                 nullable_string_member_or_null(item, "git_remote_url"),
-                sync
+                sync,
+                item.has_member("card_count") ? (int) item.get_int_member("card_count") : 0,
+                item.has_member("root_card_count") ? (int) item.get_int_member("root_card_count") : 0
             ));
         }
         return out_list;

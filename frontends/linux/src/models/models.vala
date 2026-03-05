@@ -61,6 +61,8 @@ public class Project : Object {
     public string root_path { get; construct; }
     public string? git_remote_url { get; construct; }
     public ProjectSyncState sync { get; set; }
+    public int card_count { get; set; }
+    public int root_card_count { get; set; }
     public int64 created_at { get; construct; }
     public int64 updated_at { get; set; }
 
@@ -71,7 +73,9 @@ public class Project : Object {
                    int64 created_at,
                    int64 updated_at,
                    string? git_remote_url = null,
-                   ProjectSyncState? sync = null) {
+                   ProjectSyncState? sync = null,
+                   int card_count = 0,
+                   int root_card_count = 0) {
         Object(
             project_id: project_id,
             name: name,
@@ -79,6 +83,8 @@ public class Project : Object {
             root_path: root_path,
             git_remote_url: git_remote_url,
             sync: sync ?? new ProjectSyncState(),
+            card_count: card_count,
+            root_card_count: root_card_count,
             created_at: created_at,
             updated_at: updated_at
         );

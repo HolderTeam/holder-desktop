@@ -2,8 +2,23 @@ using GLib;
 
 namespace HolderLinuxTests {
 
-private HolderLinux.Project make_project(string id, string name, int64 updated_at = 0) {
-    return new HolderLinux.Project(id, name, "encrypted_git", "/tmp/%s".printf(id), 0, updated_at);
+private HolderLinux.Project make_project(string id,
+                                         string name,
+                                         int64 updated_at = 0,
+                                         int root_card_count = 0,
+                                         int card_count = 0) {
+    return new HolderLinux.Project(
+        id,
+        name,
+        "encrypted_git",
+        "/tmp/%s".printf(id),
+        0,
+        updated_at,
+        null,
+        null,
+        card_count,
+        root_card_count
+    );
 }
 
 private HolderLinux.CardSummary make_card(string id,
@@ -305,8 +320,8 @@ private void test_navigate_to_projects_mode_shows_project_tiles_sorted() {
     GLib.ListStore card_store;
     var controller = make_controller(out project_store, out project_selection, out card_store);
 
-    project_store.append(make_project("p1", "Alpha", 10));
-    project_store.append(make_project("p2", "Beta", 20));
+    project_store.append(make_project("p1", "Alpha", 10, 1, 1));
+    project_store.append(make_project("p2", "Beta", 20, 1, 2));
     project_selection.set_selected(0);
     card_store.append(make_card("c1", "p1", "A Root", 1024.0));
     card_store.append(make_card("c2", "p2", "B Root", 1024.0));

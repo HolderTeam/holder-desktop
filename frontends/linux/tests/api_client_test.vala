@@ -61,7 +61,7 @@ private void test_list_projects_parses_data() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"My Project\",\"root_path\":\"/tmp/p1\",\"created_at\":1,\"updated_at\":2}]}"
+        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"My Project\",\"root_path\":\"/tmp/p1\",\"created_at\":1,\"updated_at\":2,\"card_count\":7,\"root_card_count\":3}]}"
     );
     var client = make_client(transport);
 
@@ -81,6 +81,10 @@ private void test_list_projects_parses_data() {
     assert(projects.size == 1);
     assert(projects[0].project_id == "p1");
     assert(projects[0].name == "My Project");
+    assert(projects[0].card_count == 7);
+    assert(projects[0].root_card_count == 3);
+    assert(transport.last_uri.contains("/projects"));
+    assert(transport.last_uri.contains("count=true"));
 }
 
 private void test_create_project_sends_json_and_returns_id() {
@@ -102,7 +106,7 @@ private void test_create_project_sends_json_and_returns_id() {
     assert(wait_for_condition(() => done));
     assert(created_id == "p-created");
     assert(transport.last_method == "POST");
-    assert(transport.last_uri.has_suffix("/projects"));
+    assert(transport.last_uri.contains("/projects"));
     assert(transport.last_content_type == "application/json");
 }
 
@@ -1386,6 +1390,7 @@ private void test_get_card_context_parses_response() {
     assert(result.cards[0].child_count == 3);
     assert(transport.last_method == "GET");
     assert(transport.last_uri.contains("/cards/context?"));
+    assert(transport.last_uri.contains("count=true"));
     assert(transport.last_uri.contains("project_id=proj-1"));
     assert(transport.last_uri.contains("parent_card_id=a1"));
 }

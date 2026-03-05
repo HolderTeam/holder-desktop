@@ -348,7 +348,6 @@ public class FlowboardController : Object {
             return strcmp(a.name.down(), b.name.down());
         });
         foreach (var project in projects) {
-            var root_count = root_card_count_for_project(project.project_id);
             visible_tiles.append(new FlowboardTile(
                 "project:%s".printf(project.project_id),
                 project.name,
@@ -359,17 +358,9 @@ public class FlowboardController : Object {
                 null,
                 0,
                 0,
-                root_count
+                project.root_card_count
             ));
         }
-    }
-
-    private int root_card_count_for_project(string project_id) {
-        var source_cards = new Gee.ArrayList<CardSummary?>();
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            source_cards.add(card_store.get_item(i) as CardSummary);
-        }
-        return count_root_cards_for_project(source_cards, project_id);
     }
 
     internal static int count_root_cards_for_project(Gee.ArrayList<CardSummary?> source_cards,
