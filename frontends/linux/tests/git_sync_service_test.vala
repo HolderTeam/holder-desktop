@@ -58,6 +58,20 @@ private void test_run_command_combines_stdout_and_stderr() {
     assert(wait_for_condition(() => done));
 }
 
+private void test_run_command_stderr_only_returns_stderr() {
+    var service = new HolderLinux.GitSyncService();
+    bool done = false;
+
+    service.run_command.begin({"/bin/sh", "-lc", "printf 'err-only' 1>&2"}, (obj, res) => {
+        var result = service.run_command.end(res);
+        assert(result.exit_code == 0);
+        assert(result.output == "err-only");
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+}
+
 private void test_run_command_missing_binary_returns_error_result() {
     var service = new HolderLinux.GitSyncService();
     bool done = false;
@@ -217,6 +231,21 @@ private void test_check_repository_exists_via_ssh_default_error_text() {
     assert(wait_for_condition(() => done));
 }
 
+private void test_check_repository_exists_via_ssh_keeps_non_empty_error_text() {
+    var service = new ScriptedGitSyncService();
+    service.script({"git", "ls-remote", "git@github.com:u/r.git"}, 2, "permission denied");
+
+    bool done = false;
+    service.check_repository_exists_via_ssh.begin("u", "r", (obj, res) => {
+        var result = service.check_repository_exists_via_ssh.end(res);
+        assert(!result.exists);
+        assert(result.error_text.contains("permission denied"));
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+}
+
 private void test_create_private_repo_and_verify_prefers_check_error_when_create_output_empty() {
     var service = new ScriptedGitSyncService();
     service.script(
@@ -297,6 +326,76 @@ private void test_generate_ssh_key_invokes_expected_command() {
     assert(wait_for_condition(() => done));
 }
 
+private void test_configure_remote_and_sync_propagates_set_remote_failure() {
+    var service = new HolderLinux.GitSyncService();
+    var api = new MainControllerFakeApi();
+    api.fail_set_project_git_remote = true;
+    bool done = false;
+    bool got_error = false;
+
+    service.configure_remote_and_sync.begin(api, "p1", "git@github.com:z/u.git", "cards", (obj, res) => {
+        try {
+            service.configure_remote_and_sync.end(res);
+        } catch (Error e) {
+            got_error = e.message.contains("set project git remote failed");
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_error);
+    assert(api.set_project_git_remote_calls == 0);
+    assert(api.test_project_git_remote_calls == 0);
+    assert(api.push_project_git_calls == 0);
+}
+
+private void test_configure_remote_and_sync_propagates_test_remote_failure() {
+    var service = new HolderLinux.GitSyncService();
+    var api = new MainControllerFakeApi();
+    api.fail_test_project_git_remote = true;
+    bool done = false;
+    bool got_error = false;
+
+    service.configure_remote_and_sync.begin(api, "p1", "git@github.com:z/u.git", "cards", (obj, res) => {
+        try {
+            service.configure_remote_and_sync.end(res);
+        } catch (Error e) {
+            got_error = e.message.contains("test project git remote failed");
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_error);
+    assert(api.set_project_git_remote_calls == 1);
+    assert(api.test_project_git_remote_calls == 0);
+    assert(api.push_project_git_calls == 0);
+}
+
+private void test_configure_remote_and_sync_propagates_push_failure_when_reachable() {
+    var service = new HolderLinux.GitSyncService();
+    var api = new MainControllerFakeApi();
+    api.test_project_git_remote_status = "reachable";
+    api.fail_push_project_git = true;
+    bool done = false;
+    bool got_error = false;
+
+    service.configure_remote_and_sync.begin(api, "p1", "git@github.com:z/u.git", "cards", (obj, res) => {
+        try {
+            service.configure_remote_and_sync.end(res);
+        } catch (Error e) {
+            got_error = e.message.contains("push project git failed");
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_error);
+    assert(api.set_project_git_remote_calls == 1);
+    assert(api.test_project_git_remote_calls == 1);
+    assert(api.push_project_git_calls == 0);
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -304,6 +403,8 @@ int main(string[] args) {
                   test_run_command_success_captures_stdout);
     Test.add_func("/git_sync_service/run_command_combines_stdout_and_stderr",
                   test_run_command_combines_stdout_and_stderr);
+    Test.add_func("/git_sync_service/run_command_stderr_only_returns_stderr",
+                  test_run_command_stderr_only_returns_stderr);
     Test.add_func("/git_sync_service/run_command_missing_binary_returns_error_result",
                   test_run_command_missing_binary_returns_error_result);
     Test.add_func("/git_sync_service/configure_remote_and_sync_pushes_when_reachable",
@@ -322,6 +423,8 @@ int main(string[] args) {
                   test_check_repository_exists_via_ssh_success);
     Test.add_func("/git_sync_service/check_repository_exists_via_ssh_default_error_text",
                   test_check_repository_exists_via_ssh_default_error_text);
+    Test.add_func("/git_sync_service/check_repository_exists_via_ssh_keeps_non_empty_error_text",
+                  test_check_repository_exists_via_ssh_keeps_non_empty_error_text);
     Test.add_func("/git_sync_service/create_private_repo_and_verify_prefers_check_error_when_create_output_empty",
                   test_create_private_repo_and_verify_prefers_check_error_when_create_output_empty);
     Test.add_func("/git_sync_service/create_private_repo_and_verify_keeps_create_output",
@@ -330,6 +433,12 @@ int main(string[] args) {
                   test_probe_github_ssh_returns_output);
     Test.add_func("/git_sync_service/generate_ssh_key_invokes_expected_command",
                   test_generate_ssh_key_invokes_expected_command);
+    Test.add_func("/git_sync_service/configure_remote_and_sync_propagates_set_remote_failure",
+                  test_configure_remote_and_sync_propagates_set_remote_failure);
+    Test.add_func("/git_sync_service/configure_remote_and_sync_propagates_test_remote_failure",
+                  test_configure_remote_and_sync_propagates_test_remote_failure);
+    Test.add_func("/git_sync_service/configure_remote_and_sync_propagates_push_failure_when_reachable",
+                  test_configure_remote_and_sync_propagates_push_failure_when_reachable);
 
     return Test.run();
 }

@@ -72,7 +72,9 @@ public class ApiClient : Object, IHolderApi {
     }
 
     public async Gee.ArrayList<Project> list_projects() throws Error {
-        var root = yield request_json("GET", "/projects", null, null);
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("count", "true");
+        var root = yield request_json("GET", "/projects", null, query);
         return parse_projects(root);
     }
 
@@ -189,16 +191,32 @@ public class ApiClient : Object, IHolderApi {
     }
 
     public async Gee.ArrayList<CardSummary> list_cards(string project_id,
-                                                       string scope = "root",
-                                                       string? parent_card_id = null) throws Error {
+                                                       string view = "tree",
+                                                       string? parent_card_id = null,
+                                                       int limit = 0) throws Error {
         var query = new HashTable<string, string>(str_hash, str_equal);
         query.insert("project_id", project_id);
-        query.insert("scope", scope);
+        query.insert("view", view);
         if (parent_card_id != null && parent_card_id.strip().length > 0) {
             query.insert("parent_card_id", parent_card_id);
         }
+        if (limit > 0) {
+            query.insert("limit", limit.to_string());
+        }
         var root = yield request_json("GET", "/cards", null, query);
         return parse_cards(root);
+    }
+
+    public async CardContextData get_card_context(string project_id,
+                                                  string? parent_card_id = null) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("project_id", project_id);
+        query.insert("count", "true");
+        if (parent_card_id != null && parent_card_id.strip().length > 0) {
+            query.insert("parent_card_id", parent_card_id);
+        }
+        var root = yield request_json("GET", "/cards/context", null, query);
+        return parse_card_context(root);
     }
 
     public async CardDetail get_card(string card_id) throws Error {
@@ -694,6 +712,43 @@ public class ApiClient : Object, IHolderApi {
         );
     }
 
+    public async CardMoveResult move_card(string card_id,
+                                          string project_id,
+                                          string intent,
+                                          string? target_card_id = null,
+                                          string? parent_card_id = null) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("project_id");
+        body.add_string_value(project_id);
+        body.set_member_name("intent");
+        body.add_string_value(intent);
+        if (target_card_id != null && target_card_id.strip().length > 0) {
+            body.set_member_name("target_card_id");
+            body.add_string_value(target_card_id);
+        }
+        if (intent == "to_start" || intent == "to_end") {
+            body.set_member_name("parent_card_id");
+            if (parent_card_id == null || parent_card_id.strip().length == 0) {
+                body.add_null_value();
+            } else {
+                body.add_string_value(parent_card_id);
+            }
+        }
+        body.end_object();
+
+        var root = yield request_json(
+            "POST",
+            "/cards/%s/move".printf(Uri.escape_string(card_id)),
+            json_string_from_builder(body),
+            null
+        );
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for move response");
+        }
+        return parse_card_move_result(root.get_object_member("data"));
+    }
+
     private async Json.Object request_json(string method,
                                            string path,
                                            string? request_body,
@@ -746,6 +801,24 @@ public class ApiClient : Object, IHolderApi {
         }
 
         return root;
+    }
+
+    private CardMoveResult parse_card_move_result(Json.Object data) throws Error {
+        if (!data.has_member("card_id")
+            || !data.has_member("sort_key")
+            || !data.has_member("revision")) {
+            throw new ApiError.PROTOCOL("Missing fields for card move result");
+        }
+
+        var parent = nullable_string_member_or_null(data, "parent_card_id");
+        var moved_into_title = string_member_or_empty(data, "moved_into_title");
+        return new CardMoveResult(
+            data.get_string_member("card_id"),
+            parent,
+            data.get_double_member("sort_key"),
+            data.get_int_member("revision"),
+            moved_into_title
+        );
     }
 
     private async Json.Object request_json_unwrapped(string method,
@@ -868,7 +941,9 @@ public class ApiClient : Object, IHolderApi {
                 item.has_member("created_at") ? item.get_int_member("created_at") : 0,
                 item.has_member("updated_at") ? item.get_int_member("updated_at") : 0,
                 nullable_string_member_or_null(item, "git_remote_url"),
-                sync
+                sync,
+                item.has_member("card_count") ? (int) item.get_int_member("card_count") : 0,
+                item.has_member("root_card_count") ? (int) item.get_int_member("root_card_count") : 0
             ));
         }
         return out_list;
@@ -925,6 +1000,62 @@ public class ApiClient : Object, IHolderApi {
             data.get_string_member("title"),
             data.get_string_member("content"),
             data.has_member("updated_at") ? data.get_int_member("updated_at") : 0
+        );
+    }
+
+    private CardContextData parse_card_context(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for cards context response");
+        }
+
+        var data = root.get_object_member("data");
+        if (!data.has_member("project")) {
+            throw new ApiError.PROTOCOL("Missing project for cards context response");
+        }
+        var project_obj = data.get_object_member("project");
+        var project = new CardContextProject(
+            string_member_or_empty(project_obj, "project_id"),
+            string_member_or_empty(project_obj, "name")
+        );
+
+        var breadcrumbs = new Gee.ArrayList<CardContextBreadcrumb>();
+        if (data.has_member("breadcrumbs")) {
+            var crumbs = data.get_array_member("breadcrumbs");
+            for (uint i = 0; i < crumbs.get_length(); i++) {
+                var crumb = crumbs.get_object_element(i);
+                breadcrumbs.add(new CardContextBreadcrumb(
+                    string_member_or_empty(crumb, "type"),
+                    string_member_or_empty(crumb, "title"),
+                    nullable_string_member_or_null(crumb, "project_id"),
+                    nullable_string_member_or_null(crumb, "card_id")
+                ));
+            }
+        }
+
+        var cards = new Gee.ArrayList<CardContextCard>();
+        if (data.has_member("cards")) {
+            var items = data.get_array_member("cards");
+            for (uint i = 0; i < items.get_length(); i++) {
+                var item = items.get_object_element(i);
+                cards.add(new CardContextCard(
+                    string_member_or_empty(item, "card_id"),
+                    string_member_or_empty(item, "project_id"),
+                    string_member_or_empty(item, "title"),
+                    string_member_or_empty(item, "rel_path"),
+                    item.has_member("sort_key") ? item.get_double_member("sort_key") : 0.0,
+                    nullable_string_member_or_null(item, "parent_card_id"),
+                    item.has_member("created_at") ? item.get_int_member("created_at") : 0,
+                    item.has_member("updated_at") ? item.get_int_member("updated_at") : 0,
+                    item.has_member("child_count") ? (int) item.get_int_member("child_count") : 0
+                ));
+            }
+        }
+
+        return new CardContextData(
+            project,
+            nullable_string_member_or_null(data, "current_parent_card_id"),
+            breadcrumbs,
+            cards
         );
     }
 

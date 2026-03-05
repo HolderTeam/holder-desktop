@@ -22,8 +22,11 @@ public interface IHolderApi : Object {
         string recovery_token
     ) throws Error;
     public abstract async Gee.ArrayList<CardSummary> list_cards(string project_id,
-                                                                 string scope = "root",
-                                                                 string? parent_card_id = null) throws Error;
+                                                                 string view = "tree",
+                                                                 string? parent_card_id = null,
+                                                                 int limit = 0) throws Error;
+    public abstract async CardContextData get_card_context(string project_id,
+                                                           string? parent_card_id = null) throws Error;
     public abstract async CardDetail get_card(string card_id) throws Error;
     public abstract async Gee.ArrayList<CardLink> list_card_links(string card_id) throws Error;
     public abstract async Gee.ArrayList<CardLink> list_card_backlinks(string card_id) throws Error;
@@ -87,6 +90,11 @@ public interface IHolderApi : Object {
                                                     string? parent_card_id,
                                                     double sort_key,
                                                     int64 updated_at) throws Error;
+    public abstract async CardMoveResult move_card(string card_id,
+                                                   string project_id,
+                                                   string intent,
+                                                   string? target_card_id = null,
+                                                   string? parent_card_id = null) throws Error;
 }
 
 public interface IApiFactory : Object {

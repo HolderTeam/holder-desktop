@@ -40,6 +40,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private FlowboardController flowboard_controller;
     private Settings? settings;
     private uint flowboard_refresh_idle_id = 0;
+    private uint flowboard_context_request_serial = 0;
     private bool sidebar_visible = true;
     private int last_sidebar_position = DEFAULT_SIDEBAR_WIDTH;
 
@@ -378,8 +379,8 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.flowboard_card_open_requested.connect((card_id) => {
             open_card_from_flowboard(card_id);
         });
-        toolbox.flowboard_move_requested.connect((card_id, parent_card_id, sort_key) => {
-            controller.move_card.begin(card_id, parent_card_id, sort_key);
+        toolbox.flowboard_move_intent_requested.connect((card_id, _project_id, intent, target_card_id, parent_card_id) => {
+            controller.move_card_by_intent.begin(card_id, intent, target_card_id, parent_card_id);
         });
         toolbox.flowboard_new_card_requested.connect((parent_card_id) => {
             controller.create_card.begin(parent_card_id);
@@ -420,6 +421,10 @@ public class MainWindow : Adw.ApplicationWindow {
         flowboard_controller.project_overview_requested.connect((_project_id) => {
             controller.show_project_overview.begin();
         });
+        flowboard_controller.context_load_requested.connect((project_id, parent_card_id) => {
+            flowboard_context_request_serial++;
+            load_flowboard_context.begin(flowboard_context_request_serial, project_id, parent_card_id);
+        });
 
         close_request.connect(() => {
             persist_window_state();
@@ -442,6 +447,24 @@ public class MainWindow : Adw.ApplicationWindow {
             flowboard_controller.refresh();
             return Source.REMOVE;
         });
+    }
+
+    private async void load_flowboard_context(uint request_serial,
+                                              string project_id,
+                                              string? parent_card_id) {
+        var api = controller.get_api_client();
+        if (api == null) {
+            return;
+        }
+        try {
+            var context = yield api.get_card_context(project_id, parent_card_id);
+            if (request_serial != flowboard_context_request_serial) {
+                return;
+            }
+            flowboard_controller.apply_card_context(project_id, parent_card_id, context);
+        } catch (Error e) {
+            warning("Flowboard context load failed for %s: %s", project_id, e.message);
+        }
     }
 
     private static void resolve_startup_window_state(
@@ -1283,7 +1306,7 @@ public class MainWindow : Adw.ApplicationWindow {
             var sync_section = new StringBuilder();
             foreach (var project in ordered_projects) {
                 try {
-                    var cards = yield api.list_cards(project.project_id, "all", null);
+                    var cards = yield api.list_cards(project.project_id, "recent");
                     total_card_count += cards.size;
                 } catch (Error e) {
                     toolbox.log_debug(

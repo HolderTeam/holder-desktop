@@ -103,7 +103,6 @@ public class ConnectionsToolView : Object {
         context_scroller.set_hexpand(false);
         context_scroller.set_vexpand(true);
         context_scroller.set_child(context_column);
-        columns.append(context_scroller);
 
         var divider = new Gtk.Separator(Gtk.Orientation.VERTICAL);
         columns.append(divider);

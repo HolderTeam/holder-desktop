@@ -41,6 +41,8 @@ coverage() {
     --exclude 'tests/' \
     --gcov-executable gcov-13 \
     --gcov-ignore-errors all \
+    --exclude-unreachable-branches \
+    --exclude-throw-branches \
     --txt \
     --output "${out_dir}/summary-lines.txt"
 
@@ -51,6 +53,8 @@ coverage() {
     --exclude 'tests/' \
     --gcov-executable gcov-13 \
     --gcov-ignore-errors all \
+    --exclude-unreachable-branches \
+    --exclude-throw-branches \
     --txt \
     --txt-metric branch \
     --output "${out_dir}/summary-branches.txt"
@@ -62,6 +66,8 @@ coverage() {
     --exclude 'tests/' \
     --gcov-executable gcov-13 \
     --gcov-ignore-errors all \
+    --exclude-unreachable-branches \
+    --exclude-throw-branches \
     --html-details "${out_dir}/index.html" \
     --html-title "holder-desktop coverage"
 

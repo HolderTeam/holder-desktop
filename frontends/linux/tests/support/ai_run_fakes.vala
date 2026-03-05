@@ -59,9 +59,19 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
         );
     }
     public async Gee.ArrayList<HolderLinux.CardSummary> list_cards(string project_id,
-                                                                    string scope = "root",
-                                                                    string? parent_card_id = null) throws Error {
+                                                                    string view = "tree",
+                                                                    string? parent_card_id = null,
+                                                                    int limit = 0) throws Error {
         return new Gee.ArrayList<HolderLinux.CardSummary>();
+    }
+    public async HolderLinux.CardContextData get_card_context(string project_id,
+                                                              string? parent_card_id = null) throws Error {
+        return new HolderLinux.CardContextData(
+            new HolderLinux.CardContextProject(project_id, "Project"),
+            parent_card_id,
+            new Gee.ArrayList<HolderLinux.CardContextBreadcrumb>(),
+            new Gee.ArrayList<HolderLinux.CardContextCard>()
+        );
     }
     public async HolderLinux.CardDetail get_card(string card_id) throws Error {
         return new HolderLinux.CardDetail(card_id, "p1", "T", "C", 1);
@@ -243,6 +253,13 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                            string? parent_card_id,
                                            double sort_key,
                                            int64 updated_at) throws Error {}
+    public async HolderLinux.CardMoveResult move_card(string card_id,
+                                                       string project_id,
+                                                       string intent,
+                                                       string? target_card_id = null,
+                                                       string? parent_card_id = null) throws Error {
+        return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0, 1, "");
+    }
 }
 
 public class AiRunFakeContext : Object, HolderLinux.IAiRunContext {

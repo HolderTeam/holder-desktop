@@ -72,12 +72,19 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public string? last_move_parent_card_id = null;
     public double last_move_sort_key = 0.0;
     public int64 last_move_updated_at = 0;
+    public string last_move_project_id = "";
+    public string last_move_intent = "";
+    public string? last_move_target_card_id = null;
     public bool fail_health = false;
     public bool fail_create_card = false;
     public bool fail_create_project = false;
     public bool fail_list_threads = false;
     public bool fail_list_resources = false;
+    public bool fail_create_resource = false;
+    public bool fail_update_resource = false;
+    public bool fail_delete_resource = false;
     public bool include_card2 = false;
+    public string next_move_into_title = "";
     public bool search_returns_card2 = false;
     public bool list_projects_empty = false;
     public bool include_home_project = false;
@@ -137,10 +144,10 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         if (list_projects_empty) {
             return projects;
         }
-        projects.add(new HolderLinux.Project("p1", "Project 1", "encrypted_git", "/tmp/p1", 10, 10));
         if (include_home_project) {
             projects.add(new HolderLinux.Project("p-home", "Home", "encrypted_git", "/tmp/home", 11, 11));
         }
+        projects.add(new HolderLinux.Project("p1", "Project 1", "encrypted_git", "/tmp/p1", 10, 10));
         return projects;
     }
 
@@ -181,8 +188,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async Gee.ArrayList<HolderLinux.CardSummary> list_cards(string project_id,
-                                                                    string scope = "root",
-                                                                    string? parent_card_id = null) throws Error {
+                                                                    string view = "tree",
+                                                                    string? parent_card_id = null,
+                                                                    int limit = 0) throws Error {
         if (fail_list_cards) {
             throw new IOError.FAILED("list cards failed");
         }
@@ -191,7 +199,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         if (list_cards_empty) {
             return cards;
         }
-        if (scope == "children" && parent_card_id != null && parent_card_id.strip().length > 0) {
+        if (view == "tree" && parent_card_id != null && parent_card_id.strip().length > 0) {
             return cards;
         }
         cards.add(new HolderLinux.CardSummary("c1", project_id, "Card 1", "c1.md", 1024.0, null, 20, 20));
@@ -202,6 +210,17 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
             cards.add(new HolderLinux.CardSummary("c-created", project_id, "Untitled", "c-created.md", 3072.0, null, 22, 22));
         }
         return cards;
+    }
+
+    public async HolderLinux.CardContextData get_card_context(string project_id,
+                                                              string? parent_card_id = null) throws Error {
+        var project = new HolderLinux.CardContextProject(project_id, "Project 1");
+        return new HolderLinux.CardContextData(
+            project,
+            parent_card_id,
+            new Gee.ArrayList<HolderLinux.CardContextBreadcrumb>(),
+            new Gee.ArrayList<HolderLinux.CardContextCard>()
+        );
     }
 
     public async HolderLinux.CardDetail get_card(string card_id) throws Error {
@@ -241,6 +260,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                         string uri,
                                         string label,
                                         string? desc = null) throws Error {
+        if (fail_create_resource) {
+            throw new IOError.FAILED("create resource failed");
+        }
         create_resource_calls++;
         last_resource_project_id = project_id;
         last_resource_kind = kind;
@@ -256,6 +278,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                       string? label,
                                       string? desc,
                                       int64 updated_at) throws Error {
+        if (fail_update_resource) {
+            throw new IOError.FAILED("update resource failed");
+        }
         update_resource_calls++;
         last_resource_id = resource_id;
         last_resource_kind = kind ?? "";
@@ -266,6 +291,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async void delete_resource(string resource_id) throws Error {
+        if (fail_delete_resource) {
+            throw new IOError.FAILED("delete resource failed");
+        }
         delete_resource_calls++;
         last_resource_id = resource_id;
     }
@@ -445,6 +473,23 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         last_move_parent_card_id = parent_card_id;
         last_move_sort_key = sort_key;
         last_move_updated_at = updated_at;
+    }
+
+    public async HolderLinux.CardMoveResult move_card(string card_id,
+                                                       string project_id,
+                                                       string intent,
+                                                       string? target_card_id = null,
+                                                       string? parent_card_id = null) throws Error {
+        if (fail_update_card_position) {
+            throw new IOError.FAILED("move by intent failed");
+        }
+        update_card_position_calls++;
+        last_move_project_id = project_id;
+        last_move_intent = intent;
+        last_move_target_card_id = target_card_id;
+        last_move_card_id = card_id;
+        last_move_parent_card_id = parent_card_id;
+        return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0, 1, next_move_into_title);
     }
 }
 

@@ -61,7 +61,7 @@ private void test_list_projects_parses_data() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"My Project\",\"root_path\":\"/tmp/p1\",\"created_at\":1,\"updated_at\":2}]}"
+        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"My Project\",\"root_path\":\"/tmp/p1\",\"created_at\":1,\"updated_at\":2,\"card_count\":7,\"root_card_count\":3}]}"
     );
     var client = make_client(transport);
 
@@ -81,6 +81,10 @@ private void test_list_projects_parses_data() {
     assert(projects.size == 1);
     assert(projects[0].project_id == "p1");
     assert(projects[0].name == "My Project");
+    assert(projects[0].card_count == 7);
+    assert(projects[0].root_card_count == 3);
+    assert(transport.last_uri.contains("/projects"));
+    assert(transport.last_uri.contains("count=true"));
 }
 
 private void test_create_project_sends_json_and_returns_id() {
@@ -102,7 +106,7 @@ private void test_create_project_sends_json_and_returns_id() {
     assert(wait_for_condition(() => done));
     assert(created_id == "p-created");
     assert(transport.last_method == "POST");
-    assert(transport.last_uri.has_suffix("/projects"));
+    assert(transport.last_uri.contains("/projects"));
     assert(transport.last_content_type == "application/json");
 }
 
@@ -259,7 +263,7 @@ private void test_list_cards_parses_non_null_parent_card_id() {
 
     bool done = false;
     Gee.ArrayList<HolderLinux.CardSummary>? cards = null;
-    client.list_cards.begin("p1", "all", null, (obj, res) => {
+    client.list_cards.begin("p1", "recent", null, 0, (obj, res) => {
         try {
             cards = client.list_cards.end(res);
         } catch (Error e) {
@@ -285,7 +289,7 @@ private void test_list_cards_parses_data_and_query() {
     bool done = false;
     Gee.ArrayList<HolderLinux.CardSummary>? cards = null;
     string error_message = "";
-    client.list_cards.begin("p1", "root", null, (obj, res) => {
+    client.list_cards.begin("p1", "tree", null, 0, (obj, res) => {
         try {
             cards = client.list_cards.end(res);
         } catch (Error e) {
@@ -303,7 +307,7 @@ private void test_list_cards_parses_data_and_query() {
     assert(cards[0].rel_path == "cards/t1.md");
     assert(transport.last_uri.contains("/cards?"));
     assert(transport.last_uri.contains("project_id=p1"));
-    assert(transport.last_uri.contains("scope=root"));
+    assert(transport.last_uri.contains("view=tree"));
 }
 
 private void test_list_cards_with_parent_query() {
@@ -312,7 +316,7 @@ private void test_list_cards_with_parent_query() {
     var client = make_client(transport);
 
     bool done = false;
-    client.list_cards.begin("p1", "children", "parent-1", (obj, res) => {
+    client.list_cards.begin("p1", "tree", "parent-1", 0, (obj, res) => {
         try {
             client.list_cards.end(res);
         } catch (Error e) {
@@ -323,7 +327,7 @@ private void test_list_cards_with_parent_query() {
     assert(wait_for_condition(() => done));
     assert(transport.last_uri.contains("/cards?"));
     assert(transport.last_uri.contains("project_id=p1"));
-    assert(transport.last_uri.contains("scope=children"));
+    assert(transport.last_uri.contains("view=tree"));
     assert(transport.last_uri.contains("parent_card_id=parent-1"));
 }
 
@@ -333,7 +337,7 @@ private void test_list_cards_ignores_blank_parent_query() {
     var client = make_client(transport);
 
     bool done = false;
-    client.list_cards.begin("p1", "children", "   ", (obj, res) => {
+    client.list_cards.begin("p1", "tree", "   ", 0, (obj, res) => {
         try {
             client.list_cards.end(res);
         } catch (Error e) {
@@ -344,7 +348,7 @@ private void test_list_cards_ignores_blank_parent_query() {
     assert(wait_for_condition(() => done));
     assert(transport.last_uri.contains("/cards?"));
     assert(transport.last_uri.contains("project_id=p1"));
-    assert(transport.last_uri.contains("scope=children"));
+    assert(transport.last_uri.contains("view=tree"));
     assert(!transport.last_uri.contains("parent_card_id="));
 }
 
@@ -1325,6 +1329,231 @@ private void test_update_card_position_with_parent_and_root() {
     assert(transport.last_uri.has_suffix("/cards/c42"));
 }
 
+private void test_move_card_posts_move_endpoint() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"card_id\":\"c42\",\"parent_card_id\":\"p1\",\"sort_key\":2048.0,\"revision\":7,\"moved_into_title\":\"Parent\"}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    HolderLinux.CardMoveResult? result = null;
+    client.move_card.begin("c42", "proj-1", "into", "p1", null, (obj, res) => {
+        try {
+            result = client.move_card.end(res);
+        } catch (Error e) {
+            result = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(result != null);
+    assert(result.card_id == "c42");
+    assert(result.parent_card_id == "p1");
+    assert(result.revision == 7);
+    assert(result.moved_into_title == "Parent");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/cards/c42/move"));
+    assert(transport.last_content_type == "application/json");
+}
+
+private void test_move_card_to_start_and_to_end_accept_null_and_parent_scope() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"card_id\":\"c42\",\"parent_card_id\":null,\"sort_key\":10.0,\"revision\":1,\"moved_into_title\":\"\"}}"
+    );
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"card_id\":\"c42\",\"parent_card_id\":\"parent-1\",\"sort_key\":11.0,\"revision\":2,\"moved_into_title\":\"\"}}"
+    );
+    var client = make_client(transport);
+
+    bool done_start = false;
+    bool ok_start = false;
+    client.move_card.begin("c42", "proj-1", "to_start", null, null, (obj, res) => {
+        try {
+            var moved = client.move_card.end(res);
+            ok_start = (moved.card_id == "c42" && moved.revision == 1);
+        } catch (Error e) {
+            ok_start = false;
+        }
+        done_start = true;
+    });
+    assert(wait_for_condition(() => done_start));
+    assert(ok_start);
+
+    bool done_end = false;
+    bool ok_end = false;
+    client.move_card.begin("c42", "proj-1", "to_end", null, "parent-1", (obj, res) => {
+        try {
+            var moved = client.move_card.end(res);
+            ok_end = (moved.card_id == "c42" && moved.parent_card_id == "parent-1" && moved.revision == 2);
+        } catch (Error e) {
+            ok_end = false;
+        }
+        done_end = true;
+    });
+    assert(wait_for_condition(() => done_end));
+    assert(ok_end);
+}
+
+private void test_move_card_missing_data_is_protocol_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_protocol = false;
+    client.move_card.begin("c42", "proj-1", "after", "c9", null, (obj, res) => {
+        try {
+            client.move_card.end(res);
+        } catch (Error e) {
+            got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_protocol);
+}
+
+private void test_move_card_missing_required_fields_is_protocol_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"card_id\":\"c42\",\"sort_key\":2048.0}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_protocol = false;
+    client.move_card.begin("c42", "proj-1", "after", "c9", null, (obj, res) => {
+        try {
+            client.move_card.end(res);
+        } catch (Error e) {
+            got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_protocol);
+}
+
+private void test_get_card_context_parses_response() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"project\":{\"project_id\":\"proj-1\",\"name\":\"Project One\"},\"current_parent_card_id\":\"a1\",\"breadcrumbs\":[{\"type\":\"project\",\"title\":\"Project One\",\"project_id\":\"proj-1\",\"card_id\":null},{\"type\":\"card\",\"title\":\"A\",\"project_id\":null,\"card_id\":\"a1\"}],\"cards\":[{\"card_id\":\"b1\",\"project_id\":\"proj-1\",\"title\":\"B\",\"rel_path\":\"cards/b1.md\",\"sort_key\":42,\"parent_card_id\":\"a1\",\"created_at\":10,\"updated_at\":11,\"child_count\":3}]}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    HolderLinux.CardContextData? result = null;
+    client.get_card_context.begin("proj-1", "a1", (obj, res) => {
+        try {
+            result = client.get_card_context.end(res);
+        } catch (Error e) {
+            result = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(result != null);
+    assert(result.project.project_id == "proj-1");
+    assert(result.project.name == "Project One");
+    assert(result.current_parent_card_id == "a1");
+    assert(result.breadcrumbs.size == 2);
+    assert(result.breadcrumbs[1].card_id == "a1");
+    assert(result.cards.size == 1);
+    assert(result.cards[0].card_id == "b1");
+    assert(result.cards[0].child_count == 3);
+    assert(transport.last_method == "GET");
+    assert(transport.last_uri.contains("/cards/context?"));
+    assert(transport.last_uri.contains("count=true"));
+    assert(transport.last_uri.contains("project_id=proj-1"));
+    assert(transport.last_uri.contains("parent_card_id=a1"));
+}
+
+private void test_get_card_context_missing_data_is_protocol_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_protocol = false;
+    client.get_card_context.begin("proj-1", null, (obj, res) => {
+        try {
+            client.get_card_context.end(res);
+        } catch (HolderLinux.ApiError e) {
+            got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        } catch (Error e) {
+            got_protocol = false;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_protocol);
+}
+
+private void test_get_card_context_missing_project_is_protocol_error() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"current_parent_card_id\":null,\"breadcrumbs\":[],\"cards\":[]}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_protocol = false;
+    client.get_card_context.begin("proj-1", null, (obj, res) => {
+        try {
+            client.get_card_context.end(res);
+        } catch (Error e) {
+            got_protocol = (e is HolderLinux.ApiError.PROTOCOL);
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_protocol);
+}
+
+private void test_list_cards_recent_view_calls_cards_endpoint() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"Card 1\",\"rel_path\":\"c1.md\",\"sort_key\":1,\"parent_card_id\":null,\"created_at\":1,\"updated_at\":99,\"deleted_at\":null}]}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.CardSummary>? cards = null;
+    client.list_cards.begin("p1", "recent", null, 123, (obj, res) => {
+        try {
+            cards = client.list_cards.end(res);
+        } catch (Error e) {
+            cards = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(cards != null);
+    assert(cards.size == 1);
+    assert(cards[0].card_id == "c1");
+    assert(transport.last_method == "GET");
+    assert(transport.last_uri.contains("/cards?"));
+    assert(transport.last_uri.contains("project_id=p1"));
+    assert(transport.last_uri.contains("view=recent"));
+    assert(transport.last_uri.contains("limit=123"));
+}
+
 private void test_list_projects_parses_sync_state_fields() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -1619,7 +1848,7 @@ private void test_missing_data_protocol_errors_for_parsers() {
 
     int protocol_count = 0;
     bool done = false;
-    client.list_cards.begin("p1", "root", null, (o1, r1) => {
+    client.list_cards.begin("p1", "tree", null, 0, (o1, r1) => {
         try { client.list_cards.end(r1); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
         client.get_card.begin("c1", (o2, r2) => {
             try { client.get_card.end(r2); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
@@ -2407,6 +2636,22 @@ int main(string[] args) {
                   test_create_card_with_parent_id_succeeds);
     Test.add_func("/api_client/update_card_position_with_parent_and_root",
                   test_update_card_position_with_parent_and_root);
+    Test.add_func("/api_client/move_card_posts_move_endpoint",
+                  test_move_card_posts_move_endpoint);
+    Test.add_func("/api_client/move_card_to_start_and_to_end_accept_null_and_parent_scope",
+                  test_move_card_to_start_and_to_end_accept_null_and_parent_scope);
+    Test.add_func("/api_client/move_card_missing_data_is_protocol_error",
+                  test_move_card_missing_data_is_protocol_error);
+    Test.add_func("/api_client/move_card_missing_required_fields_is_protocol_error",
+                  test_move_card_missing_required_fields_is_protocol_error);
+    Test.add_func("/api_client/get_card_context_parses_response",
+                  test_get_card_context_parses_response);
+    Test.add_func("/api_client/get_card_context_missing_data_is_protocol_error",
+                  test_get_card_context_missing_data_is_protocol_error);
+    Test.add_func("/api_client/get_card_context_missing_project_is_protocol_error",
+                  test_get_card_context_missing_project_is_protocol_error);
+    Test.add_func("/api_client/list_cards_recent_view_calls_cards_endpoint",
+                  test_list_cards_recent_view_calls_cards_endpoint);
     Test.add_func("/api_client/list_projects_parses_sync_state_fields",
                   test_list_projects_parses_sync_state_fields);
     Test.add_func("/api_client/list_projects_sync_null_or_non_object_uses_defaults",
