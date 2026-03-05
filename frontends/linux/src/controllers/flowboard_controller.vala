@@ -338,23 +338,11 @@ public class FlowboardController : Object {
 
     private void replace_visible_with_projects() {
         visible_tiles.remove_all();
-        var projects = new Gee.ArrayList<Project>();
         for (uint i = 0; i < project_store.get_n_items(); i++) {
             var project = project_store.get_item(i) as Project;
-            if (project != null) {
-                projects.add(project);
+            if (project == null) {
+                continue;
             }
-        }
-        projects.sort((a, b) => {
-            if (a.updated_at > b.updated_at) {
-                return -1;
-            }
-            if (a.updated_at < b.updated_at) {
-                return 1;
-            }
-            return strcmp(a.name.down(), b.name.down());
-        });
-        foreach (var project in projects) {
             visible_tiles.append(new FlowboardTile(
                 "project:%s".printf(project.project_id),
                 project.name,

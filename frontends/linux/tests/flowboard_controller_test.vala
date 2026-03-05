@@ -314,7 +314,7 @@ private void test_move_card_up_level_uses_grandparent_and_toast() {
     assert(toast == "Moved Child into Root");
 }
 
-private void test_navigate_to_projects_mode_shows_project_tiles_sorted() {
+private void test_navigate_to_projects_mode_shows_project_tiles_in_store_order() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
     GLib.ListStore card_store;
@@ -335,9 +335,9 @@ private void test_navigate_to_projects_mode_shows_project_tiles_sorted() {
     var first = tile_at(model, 0);
     var second = tile_at(model, 1);
     assert(first != null && second != null);
-    assert(first.project_id == "p2");
+    assert(first.project_id == "p1");
     assert(first.child_count == 1);
-    assert(second.project_id == "p1");
+    assert(second.project_id == "p2");
     assert(second.child_count == 1);
 }
 
@@ -362,10 +362,10 @@ private void test_activate_project_tile_selects_and_requests_overview() {
     controller.navigate_to_breadcrumb_index(0);
     controller.activate_position(0);
 
-    assert(requested_project_id == "p2");
+    assert(requested_project_id == "p1");
     var selected = project_selection.get_selected_item() as HolderLinux.Project;
     assert(selected != null);
-    assert(selected.project_id == "p2");
+    assert(selected.project_id == "p1");
 }
 
 private void test_request_create_card_here_emits_and_honors_guards() {
@@ -960,7 +960,7 @@ private void test_navigate_to_parent_breadcrumb_trims_stack() {
     assert(only.card_id == "b");
 }
 
-private void test_projects_mode_sorts_by_name_when_timestamps_tie() {
+private void test_projects_mode_preserves_store_order_when_timestamps_tie() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
     GLib.ListStore card_store;
@@ -980,9 +980,9 @@ private void test_projects_mode_sorts_by_name_when_timestamps_tie() {
     var second = tile_at(model, 1);
     var third = tile_at(model, 2);
     assert(first != null && second != null && third != null);
-    assert(first.title.down() == "alpha");
-    assert(second.title.down() == "alpha");
-    assert(third.title.down() == "zeta");
+    assert(first.project_id == "p2");
+    assert(second.project_id == "p1");
+    assert(third.project_id == "p3");
 }
 
 private void test_equal_sort_key_preserves_backend_context_order() {
@@ -1033,28 +1033,6 @@ private void test_drop_right_edge_on_last_card_uses_tail_padding() {
     assert(moved_target == "c");
 }
 
-private void test_projects_mode_sort_hits_updated_at_less_branch() {
-    GLib.ListStore project_store;
-    Gtk.SingleSelection project_selection;
-    GLib.ListStore card_store;
-    var controller = make_controller(out project_store, out project_selection, out card_store);
-
-    project_store.append(make_project("old", "Old", 1));
-    project_store.append(make_project("new", "New", 2));
-    project_selection.set_selected(0);
-
-    controller.refresh();
-    controller.navigate_to_breadcrumb_index(0);
-
-    var model = controller.get_visible_model();
-    assert(model.get_n_items() == 2);
-    var first = tile_at(model, 0);
-    var second = tile_at(model, 1);
-    assert(first != null && second != null);
-    assert(first.project_id == "new");
-    assert(second.project_id == "old");
-}
-
 private void test_equal_sort_key_inverse_insertion_still_prefers_newer_card() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
@@ -1076,7 +1054,7 @@ private void test_equal_sort_key_inverse_insertion_still_prefers_newer_card() {
     assert(second.card_id == "old");
 }
 
-private void test_projects_mode_sorts_mixed_timestamps_descending() {
+private void test_projects_mode_preserves_store_order_for_mixed_timestamps() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
     GLib.ListStore card_store;
@@ -1100,11 +1078,11 @@ private void test_projects_mode_sorts_mixed_timestamps_descending() {
     var fourth = tile_at(model, 3);
     var fifth = tile_at(model, 4);
     assert(first != null && second != null && third != null && fourth != null && fifth != null);
-    assert(first.project_id == "p3");
-    assert(second.project_id == "p5");
-    assert(third.project_id == "p1");
+    assert(first.project_id == "p1");
+    assert(second.project_id == "p2");
+    assert(third.project_id == "p3");
     assert(fourth.project_id == "p4");
-    assert(fifth.project_id == "p2");
+    assert(fifth.project_id == "p5");
 }
 
 int main(string[] args) {
@@ -1122,8 +1100,8 @@ int main(string[] args) {
                   test_drop_right_edge_reorders_next_to_target);
     Test.add_func("/flowboard/move_card_up_level_uses_grandparent_and_toast",
                   test_move_card_up_level_uses_grandparent_and_toast);
-    Test.add_func("/flowboard/navigate_to_projects_mode_shows_project_tiles_sorted",
-                  test_navigate_to_projects_mode_shows_project_tiles_sorted);
+    Test.add_func("/flowboard/navigate_to_projects_mode_shows_project_tiles_in_store_order",
+                  test_navigate_to_projects_mode_shows_project_tiles_in_store_order);
     Test.add_func("/flowboard/activate_project_tile_selects_and_requests_overview",
                   test_activate_project_tile_selects_and_requests_overview);
     Test.add_func("/flowboard/request_create_card_here_emits_and_honors_guards",
@@ -1174,18 +1152,16 @@ int main(string[] args) {
                   test_navigate_up_from_depth_two_keeps_parent_context);
     Test.add_func("/flowboard/navigate_to_parent_breadcrumb_trims_stack",
                   test_navigate_to_parent_breadcrumb_trims_stack);
-    Test.add_func("/flowboard/projects_mode_sorts_by_name_when_timestamps_tie",
-                  test_projects_mode_sorts_by_name_when_timestamps_tie);
+    Test.add_func("/flowboard/projects_mode_preserves_store_order_when_timestamps_tie",
+                  test_projects_mode_preserves_store_order_when_timestamps_tie);
     Test.add_func("/flowboard/equal_sort_key_preserves_backend_context_order",
                   test_equal_sort_key_preserves_backend_context_order);
     Test.add_func("/flowboard/drop_right_edge_on_last_card_uses_tail_padding",
                   test_drop_right_edge_on_last_card_uses_tail_padding);
-    Test.add_func("/flowboard/projects_mode_sort_hits_updated_at_less_branch",
-                  test_projects_mode_sort_hits_updated_at_less_branch);
     Test.add_func("/flowboard/equal_sort_key_inverse_insertion_still_prefers_newer_card",
                   test_equal_sort_key_inverse_insertion_still_prefers_newer_card);
-    Test.add_func("/flowboard/projects_mode_sorts_mixed_timestamps_descending",
-                  test_projects_mode_sorts_mixed_timestamps_descending);
+    Test.add_func("/flowboard/projects_mode_preserves_store_order_for_mixed_timestamps",
+                  test_projects_mode_preserves_store_order_for_mixed_timestamps);
 
     return Test.run();
 }
