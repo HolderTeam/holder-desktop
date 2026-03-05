@@ -51,7 +51,7 @@ public class FlowboardController : Object {
         }
         if (showing_projects) {
             replace_visible_with_projects();
-            breadcrumb_segments_changed(build_breadcrumb_segments(""));
+            breadcrumb_segments_changed(build_breadcrumb_segments());
             if (visible_tiles.get_n_items() == 0) {
                 empty_message_changed("No projects yet. Create one to get started.");
             } else {
@@ -62,7 +62,7 @@ public class FlowboardController : Object {
 
         if (selected_project == null) {
             visible_tiles.remove_all();
-            breadcrumb_segments_changed(build_breadcrumb_segments(""));
+            breadcrumb_segments_changed(build_breadcrumb_segments());
             empty_message_changed("Select a project to browse cards.");
             current_project_id = null;
             current_parent_card_id = null;
@@ -98,16 +98,10 @@ public class FlowboardController : Object {
             return;
         }
 
-        var context = current_context;
-        if (context == null) {
-            visible_tiles.remove_all();
-            breadcrumb_segments_changed(build_breadcrumb_segments(selected_project.name));
-            empty_message_changed("Loading cards...");
-            return;
-        }
+        var context = (!) current_context;
 
         replace_visible_from_context(context.cards, current_parent_card_id);
-        breadcrumb_segments_changed(build_breadcrumb_segments(context.project.name));
+        breadcrumb_segments_changed(build_breadcrumb_segments());
         if (visible_tiles.get_n_items() == 0) {
             empty_message_changed("No cards yet. Create one to get started.");
             return;
@@ -138,7 +132,7 @@ public class FlowboardController : Object {
         current_parent_card_id = current_context_parent_card_id;
         rebuild_parent_stack_from_context(context);
         replace_visible_from_context(context.cards, current_parent_card_id);
-        breadcrumb_segments_changed(build_breadcrumb_segments(context.project.name));
+        breadcrumb_segments_changed(build_breadcrumb_segments());
         if (visible_tiles.get_n_items() == 0) {
             empty_message_changed("No cards yet. Create one to get started.");
         } else {
@@ -401,26 +395,20 @@ public class FlowboardController : Object {
         return false;
     }
 
-    private Gee.ArrayList<FlowboardBreadcrumbSegment> build_breadcrumb_segments(string project_name) {
+    private Gee.ArrayList<FlowboardBreadcrumbSegment> build_breadcrumb_segments() {
         var segments = new Gee.ArrayList<FlowboardBreadcrumbSegment>();
         segments.add(new FlowboardBreadcrumbSegment("Projects"));
         if (showing_projects) {
             return segments;
         }
         if (has_matching_context()) {
-            var context = current_context;
-            if (context == null) {
-                return segments;
-            }
+            var context = (!) current_context;
             foreach (var crumb in context.breadcrumbs) {
-                if (crumb.title != null && crumb.title.length > 0) {
+                if (crumb.title.length > 0) {
                     segments.add(new FlowboardBreadcrumbSegment(crumb.title));
                 }
             }
             return segments;
-        }
-        if (project_name != null && project_name.length > 0) {
-            segments.add(new FlowboardBreadcrumbSegment(project_name));
         }
         foreach (var parent_id in parent_stack_ids) {
             var card = find_card(parent_id);

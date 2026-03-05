@@ -228,6 +228,267 @@ private void test_refresh_selected_project_without_context_shows_loading_state()
     assert(crumbs[1].label == "Project One");
 }
 
+private void test_apply_card_context_guard_when_showing_projects() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_store.append(make_project("p2", "Project Two", 20));
+    project_selection.set_selected(0);
+    card_store.append(make_card("a", "p1", "A", 1024.0));
+
+    controller.refresh();
+    controller.navigate_to_breadcrumb_index(0); // showing_projects = true
+
+    var context = build_context_for_request(project_store, card_store, "p1", null);
+    controller.apply_card_context("p1", null, context);
+
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 2);
+    var first = tile_at(model, 0);
+    assert(first != null);
+    assert(first.project_id == "p1");
+}
+
+private void test_apply_card_context_guard_when_current_project_not_initialized() {
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    var controller = new HolderLinux.FlowboardController(project_store, project_selection, card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("a", "p1", "A", 1024.0));
+
+    var context = build_context_for_request(project_store, card_store, "p1", null);
+    controller.apply_card_context("p1", null, context);
+
+    assert(controller.get_visible_model().get_n_items() == 0);
+}
+
+private void test_apply_card_context_guard_when_project_mismatch() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_store.append(make_project("p2", "Project Two", 20));
+    project_selection.set_selected(0);
+    card_store.append(make_card("p1a", "p1", "P1 A", 1024.0));
+    card_store.append(make_card("p2a", "p2", "P2 A", 1024.0));
+
+    controller.refresh();
+    var before_model = controller.get_visible_model();
+    assert(before_model.get_n_items() == 1);
+    var before = tile_at(before_model, 0);
+    assert(before != null);
+    assert(before.card_id == "p1a");
+
+    var mismatched_context = build_context_for_request(project_store, card_store, "p2", null);
+    controller.apply_card_context("p2", null, mismatched_context);
+
+    var after_model = controller.get_visible_model();
+    assert(after_model.get_n_items() == 1);
+    var after = tile_at(after_model, 0);
+    assert(after != null);
+    assert(after.card_id == "p1a");
+}
+
+private void test_apply_card_context_guard_when_parent_mismatch() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("parent", "p1", "Parent", 1024.0));
+    card_store.append(make_card("child", "p1", "Child", 1024.0, "parent"));
+
+    controller.refresh();
+    controller.activate_position(0); // enter parent
+    var inside_model = controller.get_visible_model();
+    assert(inside_model.get_n_items() == 1);
+    var inside = tile_at(inside_model, 0);
+    assert(inside != null);
+    assert(inside.card_id == "child");
+
+    var root_context = build_context_for_request(project_store, card_store, "p1", null);
+    controller.apply_card_context("p1", null, root_context); // mismatched requested_parent_card_id
+
+    var after_model = controller.get_visible_model();
+    assert(after_model.get_n_items() == 1);
+    var after = tile_at(after_model, 0);
+    assert(after != null);
+    assert(after.card_id == "child");
+}
+
+private void test_replace_visible_with_projects_skips_non_project_items() {
+    var project_store = new GLib.ListStore(typeof(GLib.Object));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    var controller = new HolderLinux.FlowboardController(project_store, project_selection, card_store);
+
+    project_store.append(new GLib.Object()); // not a HolderLinux.Project
+    project_store.append(make_project("p1", "Project One", 10, 2, 3));
+
+    controller.navigate_to_breadcrumb_index(0); // projects mode
+
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 1);
+    var only = tile_at(model, 0);
+    assert(only != null);
+    assert(only.project_id == "p1");
+    assert(only.child_count == 2);
+}
+
+private void test_breadcrumbs_in_projects_mode_are_just_projects() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+
+    Gee.ArrayList<HolderLinux.FlowboardBreadcrumbSegment>? crumbs = null;
+    controller.breadcrumb_segments_changed.connect((segments) => {
+        crumbs = segments;
+    });
+
+    controller.refresh();
+    controller.navigate_to_breadcrumb_index(0);
+
+    assert(crumbs != null);
+    assert(crumbs.size == 1);
+    assert(crumbs[0].label == "Projects");
+}
+
+private void test_breadcrumbs_from_context_skip_empty_titles() {
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    var controller = new HolderLinux.FlowboardController(project_store, project_selection, card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("parent", "p1", "Parent", 1024.0));
+
+    // Prime current_project_id without auto context application.
+    controller.refresh();
+
+    var crumbs = new Gee.ArrayList<HolderLinux.CardContextBreadcrumb>();
+    crumbs.add(new HolderLinux.CardContextBreadcrumb("project", "Project One", "p1", null));
+    crumbs.add(new HolderLinux.CardContextBreadcrumb("card", "", null, "blank"));
+    crumbs.add(new HolderLinux.CardContextBreadcrumb("card", "Parent", null, "parent"));
+    var cards = new Gee.ArrayList<HolderLinux.CardContextCard>();
+    cards.add(new HolderLinux.CardContextCard("parent", "p1", "Parent", "parent.md", 1024.0, null, 0, 0, 0));
+    var context = new HolderLinux.CardContextData(
+        new HolderLinux.CardContextProject("p1", "Project One"),
+        null,
+        crumbs,
+        cards
+    );
+
+    Gee.ArrayList<HolderLinux.FlowboardBreadcrumbSegment>? emitted = null;
+    controller.breadcrumb_segments_changed.connect((segments) => {
+        emitted = segments;
+    });
+    controller.apply_card_context("p1", null, context);
+
+    assert(emitted != null);
+    assert(emitted.size == 3);
+    assert(emitted[0].label == "Projects");
+    assert(emitted[1].label == "Project One");
+    assert(emitted[2].label == "Parent");
+}
+
+private void test_breadcrumbs_fallback_parent_stack_includes_found_parent() {
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    var controller = new HolderLinux.FlowboardController(project_store, project_selection, card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("root", "p1", "Root", 1024.0));
+
+    Gee.ArrayList<HolderLinux.FlowboardBreadcrumbSegment>? crumbs = null;
+    controller.breadcrumb_segments_changed.connect((segments) => {
+        crumbs = segments;
+    });
+
+    // Prime current_project_id.
+    controller.refresh();
+
+    // Seed visible root tile without auto context loading.
+    var context_cards = new Gee.ArrayList<HolderLinux.CardContextCard>();
+    context_cards.add(new HolderLinux.CardContextCard("root", "p1", "Root", "root.md", 1024.0, null, 0, 0, 1));
+    var context_crumbs = new Gee.ArrayList<HolderLinux.CardContextBreadcrumb>();
+    context_crumbs.add(new HolderLinux.CardContextBreadcrumb("project", "Project One", "p1", null));
+    var root_context = new HolderLinux.CardContextData(
+        new HolderLinux.CardContextProject("p1", "Project One"),
+        null,
+        context_crumbs,
+        context_cards
+    );
+    controller.apply_card_context("p1", null, root_context);
+    controller.activate_position(0); // enter root => parent_stack contains root
+
+    // Selected project removed => fallback breadcrumb path with project_name="" and parent stack lookup.
+    project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+    controller.refresh();
+    assert(crumbs != null);
+    assert(crumbs.size == 2);
+    assert(crumbs[0].label == "Projects");
+    assert(crumbs[1].label == "Root");
+}
+
+private void test_breadcrumbs_fallback_parent_stack_skips_missing_parent() {
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    var controller = new HolderLinux.FlowboardController(project_store, project_selection, card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("root", "p1", "Root", 1024.0));
+
+    Gee.ArrayList<HolderLinux.FlowboardBreadcrumbSegment>? crumbs = null;
+    controller.breadcrumb_segments_changed.connect((segments) => {
+        crumbs = segments;
+    });
+
+    // Prime current_project_id.
+    controller.refresh();
+
+    // Seed visible root tile without auto context loading.
+    var context_cards = new Gee.ArrayList<HolderLinux.CardContextCard>();
+    context_cards.add(new HolderLinux.CardContextCard("root", "p1", "Root", "root.md", 1024.0, null, 0, 0, 1));
+    var context_crumbs = new Gee.ArrayList<HolderLinux.CardContextBreadcrumb>();
+    context_crumbs.add(new HolderLinux.CardContextBreadcrumb("project", "Project One", "p1", null));
+    var root_context = new HolderLinux.CardContextData(
+        new HolderLinux.CardContextProject("p1", "Project One"),
+        null,
+        context_crumbs,
+        context_cards
+    );
+    controller.apply_card_context("p1", null, root_context);
+    controller.activate_position(0); // enter root => parent_stack contains root
+
+    // Remove root before deselect so fallback lookup cannot resolve title.
+    card_store.remove(0);
+    project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+    controller.refresh();
+
+    assert(crumbs != null);
+    assert(crumbs.size == 1);
+    assert(crumbs[0].label == "Projects");
+}
+
 private void test_activate_container_enters_it_and_backspace_returns() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
@@ -1134,6 +1395,24 @@ int main(string[] args) {
                   test_refresh_selected_project_uses_backend_context_order);
     Test.add_func("/flowboard/refresh_selected_project_without_context_shows_loading_state",
                   test_refresh_selected_project_without_context_shows_loading_state);
+    Test.add_func("/flowboard/apply_card_context_guard_when_showing_projects",
+                  test_apply_card_context_guard_when_showing_projects);
+    Test.add_func("/flowboard/apply_card_context_guard_when_current_project_not_initialized",
+                  test_apply_card_context_guard_when_current_project_not_initialized);
+    Test.add_func("/flowboard/apply_card_context_guard_when_project_mismatch",
+                  test_apply_card_context_guard_when_project_mismatch);
+    Test.add_func("/flowboard/apply_card_context_guard_when_parent_mismatch",
+                  test_apply_card_context_guard_when_parent_mismatch);
+    Test.add_func("/flowboard/replace_visible_with_projects_skips_non_project_items",
+                  test_replace_visible_with_projects_skips_non_project_items);
+    Test.add_func("/flowboard/breadcrumbs_in_projects_mode_are_just_projects",
+                  test_breadcrumbs_in_projects_mode_are_just_projects);
+    Test.add_func("/flowboard/breadcrumbs_from_context_skip_empty_titles",
+                  test_breadcrumbs_from_context_skip_empty_titles);
+    Test.add_func("/flowboard/breadcrumbs_fallback_parent_stack_includes_found_parent",
+                  test_breadcrumbs_fallback_parent_stack_includes_found_parent);
+    Test.add_func("/flowboard/breadcrumbs_fallback_parent_stack_skips_missing_parent",
+                  test_breadcrumbs_fallback_parent_stack_skips_missing_parent);
     Test.add_func("/flowboard/activate_container_enters_it_and_backspace_returns",
                   test_activate_container_enters_it_and_backspace_returns);
     Test.add_func("/flowboard/drop_center_nests_and_emits_move_and_toast",
