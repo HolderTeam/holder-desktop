@@ -188,6 +188,46 @@ private void test_refresh_selected_project_uses_backend_context_order() {
     assert(second.child_count == 1);
 }
 
+private void test_refresh_selected_project_without_context_shows_loading_state() {
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    var controller = new HolderLinux.FlowboardController(project_store, project_selection, card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+
+    int load_requests = 0;
+    string load_project_id = "";
+    string? load_parent_id = "__unset__";
+    controller.context_load_requested.connect((project_id, parent_card_id) => {
+        load_requests++;
+        load_project_id = project_id;
+        load_parent_id = parent_card_id;
+    });
+
+    string last_empty = "";
+    controller.empty_message_changed.connect((text) => {
+        last_empty = text;
+    });
+    Gee.ArrayList<HolderLinux.FlowboardBreadcrumbSegment>? crumbs = null;
+    controller.breadcrumb_segments_changed.connect((segments) => {
+        crumbs = segments;
+    });
+
+    controller.refresh();
+
+    assert(load_requests == 1);
+    assert(load_project_id == "p1");
+    assert(load_parent_id == null);
+    assert(last_empty == "Loading cards...");
+    assert(controller.get_visible_model().get_n_items() == 0);
+    assert(crumbs != null);
+    assert(crumbs.size == 2);
+    assert(crumbs[0].label == "Projects");
+    assert(crumbs[1].label == "Project One");
+}
+
 private void test_activate_container_enters_it_and_backspace_returns() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
@@ -1092,6 +1132,8 @@ int main(string[] args) {
                   test_refresh_without_selected_project_shows_empty_state);
     Test.add_func("/flowboard/refresh_selected_project_uses_backend_context_order",
                   test_refresh_selected_project_uses_backend_context_order);
+    Test.add_func("/flowboard/refresh_selected_project_without_context_shows_loading_state",
+                  test_refresh_selected_project_without_context_shows_loading_state);
     Test.add_func("/flowboard/activate_container_enters_it_and_backspace_returns",
                   test_activate_container_enters_it_and_backspace_returns);
     Test.add_func("/flowboard/drop_center_nests_and_emits_move_and_toast",
