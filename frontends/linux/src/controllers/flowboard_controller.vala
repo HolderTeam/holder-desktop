@@ -194,67 +194,31 @@ public class FlowboardController : Object {
     }
 
     public void move_card_to_start_from_context_menu(string card_id) {
-        var card = find_card(card_id);
-        if (card == null) {
+        if (find_card(card_id) == null) {
             return;
         }
-        var parent_id = normalize_parent(card.parent_card_id);
-        var siblings = siblings_for_parent(parent_id, card_id);
-        if (siblings.size == 0) {
-            return;
-        }
-        emit_move_intent(card_id, "to_start", null, parent_id);
+        emit_move_intent(card_id, "to_start", null, null);
     }
 
     public void move_card_left_from_context_menu(string card_id) {
-        var card = find_card(card_id);
-        if (card == null) {
+        if (find_card(card_id) == null) {
             return;
         }
-        var parent_id = normalize_parent(card.parent_card_id);
-        var siblings = siblings_for_parent(parent_id, null);
-        int index = -1;
-        for (int i = 0; i < siblings.size; i++) {
-            if (siblings[i].card_id == card_id) {
-                index = i;
-                break;
-            }
-        }
-        if (index <= 0) {
-            return;
-        }
-        var target_id = siblings[index - 1].card_id;
-        emit_move_intent(card_id, "before", target_id, parent_id);
+        emit_move_intent(card_id, "left", null, null);
     }
 
     public void move_card_right_from_context_menu(string card_id) {
-        var card = find_card(card_id);
-        if (card == null) {
+        if (find_card(card_id) == null) {
             return;
         }
-        var parent_id = normalize_parent(card.parent_card_id);
-        var siblings = siblings_for_parent(parent_id, null);
-        int index = -1;
-        for (int i = 0; i < siblings.size; i++) {
-            if (siblings[i].card_id == card_id) {
-                index = i;
-                break;
-            }
-        }
-        if (index < 0 || index >= siblings.size - 1) {
-            return;
-        }
-        var target_id = siblings[index + 1].card_id;
-        emit_move_intent(card_id, "after", target_id, parent_id);
+        emit_move_intent(card_id, "right", null, null);
     }
 
     public void move_card_to_end_from_context_menu(string card_id) {
-        var card = find_card(card_id);
-        if (card == null) {
+        if (find_card(card_id) == null) {
             return;
         }
-        var parent_id = normalize_parent(card.parent_card_id);
-        emit_move_intent(card_id, "to_end", null, parent_id);
+        emit_move_intent(card_id, "to_end", null, null);
     }
 
     public void navigate_up() {
@@ -324,11 +288,10 @@ public class FlowboardController : Object {
                 return;
             }
             toast_requested("Moved \"%s\" into \"%s\"".printf(source.title, target.title));
-            emit_move_intent(source.card_id, "into", target.card_id, new_parent);
+            emit_move_intent(source.card_id, "into", target.card_id, null);
         } else {
-            var new_parent = normalize_parent(target.parent_card_id);
             var intent = target_x_fraction > 0.75 ? "after" : "before";
-            emit_move_intent(source.card_id, intent, target.card_id, new_parent);
+            emit_move_intent(source.card_id, intent, target.card_id, null);
         }
     }
 
@@ -349,27 +312,8 @@ public class FlowboardController : Object {
 
     private void replace_visible_from_context(Gee.ArrayList<CardContextCard> cards, string? parent_card_id) {
         visible_tiles.remove_all();
-        var sorted = new Gee.ArrayList<CardContextCard>();
-        foreach (var card in cards) {
-            sorted.add(card);
-        }
-        sorted.sort((a, b) => {
-            if (a.sort_key < b.sort_key) {
-                return -1;
-            }
-            if (a.sort_key > b.sort_key) {
-                return 1;
-            }
-            if (a.updated_at > b.updated_at) {
-                return -1;
-            }
-            if (a.updated_at < b.updated_at) {
-                return 1;
-            }
-            return strcmp(a.title.down(), b.title.down());
-        });
-        for (int i = 0; i < sorted.size; i++) {
-            var card = sorted[i];
+        for (int i = 0; i < cards.size; i++) {
+            var card = cards[i];
             visible_tiles.append(new FlowboardTile(
                 "card:%s".printf(card.card_id),
                 card.title,
@@ -378,7 +322,7 @@ public class FlowboardController : Object {
                 card.card_id,
                 null,
                 parent_card_id,
-                sorted.size,
+                cards.size,
                 i,
                 card.child_count
             ));
@@ -547,57 +491,12 @@ public class FlowboardController : Object {
         return normalize_parent(current_context_parent_card_id) == normalize_parent(current_parent_card_id);
     }
 
-    private static int compare_for_flowboard(CardSummary a, CardSummary b) {
-        if (a.sort_key < b.sort_key) {
-            return -1;
-        }
-        if (a.sort_key > b.sort_key) {
-            return 1;
-        }
-        if (a.updated_at > b.updated_at) {
-            return -1;
-        }
-        if (a.updated_at < b.updated_at) {
-            return 1;
-        }
-        return strcmp(a.title.down(), b.title.down());
-    }
-
     private static string? normalize_parent(string? parent_card_id) {
         if (parent_card_id == null) {
             return null;
         }
         var trimmed = parent_card_id.strip();
         return trimmed.length == 0 ? null : trimmed;
-    }
-
-    private Gee.ArrayList<CardSummary> siblings_for_parent(string? parent_card_id, string? exclude_card_id = null) {
-        var source_cards = new Gee.ArrayList<CardSummary?>();
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            source_cards.add(card_store.get_item(i) as CardSummary);
-        }
-        return siblings_for_parent_in_cards(source_cards, parent_card_id, exclude_card_id);
-    }
-
-    internal static Gee.ArrayList<CardSummary> siblings_for_parent_in_cards(
-        Gee.ArrayList<CardSummary?> source_cards,
-        string? parent_card_id,
-        string? exclude_card_id = null
-    ) {
-        var siblings = new Gee.ArrayList<CardSummary>();
-        foreach (var card in source_cards) {
-            if (card == null) {
-                continue;
-            }
-            if (exclude_card_id != null && card.card_id == exclude_card_id) {
-                continue;
-            }
-            if (normalize_parent(card.parent_card_id) == normalize_parent(parent_card_id)) {
-                siblings.add(card);
-            }
-        }
-        siblings.sort((a, b) => compare_for_flowboard(a, b));
-        return siblings;
     }
 
     private void emit_move_intent(string card_id,

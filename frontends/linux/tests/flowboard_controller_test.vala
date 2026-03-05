@@ -147,7 +147,7 @@ private void test_refresh_without_selected_project_shows_empty_state() {
     assert(controller.get_visible_model().get_n_items() == 0);
 }
 
-private void test_refresh_selected_project_sorts_root_cards_by_sort_key() {
+private void test_refresh_selected_project_uses_backend_context_order() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
     GLib.ListStore card_store;
@@ -166,11 +166,11 @@ private void test_refresh_selected_project_sorts_root_cards_by_sort_key() {
     var first = tile_at(model, 0);
     var second = tile_at(model, 1);
     assert(first != null && second != null);
-    assert(first.card_id == "c1");
-    assert(first.is_container);
-    assert(first.child_count == 1);
-    assert(second.card_id == "c2");
-    assert(!second.is_container);
+    assert(first.card_id == "c2");
+    assert(!first.is_container);
+    assert(second.card_id == "c1");
+    assert(second.is_container);
+    assert(second.child_count == 1);
 }
 
 private void test_activate_container_enters_it_and_backspace_returns() {
@@ -615,19 +615,6 @@ private void test_is_descendant_in_cards_null_candidate_is_false() {
     assert(!HolderLinux.FlowboardController.is_descendant_in_cards(source_cards, null, "a"));
 }
 
-private void test_siblings_for_parent_in_cards_skips_null_cards() {
-    var source_cards = new Gee.ArrayList<HolderLinux.CardSummary?>();
-    source_cards.add(null);
-    source_cards.add(make_card("a", "p1", "Alpha", 1024.0));
-    source_cards.add(make_card("b", "p1", "Beta", 2048.0));
-    source_cards.add(make_card("c", "p1", "Gamma", 3072.0, "a"));
-
-    var siblings = HolderLinux.FlowboardController.siblings_for_parent_in_cards(source_cards, null);
-    assert(siblings.size == 2);
-    assert(siblings[0].card_id == "a");
-    assert(siblings[1].card_id == "b");
-}
-
 private void test_open_card_from_context_menu_leaf_opens_without_navigation() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
@@ -651,7 +638,7 @@ private void test_open_card_from_context_menu_leaf_opens_without_navigation() {
     assert(only != null && only.card_id == "leaf");
 }
 
-private void test_move_left_right_edge_cards_are_noop() {
+private void test_move_left_right_edge_cards_emit_relative_intents() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
     GLib.ListStore card_store;
@@ -663,15 +650,26 @@ private void test_move_left_right_edge_cards_are_noop() {
     card_store.append(make_card("b", "p1", "Beta", 2048.0));
     card_store.append(make_card("c", "p1", "Gamma", 3072.0));
 
-    int move_emits = 0;
+    int edge_moves = 0;
+    string? left_intent = null;
+    string? right_intent = null;
     controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
-        move_emits++;
+        if (card_id == "a") {
+            edge_moves++;
+            left_intent = intent;
+        }
+        if (card_id == "c") {
+            edge_moves++;
+            right_intent = intent;
+        }
     });
 
     controller.refresh();
     controller.move_card_left_from_context_menu("a");
     controller.move_card_right_from_context_menu("c");
-    assert(move_emits == 0);
+    assert(edge_moves == 2);
+    assert(left_intent == "left");
+    assert(right_intent == "right");
 }
 
 private void test_on_card_drop_tiny_gap_uses_fallback_increment() {
@@ -879,9 +877,16 @@ private void test_move_left_and_right_middle_card_emit_reorder() {
     card_store.append(make_card("c", "p1", "Gamma", 3072.0));
 
     int b_moves = 0;
+    string? first_intent = null;
+    string? second_intent = null;
     controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
         if (card_id == "b") {
             b_moves++;
+            if (b_moves == 1) {
+                first_intent = intent;
+            } else if (b_moves == 2) {
+                second_intent = intent;
+            }
         }
     });
 
@@ -889,9 +894,11 @@ private void test_move_left_and_right_middle_card_emit_reorder() {
     controller.move_card_left_from_context_menu("b");
     controller.move_card_right_from_context_menu("b");
     assert(b_moves == 2);
+    assert(first_intent == "left");
+    assert(second_intent == "right");
 }
 
-private void test_move_card_to_start_single_sibling_is_noop() {
+private void test_move_card_to_start_single_sibling_emits_intent() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
     GLib.ListStore card_store;
@@ -902,13 +909,16 @@ private void test_move_card_to_start_single_sibling_is_noop() {
     card_store.append(make_card("only", "p1", "Only", 1024.0));
 
     int move_emits = 0;
+    string? emitted_intent = null;
     controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
         move_emits++;
+        emitted_intent = intent;
     });
 
     controller.refresh();
     controller.move_card_to_start_from_context_menu("only");
-    assert(move_emits == 0);
+    assert(move_emits == 1);
+    assert(emitted_intent == "to_start");
 }
 
 private void test_navigate_up_from_depth_two_keeps_parent_context() {
@@ -984,7 +994,7 @@ private void test_projects_mode_sorts_by_name_when_timestamps_tie() {
     assert(third.title.down() == "zeta");
 }
 
-private void test_equal_sort_key_uses_updated_at_tiebreaker() {
+private void test_equal_sort_key_preserves_backend_context_order() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
     GLib.ListStore card_store;
@@ -1001,8 +1011,8 @@ private void test_equal_sort_key_uses_updated_at_tiebreaker() {
     var first = tile_at(model, 0);
     var second = tile_at(model, 1);
     assert(first != null && second != null);
-    assert(first.card_id == "new");
-    assert(second.card_id == "old");
+    assert(first.card_id == "old");
+    assert(second.card_id == "new");
 }
 
 private void test_drop_right_edge_on_last_card_uses_tail_padding() {
@@ -1111,8 +1121,8 @@ int main(string[] args) {
 
     Test.add_func("/flowboard/refresh_without_selected_project_shows_empty_state",
                   test_refresh_without_selected_project_shows_empty_state);
-    Test.add_func("/flowboard/refresh_selected_project_sorts_root_cards_by_sort_key",
-                  test_refresh_selected_project_sorts_root_cards_by_sort_key);
+    Test.add_func("/flowboard/refresh_selected_project_uses_backend_context_order",
+                  test_refresh_selected_project_uses_backend_context_order);
     Test.add_func("/flowboard/activate_container_enters_it_and_backspace_returns",
                   test_activate_container_enters_it_and_backspace_returns);
     Test.add_func("/flowboard/drop_center_nests_and_emits_move_and_toast",
@@ -1149,12 +1159,10 @@ int main(string[] args) {
                   test_count_children_for_parent_skips_null_cards);
     Test.add_func("/flowboard/is_descendant_in_cards_null_candidate_is_false",
                   test_is_descendant_in_cards_null_candidate_is_false);
-    Test.add_func("/flowboard/siblings_for_parent_in_cards_skips_null_cards",
-                  test_siblings_for_parent_in_cards_skips_null_cards);
     Test.add_func("/flowboard/open_card_from_context_menu_leaf_opens_without_navigation",
                   test_open_card_from_context_menu_leaf_opens_without_navigation);
-    Test.add_func("/flowboard/move_left_right_edge_cards_are_noop",
-                  test_move_left_right_edge_cards_are_noop);
+    Test.add_func("/flowboard/move_left_right_edge_cards_emit_relative_intents",
+                  test_move_left_right_edge_cards_emit_relative_intents);
     Test.add_func("/flowboard/on_card_drop_tiny_gap_uses_fallback_increment",
                   test_on_card_drop_tiny_gap_uses_fallback_increment);
     Test.add_func("/flowboard/move_up_with_missing_parent_uses_project_destination",
@@ -1173,16 +1181,16 @@ int main(string[] args) {
                   test_drop_left_edge_places_before_target);
     Test.add_func("/flowboard/move_left_and_right_middle_card_emit_reorder",
                   test_move_left_and_right_middle_card_emit_reorder);
-    Test.add_func("/flowboard/move_card_to_start_single_sibling_is_noop",
-                  test_move_card_to_start_single_sibling_is_noop);
+    Test.add_func("/flowboard/move_card_to_start_single_sibling_emits_intent",
+                  test_move_card_to_start_single_sibling_emits_intent);
     Test.add_func("/flowboard/navigate_up_from_depth_two_keeps_parent_context",
                   test_navigate_up_from_depth_two_keeps_parent_context);
     Test.add_func("/flowboard/navigate_to_parent_breadcrumb_trims_stack",
                   test_navigate_to_parent_breadcrumb_trims_stack);
     Test.add_func("/flowboard/projects_mode_sorts_by_name_when_timestamps_tie",
                   test_projects_mode_sorts_by_name_when_timestamps_tie);
-    Test.add_func("/flowboard/equal_sort_key_uses_updated_at_tiebreaker",
-                  test_equal_sort_key_uses_updated_at_tiebreaker);
+    Test.add_func("/flowboard/equal_sort_key_preserves_backend_context_order",
+                  test_equal_sort_key_preserves_backend_context_order);
     Test.add_func("/flowboard/drop_right_edge_on_last_card_uses_tail_padding",
                   test_drop_right_edge_on_last_card_uses_tail_padding);
     Test.add_func("/flowboard/projects_mode_sort_hits_updated_at_less_branch",
