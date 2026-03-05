@@ -363,20 +363,6 @@ public class FlowboardController : Object {
         }
     }
 
-    internal static int count_root_cards_for_project(Gee.ArrayList<CardSummary?> source_cards,
-                                                     string project_id) {
-        int count = 0;
-        foreach (var card in source_cards) {
-            if (card == null) {
-                continue;
-            }
-            if (card.project_id == project_id && normalize_parent(card.parent_card_id) == null) {
-                count++;
-            }
-        }
-        return count;
-    }
-
     private CardSummary? find_card(string card_id) {
         for (uint i = 0; i < card_store.get_n_items(); i++) {
             var card = card_store.get_item(i) as CardSummary;

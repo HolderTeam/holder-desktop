@@ -598,18 +598,6 @@ private void test_activate_tile_with_null_card_id_is_noop() {
     assert(selected.project_id == "p1");
 }
 
-private void test_count_root_cards_for_project_skips_null_cards() {
-    var source_cards = new Gee.ArrayList<HolderLinux.CardSummary?>();
-    source_cards.add(null);
-    source_cards.add(make_card("root-1", "p1", "Root 1", 1024.0));
-    source_cards.add(make_card("child-1", "p1", "Child 1", 1024.0, "root-1"));
-    source_cards.add(make_card("root-2", "p1", "Root 2", 2048.0));
-    source_cards.add(make_card("other-project", "p2", "Other", 1024.0));
-
-    var count = HolderLinux.FlowboardController.count_root_cards_for_project(source_cards, "p1");
-    assert(count == 2);
-}
-
 private void test_count_children_for_parent_skips_null_cards() {
     var source_cards = new Gee.ArrayList<HolderLinux.CardSummary?>();
     source_cards.add(null);
@@ -1168,8 +1156,6 @@ int main(string[] args) {
                   test_activate_position_out_of_range_is_noop);
     Test.add_func("/flowboard/activate_tile_with_null_card_id_is_noop",
                   test_activate_tile_with_null_card_id_is_noop);
-    Test.add_func("/flowboard/count_root_cards_for_project_skips_null_cards",
-                  test_count_root_cards_for_project_skips_null_cards);
     Test.add_func("/flowboard/count_children_for_parent_skips_null_cards",
                   test_count_children_for_parent_skips_null_cards);
     Test.add_func("/flowboard/is_descendant_in_cards_null_candidate_is_false",
