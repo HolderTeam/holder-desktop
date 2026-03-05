@@ -541,7 +541,7 @@ public class MainController : Object, IAiRunContext {
         status_changed("Loading cards for %s...".printf(selected.name));
 
         try {
-            var cards = yield api.list_cards(selected.project_id, "all", null);
+            var cards = yield api.list_cards_overview(selected.project_id);
             replace_cards(cards);
             yield reload_ai_threads_for_project(selected.project_id);
             if (preferred_card_id != null) {

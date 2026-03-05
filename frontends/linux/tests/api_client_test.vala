@@ -1412,6 +1412,35 @@ private void test_get_card_context_missing_data_is_protocol_error() {
     assert(got_protocol);
 }
 
+private void test_list_cards_overview_calls_overview_endpoint() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"Card 1\",\"rel_path\":\"c1.md\",\"sort_key\":1,\"parent_card_id\":null,\"created_at\":1,\"updated_at\":99,\"deleted_at\":null}]}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.CardSummary>? cards = null;
+    client.list_cards_overview.begin("p1", 123, (obj, res) => {
+        try {
+            cards = client.list_cards_overview.end(res);
+        } catch (Error e) {
+            cards = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(cards != null);
+    assert(cards.size == 1);
+    assert(cards[0].card_id == "c1");
+    assert(transport.last_method == "GET");
+    assert(transport.last_uri.contains("/cards/overview?"));
+    assert(transport.last_uri.contains("project_id=p1"));
+    assert(transport.last_uri.contains("limit=123"));
+}
+
 private void test_list_projects_parses_sync_state_fields() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -2500,6 +2529,8 @@ int main(string[] args) {
                   test_get_card_context_parses_response);
     Test.add_func("/api_client/get_card_context_missing_data_is_protocol_error",
                   test_get_card_context_missing_data_is_protocol_error);
+    Test.add_func("/api_client/list_cards_overview_calls_overview_endpoint",
+                  test_list_cards_overview_calls_overview_endpoint);
     Test.add_func("/api_client/list_projects_parses_sync_state_fields",
                   test_list_projects_parses_sync_state_fields);
     Test.add_func("/api_client/list_projects_sync_null_or_non_object_uses_defaults",

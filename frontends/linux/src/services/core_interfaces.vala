@@ -24,6 +24,8 @@ public interface IHolderApi : Object {
     public abstract async Gee.ArrayList<CardSummary> list_cards(string project_id,
                                                                  string scope = "root",
                                                                  string? parent_card_id = null) throws Error;
+    public abstract async Gee.ArrayList<CardSummary> list_cards_overview(string project_id,
+                                                                          int limit = 5000) throws Error;
     public abstract async CardContextData get_card_context(string project_id,
                                                            string? parent_card_id = null) throws Error;
     public abstract async CardDetail get_card(string card_id) throws Error;

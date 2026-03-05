@@ -207,6 +207,11 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         return cards;
     }
 
+    public async Gee.ArrayList<HolderLinux.CardSummary> list_cards_overview(string project_id,
+                                                                             int limit = 5000) throws Error {
+        return yield list_cards(project_id, "all", null);
+    }
+
     public async HolderLinux.CardContextData get_card_context(string project_id,
                                                               string? parent_card_id = null) throws Error {
         var project = new HolderLinux.CardContextProject(project_id, "Project 1");

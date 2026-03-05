@@ -201,6 +201,17 @@ public class ApiClient : Object, IHolderApi {
         return parse_cards(root);
     }
 
+    public async Gee.ArrayList<CardSummary> list_cards_overview(string project_id,
+                                                                 int limit = 5000) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("project_id", project_id);
+        if (limit > 0) {
+            query.insert("limit", limit.to_string());
+        }
+        var root = yield request_json("GET", "/cards/overview", null, query);
+        return parse_cards(root);
+    }
+
     public async CardContextData get_card_context(string project_id,
                                                   string? parent_card_id = null) throws Error {
         var query = new HashTable<string, string>(str_hash, str_equal);
