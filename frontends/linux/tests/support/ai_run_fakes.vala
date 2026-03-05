@@ -67,6 +67,10 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                                                              int limit = 5000) throws Error {
         return new Gee.ArrayList<HolderLinux.CardSummary>();
     }
+    public async Gee.ArrayList<HolderLinux.CardSummary> list_cards_recent(string project_id,
+                                                                           int limit = 5000) throws Error {
+        return new Gee.ArrayList<HolderLinux.CardSummary>();
+    }
     public async HolderLinux.CardContextData get_card_context(string project_id,
                                                               string? parent_card_id = null) throws Error {
         return new HolderLinux.CardContextData(

@@ -1306,7 +1306,7 @@ public class MainWindow : Adw.ApplicationWindow {
             var sync_section = new StringBuilder();
             foreach (var project in ordered_projects) {
                 try {
-                    var cards = yield api.list_cards_overview(project.project_id);
+                    var cards = yield api.list_cards_recent(project.project_id);
                     total_card_count += cards.size;
                 } catch (Error e) {
                     toolbox.log_debug(

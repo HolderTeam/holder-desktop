@@ -209,7 +209,27 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
 
     public async Gee.ArrayList<HolderLinux.CardSummary> list_cards_overview(string project_id,
                                                                              int limit = 5000) throws Error {
-        return yield list_cards(project_id, "all", null);
+        return yield list_cards_recent(project_id, limit);
+    }
+
+    public async Gee.ArrayList<HolderLinux.CardSummary> list_cards_recent(string project_id,
+                                                                           int limit = 5000) throws Error {
+        if (fail_list_cards) {
+            throw new IOError.FAILED("list cards failed");
+        }
+        list_cards_calls++;
+        var cards = new Gee.ArrayList<HolderLinux.CardSummary>();
+        if (list_cards_empty) {
+            return cards;
+        }
+        cards.add(new HolderLinux.CardSummary("c1", project_id, "Card 1", "c1.md", 1024.0, null, 20, 20));
+        if (include_card2) {
+            cards.add(new HolderLinux.CardSummary("c2", project_id, "Card 2", "c2.md", 2048.0, null, 21, 21));
+        }
+        if (include_created_card) {
+            cards.add(new HolderLinux.CardSummary("c-created", project_id, "Untitled", "c-created.md", 3072.0, null, 22, 22));
+        }
+        return cards;
     }
 
     public async HolderLinux.CardContextData get_card_context(string project_id,
