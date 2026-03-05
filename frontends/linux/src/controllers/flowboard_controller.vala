@@ -167,11 +167,18 @@ public class FlowboardController : Object {
         if (tile.card_id == null) {
             return;
         }
-        activate_card(tile.card_id);
+        activate_card(tile.card_id, tile.is_container);
     }
 
     public void open_card_from_context_menu(string card_id) {
-        activate_card(card_id);
+        bool is_container = false;
+        var tile = find_visible_tile_by_card_id(card_id);
+        if (tile != null) {
+            is_container = tile.is_container;
+        } else {
+            is_container = is_container_from_context(card_id);
+        }
+        activate_card(card_id, is_container);
     }
 
     public void move_card_up_level_from_context_menu(string card_id) {
@@ -373,14 +380,6 @@ public class FlowboardController : Object {
         return null;
     }
 
-    private int child_count_for_parent(string card_id) {
-        var source_cards = new Gee.ArrayList<CardSummary?>();
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            source_cards.add(card_store.get_item(i) as CardSummary);
-        }
-        return count_children_for_parent(source_cards, card_id);
-    }
-
     private bool is_descendant(string? candidate_parent_card_id, string card_id) {
         var source_cards = new Gee.ArrayList<CardSummary?>();
         for (uint i = 0; i < card_store.get_n_items(); i++) {
@@ -412,20 +411,6 @@ public class FlowboardController : Object {
             guard++;
         }
         return false;
-    }
-
-    internal static int count_children_for_parent(Gee.ArrayList<CardSummary?> source_cards,
-                                                  string card_id) {
-        int count = 0;
-        foreach (var card in source_cards) {
-            if (card == null) {
-                continue;
-            }
-            if (normalize_parent(card.parent_card_id) == card_id) {
-                count++;
-            }
-        }
-        return count;
     }
 
     private Gee.ArrayList<FlowboardBreadcrumbSegment> build_breadcrumb_segments(string project_name) {
@@ -493,12 +478,11 @@ public class FlowboardController : Object {
         );
     }
 
-    private void activate_card(string card_id) {
+    private void activate_card(string card_id, bool is_container) {
         var card = find_card(card_id);
         if (card == null) {
             return;
         }
-        var is_container = child_count_for_parent(card_id) > 0;
         if (is_container) {
             card_open_requested(card_id);
             current_parent_card_id = card_id;
@@ -507,6 +491,28 @@ public class FlowboardController : Object {
             return;
         }
         card_open_requested(card_id);
+    }
+
+    private FlowboardTile? find_visible_tile_by_card_id(string card_id) {
+        for (uint i = 0; i < visible_tiles.get_n_items(); i++) {
+            var tile = visible_tiles.get_item(i) as FlowboardTile;
+            if (tile != null && tile.card_id == card_id) {
+                return tile;
+            }
+        }
+        return null;
+    }
+
+    private bool is_container_from_context(string card_id) {
+        if (current_context == null) {
+            return false;
+        }
+        foreach (var card in current_context.cards) {
+            if (card.card_id == card_id) {
+                return card.child_count > 0;
+            }
+        }
+        return false;
     }
 
     private string destination_label_for_parent(string? parent_card_id) {
