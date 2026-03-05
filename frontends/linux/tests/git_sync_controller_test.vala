@@ -29,6 +29,7 @@ private class FakeGitSyncService : HolderLinux.GitSyncService {
     public string last_project_id = "";
     public string last_remote_url = "";
     public string last_branch = "";
+    public bool fail_apply = false;
 
     public override async HolderLinux.GitHubCliState detect_github_cli_state() {
         detect_calls++;
@@ -67,6 +68,9 @@ private class FakeGitSyncService : HolderLinux.GitSyncService {
                                                                                       string project_id,
                                                                                       string remote_url,
                                                                                       string branch) throws Error {
+        if (fail_apply) {
+            throw new IOError.FAILED("apply failed");
+        }
         apply_calls++;
         last_project_id = project_id;
         last_remote_url = remote_url;
@@ -264,6 +268,25 @@ private void test_set_saved_github_username_without_settings_is_noop() {
     assert(controller.get_saved_github_username() == "");
 }
 
+private void test_configure_remote_and_sync_failure_propagates() {
+    var service = new FakeGitSyncService();
+    service.fail_apply = true;
+    var controller = new HolderLinux.GitSyncController(service);
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    bool done = false;
+    bool got_error = false;
+    controller.configure_remote_and_sync.begin(api, "p42", "git@github.com:zeth/CardApp.git", "cards", (obj, res) => {
+        try {
+            controller.configure_remote_and_sync.end(res);
+        } catch (Error e) {
+            got_error = e.message.contains("apply failed");
+        }
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(got_error);
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -296,6 +319,8 @@ int main(string[] args) {
                   test_get_saved_github_username_strips_whitespace);
     Test.add_func("/git_sync_controller/set_saved_github_username_without_settings_is_noop",
                   test_set_saved_github_username_without_settings_is_noop);
+    Test.add_func("/git_sync_controller/configure_remote_and_sync_failure_propagates",
+                  test_configure_remote_and_sync_failure_propagates);
 
     return Test.run();
 }

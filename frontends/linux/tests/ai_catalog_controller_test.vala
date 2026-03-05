@@ -17,6 +17,16 @@ private void test_title_and_status() {
 
     assert(controller.title_for_provider(provider) == "OpenAI (openai)");
     assert(controller.status_for_provider(provider) == "enabled=yes configured=no");
+
+    var inverse = new AiCatalogProvider(
+        "xai",
+        "xAI",
+        false,
+        true,
+        "",
+        ""
+    );
+    assert(controller.status_for_provider(inverse) == "enabled=no configured=yes");
 }
 
 private void test_urls_presence() {

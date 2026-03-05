@@ -569,6 +569,46 @@ private void test_handle_ai_run_event_unknown_event_is_ignored() {
     assert(!saw_status);
 }
 
+private void test_handle_ai_run_event_with_null_member_is_ignored() {
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
+
+    bool saw_chunk = false;
+    controller.append_output_chunk_requested.connect((text) => {
+        if (text.length > 0) {
+            saw_chunk = true;
+        }
+    });
+
+    var data = new Json.Object();
+    data.set_null_member("delta");
+    controller.handle_ai_run_event("chunk", data);
+
+    assert(!saw_chunk);
+}
+
+private void test_constructor_uses_default_scheduler_when_null() {
+    var ctx = new AiRunFakeContext();
+    ctx.api = null;
+    var controller = new HolderLinux.AiRunController(ctx, null);
+
+    bool rendered = false;
+    bool errored = false;
+    controller.render_status_requested.connect((capabilities, status) => {
+        rendered = true;
+    });
+    controller.render_status_error_requested.connect((message) => {
+        errored = true;
+    });
+
+    controller.refresh_status.begin();
+    assert(wait_for_condition(() => true));
+    assert(!rendered);
+    assert(!errored);
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -675,6 +715,14 @@ int main(string[] args) {
     Test.add_func(
         "/ai_run/handle_ai_run_event_unknown_event_is_ignored",
         test_handle_ai_run_event_unknown_event_is_ignored
+    );
+    Test.add_func(
+        "/ai_run/handle_ai_run_event_with_null_member_is_ignored",
+        test_handle_ai_run_event_with_null_member_is_ignored
+    );
+    Test.add_func(
+        "/ai_run/constructor_uses_default_scheduler_when_null",
+        test_constructor_uses_default_scheduler_when_null
     );
 
     return Test.run();

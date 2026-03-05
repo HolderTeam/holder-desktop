@@ -87,6 +87,86 @@ private void test_delete_resource_forwards_id() {
     assert(wait_for_condition(() => done));
 }
 
+private void test_list_resources_failure_propagates() {
+    var api = new MainControllerFakeApi();
+    api.fail_list_resources = true;
+    var service = new HolderLinux.ResourcesService();
+    bool done = false;
+    bool got_error = false;
+
+    service.list_resources.begin(api, "p-123", (obj, res) => {
+        try {
+            service.list_resources.end(res);
+        } catch (Error e) {
+            got_error = e.message.contains("list resources failed");
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_error);
+}
+
+private void test_create_resource_failure_propagates() {
+    var api = new MainControllerFakeApi();
+    api.fail_create_resource = true;
+    var service = new HolderLinux.ResourcesService();
+    bool done = false;
+    bool got_error = false;
+
+    service.create_resource.begin(api, "p-1", "url", "https://example.com", "Example", "desc", (obj, res) => {
+        try {
+            service.create_resource.end(res);
+        } catch (Error e) {
+            got_error = e.message.contains("create resource failed");
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_error);
+}
+
+private void test_update_resource_failure_propagates() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_resource = true;
+    var service = new HolderLinux.ResourcesService();
+    bool done = false;
+    bool got_error = false;
+
+    service.update_resource.begin(api, "r-1", "file", "file:///tmp/a.txt", "A", null, (obj, res) => {
+        try {
+            service.update_resource.end(res);
+        } catch (Error e) {
+            got_error = e.message.contains("update resource failed");
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_error);
+}
+
+private void test_delete_resource_failure_propagates() {
+    var api = new MainControllerFakeApi();
+    api.fail_delete_resource = true;
+    var service = new HolderLinux.ResourcesService();
+    bool done = false;
+    bool got_error = false;
+
+    service.delete_resource.begin(api, "r-9", (obj, res) => {
+        try {
+            service.delete_resource.end(res);
+        } catch (Error e) {
+            got_error = e.message.contains("delete resource failed");
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_error);
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -98,6 +178,14 @@ int main(string[] args) {
                   test_update_resource_sets_updated_at);
     Test.add_func("/resources_service/delete_resource_forwards_id",
                   test_delete_resource_forwards_id);
+    Test.add_func("/resources_service/list_resources_failure_propagates",
+                  test_list_resources_failure_propagates);
+    Test.add_func("/resources_service/create_resource_failure_propagates",
+                  test_create_resource_failure_propagates);
+    Test.add_func("/resources_service/update_resource_failure_propagates",
+                  test_update_resource_failure_propagates);
+    Test.add_func("/resources_service/delete_resource_failure_propagates",
+                  test_delete_resource_failure_propagates);
 
     return Test.run();
 }

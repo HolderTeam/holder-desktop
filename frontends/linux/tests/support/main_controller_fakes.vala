@@ -80,6 +80,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_create_project = false;
     public bool fail_list_threads = false;
     public bool fail_list_resources = false;
+    public bool fail_create_resource = false;
+    public bool fail_update_resource = false;
+    public bool fail_delete_resource = false;
     public bool include_card2 = false;
     public string next_move_into_title = "";
     public bool search_returns_card2 = false;
@@ -257,6 +260,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                         string uri,
                                         string label,
                                         string? desc = null) throws Error {
+        if (fail_create_resource) {
+            throw new IOError.FAILED("create resource failed");
+        }
         create_resource_calls++;
         last_resource_project_id = project_id;
         last_resource_kind = kind;
@@ -272,6 +278,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                       string? label,
                                       string? desc,
                                       int64 updated_at) throws Error {
+        if (fail_update_resource) {
+            throw new IOError.FAILED("update resource failed");
+        }
         update_resource_calls++;
         last_resource_id = resource_id;
         last_resource_kind = kind ?? "";
@@ -282,6 +291,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async void delete_resource(string resource_id) throws Error {
+        if (fail_delete_resource) {
+            throw new IOError.FAILED("delete resource failed");
+        }
         delete_resource_calls++;
         last_resource_id = resource_id;
     }
