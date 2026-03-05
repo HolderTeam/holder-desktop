@@ -81,6 +81,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_list_threads = false;
     public bool fail_list_resources = false;
     public bool include_card2 = false;
+    public string next_move_into_title = "";
     public bool search_returns_card2 = false;
     public bool list_projects_empty = false;
     public bool include_home_project = false;
@@ -476,7 +477,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         last_move_target_card_id = target_card_id;
         last_move_card_id = card_id;
         last_move_parent_card_id = parent_card_id;
-        return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0, 1, "");
+        return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0, 1, next_move_into_title);
     }
 }
 

@@ -1425,6 +1425,49 @@ private void test_move_card_by_intent_without_api_is_noop() {
     assert(!got_error);
 }
 
+private void test_move_card_by_intent_without_selected_project_emits_error() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Move card failed" && details == "Select a project first.") {
+            got_error = true;
+        }
+    });
+
+    // Do not load projects/selection first.
+    controller.move_card_by_intent.begin("c1", "before", "c2", null);
+
+    assert(wait_for_condition(() => got_error));
+    assert(api.update_card_position_calls == 0);
+}
+
+private void test_move_card_by_intent_into_emits_toast() {
+    var api = new MainControllerFakeApi();
+    api.next_move_into_title = "Folder A";
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    bool saw_toast = false;
+    controller.toast_requested.connect((text) => {
+        if (text == "Moved card into Folder A") {
+            saw_toast = true;
+        }
+    });
+
+    controller.move_card_by_intent.begin("c1", "into", "c2", null);
+    assert(wait_for_condition(() => saw_toast));
+}
+
 private void test_ensure_first_project_without_api_is_noop() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -1713,6 +1756,14 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/move_card_by_intent_without_api_is_noop",
         test_move_card_by_intent_without_api_is_noop
+    );
+    Test.add_func(
+        "/main_controller/move_card_by_intent_without_selected_project_emits_error",
+        test_move_card_by_intent_without_selected_project_emits_error
+    );
+    Test.add_func(
+        "/main_controller/move_card_by_intent_into_emits_toast",
+        test_move_card_by_intent_into_emits_toast
     );
     Test.add_func(
         "/main_controller/ensure_first_project_without_api_is_noop",
