@@ -59,16 +59,9 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
         );
     }
     public async Gee.ArrayList<HolderLinux.CardSummary> list_cards(string project_id,
-                                                                    string scope = "root",
-                                                                    string? parent_card_id = null) throws Error {
-        return new Gee.ArrayList<HolderLinux.CardSummary>();
-    }
-    public async Gee.ArrayList<HolderLinux.CardSummary> list_cards_overview(string project_id,
-                                                                             int limit = 5000) throws Error {
-        return new Gee.ArrayList<HolderLinux.CardSummary>();
-    }
-    public async Gee.ArrayList<HolderLinux.CardSummary> list_cards_recent(string project_id,
-                                                                           int limit = 5000) throws Error {
+                                                                    string view = "tree",
+                                                                    string? parent_card_id = null,
+                                                                    int limit = 0) throws Error {
         return new Gee.ArrayList<HolderLinux.CardSummary>();
     }
     public async HolderLinux.CardContextData get_card_context(string project_id,

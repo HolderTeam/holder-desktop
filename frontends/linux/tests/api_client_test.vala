@@ -259,7 +259,7 @@ private void test_list_cards_parses_non_null_parent_card_id() {
 
     bool done = false;
     Gee.ArrayList<HolderLinux.CardSummary>? cards = null;
-    client.list_cards.begin("p1", "all", null, (obj, res) => {
+    client.list_cards.begin("p1", "recent", null, 0, (obj, res) => {
         try {
             cards = client.list_cards.end(res);
         } catch (Error e) {
@@ -285,7 +285,7 @@ private void test_list_cards_parses_data_and_query() {
     bool done = false;
     Gee.ArrayList<HolderLinux.CardSummary>? cards = null;
     string error_message = "";
-    client.list_cards.begin("p1", "root", null, (obj, res) => {
+    client.list_cards.begin("p1", "tree", null, 0, (obj, res) => {
         try {
             cards = client.list_cards.end(res);
         } catch (Error e) {
@@ -303,7 +303,7 @@ private void test_list_cards_parses_data_and_query() {
     assert(cards[0].rel_path == "cards/t1.md");
     assert(transport.last_uri.contains("/cards?"));
     assert(transport.last_uri.contains("project_id=p1"));
-    assert(transport.last_uri.contains("scope=root"));
+    assert(transport.last_uri.contains("view=tree"));
 }
 
 private void test_list_cards_with_parent_query() {
@@ -312,7 +312,7 @@ private void test_list_cards_with_parent_query() {
     var client = make_client(transport);
 
     bool done = false;
-    client.list_cards.begin("p1", "children", "parent-1", (obj, res) => {
+    client.list_cards.begin("p1", "tree", "parent-1", 0, (obj, res) => {
         try {
             client.list_cards.end(res);
         } catch (Error e) {
@@ -323,7 +323,7 @@ private void test_list_cards_with_parent_query() {
     assert(wait_for_condition(() => done));
     assert(transport.last_uri.contains("/cards?"));
     assert(transport.last_uri.contains("project_id=p1"));
-    assert(transport.last_uri.contains("scope=children"));
+    assert(transport.last_uri.contains("view=tree"));
     assert(transport.last_uri.contains("parent_card_id=parent-1"));
 }
 
@@ -333,7 +333,7 @@ private void test_list_cards_ignores_blank_parent_query() {
     var client = make_client(transport);
 
     bool done = false;
-    client.list_cards.begin("p1", "children", "   ", (obj, res) => {
+    client.list_cards.begin("p1", "tree", "   ", 0, (obj, res) => {
         try {
             client.list_cards.end(res);
         } catch (Error e) {
@@ -344,7 +344,7 @@ private void test_list_cards_ignores_blank_parent_query() {
     assert(wait_for_condition(() => done));
     assert(transport.last_uri.contains("/cards?"));
     assert(transport.last_uri.contains("project_id=p1"));
-    assert(transport.last_uri.contains("scope=children"));
+    assert(transport.last_uri.contains("view=tree"));
     assert(!transport.last_uri.contains("parent_card_id="));
 }
 
@@ -1412,7 +1412,7 @@ private void test_get_card_context_missing_data_is_protocol_error() {
     assert(got_protocol);
 }
 
-private void test_list_cards_overview_calls_overview_endpoint() {
+private void test_list_cards_recent_view_calls_cards_endpoint() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
@@ -1422,9 +1422,9 @@ private void test_list_cards_overview_calls_overview_endpoint() {
 
     bool done = false;
     Gee.ArrayList<HolderLinux.CardSummary>? cards = null;
-    client.list_cards_overview.begin("p1", 123, (obj, res) => {
+    client.list_cards.begin("p1", "recent", null, 123, (obj, res) => {
         try {
-            cards = client.list_cards_overview.end(res);
+            cards = client.list_cards.end(res);
         } catch (Error e) {
             cards = null;
         }
@@ -1436,38 +1436,10 @@ private void test_list_cards_overview_calls_overview_endpoint() {
     assert(cards.size == 1);
     assert(cards[0].card_id == "c1");
     assert(transport.last_method == "GET");
-    assert(transport.last_uri.contains("/cards/overview?"));
+    assert(transport.last_uri.contains("/cards?"));
     assert(transport.last_uri.contains("project_id=p1"));
+    assert(transport.last_uri.contains("view=recent"));
     assert(transport.last_uri.contains("limit=123"));
-}
-
-private void test_list_cards_recent_calls_recent_endpoint() {
-    var transport = new FakeApiHttpTransport();
-    transport.enqueue_read(
-        200,
-        "{\"ok\":true,\"data\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"Card 1\",\"rel_path\":\"c1.md\",\"sort_key\":1,\"parent_card_id\":null,\"created_at\":1,\"updated_at\":99,\"deleted_at\":null}]}"
-    );
-    var client = make_client(transport);
-
-    bool done = false;
-    Gee.ArrayList<HolderLinux.CardSummary>? cards = null;
-    client.list_cards_recent.begin("p1", 321, (obj, res) => {
-        try {
-            cards = client.list_cards_recent.end(res);
-        } catch (Error e) {
-            cards = null;
-        }
-        done = true;
-    });
-
-    assert(wait_for_condition(() => done));
-    assert(cards != null);
-    assert(cards.size == 1);
-    assert(cards[0].card_id == "c1");
-    assert(transport.last_method == "GET");
-    assert(transport.last_uri.contains("/cards/recent?"));
-    assert(transport.last_uri.contains("project_id=p1"));
-    assert(transport.last_uri.contains("limit=321"));
 }
 
 private void test_list_projects_parses_sync_state_fields() {
@@ -1764,7 +1736,7 @@ private void test_missing_data_protocol_errors_for_parsers() {
 
     int protocol_count = 0;
     bool done = false;
-    client.list_cards.begin("p1", "root", null, (o1, r1) => {
+    client.list_cards.begin("p1", "tree", null, 0, (o1, r1) => {
         try { client.list_cards.end(r1); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
         client.get_card.begin("c1", (o2, r2) => {
             try { client.get_card.end(r2); } catch (Error e) { if (e is HolderLinux.ApiError.PROTOCOL) protocol_count++; }
@@ -2558,10 +2530,8 @@ int main(string[] args) {
                   test_get_card_context_parses_response);
     Test.add_func("/api_client/get_card_context_missing_data_is_protocol_error",
                   test_get_card_context_missing_data_is_protocol_error);
-    Test.add_func("/api_client/list_cards_overview_calls_overview_endpoint",
-                  test_list_cards_overview_calls_overview_endpoint);
-    Test.add_func("/api_client/list_cards_recent_calls_recent_endpoint",
-                  test_list_cards_recent_calls_recent_endpoint);
+    Test.add_func("/api_client/list_cards_recent_view_calls_cards_endpoint",
+                  test_list_cards_recent_view_calls_cards_endpoint);
     Test.add_func("/api_client/list_projects_parses_sync_state_fields",
                   test_list_projects_parses_sync_state_fields);
     Test.add_func("/api_client/list_projects_sync_null_or_non_object_uses_defaults",

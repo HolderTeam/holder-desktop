@@ -286,7 +286,7 @@ public class MainController : Object, IAiRunContext {
                 content,
                 parent_card_id
             );
-            var cards = yield api.list_cards_recent(current_project.project_id);
+            var cards = yield api.list_cards(current_project.project_id, "recent");
             replace_cards(cards);
 
             for (uint i = 0; i < card_store.get_n_items(); i++) {
@@ -541,7 +541,7 @@ public class MainController : Object, IAiRunContext {
         status_changed("Loading cards for %s...".printf(selected.name));
 
         try {
-            var cards = yield api.list_cards_recent(selected.project_id);
+            var cards = yield api.list_cards(selected.project_id, "recent");
             replace_cards(cards);
             yield reload_ai_threads_for_project(selected.project_id);
             if (preferred_card_id != null) {

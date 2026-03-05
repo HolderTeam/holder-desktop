@@ -189,37 +189,19 @@ public class ApiClient : Object, IHolderApi {
     }
 
     public async Gee.ArrayList<CardSummary> list_cards(string project_id,
-                                                       string scope = "root",
-                                                       string? parent_card_id = null) throws Error {
+                                                       string view = "tree",
+                                                       string? parent_card_id = null,
+                                                       int limit = 0) throws Error {
         var query = new HashTable<string, string>(str_hash, str_equal);
         query.insert("project_id", project_id);
-        query.insert("scope", scope);
+        query.insert("view", view);
         if (parent_card_id != null && parent_card_id.strip().length > 0) {
             query.insert("parent_card_id", parent_card_id);
         }
+        if (limit > 0) {
+            query.insert("limit", limit.to_string());
+        }
         var root = yield request_json("GET", "/cards", null, query);
-        return parse_cards(root);
-    }
-
-    public async Gee.ArrayList<CardSummary> list_cards_overview(string project_id,
-                                                                 int limit = 5000) throws Error {
-        var query = new HashTable<string, string>(str_hash, str_equal);
-        query.insert("project_id", project_id);
-        if (limit > 0) {
-            query.insert("limit", limit.to_string());
-        }
-        var root = yield request_json("GET", "/cards/overview", null, query);
-        return parse_cards(root);
-    }
-
-    public async Gee.ArrayList<CardSummary> list_cards_recent(string project_id,
-                                                               int limit = 5000) throws Error {
-        var query = new HashTable<string, string>(str_hash, str_equal);
-        query.insert("project_id", project_id);
-        if (limit > 0) {
-            query.insert("limit", limit.to_string());
-        }
-        var root = yield request_json("GET", "/cards/recent", null, query);
         return parse_cards(root);
     }
 
