@@ -930,6 +930,66 @@ private void test_open_card_from_context_menu_leaf_opens_without_navigation() {
     assert(only != null && only.card_id == "leaf");
 }
 
+private void test_open_card_from_context_menu_without_context_defaults_to_leaf() {
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    var controller = new HolderLinux.FlowboardController(project_store, project_selection, card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("orphan", "p1", "Orphan", 1024.0));
+
+    string opened = "";
+    int load_requests = 0;
+    controller.card_open_requested.connect((card_id) => {
+        opened = card_id;
+    });
+    controller.context_load_requested.connect((_project_id, _parent_id) => {
+        load_requests++;
+    });
+
+    // No refresh/apply context here: fallback path should treat card as leaf.
+    controller.open_card_from_context_menu("orphan");
+
+    assert(opened == "orphan");
+    assert(load_requests == 0);
+}
+
+private void test_open_card_from_context_menu_uses_context_child_count_for_hidden_container() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("root", "p1", "Root", 1024.0));
+    card_store.append(make_card("child", "p1", "Child", 2048.0, "root"));
+
+    string opened = "";
+    string? last_parent_requested = "__unset__";
+    controller.card_open_requested.connect((card_id) => {
+        opened = card_id;
+    });
+    controller.context_load_requested.connect((_project_id, parent_id) => {
+        last_parent_requested = parent_id;
+    });
+
+    controller.refresh();
+
+    // Force fallback path (tile lookup miss) while keeping current_context populated.
+    var model_store = controller.get_visible_model() as GLib.ListStore;
+    assert(model_store != null);
+    model_store.remove_all();
+
+    controller.open_card_from_context_menu("root");
+
+    assert(opened == "root");
+    // "root" exists in context with child_count > 0, so fallback should treat it as container and navigate into it.
+    assert(last_parent_requested == "root");
+}
+
 private void test_move_left_right_edge_cards_emit_relative_intents() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
@@ -1447,6 +1507,10 @@ int main(string[] args) {
                   test_is_descendant_in_cards_null_candidate_is_false);
     Test.add_func("/flowboard/open_card_from_context_menu_leaf_opens_without_navigation",
                   test_open_card_from_context_menu_leaf_opens_without_navigation);
+    Test.add_func("/flowboard/open_card_from_context_menu_without_context_defaults_to_leaf",
+                  test_open_card_from_context_menu_without_context_defaults_to_leaf);
+    Test.add_func("/flowboard/open_card_from_context_menu_uses_context_child_count_for_hidden_container",
+                  test_open_card_from_context_menu_uses_context_child_count_for_hidden_container);
     Test.add_func("/flowboard/move_left_right_edge_cards_emit_relative_intents",
                   test_move_left_right_edge_cards_emit_relative_intents);
     Test.add_func("/flowboard/on_card_drop_tiny_gap_uses_fallback_increment",

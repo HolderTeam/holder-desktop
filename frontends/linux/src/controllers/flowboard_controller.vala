@@ -423,10 +423,8 @@ public class FlowboardController : Object {
         if (current_context == null || current_context_project_id == null || current_project_id == null) {
             return false;
         }
-        if (current_context_project_id != current_project_id) {
-            return false;
-        }
-        return normalize_parent(current_context_parent_card_id) == normalize_parent(current_parent_card_id);
+        return current_context_project_id == current_project_id
+            && normalize_parent(current_context_parent_card_id) == normalize_parent(current_parent_card_id);
     }
 
     private static string? normalize_parent(string? parent_card_id) {
