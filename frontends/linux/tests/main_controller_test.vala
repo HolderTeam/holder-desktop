@@ -741,7 +741,7 @@ private void test_reload_everything_uses_preferred_project_selection() {
     assert(controller.selected_project_id() == "p1");
 }
 
-private void test_reload_everything_hoists_home_project_to_top() {
+private void test_reload_everything_preserves_backend_home_first_order() {
     var api = new MainControllerFakeApi();
     api.include_home_project = true;
     var scheduler = new TestScheduler();
@@ -1575,8 +1575,8 @@ int main(string[] args) {
         test_reload_everything_uses_preferred_project_selection
     );
     Test.add_func(
-        "/main_controller/reload_everything_hoists_home_project_to_top",
-        test_reload_everything_hoists_home_project_to_top
+        "/main_controller/reload_everything_preserves_backend_home_first_order",
+        test_reload_everything_preserves_backend_home_first_order
     );
     Test.add_func(
         "/main_controller/ignore_flags_public_accessors_default_false",

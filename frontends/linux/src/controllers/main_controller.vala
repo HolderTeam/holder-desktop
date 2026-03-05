@@ -634,27 +634,10 @@ public class MainController : Object, IAiRunContext {
     }
 
     private void replace_projects(Gee.ArrayList<Project> projects) {
-        Project? home_project = null;
-        var others = new Gee.ArrayList<Project>();
-        foreach (var project in projects) {
-            if (home_project == null && is_home_project(project)) {
-                home_project = project;
-            } else {
-                others.add(project);
-            }
-        }
-
         project_store.remove_all();
-        if (home_project != null) {
-            project_store.append(home_project);
-        }
-        foreach (var project in others) {
+        foreach (var project in projects) {
             project_store.append(project);
         }
-    }
-
-    private bool is_home_project(Project project) {
-        return project.name.strip().down() == "home";
     }
 
     private void replace_cards(Gee.ArrayList<CardSummary> cards) {
