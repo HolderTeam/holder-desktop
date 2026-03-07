@@ -1359,7 +1359,8 @@ public class GitSyncToolView : Object {
                     refreshed_project.sync.last_push_at
                 ));
                 lines.append("\n");
-                lines.append("Retry count: %d".printf(refreshed_project.sync.retry_count));
+                lines.append("Push retry count: %d\n".printf(refreshed_project.sync.retry_count));
+                lines.append("Pull retry count: %d".printf(refreshed_project.sync.pull_retry_count));
                 if (refreshed_project.sync.last_sync_error.strip().length > 0) {
                     lines.append("\n");
                     lines.append("Error: %s".printf(refreshed_project.sync.last_sync_error));

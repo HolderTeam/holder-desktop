@@ -108,6 +108,9 @@ public class ProjectSyncState : Object {
     public int retry_count { get; set; }
     public bool has_next_retry_at { get; set; }
     public int64 next_retry_at { get; set; }
+    public int pull_retry_count { get; set; }
+    public bool has_next_pull_retry_at { get; set; }
+    public int64 next_pull_retry_at { get; set; }
     public bool has_updated_at { get; set; }
     public int64 updated_at { get; set; }
 
@@ -122,6 +125,8 @@ public class ProjectSyncState : Object {
                             int64? last_sync_error_at = null,
                             int retry_count = 0,
                             int64? next_retry_at = null,
+                            int pull_retry_count = 0,
+                            int64? next_pull_retry_at = null,
                             int64? updated_at = null) {
         this.has_last_commit_at = last_commit_at != null;
         this.last_commit_at = last_commit_at ?? 0;
@@ -139,6 +144,9 @@ public class ProjectSyncState : Object {
         this.retry_count = retry_count;
         this.has_next_retry_at = next_retry_at != null;
         this.next_retry_at = next_retry_at ?? 0;
+        this.pull_retry_count = pull_retry_count;
+        this.has_next_pull_retry_at = next_pull_retry_at != null;
+        this.next_pull_retry_at = next_pull_retry_at ?? 0;
         this.has_updated_at = updated_at != null;
         this.updated_at = updated_at ?? 0;
     }

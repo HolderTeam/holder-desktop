@@ -1340,15 +1340,26 @@ public class MainWindow : Adw.ApplicationWindow {
                     var push_status = project.sync.last_push_status.strip().length > 0
                         ? project.sync.last_push_status
                         : "unknown";
+                    var next_push_retry = format_sync_time(
+                        project.sync.has_next_retry_at,
+                        project.sync.next_retry_at
+                    );
+                    var next_pull_retry = format_sync_time(
+                        project.sync.has_next_pull_retry_at,
+                        project.sync.next_pull_retry_at
+                    );
                     sync_section.append(
-                        "- %s: push `%s` (%s), pull `%s`, uncommitted `%d`, unpushed `%d`, retry_count `%d`\n".printf(
+                        "- %s: push `%s` (%s), pull `%s`, uncommitted `%d`, unpushed `%d`, push_retry `%d` (next `%s`), pull_retry `%d` (next `%s`)\n".printf(
                             project.name,
                             push_status,
                             push_time,
                             pull_time,
                             project.sync.uncommitted_changes_count,
                             project.sync.unpushed_commits_count,
-                            project.sync.retry_count
+                            project.sync.retry_count,
+                            next_push_retry,
+                            project.sync.pull_retry_count,
+                            next_pull_retry
                         )
                     );
                     if (project.sync.last_sync_error.strip().length > 0) {

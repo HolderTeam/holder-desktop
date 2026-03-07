@@ -1394,6 +1394,8 @@ public class ApiClient : Object, IHolderApi {
             nullable_int_member_or_null(obj, "last_sync_error_at"),
             obj.has_member("retry_count") ? (int) obj.get_int_member("retry_count") : 0,
             nullable_int_member_or_null(obj, "next_retry_at"),
+            obj.has_member("pull_retry_count") ? (int) obj.get_int_member("pull_retry_count") : 0,
+            nullable_int_member_or_null(obj, "next_pull_retry_at"),
             nullable_int_member_or_null(obj, "updated_at")
         );
     }

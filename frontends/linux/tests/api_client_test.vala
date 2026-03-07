@@ -1558,7 +1558,7 @@ private void test_list_projects_parses_sync_state_fields() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"My Project\",\"root_path\":\"/tmp/p1\",\"created_at\":1,\"updated_at\":2,\"sync\":{\"last_commit_at\":10,\"last_push_at\":11,\"last_pull_at\":12,\"uncommitted_changes_count\":3,\"unpushed_commits_count\":4,\"last_push_status\":\"pushed\",\"last_pull_status\":\"pulled\",\"last_sync_error\":\"\",\"last_sync_error_at\":13,\"retry_count\":2,\"next_retry_at\":14,\"updated_at\":15}}]}"
+        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"My Project\",\"root_path\":\"/tmp/p1\",\"created_at\":1,\"updated_at\":2,\"sync\":{\"last_commit_at\":10,\"last_push_at\":11,\"last_pull_at\":12,\"uncommitted_changes_count\":3,\"unpushed_commits_count\":4,\"last_push_status\":\"pushed\",\"last_pull_status\":\"pulled\",\"last_sync_error\":\"\",\"last_sync_error_at\":13,\"retry_count\":2,\"next_retry_at\":14,\"pull_retry_count\":5,\"next_pull_retry_at\":16,\"updated_at\":15}}]}"
     );
     var client = make_client(transport);
 
@@ -1593,6 +1593,9 @@ private void test_list_projects_parses_sync_state_fields() {
     assert(sync.retry_count == 2);
     assert(sync.has_next_retry_at);
     assert(sync.next_retry_at == 14);
+    assert(sync.pull_retry_count == 5);
+    assert(sync.has_next_pull_retry_at);
+    assert(sync.next_pull_retry_at == 16);
     assert(sync.has_updated_at);
     assert(sync.updated_at == 15);
 }
@@ -1623,6 +1626,7 @@ private void test_list_projects_sync_null_or_non_object_uses_defaults() {
     assert(projects[0].sync.uncommitted_changes_count == 0);
     assert(!projects[1].sync.has_last_push_at);
     assert(projects[1].sync.retry_count == 0);
+    assert(projects[1].sync.pull_retry_count == 0);
 }
 
 private void test_list_projects_parses_nullable_git_remote_url() {
@@ -1655,7 +1659,7 @@ private void test_list_projects_sync_nullable_int_fields_missing_and_null() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"Sync Nullables\",\"sync\":{\"last_push_at\":null,\"last_pull_at\":77,\"last_sync_error_at\":null,\"next_retry_at\":88,\"updated_at\":99}}]}"
+        "{\"ok\":true,\"data\":[{\"project_id\":\"p1\",\"name\":\"Sync Nullables\",\"sync\":{\"last_push_at\":null,\"last_pull_at\":77,\"last_sync_error_at\":null,\"next_retry_at\":88,\"next_pull_retry_at\":66,\"updated_at\":99}}]}"
     );
     var client = make_client(transport);
 
@@ -1681,6 +1685,8 @@ private void test_list_projects_sync_nullable_int_fields_missing_and_null() {
     assert(!sync.has_last_sync_error_at); // explicit null path
     assert(sync.has_next_retry_at);
     assert(sync.next_retry_at == 88);
+    assert(sync.has_next_pull_retry_at);
+    assert(sync.next_pull_retry_at == 66);
     assert(sync.has_updated_at);
     assert(sync.updated_at == 99);
 }
@@ -1710,6 +1716,7 @@ private void test_list_projects_sync_object_missing_counts_defaults_to_zero() {
     assert(projects[0].sync.uncommitted_changes_count == 0);
     assert(projects[0].sync.unpushed_commits_count == 0);
     assert(projects[0].sync.retry_count == 0);
+    assert(projects[0].sync.pull_retry_count == 0);
 }
 
 private void test_health_check_missing_data_is_protocol_error() {
