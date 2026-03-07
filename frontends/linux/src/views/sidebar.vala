@@ -26,6 +26,8 @@ public class SidebarPane : Object {
         box.set_margin_end(8);
 
         var sidebar_header = new Adw.HeaderBar();
+        sidebar_header.set_show_start_title_buttons(false);
+        sidebar_header.set_show_end_title_buttons(false);
         sidebar_header.set_title_widget(new Gtk.Label("Holder"));
         box.append(sidebar_header);
 
