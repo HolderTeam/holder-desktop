@@ -19,6 +19,22 @@ public class AppSettings : Object {
     private static WarningSink? warning_sink = null;
     internal static bool force_read_link_failure_for_tests = false;
     internal static bool skip_default_schema_lookup_for_tests = false;
+    internal static bool force_schema_source_null_for_tests = false;
+    internal static bool force_gnome_schema_missing_for_tests = false;
+
+    private static SettingsSchemaSource? resolve_schema_source() {
+        if (force_schema_source_null_for_tests) {
+            return null;
+        }
+        return SettingsSchemaSource.get_default();
+    }
+
+    private static SettingsSchema? lookup_gnome_interface_schema(SettingsSchemaSource source) {
+        if (force_gnome_schema_missing_for_tests) {
+            return null;
+        }
+        return source.lookup(GNOME_INTERFACE_SCHEMA_ID, true);
+    }
 
     public static void set_warning_sink(owned WarningSink? sink) {
         warning_sink = (owned) sink;
@@ -133,12 +149,12 @@ public class AppSettings : Object {
     }
 
     public static Adw.ColorScheme resolve_default_color_scheme() {
-        var source = SettingsSchemaSource.get_default();
+        var source = resolve_schema_source();
         if (source == null) {
             return Adw.ColorScheme.DEFAULT;
         }
 
-        var schema = source.lookup(GNOME_INTERFACE_SCHEMA_ID, true);
+        var schema = lookup_gnome_interface_schema(source);
         if (schema == null) {
             return Adw.ColorScheme.DEFAULT;
         }

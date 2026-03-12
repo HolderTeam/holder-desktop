@@ -183,6 +183,12 @@ public class TrashToolView : Object {
         }
     }
 
+#if TRASH_TOOL_VIEW_TEST
+    internal void set_filter_index_for_tests(uint idx) {
+        filter_dropdown.set_selected(idx);
+    }
+#endif
+
     private void queue_refresh() {
         refresh_serial++;
         refresh.begin(refresh_serial);
@@ -255,6 +261,12 @@ public class TrashToolView : Object {
         }
     }
 
+#if TRASH_TOOL_VIEW_TEST
+    internal async void restore_item_for_tests(TrashItem item) {
+        yield restore_item(item);
+    }
+#endif
+
     private void confirm_hard_delete(TrashItem item) {
         var root_window = widget.get_root() as Gtk.Window;
         if (root_window == null) {
@@ -290,6 +302,12 @@ public class TrashToolView : Object {
             error_reported("Failed to permanently delete item", e.message);
         }
     }
+
+#if TRASH_TOOL_VIEW_TEST
+    internal async void hard_delete_item_for_tests(TrashItem item) {
+        yield hard_delete_item(item);
+    }
+#endif
 
     private void confirm_empty_trash() {
         var project = project_selection != null
@@ -334,6 +352,12 @@ public class TrashToolView : Object {
         }
     }
 
+#if TRASH_TOOL_VIEW_TEST
+    internal async void empty_trash_for_tests(string project_id) {
+        yield empty_trash(project_id);
+    }
+#endif
+
     private string pretty_type(string item_type) {
         switch (item_type) {
             case "card":
@@ -352,6 +376,28 @@ public class TrashToolView : Object {
         var dt = new DateTime.from_unix_local(epoch_seconds);
         return dt.format("%Y-%m-%d %H:%M");
     }
+
+#if TRASH_TOOL_VIEW_TEST
+    internal uint item_count_for_tests() {
+        return items_store.get_n_items();
+    }
+
+    internal string scope_text_for_tests() {
+        return scope_label.get_text();
+    }
+
+    internal string empty_text_for_tests() {
+        return empty_label.get_text();
+    }
+
+    internal bool empty_visible_for_tests() {
+        return empty_label.get_visible();
+    }
+
+    internal bool empty_trash_sensitive_for_tests() {
+        return empty_trash_btn.get_sensitive();
+    }
+#endif
 }
 
 }

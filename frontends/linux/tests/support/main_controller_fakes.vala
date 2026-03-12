@@ -60,6 +60,10 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int set_project_git_remote_calls = 0;
     public int test_project_git_remote_calls = 0;
     public int push_project_git_calls = 0;
+    public int list_trash_calls = 0;
+    public int empty_trash_calls = 0;
+    public int restore_trash_calls = 0;
+    public int hard_delete_trash_calls = 0;
     public string last_updated_card_id = "";
     public string last_created_project_id = "";
     public string last_created_title = "";
@@ -103,6 +107,10 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_set_project_git_remote = false;
     public bool fail_test_project_git_remote = false;
     public bool fail_push_project_git = false;
+    public bool fail_list_trash = false;
+    public bool fail_empty_trash = false;
+    public bool fail_restore_trash = false;
+    public bool fail_hard_delete_trash = false;
     public string test_project_git_remote_status = "reachable";
     private int list_projects_index = 0;
     public string last_resource_project_id = "";
@@ -117,6 +125,13 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int64 last_git_remote_updated_at = 0;
     public string last_git_branch = "";
     public bool last_git_set_upstream = false;
+    public string last_trash_project_id = "";
+    public string last_trash_type = "";
+    public string last_restore_item_type = "";
+    public string last_restore_item_id = "";
+    public string last_hard_delete_item_type = "";
+    public string last_hard_delete_item_id = "";
+    public Gee.ArrayList<HolderLinux.TrashItem> trash_items = new Gee.ArrayList<HolderLinux.TrashItem>();
 
     public async void health_check() throws Error {
         if (fail_health) {
@@ -257,14 +272,41 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
 
     public async Gee.ArrayList<HolderLinux.TrashItem> list_trash_items(string project_id,
                                                                         string type = "all") throws Error {
-        return new Gee.ArrayList<HolderLinux.TrashItem>();
+        if (fail_list_trash) {
+            throw new IOError.FAILED("list trash failed");
+        }
+        list_trash_calls++;
+        last_trash_project_id = project_id;
+        last_trash_type = type;
+        return trash_items;
     }
 
-    public async void empty_trash(string project_id, string type = "all") throws Error {}
+    public async void empty_trash(string project_id, string type = "all") throws Error {
+        if (fail_empty_trash) {
+            throw new IOError.FAILED("empty trash failed");
+        }
+        empty_trash_calls++;
+        last_trash_project_id = project_id;
+        last_trash_type = type;
+    }
 
-    public async void restore_trash_item(string item_type, string item_id) throws Error {}
+    public async void restore_trash_item(string item_type, string item_id) throws Error {
+        if (fail_restore_trash) {
+            throw new IOError.FAILED("restore trash failed");
+        }
+        restore_trash_calls++;
+        last_restore_item_type = item_type;
+        last_restore_item_id = item_id;
+    }
 
-    public async void hard_delete_trash_item(string item_type, string item_id) throws Error {}
+    public async void hard_delete_trash_item(string item_type, string item_id) throws Error {
+        if (fail_hard_delete_trash) {
+            throw new IOError.FAILED("hard delete trash failed");
+        }
+        hard_delete_trash_calls++;
+        last_hard_delete_item_type = item_type;
+        last_hard_delete_item_id = item_id;
+    }
 
     public async string create_resource(string project_id,
                                         string kind,

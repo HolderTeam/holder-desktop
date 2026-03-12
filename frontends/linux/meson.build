@@ -400,3 +400,29 @@ app_settings_test_exe = executable(
 )
 
 test('holder-linux-app-settings-tests', app_settings_test_exe)
+
+trash_tool_view_test_exe = executable(
+  'holder-linux-trash-tool-view-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/views/toolbox/trash_tool_view.vala',
+    'tests/trash_tool_view_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+    '--define=TRASH_TOOL_VIEW_TEST',
+  ],
+  install: false,
+)
+
+test('holder-linux-trash-tool-view-tests', trash_tool_view_test_exe)
