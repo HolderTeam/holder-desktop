@@ -33,6 +33,31 @@ private void test_key_to_color_scheme_unknown_falls_back_default() {
     assert(HolderLinux.AppSettings.key_to_color_scheme("surprise-value") == Adw.ColorScheme.DEFAULT);
 }
 
+private void test_gnome_color_scheme_to_color_scheme_prefer_dark() {
+    assert(HolderLinux.AppSettings.gnome_color_scheme_to_color_scheme("prefer-dark") ==
+           Adw.ColorScheme.FORCE_DARK);
+}
+
+private void test_gnome_color_scheme_to_color_scheme_prefer_light() {
+    assert(HolderLinux.AppSettings.gnome_color_scheme_to_color_scheme("prefer-light") ==
+           Adw.ColorScheme.FORCE_LIGHT);
+}
+
+private void test_gnome_color_scheme_to_color_scheme_unknown_falls_back_default() {
+    assert(HolderLinux.AppSettings.gnome_color_scheme_to_color_scheme("default") ==
+           Adw.ColorScheme.DEFAULT);
+}
+
+private void test_effective_color_scheme_for_key_force_dark() {
+    assert(HolderLinux.AppSettings.effective_color_scheme_for_key("force-dark") ==
+           Adw.ColorScheme.FORCE_DARK);
+}
+
+private void test_effective_color_scheme_for_key_force_light() {
+    assert(HolderLinux.AppSettings.effective_color_scheme_for_key("force-light") ==
+           Adw.ColorScheme.FORCE_LIGHT);
+}
+
 private void test_schema_candidate_dir_for_executable_path() {
     var dir = HolderLinux.AppSettings.schema_candidate_dir_for_executable_path("/tmp/holder/bin/holder-desktop");
     assert(dir == "/tmp/holder/bin/data");
@@ -250,6 +275,16 @@ int main(string[] args) {
     Test.add_func("/app_settings/key_to_color_scheme/force_dark", test_key_to_color_scheme_force_dark);
     Test.add_func("/app_settings/key_to_color_scheme/unknown_falls_back_default",
                   test_key_to_color_scheme_unknown_falls_back_default);
+    Test.add_func("/app_settings/gnome_color_scheme_to_color_scheme/prefer_dark",
+                  test_gnome_color_scheme_to_color_scheme_prefer_dark);
+    Test.add_func("/app_settings/gnome_color_scheme_to_color_scheme/prefer_light",
+                  test_gnome_color_scheme_to_color_scheme_prefer_light);
+    Test.add_func("/app_settings/gnome_color_scheme_to_color_scheme/unknown_falls_back_default",
+                  test_gnome_color_scheme_to_color_scheme_unknown_falls_back_default);
+    Test.add_func("/app_settings/effective_color_scheme_for_key/force_dark",
+                  test_effective_color_scheme_for_key_force_dark);
+    Test.add_func("/app_settings/effective_color_scheme_for_key/force_light",
+                  test_effective_color_scheme_for_key_force_light);
     Test.add_func("/app_settings/schema_candidate_dir_for_executable_path",
                   test_schema_candidate_dir_for_executable_path);
     Test.add_func("/app_settings/has_compiled_schema_in_dir_false_for_missing",
