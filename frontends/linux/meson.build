@@ -100,6 +100,7 @@ test_exe = executable(
     dependency('gio-2.0'),
     dependency('gee-0.8'),
     dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
   ],
   vala_args: [
     '--target-glib=2.70',
@@ -123,6 +124,7 @@ ai_controller_test_exe = executable(
     dependency('gio-2.0'),
     dependency('gee-0.8'),
     dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
   ],
   vala_args: [
     '--target-glib=2.70',
@@ -153,6 +155,7 @@ main_controller_test_exe = executable(
     dependency('gio-2.0'),
     dependency('gee-0.8'),
     dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
   ],
   vala_args: [
     '--target-glib=2.70',
@@ -204,6 +207,7 @@ resources_controller_test_exe = executable(
     dependency('gio-2.0'),
     dependency('gee-0.8'),
     dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
   ],
   vala_args: [
     '--target-glib=2.70',
@@ -546,3 +550,121 @@ parsers_trash_test_exe = executable(
 )
 
 test('holder-linux-parsers-trash-tests', parsers_trash_test_exe)
+
+parsers_search_test_exe = executable(
+  'holder-linux-parsers-search-tests',
+  [
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/http_transport.vala',
+    'src/services/parsers/search.vala',
+    'tests/parsers_search_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-parsers-search-tests', parsers_search_test_exe)
+
+parsers_ai_test_exe = executable(
+  'holder-linux-parsers-ai-tests',
+  [
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/http_transport.vala',
+    'src/services/parsers/common.vala',
+    'src/services/parsers/ai.vala',
+    'tests/parsers_ai_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-parsers-ai-tests', parsers_ai_test_exe)
+
+parsers_cards_test_exe = executable(
+  'holder-linux-parsers-cards-tests',
+  [
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/http_transport.vala',
+    'src/services/parsers/common.vala',
+    'src/services/parsers/cards.vala',
+    'tests/parsers_cards_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-parsers-cards-tests', parsers_cards_test_exe)
+
+parsers_common_test_exe = executable(
+  'holder-linux-parsers-common-tests',
+  [
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/http_transport.vala',
+    'src/services/parsers/common.vala',
+    'tests/parsers_common_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-parsers-common-tests', parsers_common_test_exe)
+
+parsers_git_test_exe = executable(
+  'holder-linux-parsers-git-tests',
+  [
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/http_transport.vala',
+    'src/services/parsers/common.vala',
+    'src/services/parsers/git.vala',
+    'tests/parsers_git_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-parsers-git-tests', parsers_git_test_exe)
