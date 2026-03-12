@@ -940,6 +940,25 @@ app_settings_test_exe = executable(
 
 test('holder-linux-app-settings-tests', app_settings_test_exe)
 
+app_test_exe = executable(
+  'holder-linux-app-tests',
+  [
+    'src/app.vala',
+    'tests/app_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-app-tests', app_test_exe)
+
 trash_tool_view_test_exe = executable(
   'holder-linux-trash-tool-view-tests',
   [
