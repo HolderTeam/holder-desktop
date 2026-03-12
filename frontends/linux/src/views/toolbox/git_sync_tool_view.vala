@@ -253,19 +253,18 @@ public class GitSyncToolView : Object {
             status_label.set_text("Saving remote and testing connectivity...");
         }
 
-        GitTestRemoteResult? test_result = null;
-        GitPushResult? push_result = null;
         try {
-            var apply_result = yield controller.configure_remote_and_sync(
+            var result = yield controller.apply_project_git_remote_and_sync(
                 api,
-                selected_project.project_id,
+                selected_project,
                 remote_url,
                 branch
             );
-            test_result = apply_result.test_result;
-            push_result = apply_result.push_result;
-            if (test_result != null && test_result.status == "reachable" && status_label != null) {
-                status_label.set_text("Remote reachable. Pushing project data...");
+            if (status_label != null) {
+                status_label.set_text(result.summary_text);
+            }
+            if (result.toast_message.strip().length > 0) {
+                toast_requested(result.toast_message);
             }
         } catch (Error e) {
             if (action_button != null) {
@@ -279,38 +278,6 @@ public class GitSyncToolView : Object {
         }
         if (action_button != null) {
             action_button.set_sensitive(true);
-        }
-        var lines = new StringBuilder();
-        lines.append("Project: %s\n".printf(selected_project.name));
-        lines.append("Remote: %s\n".printf(remote_url));
-        if (branch.length > 0) {
-            lines.append("Branch: %s\n".printf(branch));
-        }
-        if (test_result != null) {
-            lines.append("\nRemote test: %s".printf(test_result.status));
-            if (test_result.error_message.strip().length > 0) {
-                lines.append(" (%s)".printf(test_result.error_message.strip()));
-            }
-            lines.append("\n");
-        } else {
-            lines.append("\nRemote test: not run\n");
-        }
-        if (push_result != null) {
-            lines.append("Push: %s".printf(push_result.status));
-            if (push_result.error_message.strip().length > 0) {
-                lines.append(" (%s)".printf(push_result.error_message.strip()));
-            }
-            if (push_result.next_action.strip().length > 0) {
-                lines.append("\nNext action: %s".printf(push_result.next_action));
-            }
-            if (push_result.status == "pushed" || push_result.status == "up_to_date") {
-                toast_requested("Git remote configured and synced.");
-            }
-        } else {
-            lines.append("Push: not run");
-        }
-        if (status_label != null) {
-            status_label.set_text(lines.str.strip());
         }
     }
 

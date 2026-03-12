@@ -287,6 +287,92 @@ private void test_configure_remote_and_sync_failure_propagates() {
     assert(got_error);
 }
 
+private void test_apply_project_git_remote_and_sync_builds_summary_and_toast() {
+    var service = new FakeGitSyncService();
+    service.apply_result = new HolderLinux.GitRemoteApplyResult(
+        new HolderLinux.GitTestRemoteResult(
+            "p1",
+            "git@github.com:zeth/holder.git",
+            "cards",
+            "reachable",
+            true,
+            "",
+            "ok"
+        ),
+        new HolderLinux.GitPushResult(
+            "p1",
+            "git@github.com:zeth/holder.git",
+            "cards",
+            "pushed",
+            2,
+            0,
+            "",
+            "",
+            "none"
+        )
+    );
+
+    var controller = new HolderLinux.GitSyncController(service);
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var project = new HolderLinux.Project("p1", "Demo Project", "standard", "/tmp/demo", 1, 1);
+
+    bool done = false;
+    HolderLinux.GitSyncApplyFlowResult? out_result = null;
+    controller.apply_project_git_remote_and_sync.begin(
+        api,
+        project,
+        "git@github.com:zeth/holder.git",
+        "cards",
+        (obj, res) => {
+            try {
+                out_result = controller.apply_project_git_remote_and_sync.end(res);
+            } catch (Error e) {
+                assert_not_reached();
+            }
+            done = true;
+        }
+    );
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(out_result != null);
+    assert(out_result.summary_text.contains("Project: Demo Project"));
+    assert(out_result.summary_text.contains("Remote test: reachable (ok)"));
+    assert(out_result.summary_text.contains("Push: pushed"));
+    assert(out_result.summary_text.contains("Next action: none"));
+    assert(out_result.toast_message == "Git remote configured and synced.");
+}
+
+private void test_apply_project_git_remote_and_sync_handles_missing_results_without_toast() {
+    var service = new FakeGitSyncService();
+    service.apply_result = new HolderLinux.GitRemoteApplyResult(null, null);
+
+    var controller = new HolderLinux.GitSyncController(service);
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var project = new HolderLinux.Project("p1", "Demo Project", "standard", "/tmp/demo", 1, 1);
+
+    bool done = false;
+    HolderLinux.GitSyncApplyFlowResult? out_result = null;
+    controller.apply_project_git_remote_and_sync.begin(
+        api,
+        project,
+        "git@github.com:zeth/holder.git",
+        "",
+        (obj, res) => {
+            try {
+                out_result = controller.apply_project_git_remote_and_sync.end(res);
+            } catch (Error e) {
+                assert_not_reached();
+            }
+            done = true;
+        }
+    );
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(out_result != null);
+    assert(!out_result.summary_text.contains("Branch:"));
+    assert(out_result.summary_text.contains("Remote test: not run"));
+    assert(out_result.summary_text.contains("Push: not run"));
+    assert(out_result.toast_message == "");
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -321,6 +407,10 @@ int main(string[] args) {
                   test_set_saved_github_username_without_settings_is_noop);
     Test.add_func("/git_sync_controller/configure_remote_and_sync_failure_propagates",
                   test_configure_remote_and_sync_failure_propagates);
+    Test.add_func("/git_sync_controller/apply_project_git_remote_and_sync_builds_summary_and_toast",
+                  test_apply_project_git_remote_and_sync_builds_summary_and_toast);
+    Test.add_func("/git_sync_controller/apply_project_git_remote_and_sync_handles_missing_results_without_toast",
+                  test_apply_project_git_remote_and_sync_handles_missing_results_without_toast);
 
     return Test.run();
 }
