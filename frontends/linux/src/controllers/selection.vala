@@ -1,7 +1,7 @@
 namespace HolderLinux {
 
 internal class SelectionController : Object {
-    private MainController owner;
+    private MainController owner; // LCOV_EXCL_LINE: field declaration-only coverage artifact
 
     public SelectionController(MainController owner) {
         this.owner = owner;

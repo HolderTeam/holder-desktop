@@ -767,6 +767,212 @@ private void test_search_cards_parses_results() {
     assert(transport.last_uri.contains("limit=10"));
 }
 
+private void test_list_trash_items_parses_results_and_query() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"type\":\"card\",\"card_id\":\"c1\",\"title\":\"Card 1\",\"deleted_at\":1700000000},{\"type\":\"ai_message\",\"message_id\":\"abcdef123456\",\"role\":\"assistant\",\"deleted_at\":1700000001}]}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.TrashItem>? items = null;
+    client.list_trash_items.begin("p1", " ai_message ", (obj, res) => {
+        try {
+            items = client.list_trash_items.end(res);
+        } catch (Error e) {
+            items = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(items != null);
+    assert(items.size == 2);
+    assert(items[0].item_type == "card");
+    assert(items[0].item_id == "c1");
+    assert(items[0].title == "Card 1");
+    assert(items[1].item_type == "ai_message");
+    assert(items[1].item_id == "abcdef123456");
+    assert(items[1].title == "assistant abcdef12");
+    assert(transport.last_method == "GET");
+    assert(transport.last_uri.contains("/trash?"));
+    assert(transport.last_uri.contains("project_id=p1"));
+    assert(transport.last_uri.contains("type=ai_message"));
+}
+
+private void test_empty_trash_sends_delete_with_query() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool ok = false;
+    client.empty_trash.begin("p1", " card ", (obj, res) => {
+        try {
+            client.empty_trash.end(res);
+            ok = true;
+        } catch (Error e) {
+            ok = false;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(ok);
+    assert(transport.last_method == "DELETE");
+    assert(transport.last_uri.contains("/trash?"));
+    assert(transport.last_uri.contains("project_id=p1"));
+    assert(transport.last_uri.contains("type=card"));
+}
+
+private void test_list_and_empty_trash_omit_blank_type_query() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":[]}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    var client = make_client(transport);
+
+    bool list_done = false;
+    client.list_trash_items.begin("p1", "   ", (obj, res) => {
+        try {
+            client.list_trash_items.end(res);
+        } catch (Error e) {
+        }
+        list_done = true;
+    });
+    assert(wait_for_condition(() => list_done));
+    assert(transport.last_uri.contains("/trash?"));
+    assert(transport.last_uri.contains("project_id=p1"));
+    assert(!transport.last_uri.contains("type="));
+
+    bool empty_done = false;
+    client.empty_trash.begin("p1", "   ", (obj, res) => {
+        try {
+            client.empty_trash.end(res);
+        } catch (Error e) {
+        }
+        empty_done = true;
+    });
+    assert(wait_for_condition(() => empty_done));
+    assert(transport.last_uri.contains("/trash?"));
+    assert(transport.last_uri.contains("project_id=p1"));
+    assert(!transport.last_uri.contains("type="));
+}
+
+private void test_restore_trash_item_routes_by_type() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    var client = make_client(transport);
+
+    bool card_done = false;
+    bool card_ok = false;
+    client.restore_trash_item.begin("card", "c1", (obj, res) => {
+        try {
+            client.restore_trash_item.end(res);
+            card_ok = true;
+        } catch (Error e) {
+            card_ok = false;
+        }
+        card_done = true;
+    });
+
+    assert(wait_for_condition(() => card_done));
+    assert(card_ok);
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/cards/c1/restore"));
+
+    bool message_done = false;
+    bool message_ok = false;
+    client.restore_trash_item.begin("ai_message", "m1", (obj, res) => {
+        try {
+            client.restore_trash_item.end(res);
+            message_ok = true;
+        } catch (Error e) {
+            message_ok = false;
+        }
+        message_done = true;
+    });
+
+    assert(wait_for_condition(() => message_done));
+    assert(message_ok);
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.has_suffix("/ai/messages/m1/restore"));
+}
+
+private void test_restore_trash_item_unsupported_type_is_protocol_error() {
+    var transport = new FakeApiHttpTransport();
+    var client = make_client(transport);
+
+    bool done = false;
+    bool got_protocol = false;
+    client.restore_trash_item.begin("unknown_type", "x1", (obj, res) => {
+        try {
+            client.restore_trash_item.end(res);
+        } catch (HolderLinux.ApiError.PROTOCOL e) {
+            got_protocol = e.message.contains("Unsupported trash item type");
+        } catch (Error e) {
+            got_protocol = false;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_protocol);
+}
+
+private void test_hard_delete_trash_item_sends_delete_path() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool ok = false;
+    client.hard_delete_trash_item.begin("ai_message", "m1", (obj, res) => {
+        try {
+            client.hard_delete_trash_item.end(res);
+            ok = true;
+        } catch (Error e) {
+            ok = false;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(ok);
+    assert(transport.last_method == "DELETE");
+    assert(transport.last_uri.has_suffix("/trash/ai_message/m1"));
+}
+
+private void test_restore_and_hard_delete_escape_ids() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    var client = make_client(transport);
+
+    bool restore_done = false;
+    client.restore_trash_item.begin("card", "c 1/2", (obj, res) => {
+        try {
+            client.restore_trash_item.end(res);
+        } catch (Error e) {
+        }
+        restore_done = true;
+    });
+    assert(wait_for_condition(() => restore_done));
+    assert(transport.last_uri.contains("/cards/c%201%2F2/restore"));
+
+    bool hard_delete_done = false;
+    client.hard_delete_trash_item.begin("ai message", "m 1/2", (obj, res) => {
+        try {
+            client.hard_delete_trash_item.end(res);
+        } catch (Error e) {
+        }
+        hard_delete_done = true;
+    });
+    assert(wait_for_condition(() => hard_delete_done));
+    assert(transport.last_uri.contains("/trash/ai%20message/m%201%2F2"));
+}
+
 private void test_get_ai_capabilities_parses_nested_data() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -2609,6 +2815,20 @@ int main(string[] args) {
     Test.add_func("/api_client/delete_card_link_sends_delete_payload",
                   test_delete_card_link_sends_delete_payload);
     Test.add_func("/api_client/search_cards_parses_results", test_search_cards_parses_results);
+    Test.add_func("/api_client/list_trash_items_parses_results_and_query",
+                  test_list_trash_items_parses_results_and_query);
+    Test.add_func("/api_client/empty_trash_sends_delete_with_query",
+                  test_empty_trash_sends_delete_with_query);
+    Test.add_func("/api_client/list_and_empty_trash_omit_blank_type_query",
+                  test_list_and_empty_trash_omit_blank_type_query);
+    Test.add_func("/api_client/restore_trash_item_routes_by_type",
+                  test_restore_trash_item_routes_by_type);
+    Test.add_func("/api_client/restore_trash_item_unsupported_type_is_protocol_error",
+                  test_restore_trash_item_unsupported_type_is_protocol_error);
+    Test.add_func("/api_client/hard_delete_trash_item_sends_delete_path",
+                  test_hard_delete_trash_item_sends_delete_path);
+    Test.add_func("/api_client/restore_and_hard_delete_escape_ids",
+                  test_restore_and_hard_delete_escape_ids);
     Test.add_func("/api_client/get_ai_capabilities_parses_nested_data",
                   test_get_ai_capabilities_parses_nested_data);
     Test.add_func("/api_client/get_ai_status_parses_pull_jobs", test_get_ai_status_parses_pull_jobs);

@@ -498,3 +498,27 @@ trash_controller_test_exe = executable(
 )
 
 test('holder-linux-trash-controller-tests', trash_controller_test_exe)
+
+parsers_health_test_exe = executable(
+  'holder-linux-parsers-health-tests',
+  [
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/http_transport.vala',
+    'src/services/parsers/common.vala',
+    'src/services/parsers/health.vala',
+    'tests/parsers_health_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-parsers-health-tests', parsers_health_test_exe)
