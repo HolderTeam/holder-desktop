@@ -558,6 +558,174 @@ api_client_trash_test_exe = executable(
 
 test('holder-linux-api-client-trash-tests', api_client_trash_test_exe)
 
+api_client_resources_test_exe = executable(
+  'holder-linux-api-client-resources-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/api_client_fakes.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/http_transport.vala',
+    'src/services/parsers/common.vala',
+    'src/services/parsers/health.vala',
+    'src/services/parsers/projects.vala',
+    'src/services/parsers/cards.vala',
+    'src/services/parsers/resources.vala',
+    'src/services/parsers/trash.vala',
+    'src/services/parsers/search.vala',
+    'src/services/parsers/ai.vala',
+    'src/services/parsers/git.vala',
+    'src/services/api_client/core.vala',
+    'src/services/api_client/health.vala',
+    'src/services/api_client/projects.vala',
+    'src/services/api_client/cards.vala',
+    'src/services/api_client/resources.vala',
+    'src/services/api_client/trash.vala',
+    'src/services/api_client/search.vala',
+    'src/services/api_client/ai.vala',
+    'src/services/api_client/git.vala',
+    'tests/api_client_resources_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-api-client-resources-tests', api_client_resources_test_exe)
+
+api_client_projects_test_exe = executable(
+  'holder-linux-api-client-projects-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/api_client_fakes.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/http_transport.vala',
+    'src/services/parsers/common.vala',
+    'src/services/parsers/health.vala',
+    'src/services/parsers/projects.vala',
+    'src/services/parsers/cards.vala',
+    'src/services/parsers/resources.vala',
+    'src/services/parsers/trash.vala',
+    'src/services/parsers/search.vala',
+    'src/services/parsers/ai.vala',
+    'src/services/parsers/git.vala',
+    'src/services/api_client/core.vala',
+    'src/services/api_client/health.vala',
+    'src/services/api_client/projects.vala',
+    'src/services/api_client/cards.vala',
+    'src/services/api_client/resources.vala',
+    'src/services/api_client/trash.vala',
+    'src/services/api_client/search.vala',
+    'src/services/api_client/ai.vala',
+    'src/services/api_client/git.vala',
+    'tests/api_client_projects_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-api-client-projects-tests', api_client_projects_test_exe)
+
+api_client_cards_test_exe = executable(
+  'holder-linux-api-client-cards-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/api_client_fakes.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/http_transport.vala',
+    'src/services/parsers/common.vala',
+    'src/services/parsers/health.vala',
+    'src/services/parsers/projects.vala',
+    'src/services/parsers/cards.vala',
+    'src/services/parsers/resources.vala',
+    'src/services/parsers/trash.vala',
+    'src/services/parsers/search.vala',
+    'src/services/parsers/ai.vala',
+    'src/services/parsers/git.vala',
+    'src/services/api_client/core.vala',
+    'src/services/api_client/health.vala',
+    'src/services/api_client/projects.vala',
+    'src/services/api_client/cards.vala',
+    'src/services/api_client/resources.vala',
+    'src/services/api_client/trash.vala',
+    'src/services/api_client/search.vala',
+    'src/services/api_client/ai.vala',
+    'src/services/api_client/git.vala',
+    'tests/api_client_cards_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-api-client-cards-tests', api_client_cards_test_exe)
+
+api_client_git_test_exe = executable(
+  'holder-linux-api-client-git-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/api_client_fakes.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/http_transport.vala',
+    'src/services/parsers/common.vala',
+    'src/services/parsers/health.vala',
+    'src/services/parsers/projects.vala',
+    'src/services/parsers/cards.vala',
+    'src/services/parsers/resources.vala',
+    'src/services/parsers/trash.vala',
+    'src/services/parsers/search.vala',
+    'src/services/parsers/ai.vala',
+    'src/services/parsers/git.vala',
+    'src/services/api_client/core.vala',
+    'src/services/api_client/health.vala',
+    'src/services/api_client/projects.vala',
+    'src/services/api_client/cards.vala',
+    'src/services/api_client/resources.vala',
+    'src/services/api_client/trash.vala',
+    'src/services/api_client/search.vala',
+    'src/services/api_client/ai.vala',
+    'src/services/api_client/git.vala',
+    'tests/api_client_git_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-api-client-git-tests', api_client_git_test_exe)
+
 discovery_test_exe = executable(
   'holder-linux-discovery-tests',
   [
