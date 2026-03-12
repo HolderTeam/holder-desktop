@@ -159,6 +159,22 @@ public class TrashController : Object {
         return dt.format("%Y-%m-%d %H:%M");
     }
 
+    public string hard_delete_dialog_title() {
+        return "Delete Permanently";
+    }
+
+    public string hard_delete_dialog_body(TrashItem item) {
+        return "Permanently delete \"%s\"?".printf(item.title);
+    }
+
+    public string empty_trash_dialog_title() {
+        return "Empty Trash";
+    }
+
+    public string empty_trash_dialog_body(Project project) {
+        return "Permanently delete all trash items in %s?".printf(project.name);
+    }
+
     private string selected_filter_type() {
         switch (filter_index) {
             case 1:

@@ -191,8 +191,8 @@ public class TrashToolView : Object {
 
         var dialog = new Adw.MessageDialog(
             root_window,
-            "Delete Permanently",
-            "Permanently delete \"%s\"?".printf(item.title)
+            controller.hard_delete_dialog_title(),
+            controller.hard_delete_dialog_body(item)
         );
         dialog.add_response("cancel", "Cancel");
         dialog.add_response("delete", "Delete");
@@ -229,8 +229,8 @@ public class TrashToolView : Object {
 
         var dialog = new Adw.MessageDialog(
             root_window,
-            "Empty Trash",
-            "Permanently delete all trash items in %s?".printf(project.name)
+            controller.empty_trash_dialog_title(),
+            controller.empty_trash_dialog_body(project)
         );
         dialog.add_response("cancel", "Cancel");
         dialog.add_response("empty", "Empty Trash");

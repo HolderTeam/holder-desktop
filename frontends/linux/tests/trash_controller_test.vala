@@ -269,6 +269,18 @@ private void test_helpers_pretty_type_and_format_epoch() {
     assert(controller.format_epoch(1700000000).length > 0);
 }
 
+private void test_confirmation_dialog_copy_helpers() {
+    var controller = new HolderLinux.TrashController();
+    var item = new HolderLinux.TrashItem("card", "c1", "Card 1", 1700000000);
+    var project = new HolderLinux.Project("p1", "Project 1", "encrypted_git", "/tmp/p1", 10, 10);
+
+    assert(controller.hard_delete_dialog_title() == "Delete Permanently");
+    assert(controller.hard_delete_dialog_body(item) == "Permanently delete \"Card 1\"?");
+    assert(controller.empty_trash_dialog_title() == "Empty Trash");
+    assert(controller.empty_trash_dialog_body(project) ==
+           "Permanently delete all trash items in Project 1?");
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -283,6 +295,8 @@ public static int main(string[] args) {
     Test.add_func("/holder/trash-controller/actions-no-api", test_actions_with_no_api_are_noops);
     Test.add_func("/holder/trash-controller/action-failures-emit-errors", test_action_failures_emit_errors);
     Test.add_func("/holder/trash-controller/helpers", test_helpers_pretty_type_and_format_epoch);
+    Test.add_func("/holder/trash-controller/confirmation-copy-helpers",
+                  test_confirmation_dialog_copy_helpers);
     return Test.run();
 }
 
