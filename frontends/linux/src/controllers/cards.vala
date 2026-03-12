@@ -1,7 +1,7 @@
 namespace HolderLinux {
 
 internal class CardsController : Object {
-    private MainController owner;
+    private MainController owner; // LCOV_EXCL_LINE: field declaration-only coverage artifact
 
     public CardsController(MainController owner) {
         this.owner = owner;

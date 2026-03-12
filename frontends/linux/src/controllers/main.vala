@@ -1,6 +1,7 @@
 namespace HolderLinux {
 
 public class MainController : Object, IAiRunContext {
+    // LCOV_EXCL_START: field declaration-only coverage artifacts
     internal GLib.ListStore project_store;
     internal ISelectionState project_selection;
     internal GLib.ListStore card_store;
@@ -32,6 +33,7 @@ public class MainController : Object, IAiRunContext {
     private SearchController search_controller;
     private SelectionController selection_controller;
     private AiThreadsController ai_threads_controller;
+    // LCOV_EXCL_STOP
 
     public signal void status_changed(string text);
     public signal void editor_state_changed(string text, bool editable);

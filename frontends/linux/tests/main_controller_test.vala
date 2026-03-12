@@ -561,6 +561,32 @@ private void test_run_search_with_no_api_is_noop() {
     assert(api.search_calls == 0);
 }
 
+private void test_clear_search_results_clears_store_and_resets_summary() {
+    var api = new MainControllerFakeApi();
+    api.search_returns_card2 = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    search_text.value = "card2";
+    controller.run_search.begin();
+    assert(wait_for_condition(() => api.search_calls == 1));
+    assert(wait_for_condition(() => controller.search_store.get_n_items() > 0));
+
+    string last_summary = "";
+    controller.search_summary_changed.connect((text) => {
+        last_summary = text;
+    });
+
+    controller.clear_search_results();
+    assert(controller.search_store.get_n_items() == 0);
+    assert(last_summary == "Search results will appear here.");
+}
+
 private void test_selected_ids_and_api_getter() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -1580,6 +1606,10 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/run_search_with_no_api_is_noop",
         test_run_search_with_no_api_is_noop
+    );
+    Test.add_func(
+        "/main_controller/clear_search_results_clears_store_and_resets_summary",
+        test_clear_search_results_clears_store_and_resets_summary
     );
     Test.add_func(
         "/main_controller/selected_ids_and_api_getter",
