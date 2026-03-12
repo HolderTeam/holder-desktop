@@ -1,14 +1,11 @@
 namespace HolderLinux {
 
 public class TrashToolView : Object {
-    private IHolderApi? api;
-    private Gtk.SingleSelection? project_selection;
-    private GLib.ListStore items_store;
+    private TrashController controller;
+    private Gtk.DropDown filter_dropdown;
     private Gtk.Label scope_label;
     private Gtk.Label empty_label;
-    private Gtk.DropDown filter_dropdown;
     private Gtk.Button empty_trash_btn;
-    private uint refresh_serial = 0;
 
     public Gtk.Widget widget { get; private set; }
 
@@ -16,22 +13,25 @@ public class TrashToolView : Object {
     public signal void toast_requested(string message);
 
     public TrashToolView() {
+        controller = new TrashController();
+        controller.state_changed.connect(() => {
+            apply_state();
+        });
+        controller.error_reported.connect((title, details) => {
+            error_reported(title, details);
+        });
+        controller.toast_requested.connect((message) => {
+            toast_requested(message);
+        });
         widget = build_ui();
     }
 
     public void set_api_client(IHolderApi? api) {
-        this.api = api;
-        queue_refresh();
+        controller.set_api_client(api);
     }
 
     public void set_project_selection(Gtk.SingleSelection? project_selection) {
-        this.project_selection = project_selection;
-        if (this.project_selection != null) {
-            this.project_selection.notify["selected"].connect(() => {
-                queue_refresh();
-            });
-        }
-        queue_refresh();
+        controller.set_project_selection(project_selection);
     }
 
     private Gtk.Widget build_ui() {
@@ -50,14 +50,14 @@ public class TrashToolView : Object {
         filter_dropdown = new Gtk.DropDown(filter_options, null);
         filter_dropdown.set_selected(0);
         filter_dropdown.notify["selected"].connect(() => {
-            queue_refresh();
+            controller.set_filter_index(filter_dropdown.get_selected());
         });
         actions.append(filter_dropdown);
 
         var refresh_btn = new Gtk.Button.from_icon_name("view-refresh-symbolic");
         refresh_btn.set_tooltip_text("Refresh trash");
         refresh_btn.clicked.connect(() => {
-            queue_refresh();
+            controller.queue_refresh();
         });
         actions.append(refresh_btn);
 
@@ -71,8 +71,7 @@ public class TrashToolView : Object {
         header.append(actions);
         root.append(header);
 
-        items_store = new GLib.ListStore(typeof(TrashItem));
-        var selection = new Gtk.NoSelection(items_store);
+        var selection = new Gtk.NoSelection(controller.items_store);
         var view = new Gtk.ColumnView(selection);
         view.set_vexpand(true);
         view.append_column(build_text_column("Type", "type"));
@@ -116,14 +115,14 @@ public class TrashToolView : Object {
             }
             switch (field) {
                 case "type":
-                    label.set_text(pretty_type(trash_item.item_type));
+                    label.set_text(controller.pretty_type(trash_item.item_type));
                     break;
                 case "title":
                     label.set_text(trash_item.title);
                     label.set_tooltip_text(trash_item.title);
                     break;
                 case "deleted":
-                    var ts = format_epoch(trash_item.deleted_at);
+                    var ts = controller.format_epoch(trash_item.deleted_at);
                     label.set_text(ts);
                     label.set_tooltip_text(trash_item.deleted_at.to_string());
                     break;
@@ -150,7 +149,7 @@ public class TrashToolView : Object {
             restore_btn.clicked.connect(() => {
                 var current = item.get_item() as TrashItem;
                 if (current != null) {
-                    restore_item.begin(current);
+                    controller.restore_item.begin(current);
                 }
             });
             box.append(restore_btn);
@@ -171,99 +170,16 @@ public class TrashToolView : Object {
         return new Gtk.ColumnViewColumn("Actions", factory);
     }
 
-    private string selected_filter_type() {
-        var idx = filter_dropdown != null ? filter_dropdown.get_selected() : 0;
-        switch (idx) {
-            case 1:
-                return "card";
-            case 2:
-                return "ai_message";
-            default:
-                return "all";
-        }
+    private void apply_state() {
+        scope_label.set_text(controller.scope_text);
+        empty_label.set_text(controller.empty_text);
+        empty_label.set_visible(controller.empty_visible);
+        empty_trash_btn.set_sensitive(controller.empty_trash_sensitive);
     }
 
 #if TRASH_TOOL_VIEW_TEST
     internal void set_filter_index_for_tests(uint idx) {
         filter_dropdown.set_selected(idx);
-    }
-#endif
-
-    private void queue_refresh() {
-        refresh_serial++;
-        refresh.begin(refresh_serial);
-    }
-
-    private async void refresh(uint serial) {
-        clear_store();
-
-        var project = project_selection != null
-            ? project_selection.get_selected_item() as Project
-            : null;
-
-        if (project == null) {
-            scope_label.set_text("Projects / (none) / Trash");
-            empty_label.set_text("Select a project to view trash.");
-            empty_label.set_visible(true);
-            empty_trash_btn.set_sensitive(false);
-            return;
-        }
-
-        scope_label.set_text("Projects / %s / Trash".printf(project.name));
-
-        if (api == null) {
-            empty_label.set_text("API unavailable.");
-            empty_label.set_visible(true);
-            empty_trash_btn.set_sensitive(false);
-            return;
-        }
-
-        try {
-            var items = yield api.list_trash_items(project.project_id, selected_filter_type());
-            if (serial != refresh_serial) {
-                return;
-            }
-            foreach (var item in items) {
-                items_store.append(item);
-            }
-            empty_label.set_visible(items_store.get_n_items() == 0);
-            if (items_store.get_n_items() == 0) {
-                empty_label.set_text("No deleted items in this project.");
-            }
-            empty_trash_btn.set_sensitive(items_store.get_n_items() > 0);
-        } catch (Error e) {
-            if (serial != refresh_serial) {
-                return;
-            }
-            empty_label.set_text("Failed to load trash.");
-            empty_label.set_visible(true);
-            empty_trash_btn.set_sensitive(false);
-            error_reported("Trash refresh failed", e.message);
-        }
-    }
-
-    private void clear_store() {
-        while (items_store.get_n_items() > 0) {
-            items_store.remove(items_store.get_n_items() - 1);
-        }
-    }
-
-    private async void restore_item(TrashItem item) {
-        if (api == null) {
-            return;
-        }
-        try {
-            yield api.restore_trash_item(item.item_type, item.item_id);
-            toast_requested("Item restored.");
-            queue_refresh();
-        } catch (Error e) {
-            error_reported("Failed to restore item", e.message);
-        }
-    }
-
-#if TRASH_TOOL_VIEW_TEST
-    internal async void restore_item_for_tests(TrashItem item) {
-        yield restore_item(item);
     }
 #endif
 
@@ -283,36 +199,25 @@ public class TrashToolView : Object {
         dialog.set_response_appearance("delete", Adw.ResponseAppearance.DESTRUCTIVE);
         dialog.response.connect((response) => {
             if (response == "delete") {
-                hard_delete_item.begin(item);
+                controller.hard_delete_item.begin(item);
             }
             dialog.close();
         });
         dialog.present();
     }
 
-    private async void hard_delete_item(TrashItem item) {
-        if (api == null) {
-            return;
-        }
-        try {
-            yield api.hard_delete_trash_item(item.item_type, item.item_id);
-            toast_requested("Item permanently deleted.");
-            queue_refresh();
-        } catch (Error e) {
-            error_reported("Failed to permanently delete item", e.message);
-        }
+#if TRASH_TOOL_VIEW_TEST
+    internal async void restore_item_for_tests(TrashItem item) {
+        yield controller.restore_item(item);
     }
 
-#if TRASH_TOOL_VIEW_TEST
     internal async void hard_delete_item_for_tests(TrashItem item) {
-        yield hard_delete_item(item);
+        yield controller.hard_delete_item(item);
     }
 #endif
 
     private void confirm_empty_trash() {
-        var project = project_selection != null
-            ? project_selection.get_selected_item() as Project
-            : null;
+        var project = controller.selected_project();
         if (project == null) {
             return;
         }
@@ -332,54 +237,20 @@ public class TrashToolView : Object {
         dialog.set_response_appearance("empty", Adw.ResponseAppearance.DESTRUCTIVE);
         dialog.response.connect((response) => {
             if (response == "empty") {
-                empty_trash.begin(project.project_id);
+                controller.empty_trash.begin(project.project_id);
             }
             dialog.close();
         });
         dialog.present();
     }
 
-    private async void empty_trash(string project_id) {
-        if (api == null) {
-            return;
-        }
-        try {
-            yield api.empty_trash(project_id, "all");
-            toast_requested("Trash emptied.");
-            queue_refresh();
-        } catch (Error e) {
-            error_reported("Failed to empty trash", e.message);
-        }
-    }
-
 #if TRASH_TOOL_VIEW_TEST
     internal async void empty_trash_for_tests(string project_id) {
-        yield empty_trash(project_id);
-    }
-#endif
-
-    private string pretty_type(string item_type) {
-        switch (item_type) {
-            case "card":
-                return "Card";
-            case "ai_message":
-                return "AI message";
-            default:
-                return item_type;
-        }
+        yield controller.empty_trash(project_id);
     }
 
-    private string format_epoch(int64 epoch_seconds) {
-        if (epoch_seconds <= 0) {
-            return "";
-        }
-        var dt = new DateTime.from_unix_local(epoch_seconds);
-        return dt.format("%Y-%m-%d %H:%M");
-    }
-
-#if TRASH_TOOL_VIEW_TEST
     internal uint item_count_for_tests() {
-        return items_store.get_n_items();
+        return controller.items_store.get_n_items();
     }
 
     internal string scope_text_for_tests() {

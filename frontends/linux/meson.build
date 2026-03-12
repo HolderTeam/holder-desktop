@@ -56,6 +56,7 @@ sources = [
   'src/controllers/connections.vala',
   'src/controllers/terminal.vala',
   'src/controllers/flowboard.vala',
+  'src/controllers/trash.vala',
   'src/services/discovery.vala',
   'src/services/http_transport.vala',
   'src/services/parsers/common.vala',
@@ -454,6 +455,7 @@ trash_tool_view_test_exe = executable(
     'tests/support/main_controller_fakes.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
+    'src/controllers/trash.vala',
     'src/views/toolbox/trash_tool_view.vala',
     'tests/trash_tool_view_test.vala',
   ],
@@ -472,3 +474,27 @@ trash_tool_view_test_exe = executable(
 )
 
 test('holder-linux-trash-tool-view-tests', trash_tool_view_test_exe)
+
+trash_controller_test_exe = executable(
+  'holder-linux-trash-controller-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/controllers/trash.vala',
+    'tests/trash_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-trash-controller-tests', trash_controller_test_exe)
