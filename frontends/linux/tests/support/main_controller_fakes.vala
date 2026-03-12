@@ -64,6 +64,10 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int empty_trash_calls = 0;
     public int restore_trash_calls = 0;
     public int hard_delete_trash_calls = 0;
+    public int list_card_links_calls = 0;
+    public int list_card_backlinks_calls = 0;
+    public int create_card_link_calls = 0;
+    public int delete_card_link_calls = 0;
     public string last_updated_card_id = "";
     public string last_created_project_id = "";
     public string last_created_title = "";
@@ -111,6 +115,10 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_empty_trash = false;
     public bool fail_restore_trash = false;
     public bool fail_hard_delete_trash = false;
+    public bool fail_list_card_links = false;
+    public bool fail_list_card_backlinks = false;
+    public bool fail_create_card_link = false;
+    public bool fail_delete_card_link = false;
     public string test_project_git_remote_status = "reachable";
     private int list_projects_index = 0;
     public string last_resource_project_id = "";
@@ -131,6 +139,13 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public string last_restore_item_id = "";
     public string last_hard_delete_item_type = "";
     public string last_hard_delete_item_id = "";
+    public string last_link_from_card_id = "";
+    public string last_link_to_card_id = "";
+    public string last_link_kind = "";
+    public string? last_link_label = null;
+    public string last_link_to_type = "";
+    public Gee.ArrayList<HolderLinux.CardLink> card_links = new Gee.ArrayList<HolderLinux.CardLink>();
+    public Gee.ArrayList<HolderLinux.CardLink> card_backlinks = new Gee.ArrayList<HolderLinux.CardLink>();
     public Gee.ArrayList<HolderLinux.TrashItem> trash_items = new Gee.ArrayList<HolderLinux.TrashItem>();
 
     public async void health_check() throws Error {
@@ -254,11 +269,19 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async Gee.ArrayList<HolderLinux.CardLink> list_card_links(string card_id) throws Error {
-        return new Gee.ArrayList<HolderLinux.CardLink>();
+        if (fail_list_card_links) {
+            throw new IOError.FAILED("list card links failed");
+        }
+        list_card_links_calls++;
+        return card_links;
     }
 
     public async Gee.ArrayList<HolderLinux.CardLink> list_card_backlinks(string card_id) throws Error {
-        return new Gee.ArrayList<HolderLinux.CardLink>();
+        if (fail_list_card_backlinks) {
+            throw new IOError.FAILED("list card backlinks failed");
+        }
+        list_card_backlinks_calls++;
+        return card_backlinks;
     }
 
     public async Gee.ArrayList<HolderLinux.ProjectResource> list_resources(string project_id) throws Error {
@@ -356,13 +379,31 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                                        string kind = "ref",
                                                        string? label = null,
                                                        string to_type = "card") throws Error {
+        if (fail_create_card_link) {
+            throw new IOError.FAILED("create card link failed");
+        }
+        create_card_link_calls++;
+        last_link_from_card_id = from_card_id;
+        last_link_to_card_id = to_card_id;
+        last_link_kind = kind;
+        last_link_label = label;
+        last_link_to_type = to_type;
         return new HolderLinux.CardLink(from_card_id, to_card_id, to_type, kind, label, 0);
     }
 
     public async void delete_card_link(string from_card_id,
                                        string to_card_id,
                                        string kind,
-                                       string to_type = "card") throws Error {}
+                                       string to_type = "card") throws Error {
+        if (fail_delete_card_link) {
+            throw new IOError.FAILED("delete card link failed");
+        }
+        delete_card_link_calls++;
+        last_link_from_card_id = from_card_id;
+        last_link_to_card_id = to_card_id;
+        last_link_kind = kind;
+        last_link_to_type = to_type;
+    }
 
     public async Gee.ArrayList<HolderLinux.SearchCardResult> search_cards(string project_id,
                                                                            string query_text,

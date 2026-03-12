@@ -397,51 +397,38 @@ public class ConnectionsToolView : Object {
         if (connections_graph_outgoing_list == null || connections_graph_backlinks_list == null) {
             return;
         }
-        if (api == null) {
-            set_graph_empty_state(
-                "API unavailable.",
-                "API unavailable."
-            );
-            return;
-        }
         var selected_card = card_selection != null
             ? card_selection.get_selected_item() as CardSummary
             : null;
-        if (selected_card == null) {
-            set_graph_empty_state(
-                "Select a card to view graph links.",
-                "Select a card to view graph links."
-            );
+
+        var expected_card_id = selected_card != null ? selected_card.card_id : "";
+        var result = yield controller.load_graph_links(api, selected_card);
+
+        if (request_serial != connections_graph_refresh_serial) {
+            return;
+        }
+        var still_selected = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary
+            : null;
+        if (still_selected == null && expected_card_id != "") {
+            return;
+        }
+        if (expected_card_id != "" && (still_selected == null || still_selected.card_id != expected_card_id)) {
             return;
         }
 
-        var expected_card_id = selected_card.card_id;
-        try {
-            var outgoing = yield api.list_card_links(expected_card_id);
-            var backlinks = yield api.list_card_backlinks(expected_card_id);
-
-            if (request_serial != connections_graph_refresh_serial) {
+        if (result.success) {
+            if (result.outgoing == null || result.backlinks == null) {
                 return;
             }
-            var still_selected = card_selection != null
-                ? card_selection.get_selected_item() as CardSummary
-                : null;
-            if (still_selected == null || still_selected.card_id != expected_card_id) {
-                return;
-            }
-
-            populate_graph_rows(outgoing, true);
-            populate_graph_rows(backlinks, false);
+            populate_graph_rows(result.outgoing, true);
+            populate_graph_rows(result.backlinks, false);
             update_add_graph_link_button_state();
-        } catch (Error e) {
-            if (request_serial != connections_graph_refresh_serial) {
-                return;
+        } else {
+            set_graph_empty_state(result.outgoing_empty_text, result.backlinks_empty_text);
+            if (result.debug_message.strip().length > 0) {
+                debug_log_requested(result.debug_message);
             }
-            set_graph_empty_state(
-                "Failed to load outgoing links.",
-                "Failed to load backlinks."
-            );
-            debug_log_requested("Graph links refresh failed: %s".printf(e.message));
         }
     }
 
@@ -752,38 +739,40 @@ public class ConnectionsToolView : Object {
                                          string new_kind,
                                          string? new_label,
                                          bool remember_kind) {
-        if (api == null) {
+        var result = yield controller.update_graph_link_flow(
+            api,
+            old_link,
+            new_kind,
+            new_label,
+            remember_kind,
+            settings
+        );
+        if (result.ignored) {
             return;
         }
-        try {
-            var kind_changed = old_link.kind != new_kind;
-            if (kind_changed) {
-                yield api.create_card_link(old_link.from_card_id, old_link.to_card_id, new_kind, new_label, old_link.to_type);
-                yield api.delete_card_link(old_link.from_card_id, old_link.to_card_id, old_link.kind, old_link.to_type);
-            } else {
-                yield api.create_card_link(old_link.from_card_id, old_link.to_card_id, new_kind, new_label, old_link.to_type);
+        if (result.success) {
+            if (result.toast_message.strip().length > 0) {
+                toast_requested(result.toast_message);
             }
-            if (remember_kind) {
-                controller.remember_custom_link_kind(settings, new_kind);
-            }
-            toast_requested("Graph link updated.");
             queue_connections_graph_refresh();
-        } catch (Error e) {
-            error_reported("Failed to edit graph link", e.message);
+            return;
         }
+        error_reported(result.error_title, result.error_details);
     }
 
     private async void delete_graph_link(CardLink link) {
-        if (api == null) {
+        var result = yield controller.delete_graph_link_flow(api, link);
+        if (result.ignored) {
             return;
         }
-        try {
-            yield api.delete_card_link(link.from_card_id, link.to_card_id, link.kind, link.to_type);
-            toast_requested("Graph link deleted.");
+        if (result.success) {
+            if (result.toast_message.strip().length > 0) {
+                toast_requested(result.toast_message);
+            }
             queue_connections_graph_refresh();
-        } catch (Error e) {
-            error_reported("Failed to delete graph link", e.message);
+            return;
         }
+        error_reported(result.error_title, result.error_details);
     }
 
     private bool on_connections_link_activated(string uri) {

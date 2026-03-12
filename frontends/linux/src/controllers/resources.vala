@@ -1,5 +1,67 @@
 namespace HolderLinux {
 
+public class ResourcesRefreshResult : Object {
+    public bool success { get; construct; }
+    public bool has_error { get; construct; }
+    public Gee.ArrayList<ProjectResource> resources { get; construct; }
+    public string empty_text { get; construct; }
+    public string error_title { get; construct; }
+    public string error_details { get; construct; }
+
+    public ResourcesRefreshResult(bool success,
+                                  bool has_error = false,
+                                  Gee.ArrayList<ProjectResource>? resources = null,
+                                  string empty_text = "",
+                                  string error_title = "",
+                                  string error_details = "") {
+        Object(
+            success: success,
+            has_error: has_error,
+            resources: resources ?? new Gee.ArrayList<ProjectResource>(),
+            empty_text: empty_text,
+            error_title: error_title,
+            error_details: error_details
+        );
+    }
+}
+
+public class ResourcesFilterResult : Object {
+    public Gee.ArrayList<ProjectResource> filtered { get; construct; }
+    public bool empty { get; construct; }
+    public string empty_text { get; construct; }
+
+    public ResourcesFilterResult(Gee.ArrayList<ProjectResource> filtered,
+                                 bool empty,
+                                 string empty_text = "") {
+        Object(filtered: filtered, empty: empty, empty_text: empty_text);
+    }
+}
+
+public class ResourcesMutationResult : Object {
+    public bool success { get; construct; }
+    public bool ignored { get; construct; }
+    public bool should_refresh { get; construct; }
+    public string toast_message { get; construct; }
+    public string error_title { get; construct; }
+    public string error_details { get; construct; }
+
+    public ResourcesMutationResult(bool success,
+                                   bool ignored = false,
+                                   bool should_refresh = false,
+                                   string toast_message = "",
+                                   string error_title = "",
+                                   string error_details = "") {
+        Object(
+            success: success,
+            ignored: ignored,
+            should_refresh: should_refresh,
+            toast_message: toast_message,
+            error_title: error_title,
+            error_details: error_details
+        );
+    }
+}
+
 public class ResourcesController : Object {
     private ResourcesService service;
     internal int ellipsize_cutoff_override_for_tests = -1;
@@ -83,6 +145,109 @@ public class ResourcesController : Object {
 
     public string[] default_resource_kinds() {
         return {"url", "file", "dir", "repo", "image"};
+    }
+
+    public async ResourcesRefreshResult refresh_resources_flow(IHolderApi? api, Project? project) {
+        if (project == null) {
+            return new ResourcesRefreshResult(false, false, null, "Select a project to view resources.");
+        }
+        if (api == null) {
+            return new ResourcesRefreshResult(false, false, null, "API unavailable.");
+        }
+
+        try {
+            var resources = yield list_resources(api, project.project_id);
+            return new ResourcesRefreshResult(true, false, resources);
+        } catch (Error e) {
+            return new ResourcesRefreshResult(
+                false,
+                true,
+                null,
+                "Failed to load resources.",
+                "Resources refresh failed",
+                e.message
+            );
+        }
+    }
+
+    public ResourcesFilterResult apply_resources_filter_flow(Gee.ArrayList<ProjectResource> all_resources,
+                                                             string query_text) {
+        var filtered = filter_resources(all_resources, query_text);
+        var is_empty = filtered.size == 0;
+        var empty_text = "";
+        if (is_empty) {
+            empty_text = query_text.strip().length > 0
+                ? "No resources match this filter."
+                : "No resources in this project.";
+        }
+        return new ResourcesFilterResult(filtered, is_empty, empty_text);
+    }
+
+    public async ResourcesMutationResult create_resource_flow(IHolderApi? api,
+                                                              string project_id,
+                                                              string kind,
+                                                              string uri,
+                                                              string label,
+                                                              string? desc) {
+        if (api == null) {
+            return new ResourcesMutationResult(false, true);
+        }
+        try {
+            yield create_resource(api, project_id, kind, uri, label, desc);
+            return new ResourcesMutationResult(true, false, true, "Resource added.");
+        } catch (Error e) {
+            return new ResourcesMutationResult(
+                false,
+                false,
+                false,
+                "",
+                "Failed to create resource",
+                e.message
+            );
+        }
+    }
+
+    public async ResourcesMutationResult update_resource_flow(IHolderApi? api,
+                                                              string resource_id,
+                                                              string kind,
+                                                              string uri,
+                                                              string label,
+                                                              string? desc) {
+        if (api == null) {
+            return new ResourcesMutationResult(false, true);
+        }
+        try {
+            yield update_resource(api, resource_id, kind, uri, label, desc);
+            return new ResourcesMutationResult(true, false, true, "Resource updated.");
+        } catch (Error e) {
+            return new ResourcesMutationResult(
+                false,
+                false,
+                false,
+                "",
+                "Failed to update resource",
+                e.message
+            );
+        }
+    }
+
+    public async ResourcesMutationResult delete_resource_flow(IHolderApi? api, string resource_id) {
+        if (api == null) {
+            return new ResourcesMutationResult(false, true);
+        }
+        try {
+            yield delete_resource(api, resource_id);
+            return new ResourcesMutationResult(true, false, true, "Resource deleted.");
+        } catch (Error e) {
+            return new ResourcesMutationResult(
+                false,
+                false,
+                false,
+                "",
+                "Failed to delete resource",
+                e.message
+            );
+        }
     }
 }
 

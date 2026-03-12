@@ -189,35 +189,21 @@ public class ResourcesToolView : Object {
         var project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
-        if (project == null) {
-            resources_empty_label.set_text("Select a project to view resources.");
-            resources_empty_label.set_visible(true);
-            refresh_resource_action_state();
+        var result = yield controller.refresh_resources_flow(api, project);
+        if (request_serial != resources_refresh_serial) {
             return;
         }
-        if (api == null) {
-            resources_empty_label.set_text("API unavailable.");
-            resources_empty_label.set_visible(true);
-            refresh_resource_action_state();
-            return;
-        }
-
-        try {
-            var resources = yield controller.list_resources(api, project.project_id);
-            if (request_serial != resources_refresh_serial) {
-                return;
-            }
-            all_resources = resources;
+        if (result.success) {
+            all_resources = result.resources;
             apply_resources_filter();
-        } catch (Error e) {
-            if (request_serial != resources_refresh_serial) {
-                return;
-            }
-            resources_empty_label.set_text("Failed to load resources.");
-            resources_empty_label.set_visible(true);
-            error_reported("Resources refresh failed", e.message);
-            refresh_resource_action_state();
+            return;
         }
+        resources_empty_label.set_text(result.empty_text);
+        resources_empty_label.set_visible(true);
+        if (result.has_error) {
+            error_reported(result.error_title, result.error_details);
+        }
+        refresh_resource_action_state();
     }
 
     private void apply_resources_filter() {
@@ -229,16 +215,14 @@ public class ResourcesToolView : Object {
         }
 
         var query = resources_search_entry != null ? resources_search_entry.get_text() : "";
-        var filtered = controller.filter_resources(all_resources, query);
-        foreach (var resource in filtered) {
+        var result = controller.apply_resources_filter_flow(all_resources, query);
+        foreach (var resource in result.filtered) {
             resources_store.append(resource);
         }
 
-        resources_empty_label.set_visible(resources_store.get_n_items() == 0);
-        if (resources_store.get_n_items() == 0) {
-            resources_empty_label.set_text(
-                query.strip().length > 0 ? "No resources match this filter." : "No resources in this project."
-            );
+        resources_empty_label.set_visible(result.empty);
+        if (result.empty) {
+            resources_empty_label.set_text(result.empty_text);
         }
         refresh_resource_action_state();
     }
@@ -402,16 +386,18 @@ public class ResourcesToolView : Object {
                                        string uri,
                                        string label,
                                        string? desc) {
-        if (api == null) {
+        var result = yield controller.create_resource_flow(api, project_id, kind, uri, label, desc);
+        if (result.ignored) {
             return;
         }
-        try {
-            yield controller.create_resource(api, project_id, kind, uri, label, desc);
-            toast_requested("Resource added.");
+        if (result.success) {
+            if (result.toast_message.strip().length > 0) {
+                toast_requested(result.toast_message);
+            }
             queue_resources_refresh();
-        } catch (Error e) {
-            error_reported("Failed to create resource", e.message);
+            return;
         }
+        error_reported(result.error_title, result.error_details);
     }
 
     private async void update_resource(string resource_id,
@@ -419,16 +405,18 @@ public class ResourcesToolView : Object {
                                        string uri,
                                        string label,
                                        string? desc) {
-        if (api == null) {
+        var result = yield controller.update_resource_flow(api, resource_id, kind, uri, label, desc);
+        if (result.ignored) {
             return;
         }
-        try {
-            yield controller.update_resource(api, resource_id, kind, uri, label, desc);
-            toast_requested("Resource updated.");
+        if (result.success) {
+            if (result.toast_message.strip().length > 0) {
+                toast_requested(result.toast_message);
+            }
             queue_resources_refresh();
-        } catch (Error e) {
-            error_reported("Failed to update resource", e.message);
+            return;
         }
+        error_reported(result.error_title, result.error_details);
     }
 
     private void open_selected_resource() {
@@ -471,16 +459,18 @@ public class ResourcesToolView : Object {
     }
 
     private async void delete_resource(string resource_id) {
-        if (api == null) {
+        var result = yield controller.delete_resource_flow(api, resource_id);
+        if (result.ignored) {
             return;
         }
-        try {
-            yield controller.delete_resource(api, resource_id);
-            toast_requested("Resource deleted.");
+        if (result.success) {
+            if (result.toast_message.strip().length > 0) {
+                toast_requested(result.toast_message);
+            }
             queue_resources_refresh();
-        } catch (Error e) {
-            error_reported("Failed to delete resource", e.message);
+            return;
         }
+        error_reported(result.error_title, result.error_details);
     }
 
     private void open_local_resource_picker(Gtk.Window root_window,

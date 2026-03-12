@@ -252,6 +252,7 @@ test('holder-linux-resources-service-tests', resources_service_test_exe)
 connections_controller_test_exe = executable(
   'holder-linux-connections-controller-tests',
   [
+    'tests/support/main_controller_fakes.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/services/app_settings.vala',

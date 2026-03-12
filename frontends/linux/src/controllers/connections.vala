@@ -1,5 +1,55 @@
 namespace HolderLinux {
 
+public class ConnectionsGraphLoadResult : Object {
+    public bool success { get; construct; }
+    public Gee.ArrayList<CardLink>? outgoing { get; construct; }
+    public Gee.ArrayList<CardLink>? backlinks { get; construct; }
+    public string outgoing_empty_text { get; construct; }
+    public string backlinks_empty_text { get; construct; }
+    public string debug_message { get; construct; }
+
+    public ConnectionsGraphLoadResult(bool success,
+                                      Gee.ArrayList<CardLink>? outgoing = null,
+                                      Gee.ArrayList<CardLink>? backlinks = null,
+                                      string outgoing_empty_text = "",
+                                      string backlinks_empty_text = "",
+                                      string debug_message = "") {
+        Object(
+            success: success,
+            outgoing: outgoing,
+            backlinks: backlinks,
+            outgoing_empty_text: outgoing_empty_text,
+            backlinks_empty_text: backlinks_empty_text,
+            debug_message: debug_message
+        );
+    }
+}
+
+public class ConnectionsMutationResult : Object {
+    public bool success { get; construct; }
+    public bool ignored { get; construct; }
+    public string toast_message { get; construct; }
+    public string error_title { get; construct; }
+    public string error_details { get; construct; }
+    public bool should_refresh { get; construct; }
+
+    public ConnectionsMutationResult(bool success,
+                                     bool ignored = false,
+                                     string toast_message = "",
+                                     string error_title = "",
+                                     string error_details = "",
+                                     bool should_refresh = false) {
+        Object(
+            success: success,
+            ignored: ignored,
+            toast_message: toast_message,
+            error_title: error_title,
+            error_details: error_details,
+            should_refresh: should_refresh
+        );
+    }
+}
+
 public class ConnectionsController : Object {
     internal static int ellipsize_cutoff_override_for_tests = int.MIN;
 
@@ -107,6 +157,91 @@ public class ConnectionsController : Object {
             stored[i] = custom[i];
         }
         settings.set_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS, stored);
+    }
+
+    public async ConnectionsGraphLoadResult load_graph_links(IHolderApi? api, CardSummary? selected_card) {
+        if (api == null) {
+            return new ConnectionsGraphLoadResult(
+                false,
+                null,
+                null,
+                "API unavailable.",
+                "API unavailable."
+            );
+        }
+        if (selected_card == null) {
+            return new ConnectionsGraphLoadResult(
+                false,
+                null,
+                null,
+                "Select a card to view graph links.",
+                "Select a card to view graph links."
+            );
+        }
+        try {
+            var outgoing = yield api.list_card_links(selected_card.card_id);
+            var backlinks = yield api.list_card_backlinks(selected_card.card_id);
+            return new ConnectionsGraphLoadResult(true, outgoing, backlinks);
+        } catch (Error e) {
+            return new ConnectionsGraphLoadResult(
+                false,
+                null,
+                null,
+                "Failed to load outgoing links.",
+                "Failed to load backlinks.",
+                "Graph links refresh failed: %s".printf(e.message)
+            );
+        }
+    }
+
+    public async ConnectionsMutationResult update_graph_link_flow(IHolderApi? api,
+                                                                  CardLink old_link,
+                                                                  string new_kind,
+                                                                  string? new_label,
+                                                                  bool remember_kind,
+                                                                  Settings? settings) {
+        if (api == null) {
+            return new ConnectionsMutationResult(false, true);
+        }
+        try {
+            var kind_changed = old_link.kind != new_kind;
+            if (kind_changed) {
+                yield api.create_card_link(old_link.from_card_id, old_link.to_card_id, new_kind, new_label, old_link.to_type);
+                yield api.delete_card_link(old_link.from_card_id, old_link.to_card_id, old_link.kind, old_link.to_type);
+            } else {
+                yield api.create_card_link(old_link.from_card_id, old_link.to_card_id, new_kind, new_label, old_link.to_type);
+            }
+            if (remember_kind) {
+                remember_custom_link_kind(settings, new_kind);
+            }
+            return new ConnectionsMutationResult(true, false, "Graph link updated.", "", "", true);
+        } catch (Error e) {
+            return new ConnectionsMutationResult(
+                false,
+                false,
+                "",
+                "Failed to edit graph link",
+                e.message
+            );
+        }
+    }
+
+    public async ConnectionsMutationResult delete_graph_link_flow(IHolderApi? api, CardLink link) {
+        if (api == null) {
+            return new ConnectionsMutationResult(false, true);
+        }
+        try {
+            yield api.delete_card_link(link.from_card_id, link.to_card_id, link.kind, link.to_type);
+            return new ConnectionsMutationResult(true, false, "Graph link deleted.", "", "", true);
+        } catch (Error e) {
+            return new ConnectionsMutationResult(
+                false,
+                false,
+                "",
+                "Failed to delete graph link",
+                e.message
+            );
+        }
     }
 
     public string compact_structure_markup(Project? project,
