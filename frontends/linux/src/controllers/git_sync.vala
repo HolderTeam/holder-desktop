@@ -37,6 +37,50 @@ public class GitHubGuidedSyncFlowResult : Object {
     }
 }
 
+public class GitHubRepoVerifyFlowResult : Object {
+    public bool exists { get; construct; }
+    public string status_text { get; construct; }
+    public string error_title { get; construct; }
+    public string error_details { get; construct; }
+    public string push_intro_text { get; construct; }
+
+    public GitHubRepoVerifyFlowResult(bool exists,
+                                      string status_text,
+                                      string error_title = "",
+                                      string error_details = "",
+                                      string push_intro_text = "") {
+        Object(
+            exists: exists,
+            status_text: status_text,
+            error_title: error_title,
+            error_details: error_details,
+            push_intro_text: push_intro_text
+        );
+    }
+}
+
+public class GitRemoteSetupValidationResult : Object {
+    public bool ok { get; construct; }
+    public bool is_toast { get; construct; }
+    public string message { get; construct; }
+    public string error_title { get; construct; }
+    public string error_details { get; construct; }
+
+    public GitRemoteSetupValidationResult(bool ok,
+                                          bool is_toast = false,
+                                          string message = "",
+                                          string error_title = "",
+                                          string error_details = "") {
+        Object(
+            ok: ok,
+            is_toast: is_toast,
+            message: message,
+            error_title: error_title,
+            error_details: error_details
+        );
+    }
+}
+
 public class GitSyncController : Object {
     private GitSyncService service;
     private Settings? settings;
@@ -318,6 +362,51 @@ public class GitSyncController : Object {
         }
 
         return new GitHubGuidedSyncFlowResult(lines.str.strip(), toast_message);
+    }
+
+    public async GitHubRepoVerifyFlowResult verify_github_repository_exists_flow(string username,
+                                                                                  string repo_name) {
+        var repo_check = yield check_repository_exists_via_ssh(username, repo_name);
+        if (repo_check.exists) {
+            var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
+            return new GitHubRepoVerifyFlowResult(
+                true,
+                "Repository found on GitHub.",
+                "",
+                "",
+                "We'll now save this remote and push your cards.\nRemote: %s".printf(remote_url)
+            );
+        }
+
+        var details = repo_check.error_text.length > 0 ? repo_check.error_text : "Repository not found.";
+        return new GitHubRepoVerifyFlowResult(
+            false,
+            details,
+            "Repository check failed",
+            "Could not find https://github.com/%s/%s . Create it first, then click Next again."
+                .printf(username, repo_name)
+        );
+    }
+
+    public GitRemoteSetupValidationResult validate_remote_setup_inputs(Project? selected_project,
+                                                                       IHolderApi? api,
+                                                                       string remote_url) {
+        if (selected_project == null) {
+            return new GitRemoteSetupValidationResult(false, true, "Select a project first.");
+        }
+        if (api == null) {
+            return new GitRemoteSetupValidationResult(
+                false,
+                false,
+                "",
+                "Git sync failed",
+                "Backend API client is not ready."
+            );
+        }
+        if (remote_url.strip().length == 0) {
+            return new GitRemoteSetupValidationResult(false, true, "Remote URL is required.");
+        }
+        return new GitRemoteSetupValidationResult(true);
     }
 
     private string format_sync_time(bool has_timestamp, int64 timestamp) {

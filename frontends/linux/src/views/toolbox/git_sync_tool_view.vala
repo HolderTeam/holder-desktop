@@ -214,22 +214,19 @@ public class GitSyncToolView : Object {
         var selected_project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
-        if (selected_project == null) {
-            toast_requested("Select a project first.");
-            return;
-        }
-        if (api == null) {
-            error_reported("Git sync failed", "Backend API client is not ready.");
-            return;
-        }
         var remote_url = git_remote_entry != null ? git_remote_entry.get_text().strip() : "";
         var branch = git_branch_entry != null ? git_branch_entry.get_text().strip() : "";
-        if (remote_url.length == 0) {
-            toast_requested("Remote URL is required.");
+        var validation = controller.validate_remote_setup_inputs(selected_project, api, remote_url);
+        if (!validation.ok) {
+            if (validation.is_toast) {
+                toast_requested(validation.message);
+            } else {
+                error_reported(validation.error_title, validation.error_details);
+            }
             return;
         }
         yield apply_project_git_remote_and_sync(
-            selected_project,
+            (Project) selected_project,
             remote_url,
             branch,
             git_manual_status_label,
@@ -1077,18 +1074,19 @@ public class GitSyncToolView : Object {
         var selected_project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
-        if (selected_project == null) {
-            toast_requested("Select a project first.");
-            return;
-        }
         var remote_url = git_provider_remote_entry != null ? git_provider_remote_entry.get_text().strip() : "";
         var branch = git_provider_branch_entry != null ? git_provider_branch_entry.get_text().strip() : "";
-        if (remote_url.length == 0) {
-            toast_requested("Remote URL is required.");
+        var validation = controller.validate_remote_setup_inputs(selected_project, api, remote_url);
+        if (!validation.ok) {
+            if (validation.is_toast) {
+                toast_requested(validation.message);
+            } else {
+                error_reported(validation.error_title, validation.error_details);
+            }
             return;
         }
         yield apply_project_git_remote_and_sync(
-            selected_project,
+            (Project) selected_project,
             remote_url,
             branch,
             git_provider_status_label,
@@ -1138,22 +1136,18 @@ public class GitSyncToolView : Object {
         }
         git_guided_repo_status_label.set_text("Checking whether repository exists on GitHub...");
 
-        var repo_check = yield controller.check_repository_exists_via_ssh(username, repo_name);
-        var exists = repo_check.exists;
+        var verify_result = yield controller.verify_github_repository_exists_flow(username, repo_name);
 
         if (git_guided_repo_next_btn != null) {
             git_guided_repo_next_btn.set_sensitive(true);
         }
 
-        if (exists) {
-            git_guided_repo_status_label.set_text("Repository found on GitHub.");
+        if (verify_result.exists) {
+            git_guided_repo_status_label.set_text(verify_result.status_text);
             git_guided_part4_username = username;
             git_guided_part4_repo_name = repo_name;
             if (git_guided_push_intro_label != null) {
-                var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
-                git_guided_push_intro_label.set_text(
-                    "We'll now save this remote and push your cards.\nRemote: %s".printf(remote_url)
-                );
+                git_guided_push_intro_label.set_text(verify_result.push_intro_text);
             }
             if (git_guided_push_status_label != null) {
                 git_guided_push_status_label.set_text("");
@@ -1162,11 +1156,8 @@ public class GitSyncToolView : Object {
             return;
         }
 
-        var details = repo_check.error_text.length > 0 ? repo_check.error_text : "Repository not found.";
-        git_guided_repo_status_label.set_text(details);
-        error_reported("Repository check failed",
-                       "Could not find https://github.com/%s/%s . Create it first, then click Next again."
-                           .printf(username, repo_name));
+        git_guided_repo_status_label.set_text(verify_result.status_text);
+        error_reported(verify_result.error_title, verify_result.error_details);
     }
 
     private async void run_guided_part4_setup(string username, string repo_name) {
