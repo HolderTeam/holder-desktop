@@ -595,6 +595,52 @@ private void test_title_for_card_id() {
     assert(controller.title_for_card_id("missing", cards) == "missing");
 }
 
+private void test_group_links_by_kind_preserves_first_seen_order() {
+    var controller = new ConnectionsController();
+    var links = new Gee.ArrayList<CardLink>();
+    links.add(new CardLink("a", "b", "card", "depends_on", null, 1));
+    links.add(new CardLink("a", "c", "card", "", null, 2));
+    links.add(new CardLink("a", "d", "card", "depends_on", null, 3));
+    links.add(new CardLink("a", "e", "card", "ref", null, 4));
+
+    var groups = controller.group_links_by_kind(links);
+    assert(groups.size == 2);
+    assert(groups[0].kind == "depends_on");
+    assert(groups[0].links.size == 2);
+    assert(groups[1].kind == "ref");
+    assert(groups[1].links.size == 2);
+}
+
+private void test_resolve_link_action_card_project_ilink_and_unknown() {
+    var controller = new ConnectionsController();
+    var cards = new Gee.ArrayList<CardSummary>();
+    cards.add(card("a", "p1", "Alpha", 1));
+    cards.add(card("b", "p1", "Beta", 1));
+
+    var card_action = controller.resolve_link_action("card:a", "p1", cards);
+    assert(card_action.handled);
+    assert(card_action.select_card);
+    assert(card_action.target_id == "a");
+
+    var project_action = controller.resolve_link_action("project:p2", "p1", cards);
+    assert(project_action.handled);
+    assert(project_action.select_project);
+    assert(project_action.target_id == "p2");
+
+    var ilink_action = controller.resolve_link_action("ilink:Beta", "p1", cards);
+    assert(ilink_action.handled);
+    assert(ilink_action.select_card);
+    assert(ilink_action.target_id == "b");
+
+    var ilink_missing = controller.resolve_link_action("ilink:Missing", "p1", cards);
+    assert(ilink_missing.handled);
+    assert(!ilink_missing.select_card);
+    assert(!ilink_missing.select_project);
+
+    var unknown = controller.resolve_link_action("mailto:test@example.com", "p1", cards);
+    assert(!unknown.handled);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     Test.add_func("/holder/connections/ellipsize_title", test_ellipsize_title);
@@ -666,6 +712,10 @@ public static int main(string[] args) {
                   test_build_graph_link_target_options);
     Test.add_func("/holder/connections/title_for_card_id",
                   test_title_for_card_id);
+    Test.add_func("/holder/connections/group_links_by_kind_preserves_first_seen_order",
+                  test_group_links_by_kind_preserves_first_seen_order);
+    Test.add_func("/holder/connections/resolve_link_action_card_project_ilink_and_unknown",
+                  test_resolve_link_action_card_project_ilink_and_unknown);
     return Test.run();
 }
 

@@ -9,6 +9,34 @@ public class GraphLinkTargetOption : Object {
     }
 }
 
+public class ConnectionsLinkAction : Object {
+    public bool handled { get; construct; }
+    public bool select_card { get; construct; }
+    public bool select_project { get; construct; }
+    public string target_id { get; construct; }
+
+    public ConnectionsLinkAction(bool handled,
+                                 bool select_card = false,
+                                 bool select_project = false,
+                                 string target_id = "") {
+        Object(
+            handled: handled,
+            select_card: select_card,
+            select_project: select_project,
+            target_id: target_id
+        );
+    }
+}
+
+public class ConnectionsLinkKindGroup : Object {
+    public string kind { get; construct; }
+    public Gee.ArrayList<CardLink> links { get; construct; }
+
+    public ConnectionsLinkKindGroup(string kind, Gee.ArrayList<CardLink> links) {
+        Object(kind: kind, links: links);
+    }
+}
+
 public class ConnectionsGraphLoadResult : Object {
     public bool success { get; construct; }
     public Gee.ArrayList<CardLink>? outgoing { get; construct; }
@@ -294,6 +322,71 @@ public class ConnectionsController : Object {
             }
         }
         return card_id;
+    }
+
+    public ConnectionsLinkAction resolve_link_action(string uri,
+                                                     string? selected_project_id,
+                                                     Gee.List<CardSummary> cards) {
+        if (uri == null || uri.length == 0) {
+            return new ConnectionsLinkAction(false);
+        }
+
+        if (uri.has_prefix("card:")) {
+            var encoded = uri.substring("card:".length);
+            var card_id = Uri.unescape_string(encoded, null);
+            if (card_id != null) {
+                return new ConnectionsLinkAction(true, true, false, card_id);
+            }
+            return new ConnectionsLinkAction(false);
+        }
+
+        if (uri.has_prefix("project:")) {
+            var encoded = uri.substring("project:".length);
+            var project_id = Uri.unescape_string(encoded, null);
+            if (project_id != null) {
+                return new ConnectionsLinkAction(true, false, true, project_id);
+            }
+            return new ConnectionsLinkAction(false);
+        }
+
+        if (uri.has_prefix("ilink:")) {
+            var encoded = uri.substring("ilink:".length);
+            var target = Uri.unescape_string(encoded, null);
+            if (target != null) {
+                var card_id = resolve_internal_link_target_card_id(target, selected_project_id, cards);
+                if (card_id != null) {
+                    return new ConnectionsLinkAction(true, true, false, card_id);
+                }
+                return new ConnectionsLinkAction(true);
+            }
+            return new ConnectionsLinkAction(false);
+        }
+
+        return new ConnectionsLinkAction(false);
+    }
+
+    public Gee.ArrayList<ConnectionsLinkKindGroup> group_links_by_kind(Gee.ArrayList<CardLink> links) {
+        var grouped = new Gee.HashMap<string, Gee.ArrayList<CardLink>>();
+        var kind_order = new Gee.ArrayList<string>();
+        foreach (var link in links) {
+            var kind = (link.kind != null && link.kind.strip().length > 0) ? link.kind.strip() : "ref";
+            var bucket = grouped.get(kind);
+            if (bucket == null) {
+                bucket = new Gee.ArrayList<CardLink>();
+                grouped.set(kind, bucket);
+                kind_order.add(kind);
+            }
+            bucket.add(link);
+        }
+
+        var out_groups = new Gee.ArrayList<ConnectionsLinkKindGroup>();
+        foreach (var kind in kind_order) {
+            var bucket = grouped.get(kind);
+            if (bucket != null) {
+                out_groups.add(new ConnectionsLinkKindGroup(kind, bucket));
+            }
+        }
+        return out_groups;
     }
 
     public string compact_structure_markup(Project? project,

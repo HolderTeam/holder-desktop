@@ -414,10 +414,6 @@ public class ConnectionsToolView : Object {
         }
     }
 
-    private string title_for_card_id(string card_id) {
-        return controller.title_for_card_id(card_id, snapshot_cards());
-    }
-
     private void populate_graph_rows(Gee.ArrayList<CardLink> links, bool outgoing) {
         var list = outgoing ? connections_graph_outgoing_list : connections_graph_backlinks_list;
         var empty = outgoing ? connections_graph_outgoing_empty_label : connections_graph_backlinks_empty_label;
@@ -434,24 +430,10 @@ public class ConnectionsToolView : Object {
             empty.set_visible(false);
         }
 
-        var grouped = new Gee.HashMap<string, Gee.ArrayList<CardLink>>();
-        var kind_order = new Gee.ArrayList<string>();
-        foreach (var link in links) {
-            var kind = (link.kind != null && link.kind.strip().length > 0) ? link.kind.strip() : "ref";
-            var bucket = grouped.get(kind);
-            if (bucket == null) {
-                bucket = new Gee.ArrayList<CardLink>();
-                grouped.set(kind, bucket);
-                kind_order.add(kind);
-            }
-            bucket.add(link);
-        }
-
-        foreach (var kind in kind_order) {
-            var bucket = grouped.get(kind);
-            if (bucket == null) {
-                continue;
-            }
+        var groups = controller.group_links_by_kind(links);
+        foreach (var group in groups) {
+            var kind = group.kind;
+            var bucket = group.links;
 
             var header_row = new Gtk.ListBoxRow();
             header_row.set_activatable(false);
@@ -547,7 +529,7 @@ public class ConnectionsToolView : Object {
         Gtk.Widget target_widget;
         if (target_type == "card") {
             var target_btn = new Gtk.Button.with_label(
-                controller.ellipsize_title(title_for_card_id(target_id))
+                controller.ellipsize_title(controller.title_for_card_id(target_id, snapshot_cards()))
             );
             target_btn.add_css_class("flat");
             target_btn.add_css_class("link");
@@ -618,7 +600,7 @@ public class ConnectionsToolView : Object {
             return;
         }
         var target_id = outgoing ? link.to_card_id : link.from_card_id;
-        var target_title = title_for_card_id(target_id);
+        var target_title = controller.title_for_card_id(target_id, snapshot_cards());
 
         var dialog = new Adw.MessageDialog(root, "Edit Graph Link", "Update kind or label.");
         dialog.add_response("cancel", "Cancel");
@@ -749,65 +731,28 @@ public class ConnectionsToolView : Object {
     }
 
     private bool on_connections_link_activated(string uri) {
-        if (uri == null || uri.length == 0) {
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        var selected_project_id = selected_project != null ? selected_project.project_id : null;
+        var action = controller.resolve_link_action(uri, selected_project_id, snapshot_cards());
+        if (!action.handled) {
             return false;
         }
-
-        if (uri.has_prefix("card:")) {
-            var encoded = uri.substring("card:".length);
-            var card_id = Uri.unescape_string(encoded, null);
-            if (card_id != null) {
-                Idle.add(() => {
-                    select_card_by_id(card_id);
-                    return Source.REMOVE;
-                });
-                return true;
-            }
-            return false;
+        if (action.select_card) {
+            var card_id = action.target_id;
+            Idle.add(() => {
+                select_card_by_id(card_id);
+                return Source.REMOVE;
+            });
+        } else if (action.select_project) {
+            var project_id = action.target_id;
+            Idle.add(() => {
+                select_project_by_id(project_id);
+                return Source.REMOVE;
+            });
         }
-
-        if (uri.has_prefix("project:")) {
-            var encoded = uri.substring("project:".length);
-            var project_id = Uri.unescape_string(encoded, null);
-            if (project_id != null) {
-                Idle.add(() => {
-                    select_project_by_id(project_id);
-                    return Source.REMOVE;
-                });
-                return true;
-            }
-            return false;
-        }
-
-        if (uri.has_prefix("ilink:")) {
-            var encoded = uri.substring("ilink:".length);
-            var target = Uri.unescape_string(encoded, null);
-            if (target != null) {
-                var card_id = controller.resolve_internal_link_target_card_id(
-                    target,
-                    selected_project_id(),
-                    snapshot_cards()
-                );
-                if (card_id != null) {
-                    Idle.add(() => {
-                        select_card_by_id(card_id);
-                        return Source.REMOVE;
-                    });
-                }
-                return true;
-            }
-            return false;
-        }
-
-        return false;
-    }
-
-    private string? selected_project_id() {
-        if (project_selection == null) {
-            return null;
-        }
-        var selected_project = project_selection.get_selected_item() as Project;
-        return selected_project != null ? selected_project.project_id : null;
+        return true;
     }
 
     private bool select_project_by_id(string project_id) {
