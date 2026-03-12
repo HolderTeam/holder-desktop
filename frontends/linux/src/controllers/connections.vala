@@ -1,5 +1,14 @@
 namespace HolderLinux {
 
+public class GraphLinkTargetOption : Object {
+    public string card_id { get; construct; }
+    public string display_text { get; construct; }
+
+    public GraphLinkTargetOption(string card_id, string display_text) {
+        Object(card_id: card_id, display_text: display_text);
+    }
+}
+
 public class ConnectionsGraphLoadResult : Object {
     public bool success { get; construct; }
     public Gee.ArrayList<CardLink>? outgoing { get; construct; }
@@ -242,6 +251,49 @@ public class ConnectionsController : Object {
                 e.message
             );
         }
+    }
+
+    public bool has_graph_link_targets(CardSummary? selected_card,
+                                       Gee.List<CardSummary> cards) {
+        if (selected_card == null) {
+            return false;
+        }
+        foreach (var card in cards) {
+            if (card.project_id != selected_card.project_id) {
+                continue;
+            }
+            if (card.card_id != selected_card.card_id) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public Gee.ArrayList<GraphLinkTargetOption> build_graph_link_target_options(CardSummary? selected_card,
+                                                                                 Gee.List<CardSummary> cards) {
+        var options = new Gee.ArrayList<GraphLinkTargetOption>();
+        if (selected_card == null) {
+            return options;
+        }
+        foreach (var card in cards) {
+            if (card.project_id != selected_card.project_id || card.card_id == selected_card.card_id) {
+                continue;
+            }
+            options.add(new GraphLinkTargetOption(
+                card.card_id,
+                "%s (%s)".printf(card.title, card.card_id)
+            ));
+        }
+        return options;
+    }
+
+    public string title_for_card_id(string card_id, Gee.List<CardSummary> cards) {
+        foreach (var card in cards) {
+            if (card.card_id == card_id) {
+                return card.title;
+            }
+        }
+        return card_id;
     }
 
     public string compact_structure_markup(Project? project,

@@ -554,6 +554,47 @@ private void test_delete_graph_link_flow_error() {
     assert(out_result.error_details.contains("delete card link failed"));
 }
 
+private void test_has_graph_link_targets() {
+    var controller = new ConnectionsController();
+    var cards = new Gee.ArrayList<CardSummary>();
+    var selected = card("a", "p1", "A", 1);
+    cards.add(selected);
+    assert(!controller.has_graph_link_targets(selected, cards));
+
+    cards.add(card("b", "p2", "B", 1));
+    assert(!controller.has_graph_link_targets(selected, cards));
+
+    cards.add(card("c", "p1", "C", 1));
+    assert(controller.has_graph_link_targets(selected, cards));
+    assert(!controller.has_graph_link_targets(null, cards));
+}
+
+private void test_build_graph_link_target_options() {
+    var controller = new ConnectionsController();
+    var cards = new Gee.ArrayList<CardSummary>();
+    var selected = card("a", "p1", "A", 1);
+    cards.add(selected);
+    cards.add(card("b", "p1", "B", 1));
+    cards.add(card("c", "p2", "C", 1));
+
+    var options = controller.build_graph_link_target_options(selected, cards);
+    assert(options.size == 1);
+    assert(options[0].card_id == "b");
+    assert(options[0].display_text == "B (b)");
+
+    var none = controller.build_graph_link_target_options(null, cards);
+    assert(none.size == 0);
+}
+
+private void test_title_for_card_id() {
+    var controller = new ConnectionsController();
+    var cards = new Gee.ArrayList<CardSummary>();
+    cards.add(card("a", "p1", "Alpha", 1));
+
+    assert(controller.title_for_card_id("a", cards) == "Alpha");
+    assert(controller.title_for_card_id("missing", cards) == "missing");
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     Test.add_func("/holder/connections/ellipsize_title", test_ellipsize_title);
@@ -619,6 +660,12 @@ public static int main(string[] args) {
                   test_delete_graph_link_flow_success);
     Test.add_func("/holder/connections/delete_graph_link_flow_error",
                   test_delete_graph_link_flow_error);
+    Test.add_func("/holder/connections/has_graph_link_targets",
+                  test_has_graph_link_targets);
+    Test.add_func("/holder/connections/build_graph_link_target_options",
+                  test_build_graph_link_target_options);
+    Test.add_func("/holder/connections/title_for_card_id",
+                  test_title_for_card_id);
     return Test.run();
 }
 

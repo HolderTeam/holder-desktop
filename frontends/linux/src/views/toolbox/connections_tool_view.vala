@@ -237,22 +237,7 @@ public class ConnectionsToolView : Object {
         var selected_card = card_selection != null
             ? card_selection.get_selected_item() as CardSummary
             : null;
-        var has_target = false;
-        if (selected_card != null && card_store != null) {
-            for (uint i = 0; i < card_store.get_n_items(); i++) {
-                var card = card_store.get_item(i) as CardSummary;
-                if (card == null) {
-                    continue;
-                }
-                if (card.project_id != selected_card.project_id) {
-                    continue;
-                }
-                if (card.card_id != selected_card.card_id) {
-                    has_target = true;
-                    break;
-                }
-            }
-        }
+        var has_target = controller.has_graph_link_targets(selected_card, snapshot_cards());
         connections_add_graph_link_btn.set_sensitive(api != null && selected_card != null && has_target);
     }
 
@@ -264,15 +249,12 @@ public class ConnectionsToolView : Object {
             return;
         }
 
+        var options = controller.build_graph_link_target_options(selected_card, snapshot_cards());
         var target_ids = new Gee.ArrayList<string>();
         var target_titles = new Gtk.StringList(null);
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
-            if (card == null || card.project_id != selected_card.project_id || card.card_id == selected_card.card_id) {
-                continue;
-            }
-            target_ids.add(card.card_id);
-            target_titles.append("%s (%s)".printf(card.title, card.card_id));
+        foreach (var option in options) {
+            target_ids.add(option.card_id);
+            target_titles.append(option.display_text);
         }
         if (target_ids.size == 0) {
             toast_requested("No other cards in this project to link.");
@@ -433,16 +415,7 @@ public class ConnectionsToolView : Object {
     }
 
     private string title_for_card_id(string card_id) {
-        if (card_store == null) {
-            return card_id;
-        }
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
-            if (card != null && card.card_id == card_id) {
-                return card.title;
-            }
-        }
-        return card_id;
+        return controller.title_for_card_id(card_id, snapshot_cards());
     }
 
     private void populate_graph_rows(Gee.ArrayList<CardLink> links, bool outgoing) {
