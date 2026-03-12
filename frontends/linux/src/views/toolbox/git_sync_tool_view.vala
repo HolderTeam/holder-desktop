@@ -1182,11 +1182,6 @@ public class GitSyncToolView : Object {
             return;
         }
 
-        var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
-        GitTestRemoteResult? test_result = null;
-        GitPushResult? push_result = null;
-        Project? refreshed_project = null;
-
         if (git_guided_push_btn != null) {
             git_guided_push_btn.set_sensitive(false);
         }
@@ -1195,29 +1190,17 @@ public class GitSyncToolView : Object {
         }
 
         try {
-            var apply_result = yield controller.configure_remote_and_sync(
+            var result = yield controller.run_github_guided_sync_flow(
                 api,
-                selected_project.project_id,
-                remote_url,
-                ""
+                selected_project,
+                username,
+                repo_name
             );
-            test_result = apply_result.test_result;
-            push_result = apply_result.push_result;
-            if (test_result != null && test_result.status == "reachable") {
-                if (git_guided_push_status_label != null) {
-                    git_guided_push_status_label.set_text("Remote reachable. Pushing project data...");
-                }
-            } else if (test_result != null) {
-                if (git_guided_push_status_label != null) {
-                    git_guided_push_status_label.set_text("Remote test result: %s".printf(test_result.status));
-                }
+            if (git_guided_push_status_label != null) {
+                git_guided_push_status_label.set_text(result.status_text);
             }
-            var projects = yield api.list_projects();
-            foreach (var project in projects) {
-                if (project.project_id == selected_project.project_id) {
-                    refreshed_project = project;
-                    break;
-                }
+            if (result.toast_message.strip().length > 0) {
+                toast_requested(result.toast_message);
             }
         } catch (Error e) {
             if (git_guided_push_btn != null) {
@@ -1230,62 +1213,6 @@ public class GitSyncToolView : Object {
         if (git_guided_push_btn != null) {
             git_guided_push_btn.set_sensitive(true);
         }
-        if (git_guided_push_status_label != null) {
-            var lines = new StringBuilder();
-            if (test_result != null) {
-                lines.append("Remote test: %s".printf(test_result.status));
-                if (test_result.error_message.strip().length > 0) {
-                    lines.append(" (%s)".printf(test_result.error_message.strip()));
-                }
-                lines.append("\n");
-            } else {
-                lines.append("Remote test: not run\n");
-            }
-
-            if (push_result != null) {
-                lines.append("Push: %s".printf(push_result.status));
-                if (push_result.error_message.strip().length > 0) {
-                    lines.append(" (%s)".printf(push_result.error_message.strip()));
-                }
-                lines.append("\n");
-                if (push_result.next_action.strip().length > 0) {
-                    lines.append("Next action: %s\n".printf(push_result.next_action));
-                }
-                if (push_result.status == "pushed" || push_result.status == "up_to_date") {
-                    toast_requested("Git sync setup completed.");
-                }
-            } else {
-                lines.append("Push: not run\n");
-            }
-            if (refreshed_project != null) {
-                lines.append("\n");
-                lines.append("Sync state: ");
-                var status = refreshed_project.sync.last_push_status.strip();
-                lines.append(status.length > 0 ? status : "unknown");
-                lines.append("\n");
-                lines.append("Last push: ");
-                lines.append(format_sync_time(
-                    refreshed_project.sync.has_last_push_at,
-                    refreshed_project.sync.last_push_at
-                ));
-                lines.append("\n");
-                lines.append("Push retry count: %d\n".printf(refreshed_project.sync.retry_count));
-                lines.append("Pull retry count: %d".printf(refreshed_project.sync.pull_retry_count));
-                if (refreshed_project.sync.last_sync_error.strip().length > 0) {
-                    lines.append("\n");
-                    lines.append("Error: %s".printf(refreshed_project.sync.last_sync_error));
-                }
-            }
-            git_guided_push_status_label.set_text(lines.str.strip());
-        }
-    }
-
-    private string format_sync_time(bool has_timestamp, int64 timestamp) {
-        if (!has_timestamp || timestamp <= 0) {
-            return "never";
-        }
-        var now = new DateTime.now_utc().to_unix();
-        return TextUtils.format_relative_time(now, timestamp);
     }
 
     private void set_guided_key_ui_visibility(bool has_key) {

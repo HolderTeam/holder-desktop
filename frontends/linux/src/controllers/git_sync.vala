@@ -28,6 +28,15 @@ public class GitHubCliAutoSyncFlowResult : Object {
     }
 }
 
+public class GitHubGuidedSyncFlowResult : Object {
+    public string status_text { get; construct; }
+    public string toast_message { get; construct; }
+
+    public GitHubGuidedSyncFlowResult(string status_text, string toast_message = "") {
+        Object(status_text: status_text, toast_message: toast_message);
+    }
+}
+
 public class GitSyncController : Object {
     private GitSyncService service;
     private Settings? settings;
@@ -235,6 +244,87 @@ public class GitSyncController : Object {
         }
 
         return new GitHubCliAutoSyncFlowResult(status.str, toast_message);
+    }
+
+    public async GitHubGuidedSyncFlowResult run_github_guided_sync_flow(IHolderApi api,
+                                                                         Project selected_project,
+                                                                         string username,
+                                                                         string repo_name) throws Error {
+        var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
+        var apply_result = yield configure_remote_and_sync(
+            api,
+            selected_project.project_id,
+            remote_url,
+            ""
+        );
+        var test_result = apply_result.test_result;
+        var push_result = apply_result.push_result;
+
+        Project? refreshed_project = null;
+        var projects = yield api.list_projects();
+        foreach (var project in projects) {
+            if (project.project_id == selected_project.project_id) {
+                refreshed_project = project;
+                break;
+            }
+        }
+
+        var lines = new StringBuilder();
+        if (test_result != null) {
+            lines.append("Remote test: %s".printf(test_result.status));
+            if (test_result.error_message.strip().length > 0) {
+                lines.append(" (%s)".printf(test_result.error_message.strip()));
+            }
+            lines.append("\n");
+        } else {
+            lines.append("Remote test: not run\n");
+        }
+
+        var toast_message = "";
+        if (push_result != null) {
+            lines.append("Push: %s".printf(push_result.status));
+            if (push_result.error_message.strip().length > 0) {
+                lines.append(" (%s)".printf(push_result.error_message.strip()));
+            }
+            lines.append("\n");
+            if (push_result.next_action.strip().length > 0) {
+                lines.append("Next action: %s\n".printf(push_result.next_action));
+            }
+            if (push_result.status == "pushed" || push_result.status == "up_to_date") {
+                toast_message = "Git sync setup completed.";
+            }
+        } else {
+            lines.append("Push: not run\n");
+        }
+
+        if (refreshed_project != null) {
+            lines.append("\n");
+            lines.append("Sync state: ");
+            var status = refreshed_project.sync.last_push_status.strip();
+            lines.append(status.length > 0 ? status : "unknown");
+            lines.append("\n");
+            lines.append("Last push: ");
+            lines.append(format_sync_time(
+                refreshed_project.sync.has_last_push_at,
+                refreshed_project.sync.last_push_at
+            ));
+            lines.append("\n");
+            lines.append("Push retry count: %d\n".printf(refreshed_project.sync.retry_count));
+            lines.append("Pull retry count: %d".printf(refreshed_project.sync.pull_retry_count));
+            if (refreshed_project.sync.last_sync_error.strip().length > 0) {
+                lines.append("\n");
+                lines.append("Error: %s".printf(refreshed_project.sync.last_sync_error));
+            }
+        }
+
+        return new GitHubGuidedSyncFlowResult(lines.str.strip(), toast_message);
+    }
+
+    private string format_sync_time(bool has_timestamp, int64 timestamp) {
+        if (!has_timestamp || timestamp <= 0) {
+            return "never";
+        }
+        return "%lld".printf(timestamp);
     }
 }
 

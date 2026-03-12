@@ -510,6 +510,76 @@ private void test_run_github_cli_auto_sync_flow_invalid_project_name_throws() {
     assert(got_error);
 }
 
+private void test_run_github_guided_sync_flow_builds_status_and_toast() {
+    var service = new FakeGitSyncService();
+    service.apply_result = new HolderLinux.GitRemoteApplyResult(
+        new HolderLinux.GitTestRemoteResult(
+            "p1",
+            "git@github.com:zeth/demo.git",
+            "",
+            "reachable",
+            true,
+            "",
+            "ok"
+        ),
+        new HolderLinux.GitPushResult(
+            "p1",
+            "git@github.com:zeth/demo.git",
+            "",
+            "pushed",
+            0,
+            0,
+            "",
+            "",
+            ""
+        )
+    );
+    var controller = new HolderLinux.GitSyncController(service);
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var project = new HolderLinux.Project("p1", "Demo", "standard", "/tmp/demo", 1, 1);
+
+    bool done = false;
+    HolderLinux.GitHubGuidedSyncFlowResult? out_result = null;
+    controller.run_github_guided_sync_flow.begin(api, project, "zeth", "demo", (obj, res) => {
+        try {
+            out_result = controller.run_github_guided_sync_flow.end(res);
+        } catch (Error e) {
+            assert_not_reached();
+        }
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(out_result != null);
+    assert(out_result.status_text.contains("Remote test: reachable (ok)"));
+    assert(out_result.status_text.contains("Push: pushed"));
+    assert(out_result.status_text.contains("Sync state: unknown"));
+    assert(out_result.status_text.contains("Last push: never"));
+    assert(out_result.status_text.contains("Push retry count: 0"));
+    assert(out_result.status_text.contains("Pull retry count: 0"));
+    assert(out_result.toast_message == "Git sync setup completed.");
+}
+
+private void test_run_github_guided_sync_flow_list_projects_failure_propagates() {
+    var service = new FakeGitSyncService();
+    var controller = new HolderLinux.GitSyncController(service);
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    api.fail_list_projects = true;
+    var project = new HolderLinux.Project("p1", "Demo", "standard", "/tmp/demo", 1, 1);
+
+    bool done = false;
+    bool got_error = false;
+    controller.run_github_guided_sync_flow.begin(api, project, "zeth", "demo", (obj, res) => {
+        try {
+            controller.run_github_guided_sync_flow.end(res);
+        } catch (Error e) {
+            got_error = e.message.contains("list projects failed");
+        }
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(got_error);
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -556,6 +626,10 @@ int main(string[] args) {
                   test_run_github_cli_auto_sync_flow_create_failure_returns_error_result);
     Test.add_func("/git_sync_controller/run_github_cli_auto_sync_flow_invalid_project_name_throws",
                   test_run_github_cli_auto_sync_flow_invalid_project_name_throws);
+    Test.add_func("/git_sync_controller/run_github_guided_sync_flow_builds_status_and_toast",
+                  test_run_github_guided_sync_flow_builds_status_and_toast);
+    Test.add_func("/git_sync_controller/run_github_guided_sync_flow_list_projects_failure_propagates",
+                  test_run_github_guided_sync_flow_list_projects_failure_propagates);
 
     return Test.run();
 }
