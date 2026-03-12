@@ -57,6 +57,8 @@ sources = [
   'src/controllers/terminal.vala',
   'src/controllers/flowboard.vala',
   'src/controllers/trash.vala',
+  'src/controllers/local_info.vala',
+  'src/controllers/local_info_presenter.vala',
   'src/controllers/recovery.vala',
   'src/services/discovery.vala',
   'src/services/recovery_service.vala',
@@ -351,6 +353,48 @@ flowboard_controller_test_exe = executable(
 )
 
 test('holder-linux-flowboard-controller-tests', flowboard_controller_test_exe)
+
+local_info_controller_test_exe = executable(
+  'holder-linux-local-info-controller-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/utils/text_utils.vala',
+    'src/controllers/local_info.vala',
+    'tests/local_info_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-local-info-controller-tests', local_info_controller_test_exe)
+
+local_info_presenter_test_exe = executable(
+  'holder-linux-local-info-presenter-tests',
+  [
+    'src/controllers/local_info_presenter.vala',
+    'tests/local_info_presenter_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-local-info-presenter-tests', local_info_presenter_test_exe)
 
 api_client_test_exe = executable(
   'holder-linux-api-client-tests',

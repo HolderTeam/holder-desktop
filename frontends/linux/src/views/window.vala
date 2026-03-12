@@ -1,5 +1,17 @@
 namespace HolderLinux {
 
+private class WindowLocalInfoLogger : Object, ILocalInfoLogger {
+    private ToolboxPane toolbox;
+
+    public WindowLocalInfoLogger(ToolboxPane toolbox) {
+        this.toolbox = toolbox;
+    }
+
+    public void log_debug(string message) {
+        toolbox.log_debug(message);
+    }
+}
+
 private class WindowRecoveryContext : Object, IRecoveryContext {
     private MainController owner;
 
@@ -53,6 +65,8 @@ public class MainWindow : Adw.ApplicationWindow {
     private ToolboxPane toolbox;
     private MainController controller;
     private RecoveryController recovery_controller;
+    private LocalInfoController local_info_controller;
+    private LocalInfoPresenter local_info_presenter;
     private AiRunController ai_run_controller;
     private FlowboardController flowboard_controller;
     private Settings? settings;
@@ -122,6 +136,8 @@ public class MainWindow : Adw.ApplicationWindow {
         ai_split = workspace.ai_split;
         ai_panel = workspace.ai_panel;
         toolbox = workspace.toolbox;
+        local_info_controller = new LocalInfoController(new WindowLocalInfoLogger(toolbox));
+        local_info_presenter = new LocalInfoPresenter();
         controller = new MainController(
             project_store,
             new GtkSingleSelectionState(project_selection),
@@ -602,11 +618,7 @@ public class MainWindow : Adw.ApplicationWindow {
         });
         add_action(print_action);
 
-        var show_local_info_action = new SimpleAction("show-local-info", null);
-        show_local_info_action.activate.connect(() => {
-            show_local_info_page.begin();
-        });
-        add_action(show_local_info_action);
+        register_local_info_action();
 
         var show_preferences_action = new SimpleAction("show-preferences", null);
         show_preferences_action.activate.connect(() => {
@@ -619,6 +631,14 @@ public class MainWindow : Adw.ApplicationWindow {
             show_about_dialog();
         });
         add_action(show_about_action);
+    }
+
+    private void register_local_info_action() {
+        var show_local_info_action = new SimpleAction("show-local-info", null);
+        show_local_info_action.activate.connect(() => {
+            show_local_info_page.begin();
+        });
+        add_action(show_local_info_action);
     }
 
 
@@ -1211,135 +1231,36 @@ public class MainWindow : Adw.ApplicationWindow {
     private async void show_local_info_page() {
         var api = controller.get_api_client();
         if (api == null) {
-            set_editor_state("# Local info\n\nAPI client not connected.", false);
-            show_editor_mode();
+            render_local_info_not_connected();
             return;
         }
 
         try {
-            var health = yield api.get_health_info();
-            var uptime_seconds = health.uptime_ms / 1000;
-            var projects = yield api.list_projects();
-            Project? home_project = null;
-            var ordered_projects = new Gee.ArrayList<Project>();
-            foreach (var project in projects) {
-                if (home_project == null && project.name.strip().down() == "home") {
-                    home_project = project;
-                } else {
-                    ordered_projects.add(project);
-                }
-            }
-            if (home_project != null) {
-                ordered_projects.insert(0, home_project);
-            }
-            var project_count = projects.size;
-            int total_card_count = 0;
-            int total_thread_count = 0;
-            var sync_section = new StringBuilder();
-            foreach (var project in ordered_projects) {
-                try {
-                    var cards = yield api.list_cards(project.project_id, "recent");
-                    total_card_count += cards.size;
-                } catch (Error e) {
-                    toolbox.log_debug(
-                        "Local info: failed to count cards for project %s: %s".printf(
-                            project.project_id,
-                            e.message
-                        )
-                    );
-                }
-                try {
-                    var threads = yield api.list_ai_threads(project.project_id);
-                    total_thread_count += threads.size;
-                } catch (Error e) {
-                    toolbox.log_debug(
-                        "Local info: failed to count threads for project %s: %s".printf(
-                            project.project_id,
-                            e.message
-                        )
-                    );
-                }
-
-                if (project.git_remote_url != null && project.git_remote_url.strip().length > 0) {
-                    var push_time = format_sync_time(
-                        project.sync.has_last_push_at,
-                        project.sync.last_push_at
-                    );
-                    var pull_time = format_sync_time(
-                        project.sync.has_last_pull_at,
-                        project.sync.last_pull_at
-                    );
-                    var push_status = project.sync.last_push_status.strip().length > 0
-                        ? project.sync.last_push_status
-                        : "unknown";
-                    var next_push_retry = format_sync_time(
-                        project.sync.has_next_retry_at,
-                        project.sync.next_retry_at
-                    );
-                    var next_pull_retry = format_sync_time(
-                        project.sync.has_next_pull_retry_at,
-                        project.sync.next_pull_retry_at
-                    );
-                    sync_section.append(
-                        "- %s: push `%s` (%s), pull `%s`, uncommitted `%d`, unpushed `%d`, push_retry `%d` (next `%s`), pull_retry `%d` (next `%s`)\n".printf(
-                            project.name,
-                            push_status,
-                            push_time,
-                            pull_time,
-                            project.sync.uncommitted_changes_count,
-                            project.sync.unpushed_commits_count,
-                            project.sync.retry_count,
-                            next_push_retry,
-                            project.sync.pull_retry_count,
-                            next_pull_retry
-                        )
-                    );
-                    if (project.sync.last_sync_error.strip().length > 0) {
-                        sync_section.append("  error: `%s`\n".printf(project.sync.last_sync_error));
-                    }
-                } else {
-                    sync_section.append("- %s: no project remote repository set\n".printf(project.name));
-                }
-            }
-            var text =
-                "# Local info\n\n" +
-                "## Health\n" +
-                "- db_ok: `%s`\n".printf(health.db_ok ? "true" : "false") +
-                "- uptime_ms: `%lld`\n".printf(health.uptime_ms) +
-                "- uptime_seconds: `%lld`\n".printf(uptime_seconds) +
-                "- api_version: `%s`\n".printf(health.api_version) +
-                "- server_version: `%s`\n".printf(health.server_version) +
-                "- pid: `%d`\n\n".printf(health.pid) +
-                "## Content\n" +
-                "- Projects: `%d`\n".printf(project_count) +
-                "- Cards: `%d`\n".printf(total_card_count) +
-                "- AI Threads: `%d`\n\n".printf(total_thread_count) +
-                "## Sync\n" +
-                sync_section.str;
-            set_editor_state(text, false);
-            show_editor_mode();
-            update_window_title("Local info");
-            set_status("Loaded local info");
+            var text = yield local_info_controller.build_local_info_markdown(api);
+            render_local_info_success(text);
         } catch (Error e) {
-            set_editor_state(
-                "# Local info\n\n" +
-                "Could not load `/health`.\n\n" +
-                e.message,
-                false
-            );
-            show_editor_mode();
-            update_window_title("Local info");
-            set_status("Failed to load local info");
-            show_error("Local info failed", e.message);
+            render_local_info_failure(e.message);
         }
     }
 
-    private string format_sync_time(bool has_timestamp, int64 timestamp) {
-        if (!has_timestamp || timestamp <= 0) {
-            return "never";
-        }
-        var now = new DateTime.now_utc().to_unix();
-        return TextUtils.format_relative_time(now, timestamp);
+    private void render_local_info_not_connected() {
+        set_editor_state(local_info_presenter.not_connected_markdown(), false);
+        show_editor_mode();
+    }
+
+    private void render_local_info_success(string markdown) {
+        set_editor_state(markdown, false);
+        show_editor_mode();
+        update_window_title(local_info_presenter.page_title());
+        set_status(local_info_presenter.loaded_status_text());
+    }
+
+    private void render_local_info_failure(string details) {
+        set_editor_state(local_info_presenter.load_error_markdown(details), false);
+        show_editor_mode();
+        update_window_title(local_info_presenter.page_title());
+        set_status(local_info_presenter.failed_status_text());
+        show_error(local_info_presenter.error_title(), details);
     }
 
     private void show_about_dialog() {
