@@ -522,11 +522,6 @@ public class GitSyncToolView : Object {
 
         var username = git_gh_login.strip();
         var repo_name = controller.normalize_repository_name(selected_project.name ?? "");
-        if (repo_name.length == 0) {
-            error_reported("Git sync failed",
-                           "Project name does not produce a valid repository name. Rename project or use manual setup.");
-            return;
-        }
 
         if (git_gh_cli_auto_btn != null) {
             git_gh_cli_auto_btn.set_sensitive(false);
@@ -540,41 +535,19 @@ public class GitSyncToolView : Object {
             );
         }
 
-        var create_result = yield controller.create_private_repo_and_verify(username, repo_name);
-        var create_ok = create_result.created_ok;
-        if (!create_result.exists) {
-            var details = create_result.details.strip();
-            if (details.length == 0) {
-                details = "Repository could not be created.";
-            }
-            if (git_gh_cli_status_label != null) {
-                git_gh_cli_status_label.set_text("GitHub CLI setup failed: %s".printf(details));
-            }
-            error_reported("GitHub CLI setup failed", details);
-            refresh_git_cli_controls();
-            return;
-        }
-
-        var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
-        GitTestRemoteResult? test_result = null;
-        GitPushResult? push_result = null;
-
         try {
-            if (git_gh_cli_status_label != null) {
-                git_gh_cli_status_label.set_text("Saving remote and testing connectivity...");
-            }
-            var apply_result = yield controller.configure_remote_and_sync(
+            var flow_result = yield controller.run_github_cli_auto_sync_flow(
                 api,
-                selected_project.project_id,
-                remote_url,
-                ""
+                selected_project,
+                username
             );
-            test_result = apply_result.test_result;
-            push_result = apply_result.push_result;
-            if (test_result != null && test_result.status == "reachable") {
-                if (git_gh_cli_status_label != null) {
-                    git_gh_cli_status_label.set_text("Remote reachable. Pushing cards...");
-                }
+            if (git_gh_cli_status_label != null) {
+                git_gh_cli_status_label.set_text(flow_result.status_text);
+            }
+            if (flow_result.error_title.strip().length > 0) {
+                error_reported(flow_result.error_title, flow_result.error_details);
+            } else if (flow_result.toast_message.strip().length > 0) {
+                toast_requested(flow_result.toast_message);
             }
         } catch (Error e) {
             if (git_gh_cli_status_label != null) {
@@ -584,36 +557,6 @@ public class GitSyncToolView : Object {
             refresh_git_cli_controls();
             return;
         }
-
-        var status = new StringBuilder();
-        status.append("GitHub CLI: %s repo `%s/%s`. ".printf(
-            create_ok ? "created" : "using existing",
-            username,
-            repo_name
-        ));
-        if (test_result != null) {
-            status.append("Remote test: %s".printf(test_result.status));
-            if (test_result.error_message.strip().length > 0) {
-                status.append(" (%s)".printf(test_result.error_message.strip()));
-            }
-            status.append(". ");
-        }
-        if (push_result != null) {
-            status.append("Push: %s".printf(push_result.status));
-            if (push_result.error_message.strip().length > 0) {
-                status.append(" (%s)".printf(push_result.error_message.strip()));
-            }
-            status.append(".");
-            if (push_result.status == "pushed" || push_result.status == "up_to_date") {
-                toast_requested("GitHub CLI sync setup completed.");
-            }
-        } else {
-            status.append("Push not run.");
-        }
-        if (git_gh_cli_status_label != null) {
-            git_gh_cli_status_label.set_text(status.str);
-        }
-
         refresh_git_cli_controls();
     }
 

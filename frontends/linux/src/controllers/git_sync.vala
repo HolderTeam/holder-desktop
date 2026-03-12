@@ -9,6 +9,25 @@ public class GitSyncApplyFlowResult : Object {
     }
 }
 
+public class GitHubCliAutoSyncFlowResult : Object {
+    public string status_text { get; construct; }
+    public string toast_message { get; construct; }
+    public string error_title { get; construct; }
+    public string error_details { get; construct; }
+
+    public GitHubCliAutoSyncFlowResult(string status_text,
+                                       string toast_message = "",
+                                       string error_title = "",
+                                       string error_details = "") {
+        Object(
+            status_text: status_text,
+            toast_message: toast_message,
+            error_title: error_title,
+            error_details: error_details
+        );
+    }
+}
+
 public class GitSyncController : Object {
     private GitSyncService service;
     private Settings? settings;
@@ -151,6 +170,71 @@ public class GitSyncController : Object {
         }
 
         return new GitSyncApplyFlowResult(lines.str.strip(), toast_message);
+    }
+
+    public async GitHubCliAutoSyncFlowResult run_github_cli_auto_sync_flow(IHolderApi api,
+                                                                            Project selected_project,
+                                                                            string username) throws Error {
+        var repo_name = normalize_repository_name(selected_project.name ?? "");
+        if (repo_name.length == 0) {
+            throw new IOError.FAILED(
+                "Project name does not produce a valid repository name. Rename project or use manual setup."
+            );
+        }
+
+        var create_result = yield create_private_repo_and_verify(username, repo_name);
+        if (!create_result.exists) {
+            var details = create_result.details.strip();
+            if (details.length == 0) {
+                details = "Repository could not be created.";
+            }
+            return new GitHubCliAutoSyncFlowResult(
+                "GitHub CLI setup failed: %s".printf(details),
+                "",
+                "GitHub CLI setup failed",
+                details
+            );
+        }
+
+        var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
+        var apply_result = yield configure_remote_and_sync(
+            api,
+            selected_project.project_id,
+            remote_url,
+            ""
+        );
+        var test_result = apply_result.test_result;
+        var push_result = apply_result.push_result;
+
+        var status = new StringBuilder();
+        status.append("GitHub CLI: %s repo `%s/%s`. ".printf(
+            create_result.created_ok ? "created" : "using existing",
+            username,
+            repo_name
+        ));
+        if (test_result != null) {
+            status.append("Remote test: %s".printf(test_result.status));
+            if (test_result.error_message.strip().length > 0) {
+                status.append(" (%s)".printf(test_result.error_message.strip()));
+            }
+            status.append(". ");
+        }
+
+        var toast_message = "";
+        if (push_result != null) {
+            status.append("Push: %s".printf(push_result.status));
+            if (push_result.error_message.strip().length > 0) {
+                status.append(" (%s)".printf(push_result.error_message.strip()));
+            }
+            status.append(".");
+            if (push_result.status == "pushed" || push_result.status == "up_to_date") {
+                toast_message = "GitHub CLI sync setup completed.";
+            }
+        } else {
+            status.append("Push not run.");
+        }
+
+        return new GitHubCliAutoSyncFlowResult(status.str, toast_message);
     }
 }
 
