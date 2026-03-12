@@ -43,19 +43,19 @@ sources = [
   'src/views/toolbox/trash_tool_view.vala',
   'src/services/ui_adapters.vala',
   'src/views/workspace_pane.vala',
-  'src/controllers/main_controller.vala',
+  'src/controllers/main.vala',
   'src/controllers/projects.vala',
   'src/controllers/cards.vala',
   'src/controllers/search.vala',
   'src/controllers/selection.vala',
   'src/controllers/ai_threads.vala',
-  'src/controllers/ai_run_controller.vala',
-  'src/controllers/git_sync_controller.vala',
-  'src/controllers/resources_controller.vala',
-  'src/controllers/ai_catalog_controller.vala',
-  'src/controllers/connections_controller.vala',
-  'src/controllers/terminal_controller.vala',
-  'src/controllers/flowboard_controller.vala',
+  'src/controllers/ai_run.vala',
+  'src/controllers/git_sync.vala',
+  'src/controllers/resources.vala',
+  'src/controllers/ai_catalog.vala',
+  'src/controllers/connections.vala',
+  'src/controllers/terminal.vala',
+  'src/controllers/flowboard.vala',
   'src/services/discovery.vala',
   'src/services/http_transport.vala',
   'src/services/parsers/common.vala',
@@ -115,7 +115,7 @@ ai_controller_test_exe = executable(
     'tests/support/ai_run_fakes.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
-    'src/controllers/ai_run_controller.vala',
+    'src/controllers/ai_run.vala',
     'tests/ai_run_controller_test.vala',
   ],
   dependencies: [
@@ -140,7 +140,7 @@ main_controller_test_exe = executable(
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/utils/text_utils.vala',
-    'src/controllers/main_controller.vala',
+    'src/controllers/main.vala',
     'src/controllers/projects.vala',
     'src/controllers/cards.vala',
     'src/controllers/search.vala',
@@ -170,7 +170,7 @@ git_sync_controller_test_exe = executable(
     'src/services/core_interfaces.vala',
     'src/services/app_settings.vala',
     'src/services/git_sync_service.vala',
-    'src/controllers/git_sync_controller.vala',
+    'src/controllers/git_sync.vala',
     'tests/git_sync_controller_test.vala',
   ],
   dependencies: [
@@ -196,7 +196,7 @@ resources_controller_test_exe = executable(
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/services/resources_service.vala',
-    'src/controllers/resources_controller.vala',
+    'src/controllers/resources.vala',
     'tests/resources_controller_test.vala',
   ],
   dependencies: [
@@ -241,7 +241,7 @@ connections_controller_test_exe = executable(
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/services/app_settings.vala',
-    'src/controllers/connections_controller.vala',
+    'src/controllers/connections.vala',
     'tests/connections_controller_test.vala',
   ],
   dependencies: [
@@ -261,7 +261,7 @@ test('holder-linux-connections-controller-tests', connections_controller_test_ex
 terminal_controller_test_exe = executable(
   'holder-linux-terminal-controller-tests',
   [
-    'src/controllers/terminal_controller.vala',
+    'src/controllers/terminal.vala',
     'tests/terminal_controller_test.vala',
   ],
   dependencies: [
@@ -306,7 +306,7 @@ ai_catalog_controller_test_exe = executable(
   'holder-linux-ai-catalog-controller-tests',
   [
     'src/models/models.vala',
-    'src/controllers/ai_catalog_controller.vala',
+    'src/controllers/ai_catalog.vala',
     'tests/ai_catalog_controller_test.vala',
   ],
   dependencies: [
@@ -326,7 +326,7 @@ flowboard_controller_test_exe = executable(
   'holder-linux-flowboard-controller-tests',
   [
     'src/models/models.vala',
-    'src/controllers/flowboard_controller.vala',
+    'src/controllers/flowboard.vala',
     'tests/flowboard_controller_test.vala',
   ],
   dependencies: [
