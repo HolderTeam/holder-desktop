@@ -1,31 +1,37 @@
 namespace HolderLinux {
 
 public class MainController : Object, IAiRunContext {
-    private GLib.ListStore project_store;
-    private ISelectionState project_selection;
-    private GLib.ListStore card_store;
-    private ISelectionState card_selection;
-    private GLib.ListStore ai_thread_store;
-    private ISelectionState ai_thread_selection;
-    private GLib.ListStore search_store;
-    private ISelectionState search_selection;
-    private ITextProvider search_text;
-    private ITextProvider editor_text;
+    internal GLib.ListStore project_store;
+    internal ISelectionState project_selection;
+    internal GLib.ListStore card_store;
+    internal ISelectionState card_selection;
+    internal GLib.ListStore ai_thread_store;
+    internal ISelectionState ai_thread_selection;
+    internal GLib.ListStore search_store;
+    internal ISelectionState search_selection;
+    internal ITextProvider search_text;
+    internal ITextProvider editor_text;
 
-    private IHolderApi? api;
-    private IApiFactory api_factory;
-    private IServerDiscovery server_discovery;
-    private IClock clock;
-    private IScheduler scheduler;
-    private Project? current_project;
-    private CardDetail? current_card;
-    private AiThreadSummary? current_ai_thread;
+    internal IHolderApi? api;
+    internal IApiFactory api_factory;
+    internal IServerDiscovery server_discovery;
+    internal IClock clock;
+    internal IScheduler scheduler;
+    internal Project? current_project;
+    internal CardDetail? current_card;
+    internal AiThreadSummary? current_ai_thread;
 
-    private bool suppress_project_selection_events = false;
-    private bool suppress_card_selection_events = false;
-    private bool create_card_in_flight = false;
-    private uint autosave_id = 0;
-    private uint search_debounce_id = 0;
+    internal bool suppress_project_selection_events = false;
+    internal bool suppress_card_selection_events = false;
+    internal bool create_card_in_flight = false;
+    internal uint autosave_id = 0;
+    internal uint search_debounce_id = 0;
+
+    private ProjectsController projects_controller;
+    private CardsController cards_controller;
+    private SearchController search_controller;
+    private SelectionController selection_controller;
+    private AiThreadsController ai_threads_controller;
 
     public signal void status_changed(string text);
     public signal void editor_state_changed(string text, bool editable);
@@ -69,6 +75,11 @@ public class MainController : Object, IAiRunContext {
         this.clock = clock ?? new SystemClock();
         this.scheduler = scheduler ?? new MainLoopScheduler();
         this.api = initial_api;
+        this.projects_controller = new ProjectsController(this);
+        this.cards_controller = new CardsController(this);
+        this.search_controller = new SearchController(this);
+        this.selection_controller = new SelectionController(this);
+        this.ai_threads_controller = new AiThreadsController(this);
     }
 
     public bool should_ignore_project_selection_events() {
@@ -116,21 +127,11 @@ public class MainController : Object, IAiRunContext {
     }
 
     public bool select_ai_thread_by_id(string thread_id) {
-        for (uint i = 0; i < ai_thread_store.get_n_items(); i++) {
-            var thread = ai_thread_store.get_item(i) as AiThreadSummary;
-            if (thread != null && thread.thread_id == thread_id) {
-                ai_thread_selection.set_selected_index(i);
-                return true;
-            }
-        }
-        return false;
+        return ai_threads_controller.select_ai_thread_by_id(thread_id);
     }
 
     public async string create_ai_thread(string title) throws Error {
-        if (api == null || current_project == null) {
-            throw new IOError.FAILED("No project/API context.");
-        }
-        return yield api.create_ai_thread(current_project.project_id, title);
+        return yield ai_threads_controller.create_ai_thread(title);
     }
 
     public async void bootstrap() {
@@ -183,7 +184,7 @@ public class MainController : Object, IAiRunContext {
     }
 
     public void on_project_selected() {
-        reload_cards_for_selected_project.begin();
+        selection_controller.on_project_selected();
     }
 
     public async void show_project_overview() {
@@ -217,282 +218,74 @@ public class MainController : Object, IAiRunContext {
     }
 
     public void on_card_selected() {
-        load_selected_card.begin();
+        selection_controller.on_card_selected();
     }
 
     public void on_ai_thread_selected() {
-        var selected = ai_thread_selection.get_selected_item() as AiThreadSummary;
-        current_ai_thread = selected;
-        if (selected == null) {
-            ai_thread_title_changed(null);
-            return;
-        }
-        ai_thread_title_changed(selected.title);
+        ai_threads_controller.on_ai_thread_selected();
     }
 
     public async void create_card(string? parent_card_id = null) {
-        yield create_card_with_content(
-            "Untitled",
-            "# Untitled\n\n",
-            parent_card_id,
-            "New card created"
-        );
+        yield cards_controller.create_card(parent_card_id);
     }
 
     public async void create_card_with_title(string title, string? parent_card_id = null) {
-        var clean_title = title.strip();
-        if (clean_title.length == 0) {
-            error_reported("Card title required", "Please enter a non-empty title.");
-            return;
-        }
-        yield create_card_with_content(
-            clean_title,
-            "# %s\n\n".printf(clean_title),
-            parent_card_id,
-            "Created card: %s".printf(clean_title)
-        );
-    }
-
-    private async void create_card_with_content(string title,
-                                                string content,
-                                                string? parent_card_id,
-                                                string success_toast) {
-        if (create_card_in_flight) {
-            status_changed("Create card already in progress...");
-            return;
-        }
-        if (api == null) {
-            error_reported("Create card unavailable", "API client is not connected.");
-            return;
-        }
-
-        if (current_project == null) {
-            var selected = project_selection.get_selected_item() as Project;
-            if (selected != null) {
-                current_project = selected;
-            }
-        }
-        if (current_project == null) {
-            error_reported("No project selected", "Select or create a project first.");
-            return;
-        }
-
-        create_card_in_flight = true;
-        status_changed("Creating new card...");
-        try {
-            var new_id = yield api.create_card(
-                current_project.project_id,
-                title,
-                content,
-                parent_card_id
-            );
-            var cards = yield api.list_cards(current_project.project_id, "recent");
-            replace_cards(cards);
-
-            for (uint i = 0; i < card_store.get_n_items(); i++) {
-                var item = card_store.get_item(i) as CardSummary;
-                if (item != null && item.card_id == new_id) {
-                    card_selection.set_selected_index(i);
-                    break;
-                }
-            }
-
-            toast_requested(success_toast);
-            status_changed("Created new card");
-        } catch (Error e) {
-            error_reported("Failed to create card", e.message);
-        } finally {
-            create_card_in_flight = false;
-        }
+        yield cards_controller.create_card_with_title(title, parent_card_id);
     }
 
     public async void run_search() {
-        if (api == null) {
-            return;
-        }
-        if (current_project == null) {
-            error_reported("Search unavailable", "No project selected.");
-            return;
-        }
-
-        var query_text = search_text.get_text().strip();
-        if (query_text.length == 0) {
-            clear_search_results();
-            show_editor_requested();
-            return;
-        }
-
-        status_changed("Searching for \"%s\"...".printf(query_text));
-        try {
-            var results = yield api.search_cards(current_project.project_id, query_text);
-            replace_search_results(results);
-            search_summary_changed("%d result(s) for \"%s\"".printf(results.size, query_text));
-            show_search_requested();
-            status_changed("Search complete");
-        } catch (Error e) {
-            error_reported("Search failed", e.message);
-        }
+        yield search_controller.run_search();
     }
 
     public void schedule_search() {
-        if (search_debounce_id != 0) {
-            scheduler.cancel(search_debounce_id);
-        }
-        search_debounce_id = scheduler.schedule_once(300, () => {
-            search_debounce_id = 0;
-            run_search.begin();
-            return Source.REMOVE;
-        });
+        search_controller.schedule_search();
     }
 
     public void cancel_pending_search() {
-        if (search_debounce_id == 0) {
-            return;
-        }
-        scheduler.cancel(search_debounce_id);
-        search_debounce_id = 0;
+        search_controller.cancel_pending_search();
     }
 
     public void clear_search_results() {
-        search_store.remove_all();
-        search_summary_changed("Search results will appear here.");
+        search_controller.clear_search_results();
     }
 
     public async void open_search_result_at(uint position) {
-        var item = search_store.get_item(position) as SearchCardResult;
-        if (item == null) {
-            return;
-        }
-
-        if (!select_card_by_id(item.card_id)) {
-            yield reload_cards_for_selected_project(item.card_id);
-        } else {
-            load_selected_card.begin();
-        }
+        yield search_controller.open_search_result_at(position);
     }
 
     public void schedule_autosave() {
-        if (autosave_id != 0) {
-            scheduler.cancel(autosave_id);
-        }
-
-        autosave_id = scheduler.schedule_once(900, () => {
-            autosave_id = 0;
-            autosave_current_card.begin();
-            return Source.REMOVE;
-        });
+        cards_controller.schedule_autosave();
     }
 
     public async void autosave_current_card() {
-        if (api == null || current_card == null) {
-            return;
-        }
-
-        var text = editor_text.get_text();
-        var title = TextUtils.title_from_content(text);
-        var updated_at = now_epoch_seconds();
-
-        try {
-            yield api.update_card(current_card.card_id, title, text, updated_at);
-            current_card.title = title;
-            current_card.content = text;
-            current_card.updated_at = updated_at;
-            update_selected_card_summary(title, updated_at);
-            window_title_changed(title);
-            status_changed("Saved %s".printf(TextUtils.format_relative_time(now_epoch_seconds(), updated_at)));
-        } catch (Error e) {
-            error_reported("Autosave failed", e.message);
-        }
+        yield cards_controller.autosave_current_card();
     }
 
     public async void move_card_by_intent(string card_id,
                                           string intent,
                                           string? target_card_id = null,
                                           string? parent_card_id = null) {
-        if (api == null) {
-            return;
-        }
-        var selected = project_selection.get_selected_item() as Project;
-        if (selected == null) {
-            error_reported("Move card failed", "Select a project first.");
-            return;
-        }
-
-        try {
-            var moved = yield api.move_card(
-                card_id,
-                selected.project_id,
-                intent,
-                target_card_id,
-                parent_card_id
-            );
-            if (intent == "into" && moved.moved_into_title.length > 0) {
-                toast_requested("Moved card into %s".printf(moved.moved_into_title));
-            }
-            status_changed("Moved card");
-            yield reload_cards_for_selected_project(card_id);
-        } catch (Error e) {
-            error_reported("Move card failed", e.message);
-            reload_cards_for_selected_project.begin(card_id);
-        }
+        yield cards_controller.move_card_by_intent(card_id, intent, target_card_id, parent_card_id);
     }
 
     public async void create_project_named(string name, string privacy_mode = "encrypted_git") {
-        if (api == null) {
-            return;
-        }
-
-        status_changed("Creating project...");
-        try {
-            var project_id = yield api.create_project(name, privacy_mode);
-            toast_requested("Created project: %s".printf(name));
-            status_changed("Project created");
-            yield reload_everything_with_selection(project_id, null);
-        } catch (Error e) {
-            error_reported("Failed to create project", e.message);
-        }
+        yield projects_controller.create_project_named(name, privacy_mode);
     }
 
     public async void reload_ai_threads_for_project(string project_id) {
-        if (api == null) {
-            return;
-        }
-        try {
-            var threads = yield api.list_ai_threads(project_id);
-            replace_ai_threads(threads);
-            if (ai_thread_store.get_n_items() > 0) {
-                ai_thread_selection.set_selected_index(0);
-            } else {
-                current_ai_thread = null;
-                ai_thread_title_changed(null);
-            }
-        } catch (Error e) {
-            error_reported("Failed to load AI threads", e.message);
-        }
+        yield ai_threads_controller.reload_ai_threads_for_project(project_id);
     }
 
-    private async void ensure_first_project() {
-        if (api == null) {
-            return;
-        }
-
-        try {
-            var projects = yield api.list_projects();
-            if (projects.size == 0) {
-                var project_id = yield api.create_project("My Project");
-                toast_requested("Created first project (%s)".printf(project_id));
-            }
-        } catch (Error e) {
-            error_reported("Project bootstrap failed", e.message);
-        }
+    internal async void ensure_first_project() {
+        yield projects_controller.ensure_first_project();
     }
 
     public async void ensure_first_project_for_tests() {
         yield ensure_first_project();
     }
 
-    private async void reload_everything_with_selection(string? preferred_project_id,
-                                                        string? preferred_card_id) {
+    internal async void reload_everything_with_selection(string? preferred_project_id,
+                                                         string? preferred_card_id) {
         if (api == null) {
             return;
         }
@@ -524,7 +317,7 @@ public class MainController : Object, IAiRunContext {
         }
     }
 
-    private async void reload_cards_for_selected_project(string? preferred_card_id = null) {
+    internal async void reload_cards_for_selected_project(string? preferred_card_id = null) {
         if (api == null) {
             return;
         }
@@ -596,7 +389,7 @@ public class MainController : Object, IAiRunContext {
         return dt.format("%Y-%m-%d %H:%M");
     }
 
-    private async void load_selected_card() {
+    internal async void load_selected_card() {
         if (api == null) {
             return;
         }
@@ -633,14 +426,14 @@ public class MainController : Object, IAiRunContext {
         }
     }
 
-    private void replace_projects(Gee.ArrayList<Project> projects) {
+    internal void replace_projects(Gee.ArrayList<Project> projects) {
         project_store.remove_all();
         foreach (var project in projects) {
             project_store.append(project);
         }
     }
 
-    private void replace_cards(Gee.ArrayList<CardSummary> cards) {
+    internal void replace_cards(Gee.ArrayList<CardSummary> cards) {
         cards.sort((a, b) => compare_cards_for_sidebar(a, b));
         card_store.remove_all();
         foreach (var card in cards) {
@@ -648,14 +441,14 @@ public class MainController : Object, IAiRunContext {
         }
     }
 
-    private void replace_ai_threads(Gee.ArrayList<AiThreadSummary> threads) {
+    internal void replace_ai_threads(Gee.ArrayList<AiThreadSummary> threads) {
         ai_thread_store.remove_all();
         foreach (var thread in threads) {
             ai_thread_store.append(thread);
         }
     }
 
-    private void clear_cards() {
+    internal void clear_cards() {
         card_store.remove_all();
         current_card = null;
         ai_thread_store.remove_all();
@@ -663,7 +456,7 @@ public class MainController : Object, IAiRunContext {
         ai_thread_title_changed(null);
     }
 
-    private void replace_search_results(Gee.ArrayList<SearchCardResult> results) {
+    internal void replace_search_results(Gee.ArrayList<SearchCardResult> results) {
         search_store.remove_all();
         foreach (var result in results) {
             search_store.append(result);
@@ -673,7 +466,7 @@ public class MainController : Object, IAiRunContext {
         }
     }
 
-    private bool select_project_by_id(string project_id) {
+    internal bool select_project_by_id(string project_id) {
         for (uint i = 0; i < project_store.get_n_items(); i++) {
             var project = project_store.get_item(i) as Project;
             if (project != null && project.project_id == project_id) {
@@ -686,7 +479,7 @@ public class MainController : Object, IAiRunContext {
         return false;
     }
 
-    private bool select_card_by_id(string card_id) {
+    internal bool select_card_by_id(string card_id) {
         for (uint i = 0; i < card_store.get_n_items(); i++) {
             var card = card_store.get_item(i) as CardSummary;
             if (card != null && card.card_id == card_id) {
@@ -699,7 +492,7 @@ public class MainController : Object, IAiRunContext {
         return false;
     }
 
-    private void update_selected_card_summary(string title, int64 updated_at) {
+    internal void update_selected_card_summary(string title, int64 updated_at) {
         if (current_card == null) {
             return;
         }
