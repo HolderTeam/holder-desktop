@@ -1,53 +1,5 @@
 namespace HolderLinux {
 
-public errordomain ApiError {
-    TRANSPORT,
-    HTTP,
-    PROTOCOL,
-    PARSE
-}
-
-public interface IApiHttpTransport : Object {
-    public abstract async ApiHttpBytesResponse send_and_read(Soup.Message message) throws Error;
-    public abstract async ApiHttpStreamResponse send(Soup.Message message) throws Error;
-}
-
-public class ApiHttpBytesResponse : Object {
-    public uint status { get; construct; }
-    public Bytes body { get; construct; }
-
-    public ApiHttpBytesResponse(uint status, Bytes body) {
-        Object(status: status, body: body);
-    }
-}
-
-public class ApiHttpStreamResponse : Object {
-    public uint status { get; construct; }
-    public InputStream stream { get; construct; }
-
-    public ApiHttpStreamResponse(uint status, InputStream stream) {
-        Object(status: status, stream: stream);
-    }
-}
-
-public class SoupApiHttpTransport : Object, IApiHttpTransport {
-    private Soup.Session session;
-
-    public SoupApiHttpTransport(Soup.Session? session = null) {
-        this.session = session ?? new Soup.Session();
-    }
-
-    public async ApiHttpBytesResponse send_and_read(Soup.Message message) throws Error {
-        var body = yield session.send_and_read_async(message, Priority.DEFAULT, null);
-        return new ApiHttpBytesResponse(message.get_status(), body);
-    }
-
-    public async ApiHttpStreamResponse send(Soup.Message message) throws Error {
-        var stream = yield session.send_async(message, Priority.DEFAULT, null);
-        return new ApiHttpStreamResponse(message.get_status(), stream);
-    }
-}
-
 public class ApiClient : Object, IHolderApi {
     private IApiHttpTransport transport;
     private string base_url;
@@ -68,14 +20,14 @@ public class ApiClient : Object, IHolderApi {
 
     public async HealthInfo get_health_info() throws Error {
         var root = yield request_json("GET", "/health", null, null);
-        return parse_health_info(root);
+        return ApiParsersHealth.parse_health_info(root);
     }
 
     public async Gee.ArrayList<Project> list_projects() throws Error {
         var query = new HashTable<string, string>(str_hash, str_equal);
         query.insert("count", "true");
         var root = yield request_json("GET", "/projects", null, query);
-        return parse_projects(root);
+        return ApiParsersProjects.parse_projects(root);
     }
 
     public async string create_project(string name,
@@ -114,9 +66,9 @@ public class ApiClient : Object, IHolderApi {
         }
         var data = root.get_object_member("data");
         return new ProjectRecoveryTokenExport(
-            string_member_or_empty(data, "project_id"),
-            string_member_or_empty(data, "key_id"),
-            string_member_or_empty(data, "recovery_token")
+            ApiParsersCommon.string_member_or_empty(data, "project_id"),
+            ApiParsersCommon.string_member_or_empty(data, "key_id"),
+            ApiParsersCommon.string_member_or_empty(data, "recovery_token")
         );
     }
 
@@ -180,12 +132,12 @@ public class ApiClient : Object, IHolderApi {
             }
         }
         return new RecoveryTokenImportResult(
-            string_member_or_empty(data, "project_id"),
+            ApiParsersCommon.string_member_or_empty(data, "project_id"),
             data.has_member("project_created") ? data.get_boolean_member("project_created") : false,
             data.has_member("remote_hint_present") ? data.get_boolean_member("remote_hint_present") : false,
             data.has_member("remote_configured") ? data.get_boolean_member("remote_configured") : false,
             remote_error,
-            string_member_or_empty(data, "pull_status"),
+            ApiParsersCommon.string_member_or_empty(data, "pull_status"),
             pull_error
         );
     }
@@ -204,7 +156,7 @@ public class ApiClient : Object, IHolderApi {
             query.insert("limit", limit.to_string());
         }
         var root = yield request_json("GET", "/cards", null, query);
-        return parse_cards(root);
+        return ApiParsersCards.parse_cards(root);
     }
 
     public async CardContextData get_card_context(string project_id,
@@ -216,12 +168,12 @@ public class ApiClient : Object, IHolderApi {
             query.insert("parent_card_id", parent_card_id);
         }
         var root = yield request_json("GET", "/cards/context", null, query);
-        return parse_card_context(root);
+        return ApiParsersCards.parse_card_context(root);
     }
 
     public async CardDetail get_card(string card_id) throws Error {
         var root = yield request_json("GET", "/cards/%s".printf(Uri.escape_string(card_id)), null, null);
-        return parse_card_detail(root);
+        return ApiParsersCards.parse_card_detail(root);
     }
 
     public async Gee.ArrayList<CardLink> list_card_links(string card_id) throws Error {
@@ -231,7 +183,7 @@ public class ApiClient : Object, IHolderApi {
             null,
             null
         );
-        return parse_card_links(root);
+        return ApiParsersCards.parse_card_links(root);
     }
 
     public async Gee.ArrayList<CardLink> list_card_backlinks(string card_id) throws Error {
@@ -241,14 +193,14 @@ public class ApiClient : Object, IHolderApi {
             null,
             null
         );
-        return parse_card_links(root);
+        return ApiParsersCards.parse_card_links(root);
     }
 
     public async Gee.ArrayList<ProjectResource> list_resources(string project_id) throws Error {
         var query = new HashTable<string, string>(str_hash, str_equal);
         query.insert("project_id", project_id);
         var root = yield request_json("GET", "/resources", null, query);
-        return parse_resources(root);
+        return ApiParsersResources.parse_resources(root);
     }
 
     public async Gee.ArrayList<TrashItem> list_trash_items(string project_id,
@@ -259,7 +211,7 @@ public class ApiClient : Object, IHolderApi {
             query.insert("type", type.strip());
         }
         var root = yield request_json("GET", "/trash", null, query);
-        return parse_trash_items(root);
+        return ApiParsersTrash.parse_trash_items(root);
     }
 
     public async void empty_trash(string project_id, string type = "all") throws Error {
@@ -330,7 +282,7 @@ public class ApiClient : Object, IHolderApi {
             throw new ApiError.PROTOCOL("Missing data for resource create response");
         }
         var data = root.get_object_member("data");
-        return string_member_or_empty(data, "resource_id");
+        return ApiParsersCommon.string_member_or_empty(data, "resource_id");
     }
 
     public async void update_resource(string resource_id,
@@ -412,7 +364,7 @@ public class ApiClient : Object, IHolderApi {
         if (!root.has_member("data")) {
             throw new ApiError.PROTOCOL("Missing data for card link create response");
         }
-        return parse_card_link(root.get_object_member("data"));
+        return ApiParsersCards.parse_card_link(root.get_object_member("data"));
     }
 
     public async void delete_card_link(string from_card_id,
@@ -449,7 +401,7 @@ public class ApiClient : Object, IHolderApi {
         query.insert("q", query_text);
         query.insert("limit", limit.to_string());
         var root = yield request_json("GET", "/search/cards", null, query);
-        return parse_search_cards(root);
+        return ApiParsersSearch.parse_search_cards(root);
     }
 
     public async AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error {
@@ -459,12 +411,12 @@ public class ApiClient : Object, IHolderApi {
             query.insert("project_id", project_id);
         }
         var root = yield request_json("GET", "/ai/capabilities", null, query);
-        return parse_ai_capabilities(root);
+        return ApiParsersAi.parse_ai_capabilities(root);
     }
 
     public async AiStatusInfo get_ai_status() throws Error {
         var root = yield request_json("GET", "/ai/status", null, null);
-        return parse_ai_status(root);
+        return ApiParsersAi.parse_ai_status(root);
     }
 
     public async string start_ai_runner_pull(string model_tag) throws Error {
@@ -486,7 +438,7 @@ public class ApiClient : Object, IHolderApi {
         var query = new HashTable<string, string>(str_hash, str_equal);
         query.insert("project_id", project_id);
         var root = yield request_json("GET", "/ai/threads", null, query);
-        return parse_ai_threads(root);
+        return ApiParsersAi.parse_ai_threads(root);
     }
 
     public async string create_ai_thread(string project_id, string title) throws Error {
@@ -502,17 +454,17 @@ public class ApiClient : Object, IHolderApi {
             throw new ApiError.PROTOCOL("Missing data for ai thread create response");
         }
         var data = root.get_object_member("data");
-        return string_member_or_empty(data, "thread_id");
+        return ApiParsersCommon.string_member_or_empty(data, "thread_id");
     }
 
     public async Gee.ArrayList<AiCatalogProvider> list_ai_provider_catalog() throws Error {
         var root = yield request_json_unwrapped("GET", "/ai_catalog.json", null, null);
-        return parse_ai_provider_catalog(root);
+        return ApiParsersAi.parse_ai_provider_catalog(root);
     }
 
     public async Gee.ArrayList<GitProviderCatalogEntry> list_git_provider_catalog() throws Error {
         var root = yield request_json_unwrapped("GET", "/git_providers.json", null, null);
-        return parse_git_provider_catalog(root);
+        return ApiParsersGit.parse_git_provider_catalog(root);
     }
 
     public async void set_project_git_remote(string project_id,
@@ -566,7 +518,7 @@ public class ApiClient : Object, IHolderApi {
         if (!root.has_member("data")) {
             throw new ApiError.PROTOCOL("Missing data for git test-remote response");
         }
-        return parse_git_test_remote_result(root.get_object_member("data"));
+        return ApiParsersGit.parse_git_test_remote_result(root.get_object_member("data"));
     }
 
     public async GitPushResult push_project_git(string project_id,
@@ -591,7 +543,7 @@ public class ApiClient : Object, IHolderApi {
         if (!root.has_member("data")) {
             throw new ApiError.PROTOCOL("Missing data for git push response");
         }
-        return parse_git_push_result(root.get_object_member("data"));
+        return ApiParsersGit.parse_git_push_result(root.get_object_member("data"));
     }
 
     public async void run_ai_stream(string prompt,
@@ -799,7 +751,7 @@ public class ApiClient : Object, IHolderApi {
         if (!root.has_member("data")) {
             throw new ApiError.PROTOCOL("Missing data for move response");
         }
-        return parse_card_move_result(root.get_object_member("data"));
+        return ApiParsersCards.parse_card_move_result(root.get_object_member("data"));
     }
 
     private async Json.Object request_json(string method,
@@ -829,7 +781,7 @@ public class ApiClient : Object, IHolderApi {
 
         Json.Object root;
         try {
-            root = parse_response_object(response_text);
+            root = ApiParsersCommon.parse_response_object(response_text);
         } catch (Error e) {
             if (status >= 200 && status < 300) {
                 throw e;
@@ -854,24 +806,6 @@ public class ApiClient : Object, IHolderApi {
         }
 
         return root;
-    }
-
-    private CardMoveResult parse_card_move_result(Json.Object data) throws Error {
-        if (!data.has_member("card_id")
-            || !data.has_member("sort_key")
-            || !data.has_member("revision")) {
-            throw new ApiError.PROTOCOL("Missing fields for card move result");
-        }
-
-        var parent = nullable_string_member_or_null(data, "parent_card_id");
-        var moved_into_title = string_member_or_empty(data, "moved_into_title");
-        return new CardMoveResult(
-            data.get_string_member("card_id"),
-            parent,
-            data.get_double_member("sort_key"),
-            data.get_int_member("revision"),
-            moved_into_title
-        );
     }
 
     private async Json.Object request_json_unwrapped(string method,
@@ -901,7 +835,7 @@ public class ApiClient : Object, IHolderApi {
 
         Json.Object root;
         try {
-            root = parse_response_object(response_text);
+            root = ApiParsersCommon.parse_response_object(response_text);
         } catch (Error e) {
             if (status >= 200 && status < 300) {
                 throw e;
@@ -948,567 +882,10 @@ public class ApiClient : Object, IHolderApi {
         return sb.str;
     }
 
-    private Json.Object parse_response_object(string payload) throws Error {
-        var parser = new Json.Parser();
-        try {
-            parser.load_from_data(payload, -1);
-        } catch (Error e) {
-            throw new ApiError.PARSE("Invalid JSON response: %s".printf(e.message));
-        }
-
-        var root = parser.get_root();
-        if (root == null || root.get_node_type() != Json.NodeType.OBJECT) {
-            throw new ApiError.PARSE("Response JSON root is not an object");
-        }
-
-        return root.get_object();
-    }
-
     private string json_string_from_builder(Json.Builder builder) {
         var generator = new Json.Generator();
         generator.set_root(builder.get_root());
         return generator.to_data(null);
-    }
-
-    private Gee.ArrayList<Project> parse_projects(Json.Object root) throws Error {
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for projects response");
-        }
-
-        var out_list = new Gee.ArrayList<Project>();
-        var data = root.get_array_member("data");
-        for (uint i = 0; i < data.get_length(); i++) {
-            var item = data.get_object_element(i);
-            ProjectSyncState sync = new ProjectSyncState();
-            if (item.has_member("sync")) {
-                var sync_node = item.get_member("sync");
-                if (sync_node != null && sync_node.get_node_type() == Json.NodeType.OBJECT) {
-                    sync = parse_project_sync_state(item.get_object_member("sync"));
-                }
-            }
-            out_list.add(new Project(
-                item.get_string_member("project_id"),
-                item.get_string_member("name"),
-                item.has_member("privacy_mode") ? item.get_string_member("privacy_mode") : "encrypted_git",
-                item.has_member("root_path") ? item.get_string_member("root_path") : "",
-                item.has_member("created_at") ? item.get_int_member("created_at") : 0,
-                item.has_member("updated_at") ? item.get_int_member("updated_at") : 0,
-                nullable_string_member_or_null(item, "git_remote_url"),
-                sync,
-                item.has_member("card_count") ? (int) item.get_int_member("card_count") : 0,
-                item.has_member("root_card_count") ? (int) item.get_int_member("root_card_count") : 0
-            ));
-        }
-        return out_list;
-    }
-
-    private HealthInfo parse_health_info(Json.Object root) throws Error {
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for health response");
-        }
-        var data = root.get_object_member("data");
-        return new HealthInfo(
-            data.has_member("db_ok") ? data.get_boolean_member("db_ok") : false,
-            data.has_member("uptime_ms") ? data.get_int_member("uptime_ms") : 0,
-            string_member_or_empty(data, "api_version"),
-            string_member_or_empty(data, "server_version"),
-            data.has_member("pid") ? (int) data.get_int_member("pid") : 0
-        );
-    }
-
-    private Gee.ArrayList<CardSummary> parse_cards(Json.Object root) throws Error {
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for cards response");
-        }
-
-        var out_list = new Gee.ArrayList<CardSummary>();
-        var data = root.get_array_member("data");
-        for (uint i = 0; i < data.get_length(); i++) {
-            var item = data.get_object_element(i);
-            out_list.add(new CardSummary(
-                item.get_string_member("card_id"),
-                item.get_string_member("project_id"),
-                item.get_string_member("title"),
-                item.has_member("rel_path") ? item.get_string_member("rel_path") : "",
-                item.has_member("sort_key") ? item.get_double_member("sort_key") : 0.0,
-                item.has_member("parent_card_id") && item.get_member("parent_card_id").get_node_type() != Json.NodeType.NULL
-                    ? item.get_string_member("parent_card_id")
-                    : null,
-                item.has_member("created_at") ? item.get_int_member("created_at") : 0,
-                item.has_member("updated_at") ? item.get_int_member("updated_at") : 0
-            ));
-        }
-        return out_list;
-    }
-
-    private CardDetail parse_card_detail(Json.Object root) throws Error {
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for card response");
-        }
-
-        var data = root.get_object_member("data");
-        return new CardDetail(
-            data.get_string_member("card_id"),
-            data.get_string_member("project_id"),
-            data.get_string_member("title"),
-            data.get_string_member("content"),
-            data.has_member("updated_at") ? data.get_int_member("updated_at") : 0
-        );
-    }
-
-    private CardContextData parse_card_context(Json.Object root) throws Error {
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for cards context response");
-        }
-
-        var data = root.get_object_member("data");
-        if (!data.has_member("project")) {
-            throw new ApiError.PROTOCOL("Missing project for cards context response");
-        }
-        var project_obj = data.get_object_member("project");
-        var project = new CardContextProject(
-            string_member_or_empty(project_obj, "project_id"),
-            string_member_or_empty(project_obj, "name")
-        );
-
-        var breadcrumbs = new Gee.ArrayList<CardContextBreadcrumb>();
-        if (data.has_member("breadcrumbs")) {
-            var crumbs = data.get_array_member("breadcrumbs");
-            for (uint i = 0; i < crumbs.get_length(); i++) {
-                var crumb = crumbs.get_object_element(i);
-                breadcrumbs.add(new CardContextBreadcrumb(
-                    string_member_or_empty(crumb, "type"),
-                    string_member_or_empty(crumb, "title"),
-                    nullable_string_member_or_null(crumb, "project_id"),
-                    nullable_string_member_or_null(crumb, "card_id")
-                ));
-            }
-        }
-
-        var cards = new Gee.ArrayList<CardContextCard>();
-        if (data.has_member("cards")) {
-            var items = data.get_array_member("cards");
-            for (uint i = 0; i < items.get_length(); i++) {
-                var item = items.get_object_element(i);
-                cards.add(new CardContextCard(
-                    string_member_or_empty(item, "card_id"),
-                    string_member_or_empty(item, "project_id"),
-                    string_member_or_empty(item, "title"),
-                    string_member_or_empty(item, "rel_path"),
-                    item.has_member("sort_key") ? item.get_double_member("sort_key") : 0.0,
-                    nullable_string_member_or_null(item, "parent_card_id"),
-                    item.has_member("created_at") ? item.get_int_member("created_at") : 0,
-                    item.has_member("updated_at") ? item.get_int_member("updated_at") : 0,
-                    item.has_member("child_count") ? (int) item.get_int_member("child_count") : 0
-                ));
-            }
-        }
-
-        return new CardContextData(
-            project,
-            nullable_string_member_or_null(data, "current_parent_card_id"),
-            breadcrumbs,
-            cards
-        );
-    }
-
-    private Gee.ArrayList<CardLink> parse_card_links(Json.Object root) throws Error {
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for card links response");
-        }
-
-        var out_list = new Gee.ArrayList<CardLink>();
-        var data = root.get_array_member("data");
-        for (uint i = 0; i < data.get_length(); i++) {
-            out_list.add(parse_card_link(data.get_object_element(i)));
-        }
-        return out_list;
-    }
-
-    private Gee.ArrayList<ProjectResource> parse_resources(Json.Object root) throws Error {
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for resources response");
-        }
-
-        var out_list = new Gee.ArrayList<ProjectResource>();
-        var data = root.get_array_member("data");
-        for (uint i = 0; i < data.get_length(); i++) {
-            var item = data.get_object_element(i);
-            string? desc = null;
-            if (item.has_member("desc")) {
-                var desc_node = item.get_member("desc");
-                if (desc_node != null && desc_node.get_node_type() != Json.NodeType.NULL) {
-                    desc = item.get_string_member("desc");
-                }
-            }
-            out_list.add(new ProjectResource(
-                string_member_or_empty(item, "resource_id"),
-                string_member_or_empty(item, "project_id"),
-                string_member_or_empty(item, "kind"),
-                string_member_or_empty(item, "uri"),
-                string_member_or_empty(item, "label"),
-                desc,
-                item.has_member("created_at") ? item.get_int_member("created_at") : 0,
-                item.has_member("updated_at") ? item.get_int_member("updated_at") : 0
-            ));
-        }
-        return out_list;
-    }
-
-    private Gee.ArrayList<TrashItem> parse_trash_items(Json.Object root) throws Error {
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for trash response");
-        }
-
-        var out_list = new Gee.ArrayList<TrashItem>();
-        var data = root.get_array_member("data");
-        for (uint i = 0; i < data.get_length(); i++) {
-            var item = data.get_object_element(i);
-            var item_type = string_member_or_empty(item, "type");
-            var deleted_at = item.has_member("deleted_at") ? item.get_int_member("deleted_at") : 0;
-
-            if (item_type == "card") {
-                out_list.add(new TrashItem(
-                    "card",
-                    string_member_or_empty(item, "card_id"),
-                    string_member_or_empty(item, "title"),
-                    deleted_at
-                ));
-                continue;
-            }
-
-            if (item_type == "ai_message") {
-                var message_id = string_member_or_empty(item, "message_id");
-                var role = string_member_or_empty(item, "role");
-                var title = role.length > 0
-                    ? "%s %s".printf(role, short_id(message_id))
-                    : "ai_message %s".printf(short_id(message_id));
-                out_list.add(new TrashItem(
-                    "ai_message",
-                    message_id,
-                    title,
-                    deleted_at
-                ));
-                continue;
-            }
-        }
-        return out_list;
-    }
-
-    private CardLink parse_card_link(Json.Object item) {
-        return new CardLink(
-            item.get_string_member("from_card_id"),
-            item.get_string_member("to_card_id"),
-            item.has_member("to_type") ? string_member_or_empty(item, "to_type") : "card",
-            item.has_member("kind") ? string_member_or_empty(item, "kind") : "ref",
-            item.has_member("label") ? string_member_or_empty(item, "label") : null,
-            item.has_member("created_at") ? item.get_int_member("created_at") : 0
-        );
-    }
-
-    private Gee.ArrayList<SearchCardResult> parse_search_cards(Json.Object root) throws Error {
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for search cards response");
-        }
-
-        var out_list = new Gee.ArrayList<SearchCardResult>();
-        var data = root.get_array_member("data");
-        for (uint i = 0; i < data.get_length(); i++) {
-            var item = data.get_object_element(i);
-            out_list.add(new SearchCardResult(
-                item.get_string_member("card_id"),
-                item.get_string_member("title"),
-                item.has_member("updated_at") ? item.get_int_member("updated_at") : 0,
-                item.has_member("created_at") ? item.get_int_member("created_at") : 0,
-                item.has_member("snippet") ? item.get_string_member("snippet") : "",
-                item.has_member("rank") ? item.get_double_member("rank") : 0.0
-            ));
-        }
-        return out_list;
-    }
-
-    private GitTestRemoteResult parse_git_test_remote_result(Json.Object data) {
-        return new GitTestRemoteResult(
-            string_member_or_empty(data, "project_id"),
-            string_member_or_empty(data, "remote_url"),
-            string_member_or_empty(data, "branch"),
-            string_member_or_empty(data, "status"),
-            data.has_member("remote_has_head") ? data.get_boolean_member("remote_has_head") : false,
-            string_member_or_empty(data, "error_code"),
-            string_member_or_empty(data, "error_message")
-        );
-    }
-
-    private GitPushResult parse_git_push_result(Json.Object data) {
-        return new GitPushResult(
-            string_member_or_empty(data, "project_id"),
-            string_member_or_empty(data, "remote_url"),
-            string_member_or_empty(data, "branch"),
-            string_member_or_empty(data, "status"),
-            data.has_member("ahead_count") ? (int) data.get_int_member("ahead_count") : 0,
-            data.has_member("behind_count") ? (int) data.get_int_member("behind_count") : 0,
-            string_member_or_empty(data, "error_code"),
-            string_member_or_empty(data, "error_message"),
-            string_member_or_empty(data, "next_action")
-        );
-    }
-
-    private AiCapabilitiesInfo parse_ai_capabilities(Json.Object root) throws Error {
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for ai capabilities response");
-        }
-
-        var data = root.get_object_member("data");
-        var models = new Gee.ArrayList<string>();
-        if (data.has_member("models")) {
-            var items = data.get_array_member("models");
-            for (uint i = 0; i < items.get_length(); i++) {
-                var model = items.get_object_element(i);
-                if (model.has_member("name")) {
-                    models.add(model.get_string_member("name"));
-                }
-            }
-        }
-
-        var recommended_install = new Gee.ArrayList<string>();
-        if (data.has_member("recommended_install")) {
-            var items = data.get_array_member("recommended_install");
-            for (uint i = 0; i < items.get_length(); i++) {
-                var rec = items.get_object_element(i);
-                if (rec.has_member("tag")) {
-                    recommended_install.add(rec.get_string_member("tag"));
-                }
-            }
-        }
-
-        string caste_name = "";
-        var caste = object_member_or_null(data, "caste");
-        if (caste != null) {
-            caste_name = string_member_or_empty(caste, "name");
-        }
-
-        return new AiCapabilitiesInfo(
-            data.has_member("runner_available") ? data.get_boolean_member("runner_available") : false,
-            string_member_or_empty(data, "error"),
-            data.has_member("last_checked") ? data.get_int_member("last_checked") : 0,
-            string_member_or_empty(data, "version"),
-            caste_name,
-            models,
-            recommended_install
-        );
-    }
-
-    private AiStatusInfo parse_ai_status(Json.Object root) throws Error {
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for ai status response");
-        }
-
-        var data = root.get_object_member("data");
-        var pull_jobs = new Gee.ArrayList<string>();
-        if (data.has_member("pulls")) {
-            var pulls = data.get_array_member("pulls");
-            for (uint i = 0; i < pulls.get_length(); i++) {
-                var pull = pulls.get_object_element(i);
-                var model = pull.has_member("model") ? pull.get_string_member("model") : "unknown";
-                var status = pull.has_member("status") ? pull.get_string_member("status") : "unknown";
-                double percent = 0.0;
-                if (pull.has_member("progress")) {
-                    var progress = pull.get_object_member("progress");
-                    if (progress != null && progress.has_member("percent")) {
-                        percent = progress.get_double_member("percent");
-                    }
-                }
-                pull_jobs.add("%s (%s, %.1f%%)".printf(model, status, percent));
-            }
-        }
-
-        return new AiStatusInfo(
-            data.has_member("checked_at") ? data.get_int_member("checked_at") : 0,
-            data.has_member("runner_available") ? data.get_boolean_member("runner_available") : false,
-            string_member_or_empty(data, "runner_error"),
-            data.has_member("active_runs") ? data.get_int_member("active_runs") : 0,
-            data.has_member("active_pull_jobs") ? data.get_int_member("active_pull_jobs") : 0,
-            data.has_member("cloud_configured_providers") ? data.get_int_member("cloud_configured_providers") : 0,
-            pull_jobs
-        );
-    }
-
-    private Gee.ArrayList<AiThreadSummary> parse_ai_threads(Json.Object root) throws Error {
-        if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for ai threads response");
-        }
-
-        var out_list = new Gee.ArrayList<AiThreadSummary>();
-        var data = root.get_array_member("data");
-        for (uint i = 0; i < data.get_length(); i++) {
-            var item = data.get_object_element(i);
-            out_list.add(new AiThreadSummary(
-                string_member_or_empty(item, "thread_id"),
-                string_member_or_empty(item, "project_id"),
-                string_member_or_empty(item, "title"),
-                item.has_member("created_at") ? item.get_int_member("created_at") : 0,
-                item.has_member("updated_at") ? item.get_int_member("updated_at") : 0
-            ));
-        }
-        return out_list;
-    }
-
-    private Gee.ArrayList<AiCatalogProvider> parse_ai_provider_catalog(Json.Object root) throws Error {
-        var providers = new Gee.ArrayList<AiCatalogProvider>();
-        var models_node = object_member_or_null(root, "models");
-        if (models_node == null) {
-            return providers;
-        }
-        var defaults = object_member_or_null(models_node, "provider_defaults");
-        if (defaults == null) {
-            return providers;
-        }
-        var names = defaults.get_members();
-        if (names == null) {
-            return providers;
-        }
-        for (unowned List<weak string>? cursor = names; cursor != null; cursor = cursor.next) {
-            unowned string provider_id = cursor.data;
-            var node = defaults.get_member(provider_id);
-            if (node != null && node.get_node_type() == Json.NodeType.OBJECT) {
-                var provider = defaults.get_object_member(provider_id);
-                var display_name = string_member_or_empty(provider, "provider");
-                if (display_name.length == 0) {
-                    display_name = provider_id;
-                }
-                providers.add(new AiCatalogProvider(
-                    provider_id,
-                    display_name,
-                    provider.has_member("enabled") ? provider.get_boolean_member("enabled") : false,
-                    false,
-                    string_member_or_empty(provider, "setup_url"),
-                    string_member_or_empty(provider, "docs_url")
-                ));
-            }
-        }
-        return providers;
-    }
-
-    private Gee.ArrayList<GitProviderCatalogEntry> parse_git_provider_catalog(Json.Object root) throws Error {
-        var providers = new Gee.ArrayList<GitProviderCatalogEntry>();
-        if (!root.has_member("providers")) {
-            return providers;
-        }
-        var items = root.get_array_member("providers");
-        for (uint i = 0; i < items.get_length(); i++) {
-            var item = items.get_object_element(i);
-            var preferred_transport = "";
-            var ssh_example = "";
-            var https_example = "";
-            var defaults = object_member_or_null(item, "defaults");
-            if (defaults != null) {
-                preferred_transport = string_member_or_empty(defaults, "preferred_transport");
-            }
-
-            var transports_summary = "";
-            var git = object_member_or_null(item, "git");
-            if (git != null && git.has_member("transports")) {
-                var transports = git.get_array_member("transports");
-                var sb = new StringBuilder();
-                for (uint idx = 0; idx < transports.get_length(); idx++) {
-                    if (idx > 0) {
-                        sb.append(", ");
-                    }
-                    sb.append(transports.get_string_element(idx));
-                }
-                transports_summary = sb.str;
-                var examples = object_member_or_null(git, "examples");
-                if (examples != null) {
-                    ssh_example = string_member_or_empty(examples, "ssh");
-                    https_example = string_member_or_empty(examples, "https");
-                }
-            }
-
-            providers.add(new GitProviderCatalogEntry(
-                string_member_or_empty(item, "id"),
-                string_member_or_empty(item, "name"),
-                string_member_or_empty(item, "kind"),
-                preferred_transport,
-                transports_summary,
-                ssh_example,
-                https_example
-            ));
-        }
-        return providers;
-    }
-
-    private string string_member_or_empty(Json.Object obj, string key) {
-        if (!obj.has_member(key)) {
-            return "";
-        }
-        var node = obj.get_member(key);
-        if (node == null || node.get_node_type() == Json.NodeType.NULL) {
-            return "";
-        }
-        return obj.get_string_member(key);
-    }
-
-    private string short_id(string value) {
-        if (value.length <= 8) {
-            return value;
-        }
-        return value.substring(0, 8);
-    }
-
-    private string? nullable_string_member_or_null(Json.Object obj, string key) {
-        if (!obj.has_member(key)) {
-            return null;
-        }
-        var node = obj.get_member(key);
-        if (node == null || node.get_node_type() == Json.NodeType.NULL) {
-            return null;
-        }
-        return obj.get_string_member(key);
-    }
-
-    private int64? nullable_int_member_or_null(Json.Object obj, string key) {
-        if (!obj.has_member(key)) {
-            return null;
-        }
-        var node = obj.get_member(key);
-        if (node == null || node.get_node_type() == Json.NodeType.NULL) {
-            return null;
-        }
-        return obj.get_int_member(key);
-    }
-
-    private ProjectSyncState parse_project_sync_state(Json.Object obj) {
-        return new ProjectSyncState(
-            nullable_int_member_or_null(obj, "last_commit_at"),
-            nullable_int_member_or_null(obj, "last_push_at"),
-            nullable_int_member_or_null(obj, "last_pull_at"),
-            obj.has_member("uncommitted_changes_count")
-                ? (int) obj.get_int_member("uncommitted_changes_count")
-                : 0,
-            obj.has_member("unpushed_commits_count")
-                ? (int) obj.get_int_member("unpushed_commits_count")
-                : 0,
-            string_member_or_empty(obj, "last_push_status"),
-            string_member_or_empty(obj, "last_pull_status"),
-            string_member_or_empty(obj, "last_sync_error"),
-            nullable_int_member_or_null(obj, "last_sync_error_at"),
-            obj.has_member("retry_count") ? (int) obj.get_int_member("retry_count") : 0,
-            nullable_int_member_or_null(obj, "next_retry_at"),
-            obj.has_member("pull_retry_count") ? (int) obj.get_int_member("pull_retry_count") : 0,
-            nullable_int_member_or_null(obj, "next_pull_retry_at"),
-            nullable_int_member_or_null(obj, "updated_at")
-        );
-    }
-
-    private Json.Object? object_member_or_null(Json.Object obj, string key) {
-        if (!obj.has_member(key)) {
-            return null;
-        }
-        var node = obj.get_member(key);
-        if (node == null || node.get_node_type() == Json.NodeType.NULL) {
-            return null;
-        }
-        return obj.get_object_member(key);
     }
 
     private Json.Object json_object_from_text_or_raw(string text) {
