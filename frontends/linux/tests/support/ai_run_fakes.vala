@@ -85,6 +85,13 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public async Gee.ArrayList<HolderLinux.ProjectResource> list_resources(string project_id) throws Error {
         return new Gee.ArrayList<HolderLinux.ProjectResource>();
     }
+    public async Gee.ArrayList<HolderLinux.TrashItem> list_trash_items(string project_id,
+                                                                        string type = "all") throws Error {
+        return new Gee.ArrayList<HolderLinux.TrashItem>();
+    }
+    public async void empty_trash(string project_id, string type = "all") throws Error {}
+    public async void restore_trash_item(string item_type, string item_id) throws Error {}
+    public async void hard_delete_trash_item(string item_type, string item_id) throws Error {}
     public async string create_resource(string project_id,
                                         string kind,
                                         string uri,

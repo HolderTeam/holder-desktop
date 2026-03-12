@@ -251,6 +251,59 @@ public class ApiClient : Object, IHolderApi {
         return parse_resources(root);
     }
 
+    public async Gee.ArrayList<TrashItem> list_trash_items(string project_id,
+                                                            string type = "all") throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("project_id", project_id);
+        if (type != null && type.strip().length > 0) {
+            query.insert("type", type.strip());
+        }
+        var root = yield request_json("GET", "/trash", null, query);
+        return parse_trash_items(root);
+    }
+
+    public async void empty_trash(string project_id, string type = "all") throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("project_id", project_id);
+        if (type != null && type.strip().length > 0) {
+            query.insert("type", type.strip());
+        }
+        yield request_json("DELETE", "/trash", null, query);
+    }
+
+    public async void restore_trash_item(string item_type, string item_id) throws Error {
+        if (item_type == "card") {
+            yield request_json(
+                "POST",
+                "/cards/%s/restore".printf(Uri.escape_string(item_id)),
+                null,
+                null
+            );
+            return;
+        }
+
+        if (item_type == "ai_message") {
+            yield request_json(
+                "POST",
+                "/ai/messages/%s/restore".printf(Uri.escape_string(item_id)),
+                null,
+                null
+            );
+            return;
+        }
+
+        throw new ApiError.PROTOCOL("Unsupported trash item type: %s".printf(item_type));
+    }
+
+    public async void hard_delete_trash_item(string item_type, string item_id) throws Error {
+        yield request_json(
+            "DELETE",
+            "/trash/%s/%s".printf(Uri.escape_string(item_type), Uri.escape_string(item_id)),
+            null,
+            null
+        );
+    }
+
     public async string create_resource(string project_id,
                                         string kind,
                                         string uri,
@@ -1102,6 +1155,46 @@ public class ApiClient : Object, IHolderApi {
         return out_list;
     }
 
+    private Gee.ArrayList<TrashItem> parse_trash_items(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for trash response");
+        }
+
+        var out_list = new Gee.ArrayList<TrashItem>();
+        var data = root.get_array_member("data");
+        for (uint i = 0; i < data.get_length(); i++) {
+            var item = data.get_object_element(i);
+            var item_type = string_member_or_empty(item, "type");
+            var deleted_at = item.has_member("deleted_at") ? item.get_int_member("deleted_at") : 0;
+
+            if (item_type == "card") {
+                out_list.add(new TrashItem(
+                    "card",
+                    string_member_or_empty(item, "card_id"),
+                    string_member_or_empty(item, "title"),
+                    deleted_at
+                ));
+                continue;
+            }
+
+            if (item_type == "ai_message") {
+                var message_id = string_member_or_empty(item, "message_id");
+                var role = string_member_or_empty(item, "role");
+                var title = role.length > 0
+                    ? "%s %s".printf(role, short_id(message_id))
+                    : "ai_message %s".printf(short_id(message_id));
+                out_list.add(new TrashItem(
+                    "ai_message",
+                    message_id,
+                    title,
+                    deleted_at
+                ));
+                continue;
+            }
+        }
+        return out_list;
+    }
+
     private CardLink parse_card_link(Json.Object item) {
         return new CardLink(
             item.get_string_member("from_card_id"),
@@ -1353,6 +1446,13 @@ public class ApiClient : Object, IHolderApi {
             return "";
         }
         return obj.get_string_member(key);
+    }
+
+    private string short_id(string value) {
+        if (value.length <= 8) {
+            return value;
+        }
+        return value.substring(0, 8);
     }
 
     private string? nullable_string_member_or_null(Json.Object obj, string key) {

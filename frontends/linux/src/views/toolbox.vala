@@ -10,6 +10,7 @@ public class ToolboxPane : Object {
     private DebugToolView debug_tool;
     private TerminalToolView terminal_tool;
     private FlowboardToolView flowboard_tool;
+    private TrashToolView trash_tool;
     private Gtk.SingleSelection? project_selection;
     private GLib.ListStore? card_store;
     private Gtk.SingleSelection? card_selection;
@@ -53,6 +54,9 @@ public class ToolboxPane : Object {
         if (resources_tool != null) {
             resources_tool.set_api_client(api);
         }
+        if (trash_tool != null) {
+            trash_tool.set_api_client(api);
+        }
     }
 
     public void set_settings(Settings? settings) {
@@ -91,6 +95,9 @@ public class ToolboxPane : Object {
         }
         if (resources_tool != null) {
             resources_tool.set_project_selection(project_selection);
+        }
+        if (trash_tool != null) {
+            trash_tool.set_project_selection(project_selection);
         }
     }
 
@@ -250,11 +257,16 @@ public class ToolboxPane : Object {
         var recovery_page = stack.add_titled(recovery_key_tool.widget, "recovery", "Recovery Key");
         recovery_page.set_icon_name("dialog-password-symbolic");
 
-        var trash_page = stack.add_titled(
-            build_placeholder_tab("Trash tools are scaffolded and planned."),
-            "trash",
-            "Trash"
-        );
+        trash_tool = new TrashToolView();
+        trash_tool.error_reported.connect((title_text, details) => {
+            error_reported(title_text, details);
+        });
+        trash_tool.toast_requested.connect((message) => {
+            toast_requested(message);
+        });
+        trash_tool.set_api_client(api);
+        trash_tool.set_project_selection(project_selection);
+        var trash_page = stack.add_titled(trash_tool.widget, "trash", "Trash");
         trash_page.set_icon_name("user-trash-symbolic");
 
         debug_tool = new DebugToolView();
@@ -296,15 +308,6 @@ public class ToolboxPane : Object {
         if (connections_tool != null) {
             connections_tool.set_internal_links(link_targets);
         }
-    }
-
-    private Gtk.Widget build_placeholder_tab(string message) {
-        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
-        var info = new Gtk.Label(message) { xalign = 0.0f };
-        info.set_wrap(true);
-        info.add_css_class("dim-label");
-        box.append(info);
-        return box;
     }
 
     private Gtk.Widget build_sharing_tab() {

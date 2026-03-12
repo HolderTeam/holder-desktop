@@ -31,6 +31,11 @@ public interface IHolderApi : Object {
     public abstract async Gee.ArrayList<CardLink> list_card_links(string card_id) throws Error;
     public abstract async Gee.ArrayList<CardLink> list_card_backlinks(string card_id) throws Error;
     public abstract async Gee.ArrayList<ProjectResource> list_resources(string project_id) throws Error;
+    public abstract async Gee.ArrayList<TrashItem> list_trash_items(string project_id,
+                                                                     string type = "all") throws Error;
+    public abstract async void empty_trash(string project_id, string type = "all") throws Error;
+    public abstract async void restore_trash_item(string item_type, string item_id) throws Error;
+    public abstract async void hard_delete_trash_item(string item_type, string item_id) throws Error;
     public abstract async string create_resource(string project_id,
                                                  string kind,
                                                  string uri,
