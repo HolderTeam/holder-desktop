@@ -22,6 +22,7 @@ sources = [
   'src/models/models.vala',
   'src/services/core_interfaces.vala',
   'src/services/app_settings.vala',
+  'src/services/print_service.vala',
   'src/services/git_sync_service.vala',
   'src/services/resources_service.vala',
   'src/utils/text_utils.vala',
@@ -30,6 +31,7 @@ sources = [
   'src/views/preferences_dialog.vala',
   'src/views/search.vala',
   'src/views/flowboard_pane.vala',
+  'src/views/adapters/local_info.vala',
   'src/views/toolbox.vala',
   'src/views/toolbox/connections_tool_view.vala',
   'src/views/toolbox/ai_catalog_tool_view.vala',
@@ -58,6 +60,7 @@ sources = [
   'src/controllers/flowboard.vala',
   'src/controllers/trash.vala',
   'src/controllers/local_info.vala',
+  'src/controllers/local_info_flow.vala',
   'src/controllers/local_info_presenter.vala',
   'src/controllers/recovery.vala',
   'src/services/discovery.vala',
@@ -379,6 +382,32 @@ local_info_controller_test_exe = executable(
 
 test('holder-linux-local-info-controller-tests', local_info_controller_test_exe)
 
+local_info_flow_controller_test_exe = executable(
+  'holder-linux-local-info-flow-controller-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/utils/text_utils.vala',
+    'src/controllers/local_info.vala',
+    'src/controllers/local_info_flow.vala',
+    'tests/local_info_flow_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-local-info-flow-controller-tests', local_info_flow_controller_test_exe)
+
 local_info_presenter_test_exe = executable(
   'holder-linux-local-info-presenter-tests',
   [
@@ -395,6 +424,24 @@ local_info_presenter_test_exe = executable(
 )
 
 test('holder-linux-local-info-presenter-tests', local_info_presenter_test_exe)
+
+local_info_view_adapter_test_exe = executable(
+  'holder-linux-local-info-view-adapter-tests',
+  [
+    'src/controllers/local_info_presenter.vala',
+    'src/views/adapters/local_info.vala',
+    'tests/local_info_view_adapter_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-local-info-view-adapter-tests', local_info_view_adapter_test_exe)
 
 api_client_test_exe = executable(
   'holder-linux-api-client-tests',
@@ -1004,6 +1051,29 @@ app_test_exe = executable(
 )
 
 test('holder-linux-app-tests', app_test_exe)
+
+print_service_test_exe = executable(
+  'holder-linux-print-service-tests',
+  [
+    'tests/support/test_utils.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/print_service.vala',
+    'tests/print_service_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-print-service-tests', print_service_test_exe)
 
 trash_tool_view_test_exe = executable(
   'holder-linux-trash-tool-view-tests',

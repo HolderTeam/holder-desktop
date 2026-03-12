@@ -12,6 +12,46 @@ private class WindowLocalInfoLogger : Object, ILocalInfoLogger {
     }
 }
 
+private class WindowLocalInfoFlowContext : Object, ILocalInfoFlowContext {
+    private MainController owner;
+
+    public WindowLocalInfoFlowContext(MainController owner) {
+        this.owner = owner;
+    }
+
+    public IHolderApi? get_api_client() {
+        return owner.get_api_client();
+    }
+}
+
+private class WindowLocalInfoViewSink : Object, ILocalInfoViewSink {
+    private MainWindow owner;
+
+    public WindowLocalInfoViewSink(MainWindow owner) {
+        this.owner = owner;
+    }
+
+    public void set_editor_state(string text, bool editable) {
+        owner.set_editor_state(text, editable);
+    }
+
+    public void show_editor_mode() {
+        owner.show_editor_mode();
+    }
+
+    public void update_window_title(string title_text) {
+        owner.update_window_title(title_text);
+    }
+
+    public void set_status(string text) {
+        owner.set_status(text);
+    }
+
+    public void show_error(string title_text, string details) {
+        owner.show_error(title_text, details);
+    }
+}
+
 private class WindowRecoveryContext : Object, IRecoveryContext {
     private MainController owner;
 
@@ -66,7 +106,10 @@ public class MainWindow : Adw.ApplicationWindow {
     private MainController controller;
     private RecoveryController recovery_controller;
     private LocalInfoController local_info_controller;
+    private LocalInfoFlowController local_info_flow_controller;
     private LocalInfoPresenter local_info_presenter;
+    private LocalInfoViewAdapter local_info_view_adapter;
+    private PrintService print_service;
     private AiRunController ai_run_controller;
     private FlowboardController flowboard_controller;
     private Settings? settings;
@@ -152,6 +195,15 @@ public class MainWindow : Adw.ApplicationWindow {
             new DefaultApiFactory(),
             new FileServerDiscovery()
         );
+        local_info_flow_controller = new LocalInfoFlowController(
+            new WindowLocalInfoFlowContext(controller),
+            local_info_controller
+        );
+        local_info_view_adapter = new LocalInfoViewAdapter(
+            new WindowLocalInfoViewSink(this),
+            local_info_presenter
+        );
+        print_service = new PrintService();
         recovery_controller = new RecoveryController(new WindowRecoveryContext(controller));
         ai_run_controller = new AiRunController(controller);
         flowboard_controller = new FlowboardController(project_store, project_selection, card_store);
@@ -705,7 +757,7 @@ public class MainWindow : Adw.ApplicationWindow {
         yield controller.create_project_named(name, privacy_mode);
     }
 
-    private void set_status(string text) {
+    internal void set_status(string text) {
         if (sidebar != null) {
             sidebar.set_status_text(text);
         }
@@ -714,14 +766,14 @@ public class MainWindow : Adw.ApplicationWindow {
         }
     }
 
-    private void set_editor_state(string text, bool editable) {
+    internal void set_editor_state(string text, bool editable) {
         suppress_editor_events = true;
         workspace.set_editor_state(text, editable);
         suppress_editor_events = false;
         refresh_connections_internal_links_from_editor();
     }
 
-    private void update_window_title(string title_text) {
+    internal void update_window_title(string title_text) {
         workspace.set_window_title_text(title_text);
         title = title_text;
     }
@@ -730,7 +782,7 @@ public class MainWindow : Adw.ApplicationWindow {
         toast_overlay.add_toast(new Adw.Toast(msg));
     }
 
-    private void show_error(string title_text, string details) {
+    internal void show_error(string title_text, string details) {
         set_status("%s: %s".printf(title_text, details));
         add_toast("%s".printf(title_text));
         if (toolbox != null) {
@@ -738,7 +790,7 @@ public class MainWindow : Adw.ApplicationWindow {
         }
     }
 
-    private void show_editor_mode() {
+    internal void show_editor_mode() {
         workspace.show_editor_mode();
     }
 
@@ -1196,71 +1248,30 @@ public class MainWindow : Adw.ApplicationWindow {
         Gtk.TextIter end;
         editor_buffer.get_bounds(out start, out end);
         var text = editor_buffer.get_text(start, end, false);
-        if (text == null || text.strip().length == 0) {
-            add_toast("Nothing to print.");
-            return;
-        }
-
-        string tmp_dir;
         try {
-            tmp_dir = DirUtils.make_tmp("holder-print-XXXXXX");
-        } catch (FileError e) {
-            show_error("Print failed", "Could not create temporary print directory: %s".printf(e.message));
-            return;
-        }
-        var tmp_path = Path.build_filename(tmp_dir, "card.txt");
-        try {
-            FileUtils.set_contents(tmp_path, text);
-        } catch (FileError e) {
-            show_error("Print failed", "Could not prepare print file: %s".printf(e.message));
-            return;
-        }
-
-        var dialog = new Gtk.PrintDialog();
-        dialog.set_title("Print");
-        try {
-            yield dialog.print_file(this, null, File.new_for_path(tmp_path), null);
+            yield print_service.print_text(this, text);
         } catch (Error e) {
+            if (e.message == "Nothing to print.") {
+                add_toast("Nothing to print.");
+                return;
+            }
             show_error("Print failed", e.message);
-        } finally {
-            FileUtils.remove(tmp_path);
-            DirUtils.remove(tmp_dir);
         }
     }
 
     private async void show_local_info_page() {
-        var api = controller.get_api_client();
-        if (api == null) {
-            render_local_info_not_connected();
-            return;
+        var result = yield local_info_flow_controller.load();
+        switch (result.state) {
+        case LocalInfoLoadState.NOT_CONNECTED:
+            local_info_view_adapter.render_not_connected();
+            break;
+        case LocalInfoLoadState.SUCCESS:
+            local_info_view_adapter.render_success(result.markdown);
+            break;
+        case LocalInfoLoadState.FAILURE:
+            local_info_view_adapter.render_failure(result.error_details);
+            break;
         }
-
-        try {
-            var text = yield local_info_controller.build_local_info_markdown(api);
-            render_local_info_success(text);
-        } catch (Error e) {
-            render_local_info_failure(e.message);
-        }
-    }
-
-    private void render_local_info_not_connected() {
-        set_editor_state(local_info_presenter.not_connected_markdown(), false);
-        show_editor_mode();
-    }
-
-    private void render_local_info_success(string markdown) {
-        set_editor_state(markdown, false);
-        show_editor_mode();
-        update_window_title(local_info_presenter.page_title());
-        set_status(local_info_presenter.loaded_status_text());
-    }
-
-    private void render_local_info_failure(string details) {
-        set_editor_state(local_info_presenter.load_error_markdown(details), false);
-        show_editor_mode();
-        update_window_title(local_info_presenter.page_title());
-        set_status(local_info_presenter.failed_status_text());
-        show_error(local_info_presenter.error_title(), details);
     }
 
     private void show_about_dialog() {

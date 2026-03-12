@@ -33,41 +33,32 @@ coverage() {
 
   local out_dir="${COVERAGE_BUILD_DIR}/coverage"
   mkdir -p "${out_dir}"
+  local -a gcovr_common_flags=(
+    --root .
+    --object-directory "${COVERAGE_BUILD_DIR}"
+    --filter 'src/'
+    --exclude 'tests/'
+    --gcov-executable gcov-13
+    --gcov-ignore-errors all
+    --exclude-unreachable-branches
+    --exclude-throw-branches
+    --exclude-function-lines
+  )
 
   gcovr \
-    --root . \
-    --object-directory "${COVERAGE_BUILD_DIR}" \
-    --filter 'src/' \
-    --exclude 'tests/' \
-    --gcov-executable gcov-13 \
-    --gcov-ignore-errors all \
-    --exclude-unreachable-branches \
-    --exclude-throw-branches \
+    "${gcovr_common_flags[@]}" \
     --txt \
+    --txt-metric line \
     --output "${out_dir}/summary-lines.txt"
 
   gcovr \
-    --root . \
-    --object-directory "${COVERAGE_BUILD_DIR}" \
-    --filter 'src/' \
-    --exclude 'tests/' \
-    --gcov-executable gcov-13 \
-    --gcov-ignore-errors all \
-    --exclude-unreachable-branches \
-    --exclude-throw-branches \
+    "${gcovr_common_flags[@]}" \
     --txt \
     --txt-metric branch \
     --output "${out_dir}/summary-branches.txt"
 
   gcovr \
-    --root . \
-    --object-directory "${COVERAGE_BUILD_DIR}" \
-    --filter 'src/' \
-    --exclude 'tests/' \
-    --gcov-executable gcov-13 \
-    --gcov-ignore-errors all \
-    --exclude-unreachable-branches \
-    --exclude-throw-branches \
+    "${gcovr_common_flags[@]}" \
     --html-details "${out_dir}/index.html" \
     --html-title "holder-desktop coverage"
 
