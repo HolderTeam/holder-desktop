@@ -188,17 +188,18 @@ public class TrashToolView : Object {
         if (root_window == null) {
             return;
         }
+        var spec = controller.hard_delete_confirmation(item);
 
         var dialog = new Adw.MessageDialog(
             root_window,
-            controller.hard_delete_dialog_title(),
-            controller.hard_delete_dialog_body(item)
+            spec.title,
+            spec.body
         );
-        dialog.add_response("cancel", "Cancel");
-        dialog.add_response("delete", "Delete");
-        dialog.set_response_appearance("delete", Adw.ResponseAppearance.DESTRUCTIVE);
+        dialog.add_response(spec.cancel_response_id, spec.cancel_label);
+        dialog.add_response(spec.confirm_response_id, spec.confirm_label);
+        dialog.set_response_appearance(spec.confirm_response_id, Adw.ResponseAppearance.DESTRUCTIVE);
         dialog.response.connect((response) => {
-            if (response == "delete") {
+            if (response == spec.confirm_response_id) {
                 controller.hard_delete_item.begin(item);
             }
             dialog.close();
@@ -226,17 +227,18 @@ public class TrashToolView : Object {
         if (root_window == null) {
             return;
         }
+        var spec = controller.empty_trash_confirmation(project);
 
         var dialog = new Adw.MessageDialog(
             root_window,
-            controller.empty_trash_dialog_title(),
-            controller.empty_trash_dialog_body(project)
+            spec.title,
+            spec.body
         );
-        dialog.add_response("cancel", "Cancel");
-        dialog.add_response("empty", "Empty Trash");
-        dialog.set_response_appearance("empty", Adw.ResponseAppearance.DESTRUCTIVE);
+        dialog.add_response(spec.cancel_response_id, spec.cancel_label);
+        dialog.add_response(spec.confirm_response_id, spec.confirm_label);
+        dialog.set_response_appearance(spec.confirm_response_id, Adw.ResponseAppearance.DESTRUCTIVE);
         dialog.response.connect((response) => {
-            if (response == "empty") {
+            if (response == spec.confirm_response_id) {
                 controller.empty_trash.begin(project.project_id);
             }
             dialog.close();

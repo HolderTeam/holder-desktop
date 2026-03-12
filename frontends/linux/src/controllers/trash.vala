@@ -1,5 +1,30 @@
 namespace HolderLinux {
 
+public class TrashConfirmDialogSpec : Object {
+    public string title { get; construct; }
+    public string body { get; construct; }
+    public string confirm_response_id { get; construct; }
+    public string confirm_label { get; construct; }
+    public string cancel_response_id { get; construct; }
+    public string cancel_label { get; construct; }
+
+    public TrashConfirmDialogSpec(string title,
+                                  string body,
+                                  string confirm_response_id,
+                                  string confirm_label,
+                                  string cancel_response_id = "cancel",
+                                  string cancel_label = "Cancel") {
+        Object(
+            title: title,
+            body: body,
+            confirm_response_id: confirm_response_id,
+            confirm_label: confirm_label,
+            cancel_response_id: cancel_response_id,
+            cancel_label: cancel_label
+        );
+    }
+}
+
 public class TrashController : Object {
     private IHolderApi? api;
     private Gtk.SingleSelection? project_selection;
@@ -173,6 +198,24 @@ public class TrashController : Object {
 
     public string empty_trash_dialog_body(Project project) {
         return "Permanently delete all trash items in %s?".printf(project.name);
+    }
+
+    public TrashConfirmDialogSpec hard_delete_confirmation(TrashItem item) {
+        return new TrashConfirmDialogSpec(
+            hard_delete_dialog_title(),
+            hard_delete_dialog_body(item),
+            "delete",
+            "Delete"
+        );
+    }
+
+    public TrashConfirmDialogSpec empty_trash_confirmation(Project project) {
+        return new TrashConfirmDialogSpec(
+            empty_trash_dialog_title(),
+            empty_trash_dialog_body(project),
+            "empty",
+            "Empty Trash"
+        );
     }
 
     private string selected_filter_type() {

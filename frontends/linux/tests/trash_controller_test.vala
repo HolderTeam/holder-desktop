@@ -279,6 +279,22 @@ private void test_confirmation_dialog_copy_helpers() {
     assert(controller.empty_trash_dialog_title() == "Empty Trash");
     assert(controller.empty_trash_dialog_body(project) ==
            "Permanently delete all trash items in Project 1?");
+
+    var hard_delete = controller.hard_delete_confirmation(item);
+    assert(hard_delete.title == "Delete Permanently");
+    assert(hard_delete.body == "Permanently delete \"Card 1\"?");
+    assert(hard_delete.confirm_response_id == "delete");
+    assert(hard_delete.confirm_label == "Delete");
+    assert(hard_delete.cancel_response_id == "cancel");
+    assert(hard_delete.cancel_label == "Cancel");
+
+    var empty = controller.empty_trash_confirmation(project);
+    assert(empty.title == "Empty Trash");
+    assert(empty.body == "Permanently delete all trash items in Project 1?");
+    assert(empty.confirm_response_id == "empty");
+    assert(empty.confirm_label == "Empty Trash");
+    assert(empty.cancel_response_id == "cancel");
+    assert(empty.cancel_label == "Cancel");
 }
 
 public static int main(string[] args) {
