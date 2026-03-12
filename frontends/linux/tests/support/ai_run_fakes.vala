@@ -22,6 +22,8 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public bool emit_chunk_missing_delta = false;
     public bool pull_returns_empty_job_id = false;
     public int64 status_active_pull_jobs = 0;
+    public bool fail_export_recovery_token = false;
+    public string export_recovery_token_payload = "{\"token\":\"fake\"}";
 
     public async void health_check() throws Error {}
     public async HolderLinux.HealthInfo get_health_info() throws Error {
@@ -37,7 +39,10 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
         string project_id,
         string pin
     ) throws Error {
-        return new HolderLinux.ProjectRecoveryTokenExport(project_id, "key-1", "{\"token\":\"fake\"}");
+        if (fail_export_recovery_token) {
+            throw new IOError.FAILED("export failed");
+        }
+        return new HolderLinux.ProjectRecoveryTokenExport(project_id, "key-1", export_recovery_token_payload);
     }
     public async void import_project_recovery_token(
         string project_id,

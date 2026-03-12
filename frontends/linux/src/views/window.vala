@@ -1,5 +1,21 @@
 namespace HolderLinux {
 
+private class WindowRecoveryContext : Object, IRecoveryContext {
+    private MainController owner;
+
+    public WindowRecoveryContext(MainController owner) {
+        this.owner = owner;
+    }
+
+    public IHolderApi? get_api_client() {
+        return owner.get_api_client();
+    }
+
+    public async void reload_everything() {
+        yield owner.reload_everything();
+    }
+}
+
 public class MainWindow : Adw.ApplicationWindow {
     private delegate void RecoveryPinHandler(string pin);
 
@@ -36,6 +52,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private AiPanel ai_panel;
     private ToolboxPane toolbox;
     private MainController controller;
+    private RecoveryController recovery_controller;
     private AiRunController ai_run_controller;
     private FlowboardController flowboard_controller;
     private Settings? settings;
@@ -119,6 +136,7 @@ public class MainWindow : Adw.ApplicationWindow {
             new DefaultApiFactory(),
             new FileServerDiscovery()
         );
+        recovery_controller = new RecoveryController(new WindowRecoveryContext(controller));
         ai_run_controller = new AiRunController(controller);
         flowboard_controller = new FlowboardController(project_store, project_selection, card_store);
 
@@ -943,66 +961,10 @@ public class MainWindow : Adw.ApplicationWindow {
             add_toast("Select a project first.");
             return;
         }
-        var api = controller.get_api_client();
-        if (api == null) {
-            show_error("Recovery key email failed", "API client not connected.");
-            return;
-        }
-
-        ProjectRecoveryTokenExport exported;
         try {
-            exported = yield api.export_project_recovery_token(project.project_id, pin);
-        } catch (Error e) {
-            show_error("Recovery key export failed", e.message);
-            return;
-        }
-
-        string tmp_dir;
-        try {
-            tmp_dir = DirUtils.make_tmp("holder-recovery-key-XXXXXX");
-        } catch (FileError e) {
-            show_error("Recovery key email failed", "Could not create temporary directory: %s".printf(e.message));
-            return;
-        }
-
-        var safe_name = project.name.replace(" ", "-");
-        var attachment_path = Path.build_filename(
-            tmp_dir,
-            "%s-recovery.hrk".printf(safe_name)
-        );
-        var recovery_payload = exported.recovery_token;
-        if (recovery_payload == null || recovery_payload.strip().length == 0) {
-            show_error("Recovery key export failed", "Empty recovery token payload.");
-            return;
-        }
-
-        try {
-            FileUtils.set_contents(attachment_path, recovery_payload);
-        } catch (FileError e) {
-            show_error("Recovery key email failed", "Could not create attachment: %s".printf(e.message));
-            return;
-        }
-
-        try {
-            string[] argv = {
-                "xdg-email",
-                "--subject",
-                "Holder Recovery Key",
-                "--body",
-                "See attachment",
-                "--attach",
-                attachment_path,
-                null
-            };
-            Pid child_pid;
-            Process.spawn_async(
-                null,
-                argv,
-                null,
-                SpawnFlags.SEARCH_PATH,
-                null,
-                out child_pid
-            );
+            var payload = yield recovery_controller.export_recovery_token(project.project_id, pin);
+            var attachment_path = recovery_controller.write_payload_to_temp_attachment(project.name, payload);
+            recovery_controller.open_email_with_attachment(attachment_path);
             add_toast("Opened default email app with recovery key attachment.");
         } catch (Error e) {
             show_error("Recovery key email failed", e.message);
@@ -1015,29 +977,17 @@ public class MainWindow : Adw.ApplicationWindow {
             add_toast("Select a project first.");
             return;
         }
-        var api = controller.get_api_client();
-        if (api == null) {
-            show_error("Recovery key export failed", "API client not connected.");
-            return;
-        }
-
-        ProjectRecoveryTokenExport exported;
+        string payload;
         try {
-            exported = yield api.export_project_recovery_token(project.project_id, pin);
+            payload = yield recovery_controller.export_recovery_token(project.project_id, pin);
         } catch (Error e) {
             show_error("Recovery key export failed", e.message);
             return;
         }
 
-        if (exported.recovery_token == null || exported.recovery_token.strip().length == 0) {
-            show_error("Recovery key export failed", "Empty recovery token payload.");
-            return;
-        }
-
-        var safe_name = project.name.replace(" ", "-");
         var dialog = new Gtk.FileDialog();
         dialog.set_title("Save Recovery Key");
-        dialog.set_initial_name("%s-recovery.hrk".printf(safe_name));
+        dialog.set_initial_name(recovery_controller.build_default_filename(project.name));
         dialog.save.begin(this, null, (obj, res) => {
             try {
                 var file = dialog.save.end(res);
@@ -1049,7 +999,7 @@ public class MainWindow : Adw.ApplicationWindow {
                     show_error("Recovery key export failed", "Please choose a local filesystem path.");
                     return;
                 }
-                FileUtils.set_contents(path, exported.recovery_token);
+                recovery_controller.save_payload_to_path(path, payload);
                 add_toast("Saved recovery key.");
             } catch (IOError.CANCELLED e) {
                 // User cancelled.
@@ -1060,12 +1010,6 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void import_recovery_key_from_file() {
-        var api = controller.get_api_client();
-        if (api == null) {
-            show_error("Recovery key import failed", "API client not connected.");
-            return;
-        }
-
         var dialog = new Gtk.FileDialog();
         dialog.set_title("Import Recovery Key");
         dialog.open.begin(this, null, (obj, res) => {
@@ -1079,12 +1023,7 @@ public class MainWindow : Adw.ApplicationWindow {
                     show_error("Recovery key import failed", "Please choose a local filesystem path.");
                     return;
                 }
-                string recovery_token;
-                FileUtils.get_contents(path, out recovery_token);
-                if (recovery_token == null || recovery_token.strip().length == 0) {
-                    show_error("Recovery key import failed", "Selected file is empty.");
-                    return;
-                }
+                var recovery_token = recovery_controller.load_payload_from_path(path);
                 request_recovery_key_pin(
                     "Unlock Recovery Key",
                     "Set your recovery key PIN to unlock and import this `.hrk` file.",
@@ -1101,21 +1040,13 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private async void import_recovery_key_payload(string pin, string recovery_token) {
-        var api = controller.get_api_client();
-        if (api == null) {
-            show_error("Recovery key import failed", "API client not connected.");
-            return;
-        }
-
         RecoveryTokenImportResult result;
         try {
-            result = yield api.import_recovery_token(pin, recovery_token);
+            result = yield recovery_controller.import_recovery_token(pin, recovery_token);
         } catch (Error e) {
             show_error("Recovery key import failed", e.message);
             return;
         }
-
-        yield controller.reload_everything();
 
         show_recovery_import_summary(result);
         add_toast("Recovery key imported.");

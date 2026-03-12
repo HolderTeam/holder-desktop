@@ -57,7 +57,9 @@ sources = [
   'src/controllers/terminal.vala',
   'src/controllers/flowboard.vala',
   'src/controllers/trash.vala',
+  'src/controllers/recovery.vala',
   'src/services/discovery.vala',
+  'src/services/recovery_service.vala',
   'src/services/http_transport.vala',
   'src/services/parsers/common.vala',
   'src/services/parsers/health.vala',
@@ -1009,6 +1011,31 @@ trash_controller_test_exe = executable(
 )
 
 test('holder-linux-trash-controller-tests', trash_controller_test_exe)
+
+recovery_controller_test_exe = executable(
+  'holder-linux-recovery-controller-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/ai_run_fakes.vala',
+    'src/models/models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/recovery_service.vala',
+    'src/controllers/recovery.vala',
+    'tests/recovery_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-recovery-controller-tests', recovery_controller_test_exe)
 
 parsers_health_test_exe = executable(
   'holder-linux-parsers-health-tests',

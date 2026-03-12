@@ -169,4 +169,9 @@ public interface IAiRunContext : Object {
     public abstract bool select_ai_thread_by_id(string thread_id);
 }
 
+public interface IRecoveryContext : Object {
+    public abstract IHolderApi? get_api_client();
+    public abstract async void reload_everything();
+}
+
 }
