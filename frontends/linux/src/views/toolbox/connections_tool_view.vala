@@ -3,11 +3,25 @@ namespace HolderLinux {
 private class ConnectionsBoardNode : Object {
     public string card_id { get; construct; }
     public string title { get; construct; }
+    public int64 updated_at { get; construct; }
+    public int child_count { get; construct; }
     public int x { get; set; }
     public int y { get; set; }
 
-    public ConnectionsBoardNode(string card_id, string title, int x = 0, int y = 0) {
-        Object(card_id: card_id, title: title, x: x, y: y);
+    public ConnectionsBoardNode(string card_id,
+                                string title,
+                                int64 updated_at = 0,
+                                int child_count = 0,
+                                int x = 0,
+                                int y = 0) {
+        Object(
+            card_id: card_id,
+            title: title,
+            updated_at: updated_at,
+            child_count: child_count,
+            x: x,
+            y: y
+        );
     }
 }
 
@@ -267,8 +281,8 @@ public class ConnectionsToolView : Object {
 
         connections_relations_scroller = new Gtk.ScrolledWindow();
         connections_relations_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC);
-        connections_relations_scroller.set_min_content_width(420);
-        connections_relations_scroller.set_size_request(420, -1);
+        connections_relations_scroller.set_min_content_width(320);
+        connections_relations_scroller.set_size_request(320, -1);
         connections_relations_scroller.set_hexpand(false);
         connections_relations_scroller.set_vexpand(true);
         connections_relations_scroller.set_child(connections_relations_column);
@@ -289,7 +303,7 @@ public class ConnectionsToolView : Object {
         if (total_width <= 0) {
             return Source.CONTINUE;
         }
-        int desired_relations = 420;
+        int desired_relations = 320;
         int min_graph = 520;
         int pane_position = total_width - desired_relations;
         if (pane_position < min_graph) {
@@ -648,7 +662,9 @@ public class ConnectionsToolView : Object {
         var nodes_by_id = new Gee.HashMap<string, ConnectionsBoardNode>();
         nodes_by_id.set(selected_card.card_id, new ConnectionsBoardNode(
             selected_card.card_id,
-            controller.ellipsize_title(selected_card.title)
+            controller.ellipsize_title(selected_card.title),
+            selected_card.updated_at,
+            child_count_for(selected_card.card_id, cards)
         ));
         var edges = new Gee.ArrayList<ConnectionsBoardEdge>();
         var edge_keys = new Gee.HashSet<string>();
@@ -743,7 +759,12 @@ public class ConnectionsToolView : Object {
             if (!keep.contains(card.card_id)) {
                 continue;
             }
-            nodes.add(new ConnectionsBoardNode(card.card_id, controller.ellipsize_title(card.title)));
+            nodes.add(new ConnectionsBoardNode(
+                card.card_id,
+                controller.ellipsize_title(card.title),
+                card.updated_at,
+                child_count_for(card.card_id, project_cards)
+            ));
         }
         var edges = new Gee.ArrayList<ConnectionsBoardEdge>();
         foreach (var edge in all_edges) {
@@ -791,27 +812,49 @@ public class ConnectionsToolView : Object {
     private Gtk.Widget build_board_node_widget(ConnectionsBoardNode node) {
         var button = new Gtk.Button();
         button.add_css_class("flat");
+        button.add_css_class("card");
         button.add_css_class("flowboard-tile");
         button.add_css_class("connections-board-node");
+        if (node.child_count > 0) {
+            button.add_css_class("flowboard-branch");
+        }
         button.set_size_request(BOARD_NODE_WIDTH, BOARD_NODE_HEIGHT);
-        var inner = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
-        inner.set_margin_top(10);
+        var inner = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+        inner.set_margin_top(8);
         inner.set_margin_bottom(10);
-        inner.set_margin_start(12);
-        inner.set_margin_end(12);
+        inner.set_margin_start(8);
+        inner.set_margin_end(8);
 
         var title = new Gtk.Label(node.title) { xalign = 0.0f };
+        title.set_wrap(true);
+        title.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        title.set_lines(2);
         title.set_ellipsize(Pango.EllipsizeMode.END);
         title.set_max_width_chars(32);
-        title.add_css_class("heading");
+        title.add_css_class("title-5");
+        title.set_hexpand(true);
         inner.append(title);
 
-        var subtitle = new Gtk.Label(node.card_id) { xalign = 0.0f };
-        subtitle.add_css_class("caption");
-        subtitle.add_css_class("dim-label");
-        subtitle.set_ellipsize(Pango.EllipsizeMode.MIDDLE);
-        subtitle.set_max_width_chars(24);
-        inner.append(subtitle);
+        var spacer = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+        spacer.set_vexpand(true);
+        inner.append(spacer);
+
+        var now = new DateTime.now_utc().to_unix();
+        string meta_text;
+        if (node.child_count > 0) {
+            meta_text = "%d %s | %s".printf(
+                node.child_count,
+                node.child_count == 1 ? "item" : "items",
+                TextUtils.format_relative_time(now, node.updated_at)
+            );
+        } else {
+            meta_text = TextUtils.format_relative_time(now, node.updated_at);
+        }
+        var meta = new Gtk.Label(meta_text) { xalign = 0.0f };
+        meta.add_css_class("dim-label");
+        meta.set_xalign(1.0f);
+        meta.set_halign(Gtk.Align.END);
+        inner.append(meta);
 
         button.set_child(inner);
         button.clicked.connect(() => {
@@ -962,7 +1005,17 @@ public class ConnectionsToolView : Object {
             return;
         }
         var title = controller.ellipsize_title(controller.title_for_card_id(card_id, cards));
-        nodes_by_id.set(card_id, new ConnectionsBoardNode(card_id, title));
+        int64 updated_at = 0;
+        var card = find_card_by_id(card_id, cards);
+        if (card != null) {
+            updated_at = card.updated_at;
+        }
+        nodes_by_id.set(card_id, new ConnectionsBoardNode(
+            card_id,
+            title,
+            updated_at,
+            child_count_for(card_id, cards)
+        ));
     }
 
     private Gee.ArrayList<ConnectionsBoardEdge> build_structural_edges_for_selected(CardSummary selected_card,
@@ -1082,6 +1135,25 @@ public class ConnectionsToolView : Object {
 
     private int imax(int a, int b) {
         return a >= b ? a : b;
+    }
+
+    private int child_count_for(string card_id, Gee.ArrayList<CardSummary> cards) {
+        int count = 0;
+        foreach (var card in cards) {
+            if (normalize_parent(card.parent_card_id) == card_id) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private CardSummary? find_card_by_id(string card_id, Gee.ArrayList<CardSummary> cards) {
+        foreach (var card in cards) {
+            if (card.card_id == card_id) {
+                return card;
+            }
+        }
+        return null;
     }
 
     private void spread_nodes_to_avoid_overlap(Gee.ArrayList<ConnectionsBoardNode> nodes) {
@@ -1223,22 +1295,13 @@ public class ConnectionsToolView : Object {
         var provider = new Gtk.CssProvider();
         provider.load_from_string("""
 .connections-board-surface {
-  border-radius: 10px;
-  border: 1px solid alpha(@borders, 0.70);
-  background-color: #090909;
+  border-radius: 0;
+  border: none;
+  background-color: @view_bg_color;
 }
 
 .connections-board-node {
-  border-radius: 8px;
-  border: 1px solid alpha(@borders, 0.75);
-  box-shadow: none;
-  background-image: none;
-  background-color: alpha(@card_bg_color, 0.35);
-  color: @view_fg_color;
-}
-
-.connections-board-node:hover {
-  background-color: alpha(@card_bg_color, 0.50);
+  min-height: 76px;
 }
 """);
         gtk_style_context_add_provider_for_display(
