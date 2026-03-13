@@ -46,6 +46,7 @@ public class MainController : Object, IAiRunContext {
     public signal void ai_status_refresh_requested();
     public signal void ai_thread_title_changed(string? title);
     public signal void api_client_ready(IHolderApi api);
+    public signal void card_trashed(string card_id);
 
     public MainController(GLib.ListStore project_store,
                           ISelectionState project_selection,

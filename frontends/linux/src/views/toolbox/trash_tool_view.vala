@@ -34,6 +34,10 @@ public class TrashToolView : Object {
         controller.set_project_selection(project_selection);
     }
 
+    public void refresh() {
+        controller.queue_refresh();
+    }
+
     private Gtk.Widget build_ui() {
         var root = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
 

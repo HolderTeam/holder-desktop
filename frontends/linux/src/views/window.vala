@@ -251,6 +251,9 @@ public class MainWindow : Adw.ApplicationWindow {
         controller.api_client_ready.connect((api_client) => {
             toolbox.set_api_client(api_client);
         });
+        controller.card_trashed.connect((_card_id) => {
+            toolbox.refresh_trash();
+        });
 
         workspace.refresh_requested.connect(() => {
             controller.reload_everything.begin();
@@ -282,6 +285,7 @@ public class MainWindow : Adw.ApplicationWindow {
             if (visible) {
                 toolbox.log_debug("Toolbox opened");
                 toolbox.refresh_catalogs();
+                toolbox.refresh_trash();
             } else {
                 toolbox.log_debug("Toolbox closed");
             }

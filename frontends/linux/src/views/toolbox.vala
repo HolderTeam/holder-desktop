@@ -143,6 +143,12 @@ public class ToolboxPane : Object {
         }
     }
 
+    public void refresh_trash() {
+        if (trash_tool != null) {
+            trash_tool.refresh();
+        }
+    }
+
     private Gtk.Widget build_ui() {
         var frame = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
         frame.set_margin_top(6);
@@ -290,6 +296,9 @@ public class ToolboxPane : Object {
                 return;
             }
             title.set_label("Toolbox: %s".printf(page.title));
+            if (page.title == "Trash") {
+                refresh_trash();
+            }
         });
         var initial_visible = stack.get_visible_child();
         if (initial_visible != null) {

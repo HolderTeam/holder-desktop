@@ -169,6 +169,7 @@ internal class CardsController : Object {
             owner.status_changed("Moved card to trash");
             owner.toast_requested("Moved \"%s\" to Trash".printf(card_title));
             yield owner.reload_cards_for_selected_project(null);
+            owner.card_trashed(card_id);
         } catch (Error e) {
             owner.error_reported("Move to trash failed", e.message);
         }
