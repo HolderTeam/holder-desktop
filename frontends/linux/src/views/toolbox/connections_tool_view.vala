@@ -36,9 +36,7 @@ public class ConnectionsToolView : Object {
         uint priority
     );
 
-    private Gtk.Label connections_card_title_label;
     private Gtk.Box connections_breadcrumb_bar;
-    private Gtk.Label connections_internal_links_label;
     private Gtk.Overlay connections_board_overlay;
     private Gtk.DrawingArea connections_board_canvas;
     private Gtk.Fixed connections_board_nodes_layer;
@@ -46,7 +44,6 @@ public class ConnectionsToolView : Object {
     private Gtk.Label connections_graph_summary_label;
     private Gtk.Label connections_board_empty_label;
     private Gtk.Button connections_add_graph_link_btn;
-    private Gtk.Label connections_structure_label;
     private Gtk.SingleSelection? project_selection;
     private GLib.ListStore? card_store;
     private Gtk.SingleSelection? card_selection;
@@ -133,61 +130,12 @@ public class ConnectionsToolView : Object {
         graph_column.set_margin_start(6);
         graph_column.set_margin_end(6);
 
-        var context_column = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
-        context_column.set_margin_top(6);
-        context_column.set_margin_bottom(6);
-        context_column.set_margin_start(6);
-        context_column.set_margin_end(6);
-
         var graph_scroller = new Gtk.ScrolledWindow();
         graph_scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC);
         graph_scroller.set_hexpand(true);
         graph_scroller.set_vexpand(true);
         graph_scroller.set_child(graph_column);
-
-        var context_scroller = new Gtk.ScrolledWindow();
-        context_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC);
-        context_scroller.set_size_request(200, -1);
-        context_scroller.set_hexpand(false);
-        context_scroller.set_vexpand(true);
-        context_scroller.set_child(context_column);
-
-        var divider = new Gtk.Separator(Gtk.Orientation.VERTICAL);
-        columns.append(divider);
-
         columns.append(graph_scroller);
-        columns.append(context_scroller);
-
-        connections_card_title_label = new Gtk.Label("No card selected") { xalign = 0.0f };
-        connections_card_title_label.add_css_class("title-5");
-        connections_card_title_label.set_ellipsize(Pango.EllipsizeMode.END);
-        connections_card_title_label.set_max_width_chars(30);
-        connections_card_title_label.set_margin_top(10);
-        connections_card_title_label.set_margin_start(0);
-        connections_structure_label = new Gtk.Label("") { xalign = 0.0f };
-        connections_structure_label.set_wrap(true);
-        connections_structure_label.set_use_markup(true);
-        connections_structure_label.set_lines(4);
-        connections_structure_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
-        connections_structure_label.set_yalign(0.0f);
-        connections_structure_label.set_margin_top(4);
-        connections_structure_label.set_margin_start(0);
-        connections_structure_label.activate_link.connect((uri) => {
-            return on_connections_link_activated(uri);
-        });
-        connections_internal_links_label = new Gtk.Label("Internal Links:") { xalign = 0.0f };
-        connections_internal_links_label.set_wrap(true);
-        connections_internal_links_label.set_use_markup(true);
-        connections_internal_links_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
-        connections_internal_links_label.set_yalign(0.0f);
-        connections_internal_links_label.set_margin_top(4);
-        connections_internal_links_label.set_margin_start(0);
-        connections_internal_links_label.activate_link.connect((uri) => {
-            return on_connections_link_activated(uri);
-        });
-        context_column.append(connections_card_title_label);
-        context_column.append(connections_structure_label);
-        context_column.append(connections_internal_links_label);
 
         var graph_header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         var graph_title = new Gtk.Label("Graph Connections") { xalign = 0.0f };
@@ -248,33 +196,16 @@ public class ConnectionsToolView : Object {
     }
 
     public void set_internal_links(Gee.ArrayList<string> link_targets) {
-        if (connections_internal_links_label == null) {
-            return;
-        }
         internal_links_cache.clear();
         if (link_targets == null || link_targets.size == 0) {
-            connections_internal_links_label.set_visible(false);
             queue_connections_graph_refresh();
             return;
         }
-        connections_internal_links_label.set_visible(true);
-        var builder = new StringBuilder("Internal Links:");
         foreach (var target in link_targets) {
             internal_links_cache.add(target);
-            builder.append(" ");
-            builder.append(link_markup("ilink", target, target));
         }
-        connections_internal_links_label.set_markup(builder.str);
         queue_connections_graph_refresh();
     }
-    private string link_markup(string kind, string id, string title) {
-        var href = "%s:%s".printf(kind, Uri.escape_string(id, null, false));
-        return "<a href=\"%s\">%s</a>".printf(
-            Markup.escape_text(href),
-            Markup.escape_text(controller.ellipsize_title(title))
-        );
-    }
-
     private void set_graph_empty_state(string message) {
         clear_fixed_children(connections_board_nodes_layer);
         board_nodes.clear();
@@ -662,6 +593,8 @@ public class ConnectionsToolView : Object {
 
     private Gtk.Widget build_board_node_widget(ConnectionsBoardNode node) {
         var button = new Gtk.Button();
+        button.add_css_class("flat");
+        button.add_css_class("flowboard-tile");
         button.add_css_class("connections-board-node");
         button.set_size_request(BOARD_NODE_WIDTH, BOARD_NODE_HEIGHT);
         var inner = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
@@ -1031,13 +964,14 @@ public class ConnectionsToolView : Object {
 .connections-board-node {
   border-radius: 8px;
   border: 1px solid alpha(@borders, 0.75);
+  box-shadow: none;
   background-image: none;
-  background-color: alpha(@card_bg_color, 0.48);
+  background-color: alpha(@card_bg_color, 0.35);
   color: @view_fg_color;
 }
 
 .connections-board-node:hover {
-  background-color: alpha(@card_bg_color, 0.60);
+  background-color: alpha(@card_bg_color, 0.50);
 }
 """);
         gtk_style_context_add_provider_for_display(
@@ -1045,49 +979,6 @@ public class ConnectionsToolView : Object {
             provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         );
-    }
-
-    private bool on_connections_link_activated(string uri) {
-        var selected_project = project_selection != null
-            ? project_selection.get_selected_item() as Project
-            : null;
-        var selected_project_id = selected_project != null ? selected_project.project_id : null;
-        var action = controller.resolve_link_action(uri, selected_project_id, snapshot_cards());
-        if (!action.handled) {
-            return false;
-        }
-        if (action.select_card) {
-            var card_id = action.target_id;
-            Idle.add(() => {
-                select_card_by_id(card_id);
-                return Source.REMOVE;
-            });
-        } else if (action.select_project) {
-            var project_id = action.target_id;
-            Idle.add(() => {
-                select_project_by_id(project_id);
-                return Source.REMOVE;
-            });
-        }
-        return true;
-    }
-
-    private bool select_project_by_id(string project_id) {
-        if (project_selection == null) {
-            return false;
-        }
-        var model = project_selection.get_model();
-        if (model == null) {
-            return false;
-        }
-        for (uint i = 0; i < model.get_n_items(); i++) {
-            var project = model.get_item(i) as Project;
-            if (project != null && project.project_id == project_id) {
-                project_selection.set_selected(i);
-                return true;
-            }
-        }
-        return false;
     }
 
     private bool select_card_by_id(string card_id) {
@@ -1109,26 +1000,7 @@ public class ConnectionsToolView : Object {
     }
 
     private void refresh_connections_structure() {
-        if (connections_structure_label == null) {
-            return;
-        }
         refresh_connections_breadcrumbs();
-        var selected_project = project_selection != null
-            ? project_selection.get_selected_item() as Project
-            : null;
-        var selected_card = card_selection != null
-            ? card_selection.get_selected_item() as CardSummary
-            : null;
-        if (connections_card_title_label != null) {
-            connections_card_title_label.set_text(
-                selected_card != null
-                    ? controller.ellipsize_title(selected_card.title)
-                    : "No card selected"
-            );
-        }
-        connections_structure_label.set_markup(
-            controller.compact_structure_markup(selected_project, selected_card, snapshot_cards())
-        );
         update_add_graph_link_button_state();
     }
 
@@ -1141,8 +1013,14 @@ public class ConnectionsToolView : Object {
         var selected_project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
+        var selected_card = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary
+            : null;
         var project_label = selected_project != null ? selected_project.name : "(none)";
-        string[] segments = { "Projects", project_label, "Connections" };
+        var leaf_label = selected_card != null
+            ? controller.ellipsize_title(selected_card.title)
+            : "Overview";
+        string[] segments = { "Projects", project_label, leaf_label };
 
         for (int i = 0; i < segments.length; i++) {
             var btn = new Gtk.Button.with_label(segments[i]);
