@@ -265,6 +265,7 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                            string? parent_card_id,
                                            double sort_key,
                                            int64 updated_at) throws Error {}
+    public async void delete_card(string card_id) throws Error {}
     public async HolderLinux.CardMoveResult move_card(string card_id,
                                                        string project_id,
                                                        string intent,

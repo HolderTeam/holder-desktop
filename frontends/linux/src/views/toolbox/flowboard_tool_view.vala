@@ -7,6 +7,7 @@ public class FlowboardToolView : Object {
     public Gtk.Widget widget { get; private set; }
 
     public signal void card_open_requested(string card_id);
+    public signal void card_move_to_trash_requested(string card_id);
     public signal void move_intent_requested(string card_id,
                                              string project_id,
                                              string intent,
@@ -52,6 +53,9 @@ public class FlowboardToolView : Object {
         });
         flowboard.card_open_requested.connect((card_id) => {
             controller.open_card_from_context_menu(card_id);
+        });
+        flowboard.card_move_to_trash_requested.connect((card_id) => {
+            card_move_to_trash_requested(card_id);
         });
         flowboard.card_move_up_level_requested.connect((card_id) => {
             controller.move_card_up_level_from_context_menu(card_id);

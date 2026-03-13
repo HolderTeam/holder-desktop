@@ -21,6 +21,7 @@ public class ToolboxPane : Object {
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
     public signal void flowboard_card_open_requested(string card_id);
+    public signal void flowboard_card_move_to_trash_requested(string card_id);
     public signal void flowboard_move_intent_requested(string card_id,
                                                        string project_id,
                                                        string intent,
@@ -121,6 +122,9 @@ public class ToolboxPane : Object {
     private void bind_flowboard_listener_signals() {
         flowboard_tool.card_open_requested.connect((card_id) => {
             flowboard_card_open_requested(card_id);
+        });
+        flowboard_tool.card_move_to_trash_requested.connect((card_id) => {
+            flowboard_card_move_to_trash_requested(card_id);
         });
         flowboard_tool.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
             flowboard_move_intent_requested(card_id, project_id, intent, target_card_id, parent_card_id);

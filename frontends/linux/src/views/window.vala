@@ -209,6 +209,9 @@ public class MainWindow : Adw.ApplicationWindow {
         flowboard_controller = new FlowboardController(project_store, project_selection, card_store);
 
         sidebar = new SidebarPane(project_selection, card_selection, ai_thread_selection);
+        sidebar.card_move_to_trash_requested.connect((card_id) => {
+            confirm_move_card_to_trash(card_id);
+        });
         root_paned.set_start_child(sidebar.widget);
         root_paned.set_end_child(workspace.widget);
         root_paned.set_resize_start_child(true);
@@ -464,6 +467,9 @@ public class MainWindow : Adw.ApplicationWindow {
         });
         toolbox.flowboard_card_open_requested.connect((card_id) => {
             open_card_from_flowboard(card_id);
+        });
+        toolbox.flowboard_card_move_to_trash_requested.connect((card_id) => {
+            confirm_move_card_to_trash(card_id);
         });
         toolbox.flowboard_move_intent_requested.connect((card_id, _project_id, intent, target_card_id, parent_card_id) => {
             controller.move_card_by_intent.begin(card_id, intent, target_card_id, parent_card_id);
@@ -833,6 +839,41 @@ public class MainWindow : Adw.ApplicationWindow {
             card_selection.set_selected(i);
             return;
         }
+    }
+
+    private string card_title_for_id(string card_id) {
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card != null && card.card_id == card_id) {
+                return card.title;
+            }
+        }
+        return "this card";
+    }
+
+    private void confirm_move_card_to_trash(string card_id) {
+        if (card_id.strip().length == 0) {
+            return;
+        }
+
+        var title_text = card_title_for_id(card_id);
+        var dialog = new Adw.MessageDialog(
+            this,
+            "Move to Trash",
+            "Move \"%s\" to Trash?\n\nYou can restore it from the Trash tool.".printf(title_text)
+        );
+        dialog.add_response("cancel", "Cancel");
+        dialog.add_response("trash", "Move to Trash");
+        dialog.set_response_appearance("trash", Adw.ResponseAppearance.DESTRUCTIVE);
+        dialog.set_default_response("trash");
+        dialog.set_close_response("cancel");
+        dialog.response.connect((response) => {
+            if (response == "trash") {
+                controller.move_card_to_trash.begin(card_id);
+            }
+            dialog.close();
+        });
+        dialog.present();
     }
 
     private string? internal_link_target_at_iter(Gtk.TextIter iter) {

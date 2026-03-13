@@ -28,6 +28,7 @@ public class FlowboardPane : Object {
     public signal void background_drop_requested(string source_card_id);
     public signal void background_new_card_requested();
     public signal void card_open_requested(string card_id);
+    public signal void card_move_to_trash_requested(string card_id);
     public signal void card_move_up_level_requested(string card_id);
     public signal void card_move_left_requested(string card_id);
     public signal void card_move_right_requested(string card_id);
@@ -193,6 +194,15 @@ public class FlowboardPane : Object {
                 if (selected_set.get_size() > 0) {
                     tile_activated(selected_set.get_minimum());
                     return true;
+                }
+            } else if (keyval == Gdk.Key.Delete || keyval == Gdk.Key.KP_Delete) {
+                var selected_set = selection.get_selection();
+                if (selected_set.get_size() > 0) {
+                    var selected_tile = visible_tiles_item(selected_set.get_minimum());
+                    if (selected_tile != null && selected_tile.card_id != null) {
+                        card_move_to_trash_requested(selected_tile.card_id);
+                        return true;
+                    }
                 }
             } else if (keyval == Gdk.Key.BackSpace) {
                 navigate_up_requested();
@@ -513,6 +523,14 @@ public class FlowboardPane : Object {
         });
         menu_box.append(move_up_btn);
 
+        var move_to_trash_btn = new Gtk.Button.with_label("Move to Trash");
+        move_to_trash_btn.add_css_class("flat");
+        move_to_trash_btn.clicked.connect(() => {
+            popover.popdown();
+            card_move_to_trash_requested(card_id);
+        });
+        menu_box.append(move_to_trash_btn);
+
         var sibling_count = row_widget.get_data<int>("flowboard-sibling-count");
         var sibling_index = row_widget.get_data<int>("flowboard-sibling-index");
         var can_reorder = sibling_count > 1;
@@ -562,6 +580,13 @@ public class FlowboardPane : Object {
         rect.height = 1;
         popover.set_pointing_to(rect);
         popover.popup();
+    }
+
+    private FlowboardTile? visible_tiles_item(uint position) {
+        if (model == null || position >= model.get_n_items()) {
+            return null;
+        }
+        return model.get_item(position) as FlowboardTile;
     }
 }
 

@@ -203,6 +203,24 @@ private void test_create_update_position_and_move_card_success() {
     assert(moved.revision == 42);
 }
 
+private void test_delete_card_sends_delete_to_card_path() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    var client = make_client(transport);
+
+    bool done_delete = false;
+    bool ok_delete = false;
+    client.delete_card.begin("c 1/2", (obj, res) => {
+        try { client.delete_card.end(res); ok_delete = true; } catch (Error e) { ok_delete = false; }
+        done_delete = true;
+    });
+
+    assert(wait_for_condition(() => done_delete));
+    assert(ok_delete);
+    assert(transport.last_method == "DELETE");
+    assert(transport.last_uri.contains("/cards/c%201%2F2"));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -214,6 +232,8 @@ public static int main(string[] args) {
                   test_create_link_missing_data_and_move_missing_data_are_protocol_errors);
     Test.add_func("/api_client_cards/create_update_position_and_move_card_success",
                   test_create_update_position_and_move_card_success);
+    Test.add_func("/api_client_cards/delete_card_sends_delete_to_card_path",
+                  test_delete_card_sends_delete_to_card_path);
 
     return Test.run();
 }

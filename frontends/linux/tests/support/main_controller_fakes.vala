@@ -49,6 +49,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int search_calls = 0;
     public int update_card_calls = 0;
     public int update_card_position_calls = 0;
+    public int delete_card_calls = 0;
     public int create_card_calls = 0;
     public int create_project_calls = 0;
     public int list_threads_calls = 0;
@@ -104,6 +105,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool include_created_card = false;
     public bool fail_update_card = false;
     public bool fail_update_card_position = false;
+    public bool fail_delete_card = false;
     public bool fail_search = false;
     public bool fail_get_card = false;
     public bool slow_get_card = false;
@@ -567,6 +569,14 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         last_move_parent_card_id = parent_card_id;
         last_move_sort_key = sort_key;
         last_move_updated_at = updated_at;
+    }
+
+    public async void delete_card(string card_id) throws Error {
+        if (fail_delete_card) {
+            throw new IOError.FAILED("delete card failed");
+        }
+        delete_card_calls++;
+        last_updated_card_id = card_id;
     }
 
     public async HolderLinux.CardMoveResult move_card(string card_id,

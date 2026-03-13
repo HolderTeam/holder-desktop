@@ -195,6 +195,16 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
         );
     }
 
+    public static async void delete_card(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                         string card_id) throws Error {
+        yield client.request_json(
+            "DELETE",
+            "/cards/%s".printf(Uri.escape_string(card_id)),
+            null,
+            null
+        );
+    }
+
     public static async CardMoveResult move_card(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
                                                  string card_id,
                                                  string project_id,

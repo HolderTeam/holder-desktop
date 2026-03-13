@@ -95,6 +95,7 @@ public interface IHolderApi : Object {
                                                     string? parent_card_id,
                                                     double sort_key,
                                                     int64 updated_at) throws Error;
+    public abstract async void delete_card(string card_id) throws Error;
     public abstract async CardMoveResult move_card(string card_id,
                                                    string project_id,
                                                    string intent,

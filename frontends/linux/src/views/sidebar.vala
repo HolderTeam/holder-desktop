@@ -3,6 +3,7 @@ namespace HolderLinux {
 public class SidebarPane : Object {
     public Gtk.Widget widget { get; private set; }
     private Gtk.Label status_label;
+    public signal void card_move_to_trash_requested(string card_id);
 
     public SidebarPane(Gtk.SelectionModel project_selection,
                        Gtk.SelectionModel card_selection,
@@ -84,6 +85,25 @@ public class SidebarPane : Object {
             row.append(title);
             row.append(updated);
             list_item.set_child(row);
+
+            var context_click = new Gtk.GestureClick();
+            context_click.set_button(Gdk.BUTTON_SECONDARY);
+            context_click.pressed.connect((n_press, x, y) => {
+                if (n_press != 1) {
+                    return;
+                }
+                var position = list_item.get_position();
+                var single = card_selection as Gtk.SingleSelection;
+                if (single != null) {
+                    single.set_selected(position);
+                }
+                var card_id = row.get_data<string>("sidebar-card-id");
+                if (card_id == null || card_id.strip().length == 0) {
+                    return;
+                }
+                show_card_menu_at(row, card_id, x, y);
+            });
+            row.add_controller(context_click);
         });
         card_factory.bind.connect((item) => {
             var list_item = (Gtk.ListItem) item;
@@ -94,10 +114,12 @@ public class SidebarPane : Object {
             if (card == null) {
                 title.set_text("");
                 updated.set_text("");
+                row.set_data<string>("sidebar-card-id", "");
                 return;
             }
             title.set_text(card.title);
             updated.set_text("Updated %s".printf(format_relative_time(card.updated_at)));
+            row.set_data<string>("sidebar-card-id", card.card_id);
         });
 
         var card_list = new Gtk.ListView(card_selection, card_factory);
@@ -107,6 +129,24 @@ public class SidebarPane : Object {
         card_scroll.set_vexpand(true);
         card_scroll.set_child(card_list);
         box.append(card_scroll);
+
+        var card_keys = new Gtk.EventControllerKey();
+        card_keys.key_pressed.connect((keyval, keycode, state) => {
+            if (keyval != Gdk.Key.Delete && keyval != Gdk.Key.KP_Delete) {
+                return false;
+            }
+            var single = card_selection as Gtk.SingleSelection;
+            if (single == null) {
+                return false;
+            }
+            var selected_card = single.get_selected_item() as CardSummary;
+            if (selected_card == null) {
+                return false;
+            }
+            card_move_to_trash_requested(selected_card.card_id);
+            return true;
+        });
+        card_list.add_controller(card_keys);
 
         var threads_title = new Gtk.Label("AI Threads") { xalign = 0.0f };
         threads_title.add_css_class("heading");
@@ -154,6 +194,30 @@ public class SidebarPane : Object {
 
     private string format_relative_time(int64 timestamp) {
         return TextUtils.format_relative_time(new DateTime.now_utc().to_unix(), timestamp);
+    }
+
+    private void show_card_menu_at(Gtk.Widget row_widget, string card_id, double x, double y) {
+        var popover = new Gtk.Popover();
+        popover.set_autohide(true);
+        popover.set_parent(row_widget);
+
+        var menu_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+        var trash_btn = new Gtk.Button.with_label("Move to Trash");
+        trash_btn.add_css_class("flat");
+        trash_btn.clicked.connect(() => {
+            popover.popdown();
+            card_move_to_trash_requested(card_id);
+        });
+        menu_box.append(trash_btn);
+        popover.set_child(menu_box);
+
+        var rect = Gdk.Rectangle();
+        rect.x = (int) x;
+        rect.y = (int) y;
+        rect.width = 1;
+        rect.height = 1;
+        popover.set_pointing_to(rect);
+        popover.popup();
     }
 }
 

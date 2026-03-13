@@ -148,6 +148,31 @@ internal class CardsController : Object {
             owner.reload_cards_for_selected_project.begin(card_id);
         }
     }
+
+    public async void move_card_to_trash(string card_id) {
+        if (owner.api == null) {
+            owner.error_reported("Move to trash unavailable", "API client is not connected.");
+            return;
+        }
+
+        string card_title = "card";
+        for (uint i = 0; i < owner.card_store.get_n_items(); i++) {
+            var card = owner.card_store.get_item(i) as CardSummary;
+            if (card != null && card.card_id == card_id) {
+                card_title = card.title;
+                break;
+            }
+        }
+
+        try {
+            yield owner.api.delete_card(card_id);
+            owner.status_changed("Moved card to trash");
+            owner.toast_requested("Moved \"%s\" to Trash".printf(card_title));
+            yield owner.reload_cards_for_selected_project(null);
+        } catch (Error e) {
+            owner.error_reported("Move to trash failed", e.message);
+        }
+    }
 }
 
 }
