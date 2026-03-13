@@ -82,6 +82,7 @@ public class ConnectionsToolView : Object {
     private Gee.ArrayList<ConnectionsBoardEdge> board_edges = new Gee.ArrayList<ConnectionsBoardEdge>();
     private bool relations_default_split_applied = false;
     private uint relations_default_split_idle_id = 0;
+    private bool show_projects_root = false;
 
     public Gtk.Widget widget { get; private set; }
 
@@ -113,10 +114,12 @@ public class ConnectionsToolView : Object {
         this.card_selection = card_selection;
 
         project_selection.notify["selected"].connect(() => {
+            show_projects_root = false;
             refresh_connections_structure();
             queue_connections_graph_refresh();
         });
         card_selection.notify["selected"].connect(() => {
+            show_projects_root = false;
             refresh_connections_structure();
             queue_connections_graph_refresh();
         });
@@ -441,6 +444,10 @@ public class ConnectionsToolView : Object {
         if (connections_add_graph_link_btn == null) {
             return;
         }
+        if (show_projects_root) {
+            connections_add_graph_link_btn.set_sensitive(false);
+            return;
+        }
         var selected_card = card_selection != null
             ? card_selection.get_selected_item() as CardSummary
             : null;
@@ -584,6 +591,11 @@ public class ConnectionsToolView : Object {
 
     private async void refresh_connections_graph(uint request_serial) {
         if (connections_board_overlay == null || connections_board_nodes_layer == null || connections_board_canvas == null) {
+            return;
+        }
+        if (show_projects_root) {
+            render_projects_root_board();
+            update_add_graph_link_button_state();
             return;
         }
         var selected_project = project_selection != null
@@ -796,6 +808,41 @@ public class ConnectionsToolView : Object {
         set_relations_overview(summary);
     }
 
+    private void render_projects_root_board() {
+        if (project_selection == null) {
+            set_graph_empty_state("No projects available.");
+            return;
+        }
+        var model = project_selection.get_model();
+        if (model == null) {
+            set_graph_empty_state("No projects available.");
+            return;
+        }
+
+        var nodes = new Gee.ArrayList<ConnectionsBoardNode>();
+        for (uint i = 0; i < model.get_n_items(); i++) {
+            var project = model.get_item(i) as Project;
+            if (project == null) {
+                continue;
+            }
+            nodes.add(new ConnectionsBoardNode(
+                "project:%s".printf(project.project_id),
+                controller.ellipsize_title(project.name),
+                project.updated_at,
+                project.root_card_count
+            ));
+        }
+        if (nodes.size == 0) {
+            set_graph_empty_state("No projects available.");
+            return;
+        }
+
+        layout_project_mode_nodes(nodes);
+        spread_nodes_to_avoid_overlap(nodes);
+        render_board(nodes, new Gee.ArrayList<ConnectionsBoardEdge>(), "Select a project.");
+        set_relations_overview("Select a project.");
+    }
+
     private void render_board(Gee.ArrayList<ConnectionsBoardNode> nodes,
                               Gee.ArrayList<ConnectionsBoardEdge> edges,
                               string summary_text) {
@@ -875,6 +922,11 @@ public class ConnectionsToolView : Object {
 
         button.set_child(inner);
         button.clicked.connect(() => {
+            if (node.card_id.has_prefix("project:")) {
+                var project_id = node.card_id.substring("project:".length);
+                focus_project_overview(project_id);
+                return;
+            }
             select_card_by_id(node.card_id);
         });
         return button;
@@ -1390,6 +1442,7 @@ public class ConnectionsToolView : Object {
     }
 
     private void focus_project_overview(string project_id) {
+        show_projects_root = false;
         select_project_by_id(project_id);
         if (card_selection != null) {
             card_selection.set_selected(Gtk.INVALID_LIST_POSITION);
@@ -1407,6 +1460,10 @@ public class ConnectionsToolView : Object {
 
     private void refresh_relations_title() {
         if (connections_relations_title_label == null) {
+            return;
+        }
+        if (show_projects_root) {
+            connections_relations_title_label.set_text("Projects");
             return;
         }
         var selected_project = project_selection != null
@@ -1443,16 +1500,28 @@ public class ConnectionsToolView : Object {
         var selected_card = card_selection != null
             ? card_selection.get_selected_item() as CardSummary
             : null;
-        var project_label = selected_project != null ? selected_project.name : "(none)";
-        var leaf_label = selected_card != null
-            ? controller.ellipsize_title(selected_card.title)
-            : "Overview";
-        string[] segments = { "Projects", project_label, leaf_label };
+        string[] segments;
+        if (show_projects_root) {
+            segments = { "Projects" };
+        } else {
+            var project_label = selected_project != null ? selected_project.name : "(none)";
+            var leaf_label = selected_card != null
+                ? controller.ellipsize_title(selected_card.title)
+                : "Overview";
+            segments = { "Projects", project_label, leaf_label };
+        }
 
         for (int i = 0; i < segments.length; i++) {
             var btn = new Gtk.Button.with_label(segments[i]);
             btn.add_css_class("flat");
             btn.set_focusable(false);
+            if (i == 0) {
+                btn.clicked.connect(() => {
+                    show_projects_root = true;
+                    refresh_connections_structure();
+                    queue_connections_graph_refresh();
+                });
+            }
             if (i == 1 && selected_project != null) {
                 var project_id = selected_project.project_id;
                 btn.clicked.connect(() => {
