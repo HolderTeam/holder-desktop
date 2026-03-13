@@ -37,12 +37,20 @@ public class ConnectionsToolView : Object {
     );
 
     private Gtk.Box connections_breadcrumb_bar;
+    private Gtk.Paned connections_main_pane;
     private Gtk.Overlay connections_board_overlay;
     private Gtk.DrawingArea connections_board_canvas;
     private Gtk.Fixed connections_board_nodes_layer;
     private Gtk.Box connections_graph_summary_row;
     private Gtk.Label connections_graph_summary_label;
     private Gtk.Label connections_board_empty_label;
+    private Gtk.ToggleButton connections_relations_toggle_btn;
+    private Gtk.ScrolledWindow connections_relations_scroller;
+    private Gtk.Box connections_relations_column;
+    private Gtk.Label connections_relations_structure_label;
+    private Gtk.Label connections_relations_outgoing_label;
+    private Gtk.Label connections_relations_backlinks_label;
+    private Gtk.Label connections_relations_internal_label;
     private Gtk.Button connections_add_graph_link_btn;
     private Gtk.SingleSelection? project_selection;
     private GLib.ListStore? card_store;
@@ -119,10 +127,14 @@ public class ConnectionsToolView : Object {
         content_shell.set_hexpand(true);
         root.append(content_shell);
 
-        var columns = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
-        columns.set_vexpand(true);
-        columns.set_hexpand(true);
-        content_shell.append(columns);
+        connections_main_pane = new Gtk.Paned(Gtk.Orientation.HORIZONTAL);
+        connections_main_pane.set_hexpand(true);
+        connections_main_pane.set_vexpand(true);
+        connections_main_pane.set_resize_start_child(true);
+        connections_main_pane.set_shrink_start_child(true);
+        connections_main_pane.set_resize_end_child(false);
+        connections_main_pane.set_shrink_end_child(false);
+        content_shell.append(connections_main_pane);
 
         var graph_column = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
         graph_column.set_margin_top(6);
@@ -135,7 +147,7 @@ public class ConnectionsToolView : Object {
         graph_scroller.set_hexpand(true);
         graph_scroller.set_vexpand(true);
         graph_scroller.set_child(graph_column);
-        columns.append(graph_scroller);
+        connections_main_pane.set_start_child(graph_scroller);
 
         var graph_header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         var graph_title = new Gtk.Label("Graph Connections") { xalign = 0.0f };
@@ -147,7 +159,17 @@ public class ConnectionsToolView : Object {
         connections_add_graph_link_btn.clicked.connect(() => {
             open_add_graph_link_dialog();
         });
+        connections_relations_toggle_btn = new Gtk.ToggleButton();
+        connections_relations_toggle_btn.add_css_class("flat");
+        connections_relations_toggle_btn.set_icon_name("sidebar-show-right-symbolic");
+        connections_relations_toggle_btn.set_tooltip_text("Toggle relations panel");
+        connections_relations_toggle_btn.set_active(true);
+        connections_relations_toggle_btn.toggled.connect(() => {
+            bool visible = connections_relations_toggle_btn.get_active();
+            connections_relations_scroller.set_visible(visible);
+        });
         graph_header.append(graph_title);
+        graph_header.append(connections_relations_toggle_btn);
         graph_header.append(connections_add_graph_link_btn);
         graph_column.append(graph_header);
 
@@ -189,6 +211,69 @@ public class ConnectionsToolView : Object {
         connections_board_overlay.add_overlay(connections_board_empty_label);
         graph_column.append(connections_board_overlay);
 
+        connections_relations_column = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
+        connections_relations_column.set_margin_top(8);
+        connections_relations_column.set_margin_bottom(8);
+        connections_relations_column.set_margin_start(8);
+        connections_relations_column.set_margin_end(8);
+
+        var relations_title = new Gtk.Label("Relations") { xalign = 0.0f };
+        relations_title.add_css_class("title-5");
+        connections_relations_column.append(relations_title);
+
+        connections_relations_structure_label = new Gtk.Label("") { xalign = 0.0f };
+        connections_relations_structure_label.set_wrap(true);
+        connections_relations_structure_label.set_use_markup(true);
+        connections_relations_structure_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        connections_relations_structure_label.activate_link.connect((uri) => {
+            return on_connections_link_activated(uri);
+        });
+        connections_relations_column.append(connections_relations_structure_label);
+
+        var outgoing_title = new Gtk.Label("Outgoing") { xalign = 0.0f };
+        outgoing_title.add_css_class("heading");
+        connections_relations_column.append(outgoing_title);
+        connections_relations_outgoing_label = new Gtk.Label("") { xalign = 0.0f };
+        connections_relations_outgoing_label.set_wrap(true);
+        connections_relations_outgoing_label.set_use_markup(true);
+        connections_relations_outgoing_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        connections_relations_outgoing_label.activate_link.connect((uri) => {
+            return on_connections_link_activated(uri);
+        });
+        connections_relations_column.append(connections_relations_outgoing_label);
+
+        var incoming_title = new Gtk.Label("Incoming") { xalign = 0.0f };
+        incoming_title.add_css_class("heading");
+        connections_relations_column.append(incoming_title);
+        connections_relations_backlinks_label = new Gtk.Label("") { xalign = 0.0f };
+        connections_relations_backlinks_label.set_wrap(true);
+        connections_relations_backlinks_label.set_use_markup(true);
+        connections_relations_backlinks_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        connections_relations_backlinks_label.activate_link.connect((uri) => {
+            return on_connections_link_activated(uri);
+        });
+        connections_relations_column.append(connections_relations_backlinks_label);
+
+        var internal_title = new Gtk.Label("Internal") { xalign = 0.0f };
+        internal_title.add_css_class("heading");
+        connections_relations_column.append(internal_title);
+        connections_relations_internal_label = new Gtk.Label("") { xalign = 0.0f };
+        connections_relations_internal_label.set_wrap(true);
+        connections_relations_internal_label.set_use_markup(true);
+        connections_relations_internal_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        connections_relations_internal_label.activate_link.connect((uri) => {
+            return on_connections_link_activated(uri);
+        });
+        connections_relations_column.append(connections_relations_internal_label);
+
+        connections_relations_scroller = new Gtk.ScrolledWindow();
+        connections_relations_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC);
+        connections_relations_scroller.set_min_content_width(320);
+        connections_relations_scroller.set_hexpand(false);
+        connections_relations_scroller.set_vexpand(true);
+        connections_relations_scroller.set_child(connections_relations_column);
+        connections_main_pane.set_end_child(connections_relations_scroller);
+
         refresh_connections_structure();
         refresh_connections_breadcrumbs();
         set_graph_empty_state("Select a card to view graph links.");
@@ -213,9 +298,80 @@ public class ConnectionsToolView : Object {
         connections_board_empty_label.set_text(message);
         connections_board_empty_label.set_visible(true);
         connections_graph_summary_label.set_text("");
+        set_relations_overview(message);
         ensure_board_canvas_size(BOARD_MIN_WIDTH, BOARD_MIN_HEIGHT);
         connections_board_canvas.queue_draw();
         update_add_graph_link_button_state();
+    }
+
+    private string link_markup(string kind, string id, string title) {
+        var href = "%s:%s".printf(kind, Uri.escape_string(id, null, false));
+        return "<a href=\"%s\">%s</a>".printf(
+            Markup.escape_text(href),
+            Markup.escape_text(controller.ellipsize_title(title))
+        );
+    }
+
+    private void set_relations_overview(string text) {
+        if (connections_relations_structure_label == null) {
+            return;
+        }
+        var escaped = Markup.escape_text(text);
+        connections_relations_structure_label.set_markup(escaped);
+        connections_relations_outgoing_label.set_markup("None");
+        connections_relations_backlinks_label.set_markup("None");
+        connections_relations_internal_label.set_markup("None");
+    }
+
+    private void set_relations_for_card(Project project,
+                                        CardSummary selected_card,
+                                        Gee.ArrayList<CardLink> outgoing,
+                                        Gee.ArrayList<CardLink> backlinks) {
+        connections_relations_structure_label.set_markup(
+            controller.compact_structure_markup(project, selected_card, snapshot_cards())
+        );
+        connections_relations_outgoing_label.set_markup(format_link_lines(outgoing, true));
+        connections_relations_backlinks_label.set_markup(format_link_lines(backlinks, false));
+        connections_relations_internal_label.set_markup(format_internal_lines(project.project_id));
+    }
+
+    private string format_link_lines(Gee.ArrayList<CardLink> links, bool outgoing) {
+        if (links.size == 0) {
+            return "None";
+        }
+        var cards = snapshot_cards();
+        var groups = controller.group_links_by_kind(links);
+        var lines = new Gee.ArrayList<string>();
+        foreach (var group in groups) {
+            var targets = new Gee.ArrayList<string>();
+            foreach (var link in group.links) {
+                var target_id = outgoing ? link.to_card_id : link.from_card_id;
+                if ((outgoing ? link.to_type : "card") == "card") {
+                    targets.add(link_markup("card", target_id, controller.title_for_card_id(target_id, cards)));
+                } else {
+                    targets.add(Markup.escape_text(target_id));
+                }
+            }
+            lines.add("%s: %s".printf(Markup.escape_text(group.kind), string.joinv(", ", targets.to_array())));
+        }
+        return string.joinv("\n", lines.to_array());
+    }
+
+    private string format_internal_lines(string project_id) {
+        if (internal_links_cache.size == 0) {
+            return "None";
+        }
+        var cards = snapshot_cards();
+        var links = new Gee.ArrayList<string>();
+        foreach (var target in internal_links_cache) {
+            var card_id = controller.resolve_internal_link_target_card_id(target, project_id, cards);
+            if (card_id != null) {
+                links.add(link_markup("card", card_id, controller.title_for_card_id(card_id, cards)));
+            } else {
+                links.add(Markup.escape_text(target));
+            }
+        }
+        return string.joinv("\n", links.to_array());
     }
 
     private void update_add_graph_link_button_state() {
@@ -496,6 +652,7 @@ public class ConnectionsToolView : Object {
         node_list.sort((a, b) => strcmp(a.title.down(), b.title.down()));
         layout_card_mode_nodes(selected_card.card_id, node_list);
         render_board(node_list, edges, "Card-focused graph.");
+        set_relations_for_card(project, selected_card, outgoing, backlinks);
     }
 
     private void render_project_mode_board(Project project,
@@ -562,7 +719,9 @@ public class ConnectionsToolView : Object {
             }
         }
         layout_project_mode_nodes(nodes);
-        render_board(nodes, edges, format_counts_summary(counts));
+        var summary = format_counts_summary(counts);
+        render_board(nodes, edges, summary);
+        set_relations_overview(summary);
     }
 
     private void render_board(Gee.ArrayList<ConnectionsBoardNode> nodes,
@@ -997,6 +1156,49 @@ public class ConnectionsToolView : Object {
             }
         }
         return false;
+    }
+
+    private bool select_project_by_id(string project_id) {
+        if (project_selection == null) {
+            return false;
+        }
+        var model = project_selection.get_model();
+        if (model == null) {
+            return false;
+        }
+        for (uint i = 0; i < model.get_n_items(); i++) {
+            var project = model.get_item(i) as Project;
+            if (project != null && project.project_id == project_id) {
+                project_selection.set_selected(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private bool on_connections_link_activated(string uri) {
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        var selected_project_id = selected_project != null ? selected_project.project_id : null;
+        var action = controller.resolve_link_action(uri, selected_project_id, snapshot_cards());
+        if (!action.handled) {
+            return false;
+        }
+        if (action.select_card) {
+            var card_id = action.target_id;
+            Idle.add(() => {
+                select_card_by_id(card_id);
+                return Source.REMOVE;
+            });
+        } else if (action.select_project) {
+            var project_id = action.target_id;
+            Idle.add(() => {
+                select_project_by_id(project_id);
+                return Source.REMOVE;
+            });
+        }
+        return true;
     }
 
     private void refresh_connections_structure() {
