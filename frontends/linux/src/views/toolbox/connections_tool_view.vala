@@ -180,7 +180,7 @@ public class ConnectionsToolView : Object {
         var graph_header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
         graph_header.set_visible(false);
         connections_add_graph_link_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
-        connections_add_graph_link_btn.set_tooltip_text("Add graph link");
+        connections_add_graph_link_btn.set_tooltip_text("Add graph connection");
         connections_add_graph_link_btn.set_sensitive(false);
         connections_add_graph_link_btn.clicked.connect(() => {
             open_add_graph_link_dialog();
@@ -472,7 +472,7 @@ public class ConnectionsToolView : Object {
             return;
         }
 
-        var dialog = new Adw.MessageDialog(root, "Add Graph Link", "Create an explicit card-to-card link.");
+        var dialog = new Adw.MessageDialog(root, "Add Graph Connection", "Create an explicit card-to-card connection.");
         dialog.add_response("cancel", "Cancel");
         dialog.add_response("add", "Add");
         dialog.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED);
@@ -1381,11 +1381,20 @@ public class ConnectionsToolView : Object {
         } else if (action.select_project) {
             var project_id = action.target_id;
             Idle.add(() => {
-                select_project_by_id(project_id);
+                focus_project_overview(project_id);
                 return Source.REMOVE;
             });
         }
         return true;
+    }
+
+    private void focus_project_overview(string project_id) {
+        select_project_by_id(project_id);
+        if (card_selection != null) {
+            card_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+        }
+        refresh_connections_structure();
+        queue_connections_graph_refresh();
     }
 
     private void refresh_connections_structure() {
@@ -1442,6 +1451,12 @@ public class ConnectionsToolView : Object {
             var btn = new Gtk.Button.with_label(segments[i]);
             btn.add_css_class("flat");
             btn.set_focusable(false);
+            if (i == 1 && selected_project != null) {
+                var project_id = selected_project.project_id;
+                btn.clicked.connect(() => {
+                    focus_project_overview(project_id);
+                });
+            }
             connections_breadcrumb_bar.append(btn);
             if (i < segments.length - 1) {
                 var sep = new Gtk.Label(" / ");
