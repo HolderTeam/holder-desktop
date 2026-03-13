@@ -471,6 +471,9 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.connections_project_overview_requested.connect((_project_id) => {
             controller.show_project_overview.begin();
         });
+        toolbox.connections_projects_root_requested.connect(() => {
+            show_connections_help_page();
+        });
         toolbox.flowboard_card_open_requested.connect((card_id) => {
             open_card_from_flowboard(card_id);
         });
@@ -859,6 +862,33 @@ public class MainWindow : Adw.ApplicationWindow {
             }
         }
         return "this card";
+    }
+
+    private void show_connections_help_page() {
+        string[] candidates = {
+            "../../../help/toolbox/connections.md",
+            "../../help/toolbox/connections.md",
+            "help/toolbox/connections.md"
+        };
+        string? markdown = null;
+        foreach (var path in candidates) {
+            try {
+                string content;
+                if (FileUtils.get_contents(path, out content)) {
+                    markdown = content;
+                    break;
+                }
+            } catch (FileError e) {
+                // Try next candidate path.
+            }
+        }
+        if (markdown == null) {
+            markdown = "# Connections\n\nHelp page not found at `help/toolbox/connections.md`.";
+        }
+        set_editor_state(markdown, false);
+        update_window_title("Connections");
+        show_editor_mode();
+        set_status("Loaded Connections help.");
     }
 
     private void confirm_move_card_to_trash(string card_id) {

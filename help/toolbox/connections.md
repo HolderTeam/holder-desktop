@@ -11,7 +11,7 @@ Connections helps you think in linked ideas, not just isolated notes.
   - Surface hidden links from inline references in your writing.
   - Turn a growing note collection into a navigable knowledge network.
 
-## See how your ideas relate to others at a glane
+## See how your ideas relate to others at a glace
 
 Connections shows cards in their immediate intellectual neighbourhood.
 

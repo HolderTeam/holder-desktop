@@ -90,6 +90,7 @@ public class ConnectionsToolView : Object {
     public signal void toast_requested(string message);
     public signal void debug_log_requested(string line);
     public signal void project_overview_requested(string project_id);
+    public signal void projects_root_requested();
 
     public ConnectionsToolView() {
         controller = new ConnectionsController();
@@ -1518,6 +1519,7 @@ public class ConnectionsToolView : Object {
             if (i == 0) {
                 btn.clicked.connect(() => {
                     show_projects_root = true;
+                    projects_root_requested();
                     refresh_connections_structure();
                     queue_connections_graph_refresh();
                 });
