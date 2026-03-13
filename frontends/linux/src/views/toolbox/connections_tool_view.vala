@@ -28,6 +28,7 @@ public class ConnectionsToolView : Object {
     private const int BOARD_PADDING = 48;
     private const int BOARD_MIN_WIDTH = 900;
     private const int BOARD_MIN_HEIGHT = 240;
+    private const int BOARD_BOTTOM_PADDING = 16;
     private const int PROJECT_MODE_MAX_NODES = 12;
     [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
     private static extern void gtk_style_context_add_provider_for_display(
@@ -61,6 +62,8 @@ public class ConnectionsToolView : Object {
     private Gee.ArrayList<string> internal_links_cache = new Gee.ArrayList<string>();
     private Gee.ArrayList<ConnectionsBoardNode> board_nodes = new Gee.ArrayList<ConnectionsBoardNode>();
     private Gee.ArrayList<ConnectionsBoardEdge> board_edges = new Gee.ArrayList<ConnectionsBoardEdge>();
+    private bool relations_default_split_applied = false;
+    private uint relations_default_split_idle_id = 0;
 
     public Gtk.Widget widget { get; private set; }
 
@@ -264,16 +267,50 @@ public class ConnectionsToolView : Object {
 
         connections_relations_scroller = new Gtk.ScrolledWindow();
         connections_relations_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC);
-        connections_relations_scroller.set_min_content_width(320);
+        connections_relations_scroller.set_min_content_width(420);
+        connections_relations_scroller.set_size_request(420, -1);
         connections_relations_scroller.set_hexpand(false);
         connections_relations_scroller.set_vexpand(true);
         connections_relations_scroller.set_child(connections_relations_column);
         connections_main_pane.set_end_child(connections_relations_scroller);
+        queue_apply_default_relations_split();
 
         refresh_connections_structure();
         refresh_connections_breadcrumbs();
         set_graph_empty_state("Select a card to view graph links.");
         return root;
+    }
+
+    private bool apply_default_relations_split() {
+        if (relations_default_split_applied || connections_main_pane == null) {
+            return Source.REMOVE;
+        }
+        int total_width = connections_main_pane.get_width();
+        if (total_width <= 0) {
+            return Source.CONTINUE;
+        }
+        int desired_relations = 420;
+        int min_graph = 520;
+        int pane_position = total_width - desired_relations;
+        if (pane_position < min_graph) {
+            pane_position = min_graph;
+        }
+        if (pane_position > total_width - 260) {
+            pane_position = total_width - 260;
+        }
+        connections_main_pane.set_position(pane_position);
+        relations_default_split_applied = true;
+        relations_default_split_idle_id = 0;
+        return Source.REMOVE;
+    }
+
+    private void queue_apply_default_relations_split() {
+        if (relations_default_split_applied || relations_default_split_idle_id != 0) {
+            return;
+        }
+        relations_default_split_idle_id = Timeout.add(30, () => {
+            return apply_default_relations_split();
+        });
     }
 
     public void set_internal_links(Gee.ArrayList<string> link_targets) {
@@ -646,6 +683,7 @@ public class ConnectionsToolView : Object {
         }
         node_list.sort((a, b) => strcmp(a.title.down(), b.title.down()));
         layout_card_mode_nodes(selected_card.card_id, node_list, target_board_height_for_count(node_list.size));
+        spread_nodes_to_avoid_overlap(node_list);
         render_board(node_list, edges, "Card-focused graph.");
         set_relations_for_card(project, selected_card, outgoing, backlinks);
     }
@@ -714,6 +752,7 @@ public class ConnectionsToolView : Object {
             }
         }
         layout_project_mode_nodes(nodes);
+        spread_nodes_to_avoid_overlap(nodes);
         var summary = format_counts_summary(counts);
         render_board(nodes, edges, summary);
         set_relations_overview(summary);
@@ -730,11 +769,16 @@ public class ConnectionsToolView : Object {
 
         int required_w = BOARD_MIN_WIDTH;
         int required_h = target_board_height_for_count(nodes.size);
+        int content_bottom = 0;
         foreach (var node in nodes) {
             required_w = int.max(required_w, node.x + BOARD_NODE_WIDTH + BOARD_PADDING);
-            required_h = int.max(required_h, node.y + BOARD_NODE_HEIGHT + BOARD_PADDING);
+            content_bottom = int.max(content_bottom, node.y + BOARD_NODE_HEIGHT);
             var node_widget = build_board_node_widget(node);
             connections_board_nodes_layer.put(node_widget, node.x, node.y);
+        }
+        if (nodes.size > 0) {
+            // Trim only the trailing space under the last node; keep node spacing/layout untouched.
+            required_h = int.max(BOARD_MIN_HEIGHT, content_bottom + BOARD_BOTTOM_PADDING);
         }
         ensure_board_canvas_size(required_w, required_h);
         connections_board_empty_label.set_visible(nodes.size == 0);
@@ -978,7 +1022,7 @@ public class ConnectionsToolView : Object {
                                         Gee.ArrayList<ConnectionsBoardNode> nodes,
                                         int canvas_height) {
         int cx = BOARD_MIN_WIDTH / 2 - BOARD_NODE_WIDTH / 2;
-        int cy = int.max(12, (canvas_height / 2 - BOARD_NODE_HEIGHT / 2) - 40);
+        int cy = int.max(12, (canvas_height / 2 - BOARD_NODE_HEIGHT / 2) - 70);
         var ring = new Gee.ArrayList<ConnectionsBoardNode>();
         foreach (var node in nodes) {
             if (node.card_id == center_card_id) {
@@ -1038,6 +1082,58 @@ public class ConnectionsToolView : Object {
 
     private int imax(int a, int b) {
         return a >= b ? a : b;
+    }
+
+    private void spread_nodes_to_avoid_overlap(Gee.ArrayList<ConnectionsBoardNode> nodes) {
+        int gap = 14;
+        if (nodes.size < 2) {
+            return;
+        }
+        var placed = new Gee.ArrayList<ConnectionsBoardNode>();
+        for (int i = 0; i < nodes.size; i++) {
+            var node = nodes[i];
+            int original_x = node.x;
+            int original_y = node.y;
+            int guard = 0;
+            while (overlaps_any(node, placed, gap) && guard < 80) {
+                node.y += BOARD_NODE_HEIGHT + gap;
+                if (node.y > 780) {
+                    node.y = original_y + ((guard % 3) * 10);
+                    node.x += (BOARD_NODE_WIDTH / 2) + gap;
+                }
+                guard++;
+            }
+            if (guard >= 80) {
+                node.x = original_x + (i * 22);
+                node.y = original_y + (i * 18);
+            }
+            placed.add(node);
+        }
+    }
+
+    private bool overlaps_any(ConnectionsBoardNode node,
+                              Gee.ArrayList<ConnectionsBoardNode> placed,
+                              int gap) {
+        foreach (var other in placed) {
+            if (nodes_overlap(node, other, gap)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private bool nodes_overlap(ConnectionsBoardNode a, ConnectionsBoardNode b, int gap) {
+        int ax0 = a.x;
+        int ay0 = a.y;
+        int ax1 = a.x + BOARD_NODE_WIDTH + gap;
+        int ay1 = a.y + BOARD_NODE_HEIGHT + gap;
+        int bx0 = b.x;
+        int by0 = b.y;
+        int bx1 = b.x + BOARD_NODE_WIDTH + gap;
+        int by1 = b.y + BOARD_NODE_HEIGHT + gap;
+        bool x_overlap = ax0 < bx1 && bx0 < ax1;
+        bool y_overlap = ay0 < by1 && by0 < ay1;
+        return x_overlap && y_overlap;
     }
 
     private int target_board_height_for_count(int node_count) {
