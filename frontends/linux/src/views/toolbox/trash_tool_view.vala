@@ -3,7 +3,8 @@ namespace HolderLinux {
 public class TrashToolView : Object {
     private TrashController controller;
     private Gtk.DropDown filter_dropdown;
-    private Gtk.Label scope_label;
+    private Gtk.Box scope_breadcrumb_bar;
+    private string scope_text_cache = "Projects / (none) / Trash";
     private Gtk.Label empty_label;
     private Gtk.Button empty_trash_btn;
 
@@ -42,9 +43,9 @@ public class TrashToolView : Object {
         var root = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
 
         var header = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
-        scope_label = new Gtk.Label("Projects / (none) / Trash") { xalign = 0.0f };
-        scope_label.add_css_class("dim-label");
-        header.append(scope_label);
+        scope_breadcrumb_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        header.append(scope_breadcrumb_bar);
+        set_scope_breadcrumbs(scope_text_cache);
 
         var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         var filter_options = new Gtk.StringList(null);
@@ -175,10 +176,36 @@ public class TrashToolView : Object {
     }
 
     private void apply_state() {
-        scope_label.set_text(controller.scope_text);
+        scope_text_cache = controller.scope_text;
+        set_scope_breadcrumbs(scope_text_cache);
         empty_label.set_text(controller.empty_text);
         empty_label.set_visible(controller.empty_visible);
         empty_trash_btn.set_sensitive(controller.empty_trash_sensitive);
+    }
+
+    private void set_scope_breadcrumbs(string scope_text) {
+        clear_box_children(scope_breadcrumb_bar);
+        var segments = scope_text.split(" / ");
+        for (int i = 0; i < segments.length; i++) {
+            var btn = new Gtk.Button.with_label(segments[i]);
+            btn.add_css_class("flat");
+            btn.set_focusable(false);
+            scope_breadcrumb_bar.append(btn);
+            if (i < segments.length - 1) {
+                var sep = new Gtk.Label(" / ");
+                sep.add_css_class("dim-label");
+                scope_breadcrumb_bar.append(sep);
+            }
+        }
+    }
+
+    private void clear_box_children(Gtk.Box box) {
+        Gtk.Widget? child = box.get_first_child();
+        while (child != null) {
+            var next = child.get_next_sibling();
+            box.remove(child);
+            child = next;
+        }
     }
 
 #if TRASH_TOOL_VIEW_TEST
@@ -260,7 +287,7 @@ public class TrashToolView : Object {
     }
 
     internal string scope_text_for_tests() {
-        return scope_label.get_text();
+        return scope_text_cache;
     }
 
     internal string empty_text_for_tests() {
