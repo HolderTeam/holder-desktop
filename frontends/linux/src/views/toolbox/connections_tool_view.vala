@@ -42,8 +42,6 @@ public class ConnectionsToolView : Object {
     private Gtk.Overlay connections_board_overlay;
     private Gtk.DrawingArea connections_board_canvas;
     private Gtk.Fixed connections_board_nodes_layer;
-    private Gtk.Box connections_graph_summary_row;
-    private Gtk.Label connections_graph_summary_label;
     private Gtk.Label connections_board_empty_label;
     private Gtk.ToggleButton connections_relations_toggle_btn;
     private Gtk.ScrolledWindow connections_relations_scroller;
@@ -158,10 +156,8 @@ public class ConnectionsToolView : Object {
         graph_scroller.set_child(graph_column);
         connections_main_pane.set_start_child(graph_scroller);
 
-        var graph_header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var graph_title = new Gtk.Label("Graph Connections") { xalign = 0.0f };
-        graph_title.add_css_class("title-5");
-        graph_title.set_hexpand(true);
+        var graph_header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        graph_header.set_visible(false);
         connections_add_graph_link_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
         connections_add_graph_link_btn.set_tooltip_text("Add graph link");
         connections_add_graph_link_btn.set_sensitive(false);
@@ -179,16 +175,7 @@ public class ConnectionsToolView : Object {
         });
         connections_top_actions_bar.append(connections_add_graph_link_btn);
         connections_top_actions_bar.append(connections_relations_toggle_btn);
-        graph_header.append(graph_title);
         graph_column.append(graph_header);
-
-        connections_graph_summary_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
-        connections_graph_summary_label = new Gtk.Label("") { xalign = 0.0f };
-        connections_graph_summary_label.add_css_class("caption");
-        connections_graph_summary_label.add_css_class("dim-label");
-        connections_graph_summary_label.set_wrap(true);
-        connections_graph_summary_row.append(connections_graph_summary_label);
-        graph_column.append(connections_graph_summary_row);
 
         connections_board_overlay = new Gtk.Overlay();
         connections_board_overlay.add_css_class("connections-board-surface");
@@ -306,7 +293,6 @@ public class ConnectionsToolView : Object {
         board_edges.clear();
         connections_board_empty_label.set_text(message);
         connections_board_empty_label.set_visible(true);
-        connections_graph_summary_label.set_text("");
         set_relations_overview(message);
         ensure_board_canvas_size(BOARD_MIN_WIDTH, BOARD_MIN_HEIGHT);
         connections_board_canvas.queue_draw();
@@ -755,7 +741,6 @@ public class ConnectionsToolView : Object {
         if (nodes.size == 0) {
             connections_board_empty_label.set_text("No connections to display.");
         }
-        connections_graph_summary_label.set_text(summary_text);
         connections_board_canvas.queue_draw();
     }
 
