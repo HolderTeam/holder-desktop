@@ -1,11 +1,34 @@
 namespace HolderLinux {
 
+private class ConnectionsBoardNode : Object {
+    public string card_id { get; construct; }
+    public string title { get; construct; }
+    public int x { get; set; }
+    public int y { get; set; }
+
+    public ConnectionsBoardNode(string card_id, string title, int x = 0, int y = 0) {
+        Object(card_id: card_id, title: title, x: x, y: y);
+    }
+}
+
+private class ConnectionsBoardEdge : Object {
+    public string from_card_id { get; construct; }
+    public string to_card_id { get; construct; }
+    public string kind { get; construct; }
+    public bool dashed { get; construct; }
+
+    public ConnectionsBoardEdge(string from_card_id, string to_card_id, string kind, bool dashed = false) {
+        Object(from_card_id: from_card_id, to_card_id: to_card_id, kind: kind, dashed: dashed);
+    }
+}
+
 public class ConnectionsToolView : Object {
-    private const int GRAPH_BLOCK_MARGIN_START = 0;
-    private const int GRAPH_ACTION_COL_WIDTH = 24;
-    private const int GRAPH_CONTENT_GAP = 14;
-    private const int GRAPH_KIND_EXTRA_INDENT = 10;
-    private const int GRAPH_TEXT_START = GRAPH_BLOCK_MARGIN_START + GRAPH_ACTION_COL_WIDTH + GRAPH_CONTENT_GAP;
+    private const int BOARD_NODE_WIDTH = 220;
+    private const int BOARD_NODE_HEIGHT = 76;
+    private const int BOARD_PADDING = 48;
+    private const int BOARD_MIN_WIDTH = 900;
+    private const int BOARD_MIN_HEIGHT = 620;
+    private const int PROJECT_MODE_MAX_NODES = 12;
     [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
     private static extern void gtk_style_context_add_provider_for_display(
         Gdk.Display display,
@@ -14,11 +37,14 @@ public class ConnectionsToolView : Object {
     );
 
     private Gtk.Label connections_card_title_label;
+    private Gtk.Box connections_breadcrumb_bar;
     private Gtk.Label connections_internal_links_label;
-    private Gtk.ListBox connections_graph_outgoing_list;
-    private Gtk.ListBox connections_graph_backlinks_list;
-    private Gtk.Label connections_graph_outgoing_empty_label;
-    private Gtk.Label connections_graph_backlinks_empty_label;
+    private Gtk.Overlay connections_board_overlay;
+    private Gtk.DrawingArea connections_board_canvas;
+    private Gtk.Fixed connections_board_nodes_layer;
+    private Gtk.Box connections_graph_summary_row;
+    private Gtk.Label connections_graph_summary_label;
+    private Gtk.Label connections_board_empty_label;
     private Gtk.Button connections_add_graph_link_btn;
     private Gtk.Label connections_structure_label;
     private Gtk.SingleSelection? project_selection;
@@ -28,6 +54,9 @@ public class ConnectionsToolView : Object {
     private Settings? settings;
     private uint connections_graph_refresh_serial = 0;
     private ConnectionsController controller;
+    private Gee.ArrayList<string> internal_links_cache = new Gee.ArrayList<string>();
+    private Gee.ArrayList<ConnectionsBoardNode> board_nodes = new Gee.ArrayList<ConnectionsBoardNode>();
+    private Gee.ArrayList<ConnectionsBoardEdge> board_edges = new Gee.ArrayList<ConnectionsBoardEdge>();
 
     public Gtk.Widget widget { get; private set; }
 
@@ -76,8 +105,27 @@ public class ConnectionsToolView : Object {
 
     private Gtk.Widget build_connections_tab() {
         var root = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+        connections_breadcrumb_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        connections_breadcrumb_bar.set_margin_top(6);
+        connections_breadcrumb_bar.set_margin_bottom(6);
+        connections_breadcrumb_bar.set_margin_start(6);
+        connections_breadcrumb_bar.set_margin_end(6);
+        root.append(connections_breadcrumb_bar);
+
+        var content_shell = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+        content_shell.add_css_class("flowboard-tile");
+        content_shell.set_margin_top(2);
+        content_shell.set_margin_bottom(6);
+        content_shell.set_margin_start(6);
+        content_shell.set_margin_end(6);
+        content_shell.set_vexpand(true);
+        content_shell.set_hexpand(true);
+        root.append(content_shell);
+
         var columns = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
-        root.append(columns);
+        columns.set_vexpand(true);
+        columns.set_hexpand(true);
+        content_shell.append(columns);
 
         var graph_column = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
         graph_column.set_margin_top(6);
@@ -92,7 +140,7 @@ public class ConnectionsToolView : Object {
         context_column.set_margin_end(6);
 
         var graph_scroller = new Gtk.ScrolledWindow();
-        graph_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC);
+        graph_scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC);
         graph_scroller.set_hexpand(true);
         graph_scroller.set_vexpand(true);
         graph_scroller.set_child(graph_column);
@@ -144,7 +192,6 @@ public class ConnectionsToolView : Object {
         var graph_header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         var graph_title = new Gtk.Label("Graph Connections") { xalign = 0.0f };
         graph_title.add_css_class("title-5");
-        graph_title.set_margin_start(GRAPH_TEXT_START);
         graph_title.set_hexpand(true);
         connections_add_graph_link_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
         connections_add_graph_link_btn.set_tooltip_text("Add graph link");
@@ -156,39 +203,47 @@ public class ConnectionsToolView : Object {
         graph_header.append(connections_add_graph_link_btn);
         graph_column.append(graph_header);
 
-        var outgoing_title = new Gtk.Label("Outgoing") { xalign = 0.0f };
-        outgoing_title.add_css_class("heading");
-        outgoing_title.set_margin_start(GRAPH_TEXT_START);
-        graph_column.append(outgoing_title);
-        connections_graph_outgoing_empty_label = new Gtk.Label("Select a card to view graph links.") { xalign = 0.0f };
-        connections_graph_outgoing_empty_label.add_css_class("dim-label");
-        connections_graph_outgoing_empty_label.set_wrap(true);
-        connections_graph_outgoing_empty_label.set_margin_start(GRAPH_TEXT_START);
-        graph_column.append(connections_graph_outgoing_empty_label);
-        connections_graph_outgoing_list = new Gtk.ListBox();
-        connections_graph_outgoing_list.set_selection_mode(Gtk.SelectionMode.NONE);
-        connections_graph_outgoing_list.add_css_class("connections-graph-list");
-        graph_column.append(connections_graph_outgoing_list);
+        connections_graph_summary_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        connections_graph_summary_label = new Gtk.Label("") { xalign = 0.0f };
+        connections_graph_summary_label.add_css_class("caption");
+        connections_graph_summary_label.add_css_class("dim-label");
+        connections_graph_summary_label.set_wrap(true);
+        connections_graph_summary_row.append(connections_graph_summary_label);
+        graph_column.append(connections_graph_summary_row);
 
-        var backlinks_title = new Gtk.Label("Incoming") { xalign = 0.0f };
-        backlinks_title.add_css_class("heading");
-        backlinks_title.set_margin_start(GRAPH_TEXT_START);
-        graph_column.append(backlinks_title);
-        connections_graph_backlinks_empty_label = new Gtk.Label("Select a card to view graph links.") { xalign = 0.0f };
-        connections_graph_backlinks_empty_label.add_css_class("dim-label");
-        connections_graph_backlinks_empty_label.set_wrap(true);
-        connections_graph_backlinks_empty_label.set_margin_start(GRAPH_TEXT_START);
-        graph_column.append(connections_graph_backlinks_empty_label);
-        connections_graph_backlinks_list = new Gtk.ListBox();
-        connections_graph_backlinks_list.set_selection_mode(Gtk.SelectionMode.NONE);
-        connections_graph_backlinks_list.add_css_class("connections-graph-list");
-        graph_column.append(connections_graph_backlinks_list);
+        connections_board_overlay = new Gtk.Overlay();
+        connections_board_overlay.add_css_class("connections-board-surface");
+        connections_board_overlay.set_hexpand(true);
+        connections_board_overlay.set_vexpand(true);
+        connections_board_overlay.set_size_request(BOARD_MIN_WIDTH, BOARD_MIN_HEIGHT);
+
+        connections_board_canvas = new Gtk.DrawingArea();
+        connections_board_canvas.set_hexpand(true);
+        connections_board_canvas.set_vexpand(true);
+        connections_board_canvas.set_content_width(BOARD_MIN_WIDTH);
+        connections_board_canvas.set_content_height(BOARD_MIN_HEIGHT);
+        connections_board_canvas.set_draw_func((area, cr, width, height) => {
+            draw_connections_board(cr);
+        });
+        connections_board_overlay.set_child(connections_board_canvas);
+
+        connections_board_nodes_layer = new Gtk.Fixed();
+        connections_board_nodes_layer.set_size_request(BOARD_MIN_WIDTH, BOARD_MIN_HEIGHT);
+        connections_board_nodes_layer.set_hexpand(true);
+        connections_board_nodes_layer.set_vexpand(true);
+        connections_board_overlay.add_overlay(connections_board_nodes_layer);
+
+        connections_board_empty_label = new Gtk.Label("Select a card to view graph links.") { xalign = 0.0f };
+        connections_board_empty_label.add_css_class("dim-label");
+        connections_board_empty_label.set_wrap(true);
+        connections_board_empty_label.set_halign(Gtk.Align.CENTER);
+        connections_board_empty_label.set_valign(Gtk.Align.CENTER);
+        connections_board_overlay.add_overlay(connections_board_empty_label);
+        graph_column.append(connections_board_overlay);
 
         refresh_connections_structure();
-        set_graph_empty_state(
-            "Select a card to view graph links.",
-            "Select a card to view graph links."
-        );
+        refresh_connections_breadcrumbs();
+        set_graph_empty_state("Select a card to view graph links.");
         return root;
     }
 
@@ -196,17 +251,21 @@ public class ConnectionsToolView : Object {
         if (connections_internal_links_label == null) {
             return;
         }
+        internal_links_cache.clear();
         if (link_targets == null || link_targets.size == 0) {
             connections_internal_links_label.set_visible(false);
+            queue_connections_graph_refresh();
             return;
         }
         connections_internal_links_label.set_visible(true);
         var builder = new StringBuilder("Internal Links:");
         foreach (var target in link_targets) {
+            internal_links_cache.add(target);
             builder.append(" ");
             builder.append(link_markup("ilink", target, target));
         }
         connections_internal_links_label.set_markup(builder.str);
+        queue_connections_graph_refresh();
     }
     private string link_markup(string kind, string id, string title) {
         var href = "%s:%s".printf(kind, Uri.escape_string(id, null, false));
@@ -216,17 +275,15 @@ public class ConnectionsToolView : Object {
         );
     }
 
-    private void set_graph_empty_state(string outgoing_text, string backlinks_text) {
-        clear_list_box(connections_graph_outgoing_list);
-        clear_list_box(connections_graph_backlinks_list);
-        if (connections_graph_outgoing_empty_label != null) {
-            connections_graph_outgoing_empty_label.set_text(outgoing_text);
-            connections_graph_outgoing_empty_label.set_visible(true);
-        }
-        if (connections_graph_backlinks_empty_label != null) {
-            connections_graph_backlinks_empty_label.set_text(backlinks_text);
-            connections_graph_backlinks_empty_label.set_visible(true);
-        }
+    private void set_graph_empty_state(string message) {
+        clear_fixed_children(connections_board_nodes_layer);
+        board_nodes.clear();
+        board_edges.clear();
+        connections_board_empty_label.set_text(message);
+        connections_board_empty_label.set_visible(true);
+        connections_graph_summary_label.set_text("");
+        ensure_board_canvas_size(BOARD_MIN_WIDTH, BOARD_MIN_HEIGHT);
+        connections_board_canvas.queue_draw();
         update_add_graph_link_button_state();
     }
 
@@ -376,215 +433,611 @@ public class ConnectionsToolView : Object {
     }
 
     private async void refresh_connections_graph(uint request_serial) {
-        if (connections_graph_outgoing_list == null || connections_graph_backlinks_list == null) {
+        if (connections_board_overlay == null || connections_board_nodes_layer == null || connections_board_canvas == null) {
             return;
         }
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
         var selected_card = card_selection != null
             ? card_selection.get_selected_item() as CardSummary
             : null;
+        if (selected_project == null) {
+            set_graph_empty_state("Select a project to view connections.");
+            return;
+        }
+        if (selected_card != null && selected_card.project_id != selected_project.project_id) {
+            selected_card = null;
+        }
 
-        var expected_card_id = selected_card != null ? selected_card.card_id : "";
-        var result = yield controller.load_graph_links(api, selected_card);
+        if (selected_card != null) {
+            var expected_card_id = selected_card.card_id;
+            var result = yield controller.load_graph_links(api, selected_card);
 
+            if (request_serial != connections_graph_refresh_serial) {
+                return;
+            }
+            var still_selected = card_selection != null
+                ? card_selection.get_selected_item() as CardSummary
+                : null;
+            if (still_selected == null || still_selected.card_id != expected_card_id) {
+                return;
+            }
+            if (!result.success || result.outgoing == null || result.backlinks == null) {
+                set_graph_empty_state(result.outgoing_empty_text);
+                if (result.debug_message.strip().length > 0) {
+                    debug_log_requested(result.debug_message);
+                }
+                return;
+            }
+            render_card_mode_board(selected_project, selected_card, result.outgoing, result.backlinks);
+            update_add_graph_link_button_state();
+            return;
+        }
+
+        if (api == null) {
+            set_graph_empty_state("API unavailable.");
+            return;
+        }
+        var cards = snapshot_cards();
+        var project_links = new Gee.ArrayList<CardLink>();
+        var project_card_ids = new Gee.HashSet<string>();
+        foreach (var card in cards) {
+            if (card.project_id == selected_project.project_id) {
+                project_card_ids.add(card.card_id);
+            }
+        }
+        foreach (var card in cards) {
+            if (card.project_id != selected_project.project_id) {
+                continue;
+            }
+            if (request_serial != connections_graph_refresh_serial) {
+                return;
+            }
+            try {
+                var links = yield api.list_card_links(card.card_id);
+                foreach (var link in links) {
+                    if (link.to_type == "card" && project_card_ids.contains(link.to_card_id)) {
+                        project_links.add(link);
+                    }
+                }
+            } catch (Error e) {
+                set_graph_empty_state("Failed to load project graph links.");
+                debug_log_requested("Project graph links refresh failed: %s".printf(e.message));
+                return;
+            }
+        }
         if (request_serial != connections_graph_refresh_serial) {
             return;
         }
-        var still_selected = card_selection != null
-            ? card_selection.get_selected_item() as CardSummary
-            : null;
-        if (still_selected == null && expected_card_id != "") {
-            return;
-        }
-        if (expected_card_id != "" && (still_selected == null || still_selected.card_id != expected_card_id)) {
-            return;
-        }
-
-        if (result.success) {
-            if (result.outgoing == null || result.backlinks == null) {
-                return;
-            }
-            populate_graph_rows(result.outgoing, true);
-            populate_graph_rows(result.backlinks, false);
-            update_add_graph_link_button_state();
-        } else {
-            set_graph_empty_state(result.outgoing_empty_text, result.backlinks_empty_text);
-            if (result.debug_message.strip().length > 0) {
-                debug_log_requested(result.debug_message);
-            }
-        }
+        render_project_mode_board(selected_project, cards, project_links);
+        update_add_graph_link_button_state();
     }
 
-    private void populate_graph_rows(Gee.ArrayList<CardLink> links, bool outgoing) {
-        var list = outgoing ? connections_graph_outgoing_list : connections_graph_backlinks_list;
-        var empty = outgoing ? connections_graph_outgoing_empty_label : connections_graph_backlinks_empty_label;
-        clear_list_box(list);
-
-        if (links.size == 0) {
-            if (empty != null) {
-                empty.set_text("None yet.");
-                empty.set_visible(true);
+    private void render_card_mode_board(Project project,
+                                        CardSummary selected_card,
+                                        Gee.ArrayList<CardLink> outgoing,
+                                        Gee.ArrayList<CardLink> backlinks) {
+        var cards = snapshot_cards();
+        var project_cards = new Gee.ArrayList<CardSummary>();
+        foreach (var card in cards) {
+            if (card.project_id == project.project_id) {
+                project_cards.add(card);
             }
+        }
+
+        var nodes_by_id = new Gee.HashMap<string, ConnectionsBoardNode>();
+        nodes_by_id.set(selected_card.card_id, new ConnectionsBoardNode(
+            selected_card.card_id,
+            controller.ellipsize_title(selected_card.title)
+        ));
+        var edges = new Gee.ArrayList<ConnectionsBoardEdge>();
+        var edge_keys = new Gee.HashSet<string>();
+
+        foreach (var link in outgoing) {
+            if (link.to_type != "card") {
+                continue;
+            }
+            add_board_edge(nodes_by_id, edge_keys, edges, link.from_card_id, link.to_card_id, normalized_kind(link.kind), false, cards);
+        }
+        foreach (var link in backlinks) {
+            if (link.to_type != "card") {
+                continue;
+            }
+            add_board_edge(nodes_by_id, edge_keys, edges, link.from_card_id, link.to_card_id, normalized_kind(link.kind), false, cards);
+        }
+
+        var structural = build_structural_edges_for_selected(selected_card, project_cards);
+        foreach (var edge in structural) {
+            add_board_edge(nodes_by_id, edge_keys, edges, edge.from_card_id, edge.to_card_id, edge.kind, true, cards);
+        }
+        foreach (var target in internal_links_cache) {
+            var target_card_id = controller.resolve_internal_link_target_card_id(target, project.project_id, cards);
+            if (target_card_id != null && target_card_id != selected_card.card_id) {
+                add_board_edge(nodes_by_id, edge_keys, edges, selected_card.card_id, target_card_id, "internal", true, cards);
+            }
+        }
+
+        var node_list = new Gee.ArrayList<ConnectionsBoardNode>();
+        foreach (var node in nodes_by_id.values) {
+            node_list.add(node);
+        }
+        node_list.sort((a, b) => strcmp(a.title.down(), b.title.down()));
+        layout_card_mode_nodes(selected_card.card_id, node_list);
+        render_board(node_list, edges, "Card-focused graph.");
+    }
+
+    private void render_project_mode_board(Project project,
+                                           Gee.ArrayList<CardSummary> cards,
+                                           Gee.ArrayList<CardLink> project_links) {
+        var project_cards = new Gee.ArrayList<CardSummary>();
+        foreach (var card in cards) {
+            if (card.project_id == project.project_id) {
+                project_cards.add(card);
+            }
+        }
+        if (project_cards.size == 0) {
+            set_graph_empty_state("No cards in this project yet.");
             return;
         }
-        if (empty != null) {
-            empty.set_visible(false);
-        }
 
-        var groups = controller.group_links_by_kind(links);
-        foreach (var group in groups) {
-            var kind = group.kind;
-            var bucket = group.links;
-
-            var header_row = new Gtk.ListBoxRow();
-            header_row.set_activatable(false);
-            header_row.set_selectable(false);
-            header_row.add_css_class("connections-kind-row");
-            header_row.set_child(build_graph_kind_header_row(kind));
-            list.append(header_row);
-
-            for (int i = 0; i < bucket.size; i++) {
-                var row = new Gtk.ListBoxRow();
-                row.set_activatable(false);
-                row.set_selectable(false);
-                row.add_css_class("connections-link-row");
-                row.set_child(build_graph_link_row(bucket[i], outgoing));
-                list.append(row);
+        var all_edges = new Gee.ArrayList<ConnectionsBoardEdge>();
+        var edge_keys = new Gee.HashSet<string>();
+        var counts = new Gee.HashMap<string, int>();
+        foreach (var link in project_links) {
+            var kind = normalized_kind(link.kind);
+            if (add_edge_to_list(edge_keys, all_edges, link.from_card_id, link.to_card_id, kind, false)) {
+                increment_count(counts, kind);
             }
         }
-    }
+        foreach (var edge in build_structural_edges_for_project(project_cards)) {
+            if (add_edge_to_list(edge_keys, all_edges, edge.from_card_id, edge.to_card_id, edge.kind, true)) {
+                increment_count(counts, edge.kind);
+            }
+        }
 
-    private Gtk.Widget build_graph_kind_header_row(string kind) {
-        var row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
-        row.set_margin_start(GRAPH_BLOCK_MARGIN_START);
+        var degree = new Gee.HashMap<string, int>();
+        foreach (var card in project_cards) {
+            degree.set(card.card_id, 0);
+        }
+        foreach (var edge in all_edges) {
+            degree.set(edge.from_card_id, degree.get(edge.from_card_id) + 1);
+            degree.set(edge.to_card_id, degree.get(edge.to_card_id) + 1);
+        }
 
-        var gutter = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
-        gutter.set_size_request(GRAPH_ACTION_COL_WIDTH, -1);
-        row.append(gutter);
-
-        var content = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
-        content.set_margin_start(GRAPH_CONTENT_GAP);
-        content.set_hexpand(true);
-        var kind_label = new Gtk.Label(kind) { xalign = 0.0f };
-        kind_label.add_css_class("dim-label");
-        kind_label.set_margin_start(GRAPH_KIND_EXTRA_INDENT);
-        content.append(kind_label);
-        row.append(content);
-        return row;
-    }
-
-    private Gtk.Widget build_graph_link_row(CardLink link, bool outgoing) {
-        var row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
-        row.set_margin_start(GRAPH_BLOCK_MARGIN_START);
-        var target_id = outgoing ? link.to_card_id : link.from_card_id;
-        var target_type = outgoing ? link.to_type : "card";
-        var direction = outgoing ? "→" : "←";
-
-        var action_gutter = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
-        action_gutter.set_size_request(GRAPH_ACTION_COL_WIDTH, -1);
-        row.append(action_gutter);
-
-        var actions_btn = new Gtk.MenuButton();
-        actions_btn.set_icon_name("open-menu-symbolic");
-        actions_btn.add_css_class("flat");
-        actions_btn.set_valign(Gtk.Align.START);
-        actions_btn.set_halign(Gtk.Align.CENTER);
-        var popover = new Gtk.Popover();
-        var actions_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
-        actions_box.set_margin_top(6);
-        actions_box.set_margin_bottom(6);
-        actions_box.set_margin_start(6);
-        actions_box.set_margin_end(6);
-        var edit_btn = new Gtk.Button.with_label("Edit");
-        edit_btn.add_css_class("flat");
-        edit_btn.clicked.connect(() => {
-            popover.popdown();
-            open_edit_graph_link_dialog(link, outgoing);
+        project_cards.sort((a, b) => {
+            var da = degree.get(a.card_id);
+            var db = degree.get(b.card_id);
+            if (da != db) {
+                return db - da;
+            }
+            return strcmp(a.title.down(), b.title.down());
         });
-        var delete_btn = new Gtk.Button.with_label("Delete");
-        delete_btn.add_css_class("flat");
-        delete_btn.clicked.connect(() => {
-            popover.popdown();
-            delete_graph_link.begin(link);
+        var keep = new Gee.HashSet<string>();
+        for (int i = 0; i < project_cards.size && i < PROJECT_MODE_MAX_NODES; i++) {
+            keep.add(project_cards[i].card_id);
+        }
+        var nodes = new Gee.ArrayList<ConnectionsBoardNode>();
+        foreach (var card in project_cards) {
+            if (!keep.contains(card.card_id)) {
+                continue;
+            }
+            nodes.add(new ConnectionsBoardNode(card.card_id, controller.ellipsize_title(card.title)));
+        }
+        var edges = new Gee.ArrayList<ConnectionsBoardEdge>();
+        foreach (var edge in all_edges) {
+            if (keep.contains(edge.from_card_id) && keep.contains(edge.to_card_id)) {
+                edges.add(edge);
+            }
+        }
+        layout_project_mode_nodes(nodes);
+        render_board(nodes, edges, format_counts_summary(counts));
+    }
+
+    private void render_board(Gee.ArrayList<ConnectionsBoardNode> nodes,
+                              Gee.ArrayList<ConnectionsBoardEdge> edges,
+                              string summary_text) {
+        clear_fixed_children(connections_board_nodes_layer);
+        board_nodes.clear();
+        board_edges.clear();
+        board_nodes.add_all(nodes);
+        board_edges.add_all(edges);
+
+        int required_w = BOARD_MIN_WIDTH;
+        int required_h = BOARD_MIN_HEIGHT;
+        foreach (var node in nodes) {
+            required_w = int.max(required_w, node.x + BOARD_NODE_WIDTH + BOARD_PADDING);
+            required_h = int.max(required_h, node.y + BOARD_NODE_HEIGHT + BOARD_PADDING);
+            var node_widget = build_board_node_widget(node);
+            connections_board_nodes_layer.put(node_widget, node.x, node.y);
+        }
+        ensure_board_canvas_size(required_w, required_h);
+        connections_board_empty_label.set_visible(nodes.size == 0);
+        if (nodes.size == 0) {
+            connections_board_empty_label.set_text("No connections to display.");
+        }
+        connections_graph_summary_label.set_text(summary_text);
+        connections_board_canvas.queue_draw();
+    }
+
+    private Gtk.Widget build_board_node_widget(ConnectionsBoardNode node) {
+        var button = new Gtk.Button();
+        button.add_css_class("connections-board-node");
+        button.set_size_request(BOARD_NODE_WIDTH, BOARD_NODE_HEIGHT);
+        var inner = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
+        inner.set_margin_top(10);
+        inner.set_margin_bottom(10);
+        inner.set_margin_start(12);
+        inner.set_margin_end(12);
+
+        var title = new Gtk.Label(node.title) { xalign = 0.0f };
+        title.set_ellipsize(Pango.EllipsizeMode.END);
+        title.set_max_width_chars(32);
+        title.add_css_class("heading");
+        inner.append(title);
+
+        var subtitle = new Gtk.Label(node.card_id) { xalign = 0.0f };
+        subtitle.add_css_class("caption");
+        subtitle.add_css_class("dim-label");
+        subtitle.set_ellipsize(Pango.EllipsizeMode.MIDDLE);
+        subtitle.set_max_width_chars(24);
+        inner.append(subtitle);
+
+        button.set_child(inner);
+        button.clicked.connect(() => {
+            select_card_by_id(node.card_id);
         });
-        actions_box.append(edit_btn);
-        actions_box.append(delete_btn);
-        popover.set_child(actions_box);
-        actions_btn.set_popover(popover);
-        action_gutter.append(actions_btn);
+        return button;
+    }
 
-        var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
-        content.set_margin_start(GRAPH_CONTENT_GAP);
-        content.set_hexpand(true);
-        row.append(content);
-
-        var detail = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        detail.set_margin_start(0);
-        detail.set_hexpand(true);
-        content.append(detail);
-
-        var arrow_label = new Gtk.Label(direction) { xalign = 0.0f };
-        arrow_label.add_css_class("dim-label");
-        detail.append(arrow_label);
-
-        Gtk.Widget target_widget;
-        if (target_type == "card") {
-            var target_btn = new Gtk.Button.with_label(
-                controller.ellipsize_title(controller.title_for_card_id(target_id, snapshot_cards()))
-            );
-            target_btn.add_css_class("flat");
-            target_btn.add_css_class("link");
-            target_btn.clicked.connect(() => {
-                select_card_by_id(target_id);
-            });
-            target_widget = target_btn;
-        } else {
-            target_widget = new Gtk.Label("%s:%s".printf(target_type, target_id)) { xalign = 0.0f };
+    private void draw_connections_board(Cairo.Context cr) {
+        if (board_edges.size == 0 || board_nodes.size == 0) {
+            return;
         }
-        target_widget.set_hexpand(false);
-        target_widget.set_halign(Gtk.Align.START);
-        detail.append(target_widget);
-
-        if (link.label != null && link.label.strip().length > 0) {
-            var label = new Gtk.Label(link.label.strip()) { xalign = 0.0f };
-            label.add_css_class("caption");
-            label.add_css_class("dim-label");
-            detail.append(label);
+        var node_map = new Gee.HashMap<string, ConnectionsBoardNode>();
+        foreach (var node in board_nodes) {
+            node_map.set(node.card_id, node);
         }
+        cr.set_line_width(1.6);
+        cr.set_source_rgba(1.0, 1.0, 1.0, 0.88);
+        foreach (var edge in board_edges) {
+            var from = node_map.get(edge.from_card_id);
+            var to = node_map.get(edge.to_card_id);
+            if (from == null || to == null) {
+                continue;
+            }
+            double x0;
+            double y0;
+            point_on_node_edge(from, to, out x0, out y0);
+            double x1;
+            double y1;
+            point_on_node_edge(to, from, out x1, out y1);
+            if (edge.dashed) {
+                double[] dashes = { 5.0, 4.0 };
+                cr.set_dash(dashes, 0.0);
+            } else {
+                cr.set_dash(null, 0.0);
+            }
+            cr.move_to(x0, y0);
+            cr.line_to(x1, y1);
+            cr.stroke();
+            draw_arrow_head(cr, x0, y0, x1, y1);
+        }
+        cr.set_dash(null, 0.0);
+    }
 
-        var trailing_spacer = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
-        trailing_spacer.set_hexpand(true);
-        detail.append(trailing_spacer);
+    private void point_on_node_edge(ConnectionsBoardNode source,
+                                    ConnectionsBoardNode target,
+                                    out double out_x,
+                                    out double out_y) {
+        double cx = source.x + BOARD_NODE_WIDTH / 2.0;
+        double cy = source.y + BOARD_NODE_HEIGHT / 2.0;
+        double tx = target.x + BOARD_NODE_WIDTH / 2.0;
+        double ty = target.y + BOARD_NODE_HEIGHT / 2.0;
+        double dx = tx - cx;
+        double dy = ty - cy;
+        if (absd(dx) < 0.001 && absd(dy) < 0.001) {
+            out_x = cx;
+            out_y = cy;
+            return;
+        }
+        if (absd(dx) >= absd(dy)) {
+            out_x = dx >= 0 ? (source.x + BOARD_NODE_WIDTH) : source.x;
+            out_y = cy;
+            return;
+        }
+        out_x = cx;
+        out_y = dy >= 0 ? (source.y + BOARD_NODE_HEIGHT) : source.y;
+    }
 
-        return row;
+    private void draw_arrow_head(Cairo.Context cr,
+                                 double x0,
+                                 double y0,
+                                 double x1,
+                                 double y1) {
+        double dx = x1 - x0;
+        double dy = y1 - y0;
+        if (absd(dx) < 0.001 && absd(dy) < 0.001) {
+            return;
+        }
+        if (absd(dx) >= absd(dy)) {
+            double dir = dx >= 0 ? 1.0 : -1.0;
+            cr.move_to(x1, y1);
+            cr.line_to(x1 - (8.0 * dir), y1 - 3.5);
+            cr.line_to(x1 - (8.0 * dir), y1 + 3.5);
+            cr.close_path();
+            cr.fill();
+            return;
+        }
+        double dir = dy >= 0 ? 1.0 : -1.0;
+        cr.move_to(x1, y1);
+        cr.line_to(x1 - 3.5, y1 - (8.0 * dir));
+        cr.line_to(x1 + 3.5, y1 - (8.0 * dir));
+        cr.close_path();
+        cr.fill();
+    }
+
+    private void ensure_board_canvas_size(int width, int height) {
+        connections_board_overlay.set_size_request(width, height);
+        connections_board_canvas.set_content_width(width);
+        connections_board_canvas.set_content_height(height);
+        connections_board_nodes_layer.set_size_request(width, height);
+    }
+
+    private string normalized_kind(string? kind) {
+        if (kind == null) {
+            return "ref";
+        }
+        var cleaned = kind.strip();
+        return cleaned.length > 0 ? cleaned : "ref";
+    }
+
+    private bool add_edge_to_list(Gee.HashSet<string> edge_keys,
+                                  Gee.ArrayList<ConnectionsBoardEdge> edges,
+                                  string from_card_id,
+                                  string to_card_id,
+                                  string kind,
+                                  bool dashed) {
+        if (from_card_id == to_card_id) {
+            return false;
+        }
+        var key = "%s|%s|%s".printf(from_card_id, to_card_id, kind);
+        if (edge_keys.contains(key)) {
+            return false;
+        }
+        edge_keys.add(key);
+        edges.add(new ConnectionsBoardEdge(from_card_id, to_card_id, kind, dashed));
+        return true;
+    }
+
+    private void add_board_edge(Gee.HashMap<string, ConnectionsBoardNode> nodes_by_id,
+                                Gee.HashSet<string> edge_keys,
+                                Gee.ArrayList<ConnectionsBoardEdge> edges,
+                                string from_card_id,
+                                string to_card_id,
+                                string kind,
+                                bool dashed,
+                                Gee.ArrayList<CardSummary> cards) {
+        if (!add_edge_to_list(edge_keys, edges, from_card_id, to_card_id, kind, dashed)) {
+            return;
+        }
+        ensure_node(nodes_by_id, from_card_id, cards);
+        ensure_node(nodes_by_id, to_card_id, cards);
+    }
+
+    private void ensure_node(Gee.HashMap<string, ConnectionsBoardNode> nodes_by_id,
+                             string card_id,
+                             Gee.ArrayList<CardSummary> cards) {
+        if (nodes_by_id.has_key(card_id)) {
+            return;
+        }
+        var title = controller.ellipsize_title(controller.title_for_card_id(card_id, cards));
+        nodes_by_id.set(card_id, new ConnectionsBoardNode(card_id, title));
+    }
+
+    private Gee.ArrayList<ConnectionsBoardEdge> build_structural_edges_for_selected(CardSummary selected_card,
+                                                                                     Gee.ArrayList<CardSummary> project_cards) {
+        var out = new Gee.ArrayList<ConnectionsBoardEdge>();
+        var siblings = sibling_cards(selected_card, project_cards);
+        int selected_index = -1;
+        for (int i = 0; i < siblings.size; i++) {
+            if (siblings[i].card_id == selected_card.card_id) {
+                selected_index = i;
+                break;
+            }
+        }
+        if (selected_index > 0) {
+            out.add(new ConnectionsBoardEdge(siblings[selected_index - 1].card_id, selected_card.card_id, "next", true));
+        }
+        if (selected_index >= 0 && selected_index < siblings.size - 1) {
+            out.add(new ConnectionsBoardEdge(selected_card.card_id, siblings[selected_index + 1].card_id, "next", true));
+        }
+        var parent_id = normalize_parent(selected_card.parent_card_id);
+        if (parent_id != null) {
+            out.add(new ConnectionsBoardEdge(parent_id, selected_card.card_id, "child", true));
+        }
+        foreach (var card in project_cards) {
+            if (normalize_parent(card.parent_card_id) == selected_card.card_id) {
+                out.add(new ConnectionsBoardEdge(selected_card.card_id, card.card_id, "child", true));
+            }
+        }
+        return out;
+    }
+
+    private Gee.ArrayList<ConnectionsBoardEdge> build_structural_edges_for_project(Gee.ArrayList<CardSummary> project_cards) {
+        var out = new Gee.ArrayList<ConnectionsBoardEdge>();
+        var parent_groups = new Gee.HashMap<string, Gee.ArrayList<CardSummary>>();
+        foreach (var card in project_cards) {
+            var parent_key = normalize_parent(card.parent_card_id) ?? "";
+            var group = parent_groups.get(parent_key);
+            if (group == null) {
+                group = new Gee.ArrayList<CardSummary>();
+                parent_groups.set(parent_key, group);
+            }
+            group.add(card);
+            if (parent_key.length > 0) {
+                out.add(new ConnectionsBoardEdge(parent_key, card.card_id, "child", true));
+            }
+        }
+        foreach (var group in parent_groups.values) {
+            group.sort((a, b) => compare_sibling_order(a, b));
+            for (int i = 0; i < group.size - 1; i++) {
+                out.add(new ConnectionsBoardEdge(group[i].card_id, group[i + 1].card_id, "next", true));
+            }
+        }
+        return out;
+    }
+
+    private void layout_card_mode_nodes(string center_card_id, Gee.ArrayList<ConnectionsBoardNode> nodes) {
+        int cx = BOARD_MIN_WIDTH / 2 - BOARD_NODE_WIDTH / 2;
+        int cy = BOARD_MIN_HEIGHT / 2 - BOARD_NODE_HEIGHT / 2;
+        var ring = new Gee.ArrayList<ConnectionsBoardNode>();
+        foreach (var node in nodes) {
+            if (node.card_id == center_card_id) {
+                node.x = cx;
+                node.y = cy;
+            } else {
+                ring.add(node);
+            }
+        }
+        if (ring.size == 0) {
+            return;
+        }
+        int step_x = BOARD_NODE_WIDTH + 56;
+        int step_y = BOARD_NODE_HEIGHT + 34;
+        int placed = 0;
+        for (int radius = 1; placed < ring.size; radius++) {
+            for (int grid_y = -radius; grid_y <= radius && placed < ring.size; grid_y++) {
+                for (int grid_x = -radius; grid_x <= radius && placed < ring.size; grid_x++) {
+                    if (imax(iabs(grid_x), iabs(grid_y)) != radius) {
+                        continue;
+                    }
+                    ring[placed].x = int.max(BOARD_PADDING / 2, cx + grid_x * step_x);
+                    ring[placed].y = int.max(BOARD_PADDING / 2, cy + grid_y * step_y);
+                    placed++;
+                }
+            }
+        }
+    }
+
+    private void layout_project_mode_nodes(Gee.ArrayList<ConnectionsBoardNode> nodes) {
+        if (nodes.size == 0) {
+            return;
+        }
+        int cols = 1;
+        while ((cols * cols) < nodes.size) {
+            cols++;
+        }
+        int gap_x = 36;
+        int gap_y = 36;
+        int start_x = BOARD_PADDING;
+        int start_y = BOARD_PADDING + 12;
+        for (int i = 0; i < nodes.size; i++) {
+            int col = i % cols;
+            int row = i / cols;
+            nodes[i].x = start_x + col * (BOARD_NODE_WIDTH + gap_x);
+            nodes[i].y = start_y + row * (BOARD_NODE_HEIGHT + gap_y);
+        }
+    }
+
+    private double absd(double value) {
+        return value < 0 ? -value : value;
+    }
+
+    private int iabs(int value) {
+        return value < 0 ? -value : value;
+    }
+
+    private int imax(int a, int b) {
+        return a >= b ? a : b;
+    }
+
+    private string format_counts_summary(Gee.HashMap<string, int> counts) {
+        if (counts.size == 0) {
+            return "No graph relationships yet.";
+        }
+        var keys = new Gee.ArrayList<string>();
+        foreach (var key in counts.keys) {
+            keys.add(key);
+        }
+        keys.sort((a, b) => {
+            var ca = counts.get(a);
+            var cb = counts.get(b);
+            if (ca != cb) {
+                return cb - ca;
+            }
+            return strcmp(a, b);
+        });
+        var parts = new Gee.ArrayList<string>();
+        foreach (var key in keys) {
+            parts.add("%s: %d".printf(key, counts.get(key)));
+        }
+        return "Project relationship summary  •  %s".printf(string.joinv("  •  ", parts.to_array()));
+    }
+
+    private void increment_count(Gee.HashMap<string, int> counts, string kind) {
+        if (counts.has_key(kind)) {
+            counts.set(kind, counts.get(kind) + 1);
+            return;
+        }
+        counts.set(kind, 1);
+    }
+
+    private Gee.ArrayList<CardSummary> sibling_cards(CardSummary selected_card, Gee.ArrayList<CardSummary> project_cards) {
+        var siblings = new Gee.ArrayList<CardSummary>();
+        var target_parent = normalize_parent(selected_card.parent_card_id);
+        foreach (var card in project_cards) {
+            if (normalize_parent(card.parent_card_id) == target_parent) {
+                siblings.add(card);
+            }
+        }
+        siblings.sort((a, b) => compare_sibling_order(a, b));
+        return siblings;
+    }
+
+    private string? normalize_parent(string? parent_card_id) {
+        if (parent_card_id == null) {
+            return null;
+        }
+        var trimmed = parent_card_id.strip();
+        return trimmed.length == 0 ? null : trimmed;
+    }
+
+    private int compare_sibling_order(CardSummary a, CardSummary b) {
+        if (a.sort_key < b.sort_key) {
+            return -1;
+        }
+        if (a.sort_key > b.sort_key) {
+            return 1;
+        }
+        if (a.updated_at > b.updated_at) {
+            return -1;
+        }
+        if (a.updated_at < b.updated_at) {
+            return 1;
+        }
+        return strcmp(a.title.down(), b.title.down());
     }
 
     private static void ensure_connections_css() {
         var provider = new Gtk.CssProvider();
         provider.load_from_string("""
-.connections-kind-row {
-  background: transparent;
-  background-color: transparent;
-  box-shadow: none;
+.connections-board-surface {
+  border-radius: 10px;
+  border: 1px solid alpha(@borders, 0.70);
+  background-color: #090909;
 }
 
-.connections-kind-row:hover,
-.connections-kind-row:focus,
-.connections-kind-row:focus-within,
-.connections-kind-row:selected {
-  background: transparent;
-  background-color: transparent;
-  box-shadow: none;
+.connections-board-node {
+  border-radius: 8px;
+  border: 1px solid alpha(@borders, 0.75);
+  background-image: none;
+  background-color: alpha(@card_bg_color, 0.48);
+  color: @view_fg_color;
 }
 
-.connections-graph-list,
-.connections-graph-list row,
-.connections-graph-list row:hover,
-.connections-graph-list row:selected,
-.connections-graph-list row:focus,
-.connections-graph-list row:focus-within {
-  background: transparent;
-  background-color: transparent;
-  box-shadow: none;
+.connections-board-node:hover {
+  background-color: alpha(@card_bg_color, 0.60);
 }
 """);
         gtk_style_context_add_provider_for_display(
@@ -592,142 +1045,6 @@ public class ConnectionsToolView : Object {
             provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         );
-    }
-
-    private void open_edit_graph_link_dialog(CardLink link, bool outgoing) {
-        var root = widget.get_root() as Gtk.Window;
-        if (root == null) {
-            return;
-        }
-        var target_id = outgoing ? link.to_card_id : link.from_card_id;
-        var target_title = controller.title_for_card_id(target_id, snapshot_cards());
-
-        var dialog = new Adw.MessageDialog(root, "Edit Graph Link", "Update kind or label.");
-        dialog.add_response("cancel", "Cancel");
-        dialog.add_response("save", "Save");
-        dialog.set_response_appearance("save", Adw.ResponseAppearance.SUGGESTED);
-        dialog.set_default_response("save");
-        dialog.set_close_response("cancel");
-
-        var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
-        content.append(new Gtk.Label("Target") { xalign = 0.0f });
-        content.append(new Gtk.Label(target_title) { xalign = 0.0f });
-
-        content.append(new Gtk.Label("Kind") { xalign = 0.0f });
-        var kind_options = new Gtk.StringList(null);
-        var available_kinds = controller.list_available_link_kinds(settings);
-        foreach (var kind_option in available_kinds) {
-            kind_options.append(kind_option);
-        }
-        kind_options.append("custom");
-        var kind_dropdown = new Gtk.DropDown(kind_options, null);
-        var custom_kind_entry = new Gtk.Entry();
-        custom_kind_entry.set_placeholder_text("custom kind");
-        custom_kind_entry.set_visible(false);
-
-        int selected_index = -1;
-        for (uint i = 0; i < kind_options.get_n_items(); i++) {
-            if (kind_options.get_string(i) == link.kind) {
-                selected_index = (int) i;
-                break;
-            }
-        }
-        if (selected_index >= 0) {
-            kind_dropdown.set_selected((uint) selected_index);
-        } else {
-            kind_dropdown.set_selected(kind_options.get_n_items() - 1);
-            custom_kind_entry.set_text(link.kind);
-            custom_kind_entry.set_visible(true);
-        }
-
-        kind_dropdown.notify["selected"].connect(() => {
-            var selected = kind_dropdown.get_selected();
-            var is_custom = (selected == kind_options.get_n_items() - 1);
-            custom_kind_entry.set_visible(is_custom);
-            if (!is_custom) {
-                custom_kind_entry.set_text("");
-            }
-        });
-        var kind_row = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
-        kind_row.append(kind_dropdown);
-        kind_row.append(custom_kind_entry);
-        content.append(kind_row);
-
-        content.append(new Gtk.Label("Label (optional)") { xalign = 0.0f });
-        var label_entry = new Gtk.Entry();
-        if (link.label != null) {
-            label_entry.set_text(link.label);
-        }
-        content.append(label_entry);
-
-        dialog.set_extra_child(content);
-        dialog.response.connect((response) => {
-            if (response == "save") {
-                var custom_index = (int) kind_options.get_n_items() - 1;
-                var picked_index = (int) kind_dropdown.get_selected();
-                string new_kind = "ref";
-                bool remember_kind = false;
-                if (picked_index >= 0 && picked_index < custom_index) {
-                    var chosen = kind_options.get_string((uint) picked_index);
-                    if (chosen != null && chosen.length > 0) {
-                        new_kind = chosen;
-                    }
-                } else {
-                    var custom_kind = custom_kind_entry.get_text().strip();
-                    new_kind = custom_kind.length > 0 ? custom_kind : "ref";
-                    remember_kind = custom_kind.length > 0;
-                }
-                var new_label = label_entry.get_text().strip();
-                update_graph_link.begin(
-                    link,
-                    new_kind,
-                    new_label.length > 0 ? new_label : null,
-                    remember_kind
-                );
-            }
-            dialog.close();
-        });
-        dialog.present();
-    }
-
-    private async void update_graph_link(CardLink old_link,
-                                         string new_kind,
-                                         string? new_label,
-                                         bool remember_kind) {
-        var result = yield controller.update_graph_link_flow(
-            api,
-            old_link,
-            new_kind,
-            new_label,
-            remember_kind,
-            settings
-        );
-        if (result.ignored) {
-            return;
-        }
-        if (result.success) {
-            if (result.toast_message.strip().length > 0) {
-                toast_requested(result.toast_message);
-            }
-            queue_connections_graph_refresh();
-            return;
-        }
-        error_reported(result.error_title, result.error_details);
-    }
-
-    private async void delete_graph_link(CardLink link) {
-        var result = yield controller.delete_graph_link_flow(api, link);
-        if (result.ignored) {
-            return;
-        }
-        if (result.success) {
-            if (result.toast_message.strip().length > 0) {
-                toast_requested(result.toast_message);
-            }
-            queue_connections_graph_refresh();
-            return;
-        }
-        error_reported(result.error_title, result.error_details);
     }
 
     private bool on_connections_link_activated(string uri) {
@@ -795,6 +1112,7 @@ public class ConnectionsToolView : Object {
         if (connections_structure_label == null) {
             return;
         }
+        refresh_connections_breadcrumbs();
         var selected_project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
@@ -814,6 +1132,31 @@ public class ConnectionsToolView : Object {
         update_add_graph_link_button_state();
     }
 
+    private void refresh_connections_breadcrumbs() {
+        if (connections_breadcrumb_bar == null) {
+            return;
+        }
+        clear_box_children(connections_breadcrumb_bar);
+
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        var project_label = selected_project != null ? selected_project.name : "(none)";
+        string[] segments = { "Projects", project_label, "Connections" };
+
+        for (int i = 0; i < segments.length; i++) {
+            var btn = new Gtk.Button.with_label(segments[i]);
+            btn.add_css_class("flat");
+            btn.set_focusable(false);
+            connections_breadcrumb_bar.append(btn);
+            if (i < segments.length - 1) {
+                var sep = new Gtk.Label(" / ");
+                sep.add_css_class("dim-label");
+                connections_breadcrumb_bar.append(sep);
+            }
+        }
+    }
+
     private Gee.ArrayList<CardSummary> snapshot_cards() {
         var cards = new Gee.ArrayList<CardSummary>();
         if (card_store == null) {
@@ -828,11 +1171,20 @@ public class ConnectionsToolView : Object {
         return cards;
     }
 
-    private void clear_list_box(Gtk.ListBox list) {
-        Gtk.Widget? child = list.get_first_child();
+    private void clear_fixed_children(Gtk.Fixed fixed) {
+        Gtk.Widget? child = fixed.get_first_child();
         while (child != null) {
             var next = child.get_next_sibling();
-            list.remove(child);
+            fixed.remove(child);
+            child = next;
+        }
+    }
+
+    private void clear_box_children(Gtk.Box box) {
+        Gtk.Widget? child = box.get_first_child();
+        while (child != null) {
+            var next = child.get_next_sibling();
+            box.remove(child);
             child = next;
         }
     }
