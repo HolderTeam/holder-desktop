@@ -468,6 +468,9 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.toast_requested.connect((message) => {
             add_toast(message);
         });
+        toolbox.connections_project_overview_requested.connect((_project_id) => {
+            controller.show_project_overview.begin();
+        });
         toolbox.flowboard_card_open_requested.connect((card_id) => {
             open_card_from_flowboard(card_id);
         });

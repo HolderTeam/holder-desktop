@@ -34,6 +34,7 @@ public class ToolboxPane : Object {
     public signal void save_recovery_key_to_usb_requested();
     public signal void import_recovery_key_requested();
     public signal void terminal_copy_to_card_requested(string text);
+    public signal void connections_project_overview_requested(string project_id);
 
     public ToolboxPane() {
         widget = new Gtk.Revealer();
@@ -189,6 +190,9 @@ public class ToolboxPane : Object {
         });
         connections_tool.debug_log_requested.connect((line) => {
             log_debug(line);
+        });
+        connections_tool.project_overview_requested.connect((project_id) => {
+            connections_project_overview_requested(project_id);
         });
         connections_tool.set_api_client(api);
         connections_tool.set_settings(settings);

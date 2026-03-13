@@ -88,6 +88,7 @@ public class ConnectionsToolView : Object {
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
     public signal void debug_log_requested(string line);
+    public signal void project_overview_requested(string project_id);
 
     public ConnectionsToolView() {
         controller = new ConnectionsController();
@@ -1393,6 +1394,7 @@ public class ConnectionsToolView : Object {
         if (card_selection != null) {
             card_selection.set_selected(Gtk.INVALID_LIST_POSITION);
         }
+        project_overview_requested(project_id);
         refresh_connections_structure();
         queue_connections_graph_refresh();
     }
