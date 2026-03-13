@@ -63,8 +63,11 @@ public class ConnectionsToolView : Object {
     private Gtk.Box connections_relations_column;
     private Gtk.Label connections_relations_title_label;
     private Gtk.Label connections_relations_structure_label;
+    private Gtk.Box connections_relations_outgoing_section;
     private Gtk.Label connections_relations_outgoing_label;
+    private Gtk.Box connections_relations_backlinks_section;
     private Gtk.Label connections_relations_backlinks_label;
+    private Gtk.Box connections_relations_internal_section;
     private Gtk.Label connections_relations_internal_label;
     private Gtk.Button connections_add_graph_link_btn;
     private Gtk.SingleSelection? project_selection;
@@ -244,9 +247,10 @@ public class ConnectionsToolView : Object {
         });
         connections_relations_column.append(connections_relations_structure_label);
 
+        connections_relations_outgoing_section = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
         var outgoing_title = new Gtk.Label("Outgoing") { xalign = 0.0f };
         outgoing_title.add_css_class("heading");
-        connections_relations_column.append(outgoing_title);
+        connections_relations_outgoing_section.append(outgoing_title);
         connections_relations_outgoing_label = new Gtk.Label("") { xalign = 0.0f };
         connections_relations_outgoing_label.set_wrap(true);
         connections_relations_outgoing_label.set_use_markup(true);
@@ -254,11 +258,13 @@ public class ConnectionsToolView : Object {
         connections_relations_outgoing_label.activate_link.connect((uri) => {
             return on_connections_link_activated(uri);
         });
-        connections_relations_column.append(connections_relations_outgoing_label);
+        connections_relations_outgoing_section.append(connections_relations_outgoing_label);
+        connections_relations_column.append(connections_relations_outgoing_section);
 
+        connections_relations_backlinks_section = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
         var incoming_title = new Gtk.Label("Incoming") { xalign = 0.0f };
         incoming_title.add_css_class("heading");
-        connections_relations_column.append(incoming_title);
+        connections_relations_backlinks_section.append(incoming_title);
         connections_relations_backlinks_label = new Gtk.Label("") { xalign = 0.0f };
         connections_relations_backlinks_label.set_wrap(true);
         connections_relations_backlinks_label.set_use_markup(true);
@@ -266,11 +272,13 @@ public class ConnectionsToolView : Object {
         connections_relations_backlinks_label.activate_link.connect((uri) => {
             return on_connections_link_activated(uri);
         });
-        connections_relations_column.append(connections_relations_backlinks_label);
+        connections_relations_backlinks_section.append(connections_relations_backlinks_label);
+        connections_relations_column.append(connections_relations_backlinks_section);
 
+        connections_relations_internal_section = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
         var internal_title = new Gtk.Label("Internal") { xalign = 0.0f };
         internal_title.add_css_class("heading");
-        connections_relations_column.append(internal_title);
+        connections_relations_internal_section.append(internal_title);
         connections_relations_internal_label = new Gtk.Label("") { xalign = 0.0f };
         connections_relations_internal_label.set_wrap(true);
         connections_relations_internal_label.set_use_markup(true);
@@ -278,7 +286,8 @@ public class ConnectionsToolView : Object {
         connections_relations_internal_label.activate_link.connect((uri) => {
             return on_connections_link_activated(uri);
         });
-        connections_relations_column.append(connections_relations_internal_label);
+        connections_relations_internal_section.append(connections_relations_internal_label);
+        connections_relations_column.append(connections_relations_internal_section);
 
         connections_relations_scroller = new Gtk.ScrolledWindow();
         connections_relations_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC);
@@ -368,12 +377,18 @@ public class ConnectionsToolView : Object {
         connections_relations_outgoing_label.set_markup("None");
         connections_relations_backlinks_label.set_markup("None");
         connections_relations_internal_label.set_markup("None");
+        connections_relations_outgoing_section.set_visible(false);
+        connections_relations_backlinks_section.set_visible(false);
+        connections_relations_internal_section.set_visible(false);
     }
 
     private void set_relations_for_card(Project project,
                                         CardSummary selected_card,
                                         Gee.ArrayList<CardLink> outgoing,
                                         Gee.ArrayList<CardLink> backlinks) {
+        connections_relations_outgoing_section.set_visible(true);
+        connections_relations_backlinks_section.set_visible(true);
+        connections_relations_internal_section.set_visible(true);
         connections_relations_structure_label.set_markup(
             controller.compact_structure_markup(project, selected_card, snapshot_cards())
         );
@@ -1243,9 +1258,9 @@ public class ConnectionsToolView : Object {
         });
         var parts = new Gee.ArrayList<string>();
         foreach (var key in keys) {
-            parts.add("%s: %d".printf(key, counts.get(key)));
+            parts.add("• %s: %d".printf(key, counts.get(key)));
         }
-        return "Project relationship summary  •  %s".printf(string.joinv("  •  ", parts.to_array()));
+        return string.joinv("\n", parts.to_array());
     }
 
     private void increment_count(Gee.HashMap<string, int> counts, string kind) {
