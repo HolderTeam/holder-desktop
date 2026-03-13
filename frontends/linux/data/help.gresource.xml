@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/io/holder/linux/help">
+    <file alias="toolbox/connections.md">../../help/toolbox/connections.md</file>
+  </gresource>
+</gresources>

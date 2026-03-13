@@ -91,7 +91,7 @@ sources = [
 
 executable(
   'holder-desktop',
-  sources,
+  [sources, help_resources],
   dependencies: deps,
   vala_args: [
     '--target-glib=2.70',

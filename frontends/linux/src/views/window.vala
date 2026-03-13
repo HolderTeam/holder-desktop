@@ -865,25 +865,15 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void show_connections_help_page() {
-        string[] candidates = {
-            "../../../help/toolbox/connections.md",
-            "../../help/toolbox/connections.md",
-            "help/toolbox/connections.md"
-        };
-        string? markdown = null;
-        foreach (var path in candidates) {
-            try {
-                string content;
-                if (FileUtils.get_contents(path, out content)) {
-                    markdown = content;
-                    break;
-                }
-            } catch (FileError e) {
-                // Try next candidate path.
-            }
-        }
-        if (markdown == null) {
-            markdown = "# Connections\n\nHelp page not found at `help/toolbox/connections.md`.";
+        string markdown;
+        try {
+            var bytes = resources_lookup_data(
+                "/io/holder/linux/help/toolbox/connections.md",
+                ResourceLookupFlags.NONE
+            );
+            markdown = (string) bytes.get_data();
+        } catch (Error e) {
+            markdown = "# Connections\n\nHelp page resource missing: %s".printf(e.message);
         }
         set_editor_state(markdown, false);
         update_window_title("Connections");
