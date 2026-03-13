@@ -61,6 +61,7 @@ public class ConnectionsToolView : Object {
     private Gtk.ToggleButton connections_relations_toggle_btn;
     private Gtk.ScrolledWindow connections_relations_scroller;
     private Gtk.Box connections_relations_column;
+    private Gtk.Label connections_relations_title_label;
     private Gtk.Label connections_relations_structure_label;
     private Gtk.Label connections_relations_outgoing_label;
     private Gtk.Label connections_relations_backlinks_label;
@@ -230,9 +231,9 @@ public class ConnectionsToolView : Object {
         connections_relations_column.set_margin_start(8);
         connections_relations_column.set_margin_end(8);
 
-        var relations_title = new Gtk.Label("Relations") { xalign = 0.0f };
-        relations_title.add_css_class("title-5");
-        connections_relations_column.append(relations_title);
+        connections_relations_title_label = new Gtk.Label("Relations") { xalign = 0.0f };
+        connections_relations_title_label.add_css_class("title-5");
+        connections_relations_column.append(connections_relations_title_label);
 
         connections_relations_structure_label = new Gtk.Label("") { xalign = 0.0f };
         connections_relations_structure_label.set_wrap(true);
@@ -1374,7 +1375,34 @@ public class ConnectionsToolView : Object {
 
     private void refresh_connections_structure() {
         refresh_connections_breadcrumbs();
+        refresh_relations_title();
         update_add_graph_link_button_state();
+    }
+
+    private void refresh_relations_title() {
+        if (connections_relations_title_label == null) {
+            return;
+        }
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        var selected_card = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary
+            : null;
+
+        if (selected_card != null) {
+            connections_relations_title_label.set_text(
+                controller.ellipsize_title(selected_card.title)
+            );
+            return;
+        }
+        if (selected_project != null) {
+            connections_relations_title_label.set_text(
+                controller.ellipsize_title(selected_project.name)
+            );
+            return;
+        }
+        connections_relations_title_label.set_text("Relations");
     }
 
     private void refresh_connections_breadcrumbs() {
