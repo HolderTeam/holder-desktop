@@ -11,6 +11,7 @@ public class ToolboxPane : Object {
     private TerminalToolView terminal_tool;
     private FlowboardToolView flowboard_tool;
     private TrashToolView trash_tool;
+    private Gtk.Stack? toolbox_stack;
     private Gtk.SingleSelection? project_selection;
     private GLib.ListStore? card_store;
     private Gtk.SingleSelection? card_selection;
@@ -168,6 +169,7 @@ public class ToolboxPane : Object {
         frame.append(header);
 
         var stack = new Gtk.Stack();
+        toolbox_stack = stack;
         stack.set_vexpand(true);
         stack.set_hexpand(true);
         switcher.set_stack(stack);
@@ -273,6 +275,11 @@ public class ToolboxPane : Object {
         });
         trash_tool.toast_requested.connect((message) => {
             toast_requested(message);
+        });
+        trash_tool.breadcrumb_activated.connect((index) => {
+            if (index < 2 && toolbox_stack != null) {
+                toolbox_stack.set_visible_child_name("flowboard");
+            }
         });
         trash_tool.set_api_client(api);
         trash_tool.set_project_selection(project_selection);

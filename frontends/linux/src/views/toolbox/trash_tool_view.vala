@@ -12,6 +12,7 @@ public class TrashToolView : Object {
 
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
+    public signal void breadcrumb_activated(int index);
 
     public TrashToolView() {
         controller = new TrashController();
@@ -187,9 +188,13 @@ public class TrashToolView : Object {
         clear_box_children(scope_breadcrumb_bar);
         var segments = scope_text.split(" / ");
         for (int i = 0; i < segments.length; i++) {
+            var idx = i;
             var btn = new Gtk.Button.with_label(segments[i]);
             btn.add_css_class("flat");
             btn.set_focusable(false);
+            btn.clicked.connect(() => {
+                breadcrumb_activated(idx);
+            });
             scope_breadcrumb_bar.append(btn);
             if (i < segments.length - 1) {
                 var sep = new Gtk.Label(" / ");
