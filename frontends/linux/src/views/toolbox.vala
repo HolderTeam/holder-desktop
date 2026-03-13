@@ -277,6 +277,9 @@ public class ToolboxPane : Object {
             toast_requested(message);
         });
         trash_tool.breadcrumb_activated.connect((index) => {
+            if (index == 0) {
+                flowboard_tool.show_projects_root();
+            }
             if (index < 2 && toolbox_stack != null) {
                 toolbox_stack.set_visible_child_name("flowboard");
             }

@@ -83,6 +83,13 @@ public class FlowboardToolView : Object {
         });
         controller.refresh();
     }
+
+    public void show_projects_root() {
+        if (flowboard_controller == null) {
+            return;
+        }
+        flowboard_controller.navigate_to_breadcrumb_index(0);
+    }
 }
 
 }
