@@ -27,7 +27,7 @@ public class ConnectionsToolView : Object {
     private const int BOARD_NODE_HEIGHT = 76;
     private const int BOARD_PADDING = 48;
     private const int BOARD_MIN_WIDTH = 900;
-    private const int BOARD_MIN_HEIGHT = 620;
+    private const int BOARD_MIN_HEIGHT = 240;
     private const int PROJECT_MODE_MAX_NODES = 12;
     [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
     private static extern void gtk_style_context_add_provider_for_display(
@@ -37,6 +37,7 @@ public class ConnectionsToolView : Object {
     );
 
     private Gtk.Box connections_breadcrumb_bar;
+    private Gtk.Box connections_top_actions_bar;
     private Gtk.Paned connections_main_pane;
     private Gtk.Overlay connections_board_overlay;
     private Gtk.DrawingArea connections_board_canvas;
@@ -110,12 +111,20 @@ public class ConnectionsToolView : Object {
 
     private Gtk.Widget build_connections_tab() {
         var root = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+        var top_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        top_row.set_margin_top(6);
+        top_row.set_margin_bottom(6);
+        top_row.set_margin_start(6);
+        top_row.set_margin_end(6);
+        root.append(top_row);
+
         connections_breadcrumb_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
-        connections_breadcrumb_bar.set_margin_top(6);
-        connections_breadcrumb_bar.set_margin_bottom(6);
-        connections_breadcrumb_bar.set_margin_start(6);
-        connections_breadcrumb_bar.set_margin_end(6);
-        root.append(connections_breadcrumb_bar);
+        connections_breadcrumb_bar.set_hexpand(true);
+        top_row.append(connections_breadcrumb_bar);
+
+        connections_top_actions_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        connections_top_actions_bar.set_halign(Gtk.Align.END);
+        top_row.append(connections_top_actions_bar);
 
         var content_shell = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
         content_shell.add_css_class("flowboard-tile");
@@ -168,9 +177,9 @@ public class ConnectionsToolView : Object {
             bool visible = connections_relations_toggle_btn.get_active();
             connections_relations_scroller.set_visible(visible);
         });
+        connections_top_actions_bar.append(connections_add_graph_link_btn);
+        connections_top_actions_bar.append(connections_relations_toggle_btn);
         graph_header.append(graph_title);
-        graph_header.append(connections_relations_toggle_btn);
-        graph_header.append(connections_add_graph_link_btn);
         graph_column.append(graph_header);
 
         connections_graph_summary_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
@@ -650,7 +659,7 @@ public class ConnectionsToolView : Object {
             node_list.add(node);
         }
         node_list.sort((a, b) => strcmp(a.title.down(), b.title.down()));
-        layout_card_mode_nodes(selected_card.card_id, node_list);
+        layout_card_mode_nodes(selected_card.card_id, node_list, target_board_height_for_count(node_list.size));
         render_board(node_list, edges, "Card-focused graph.");
         set_relations_for_card(project, selected_card, outgoing, backlinks);
     }
@@ -734,7 +743,7 @@ public class ConnectionsToolView : Object {
         board_edges.add_all(edges);
 
         int required_w = BOARD_MIN_WIDTH;
-        int required_h = BOARD_MIN_HEIGHT;
+        int required_h = target_board_height_for_count(nodes.size);
         foreach (var node in nodes) {
             required_w = int.max(required_w, node.x + BOARD_NODE_WIDTH + BOARD_PADDING);
             required_h = int.max(required_h, node.y + BOARD_NODE_HEIGHT + BOARD_PADDING);
@@ -980,9 +989,11 @@ public class ConnectionsToolView : Object {
         return out;
     }
 
-    private void layout_card_mode_nodes(string center_card_id, Gee.ArrayList<ConnectionsBoardNode> nodes) {
+    private void layout_card_mode_nodes(string center_card_id,
+                                        Gee.ArrayList<ConnectionsBoardNode> nodes,
+                                        int canvas_height) {
         int cx = BOARD_MIN_WIDTH / 2 - BOARD_NODE_WIDTH / 2;
-        int cy = BOARD_MIN_HEIGHT / 2 - BOARD_NODE_HEIGHT / 2;
+        int cy = int.max(12, (canvas_height / 2 - BOARD_NODE_HEIGHT / 2) - 40);
         var ring = new Gee.ArrayList<ConnectionsBoardNode>();
         foreach (var node in nodes) {
             if (node.card_id == center_card_id) {
@@ -1023,7 +1034,7 @@ public class ConnectionsToolView : Object {
         int gap_x = 36;
         int gap_y = 36;
         int start_x = BOARD_PADDING;
-        int start_y = BOARD_PADDING + 12;
+        int start_y = 20;
         for (int i = 0; i < nodes.size; i++) {
             int col = i % cols;
             int row = i / cols;
@@ -1042,6 +1053,22 @@ public class ConnectionsToolView : Object {
 
     private int imax(int a, int b) {
         return a >= b ? a : b;
+    }
+
+    private int target_board_height_for_count(int node_count) {
+        if (node_count <= 1) {
+            return 220;
+        }
+        if (node_count <= 4) {
+            return 320;
+        }
+        if (node_count <= 8) {
+            return 430;
+        }
+        if (node_count <= 14) {
+            return 560;
+        }
+        return 680;
     }
 
     private string format_counts_summary(Gee.HashMap<string, int> counts) {
