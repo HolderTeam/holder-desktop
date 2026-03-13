@@ -219,7 +219,7 @@ public class WorkspacePane : Object {
 
         var ai_toggle_btn = new Gtk.ToggleButton();
         ai_toggle_btn.set_icon_name("preferences-desktop-keyboard-symbolic");
-        ai_toggle_btn.set_tooltip_text("Toggle AI status panel");
+        ai_toggle_btn.set_tooltip_text("Toggle AI panel");
         ai_toggle_btn.toggled.connect(() => {
             ai_panel_toggled(ai_toggle_btn.get_active());
         });
