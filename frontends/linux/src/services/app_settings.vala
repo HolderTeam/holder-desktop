@@ -11,6 +11,7 @@ public class AppSettings : Object {
     public const string KEY_WINDOW_HEIGHT = "window-height";
     public const string KEY_WINDOW_MAXIMIZED = "window-maximized";
     public const string KEY_SIDEBAR_WIDTH = "sidebar-width";
+    public const string KEY_AI_PANEL_WIDTH = "ai-panel-width";
     public const string KEY_TINY_CLOSE_STREAK = "tiny-close-streak";
     public const string KEY_CUSTOM_CARD_LINK_KINDS = "custom-card-link-kinds";
     public const string KEY_GIT_GITHUB_USERNAME = "git-github-username";

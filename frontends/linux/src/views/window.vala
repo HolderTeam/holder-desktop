@@ -100,7 +100,6 @@ public class MainWindow : Adw.ApplicationWindow {
     private Gtk.ListView search_list;
     private SidebarPane sidebar;
     private Gtk.Paned root_paned;
-    private Adw.OverlaySplitView ai_split;
     private AiPanel ai_panel;
     private ToolboxPane toolbox;
     private MainController controller;
@@ -170,13 +169,13 @@ public class MainWindow : Adw.ApplicationWindow {
             last_sidebar_position = clamp_sidebar_width(
                 settings.get_int(AppSettings.KEY_SIDEBAR_WIDTH)
             );
+            workspace.set_ai_panel_width(settings.get_int(AppSettings.KEY_AI_PANEL_WIDTH));
         }
         apply_persisted_preferences();
         search_entry = workspace.search_entry;
         search_summary_label = workspace.search_summary_label;
         search_selection = workspace.search_selection;
         search_list = workspace.search_list;
-        ai_split = workspace.ai_split;
         ai_panel = workspace.ai_panel;
         toolbox = workspace.toolbox;
         local_info_controller = new LocalInfoController(new WindowLocalInfoLogger(toolbox));
@@ -277,7 +276,7 @@ public class MainWindow : Adw.ApplicationWindow {
             }
         });
         workspace.ai_panel_toggled.connect((visible) => {
-            ai_split.set_show_sidebar(visible);
+            workspace.set_ai_panel_visible(visible);
             ai_run_controller.set_panel_visible(visible);
         });
         workspace.toolbox_toggled.connect((visible) => {
@@ -610,6 +609,10 @@ public class MainWindow : Adw.ApplicationWindow {
         settings.set_int(
             AppSettings.KEY_SIDEBAR_WIDTH,
             clamp_sidebar_width(last_sidebar_position)
+        );
+        settings.set_int(
+            AppSettings.KEY_AI_PANEL_WIDTH,
+            workspace.get_ai_panel_width_for_persist()
         );
 
         var maximized = is_maximized();

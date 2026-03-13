@@ -344,6 +344,7 @@ private void test_key_constants_are_non_empty() {
     assert(HolderLinux.AppSettings.KEY_WINDOW_HEIGHT.length > 0);
     assert(HolderLinux.AppSettings.KEY_WINDOW_MAXIMIZED.length > 0);
     assert(HolderLinux.AppSettings.KEY_SIDEBAR_WIDTH.length > 0);
+    assert(HolderLinux.AppSettings.KEY_AI_PANEL_WIDTH.length > 0);
     assert(HolderLinux.AppSettings.KEY_TINY_CLOSE_STREAK.length > 0);
     assert(HolderLinux.AppSettings.KEY_CUSTOM_CARD_LINK_KINDS.length > 0);
     assert(HolderLinux.AppSettings.KEY_GIT_GITHUB_USERNAME.length > 0);
