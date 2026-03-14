@@ -35,9 +35,10 @@ public class ToolboxPane : Object {
     public signal void save_recovery_key_to_usb_requested();
     public signal void import_recovery_key_requested();
     public signal void terminal_copy_to_card_requested(string text);
-    public signal void connections_project_overview_requested(string project_id);
-    public signal void connections_projects_root_requested();
-    public signal void tool_help_requested(string tool_id);
+    public signal void breadcrumb_navigation_requested(string tool_id,
+                                                       int segment_index,
+                                                       string? project_id,
+                                                       string? card_id);
 
     public ToolboxPane() {
         widget = new Gtk.Revealer();
@@ -149,6 +150,22 @@ public class ToolboxPane : Object {
         }
     }
 
+    public void show_flowboard_projects_root() {
+        if (flowboard_tool == null) {
+            return;
+        }
+        flowboard_tool.show_projects_root();
+        refresh_header_breadcrumbs();
+    }
+
+    public void show_flowboard_project_root() {
+        if (flowboard_tool == null) {
+            return;
+        }
+        flowboard_tool.show_project_root();
+        refresh_header_breadcrumbs();
+    }
+
     public void set_navigation_loading(bool loading) {
         if (tool_shell != null) {
             ((!) tool_shell).set_loading(loading);
@@ -194,10 +211,10 @@ public class ToolboxPane : Object {
             log_debug(line);
         });
         connections_tool.project_overview_requested.connect((project_id) => {
-            connections_project_overview_requested(project_id);
+            breadcrumb_navigation_requested("connections", 1, project_id, null);
         });
         connections_tool.projects_root_requested.connect(() => {
-            connections_projects_root_requested();
+            breadcrumb_navigation_requested("connections", 0, null, null);
         });
         connections_tool.set_api_client(api);
         connections_tool.set_settings(settings);
@@ -414,6 +431,7 @@ public class ToolboxPane : Object {
     }
 
     private void on_header_breadcrumb_clicked(int segment_index) {
+        var tool_id = current_tool_id();
         var selected_project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
@@ -421,48 +439,12 @@ public class ToolboxPane : Object {
             ? card_selection.get_selected_item() as CardSummary
             : null;
 
-        var tool_id = current_tool_id();
-        if (segment_index == 0) {
-            if (tool_id == "flowboard") {
-                flowboard_tool.show_projects_root();
-                refresh_header_breadcrumbs();
-                return;
-            }
-            tool_help_requested(tool_id);
-            return;
-        }
-
-        if (segment_index == 1) {
-            if (selected_project == null) {
-                return;
-            }
-            if (tool_id == "connections") {
-                connections_project_overview_requested(selected_project.project_id);
-                return;
-            }
-            if (tool_id == "flowboard") {
-                flowboard_tool.show_project_root();
-                refresh_header_breadcrumbs();
-                return;
-            }
-            return;
-        }
-
-        if (segment_index == 2) {
-            if (selected_card == null) {
-                return;
-            }
-            if (tool_id == "flowboard") {
-                flowboard_card_open_requested(selected_card.card_id);
-                return;
-            }
-            if (tool_id == "connections") {
-                // Re-assert selected card in case active tool needs a context refresh.
-                select_card_by_id(selected_card.card_id);
-                return;
-            }
-            return;
-        }
+        breadcrumb_navigation_requested(
+            tool_id,
+            segment_index,
+            selected_project != null ? selected_project.project_id : null,
+            selected_card != null ? selected_card.card_id : null
+        );
     }
 
     private string current_tool_id() {
@@ -478,24 +460,6 @@ public class ToolboxPane : Object {
             return "tool";
         }
         return page.name;
-    }
-
-    private bool select_card_by_id(string card_id) {
-        if (card_selection == null) {
-            return false;
-        }
-        var model = card_selection.get_model();
-        if (model == null) {
-            return false;
-        }
-        for (uint i = 0; i < model.get_n_items(); i++) {
-            var card = model.get_item(i) as CardSummary;
-            if (card != null && card.card_id == card_id) {
-                card_selection.set_selected(i);
-                return true;
-            }
-        }
-        return false;
     }
 
 }

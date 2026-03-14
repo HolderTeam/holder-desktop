@@ -1,5 +1,11 @@
 # Toolbox Shell Refactor
 
+## Status
+- This refactor is active and partially complete.
+- It is now governed by the global transition architecture in:
+  - `frontends/linux/docs/ui_state_transition_plan.md`
+- Scope remains toolbox-specific; app-wide state migration is tracked in the global doc.
+
 ## Problem
 - Breadcrumb behavior is duplicated across tools and mixed with tool-specific logic.
 - Tool controls are embedded in scrollable content, so they scroll away.
@@ -15,6 +21,13 @@
 - Re-designing tool feature behavior itself.
 - Changing backend APIs for this phase.
 - Introducing cross-project graph/link features.
+- Replacing entire app state architecture in this document (handled by global plan).
+
+## Alignment With Global Plan
+- Use app-state transition rules from `ui_state_transition_plan.md`.
+- Toolbox breadcrumb navigation must follow intent -> coordinator -> commit flow.
+- Avoid direct widget-driven clear/refill transitions.
+- Keep old committed content visible during valid-to-valid scope switches.
 
 ## Target Layout
 `ToolboxShell` owns a 3-row layout:
@@ -39,6 +52,11 @@
 - Uses monotonically increasing request sequence IDs.
 - Applies results only if request ID is current (drop stale responses).
 - Keeps current content/editor visible until replacement data is ready.
+
+Status:
+- Implemented as sequencing primitive in `src/controllers/toolbox_navigation.vala`.
+- Breadcrumb routing unified through a single `MainWindow` handler.
+- Full coordinator ownership of toolbox navigation policy is still pending.
 
 ## Data Model
 
@@ -66,6 +84,10 @@ Each tool is exposed through a common adapter API:
 - `async bool navigate_to_project_root(string project_id, uint seq)`
 - `async bool navigate_to_card(string card_id, uint seq)`
 
+Status:
+- Not formalized as an interface yet.
+- Current tools still wired ad hoc in `ToolboxPane`.
+
 ## Per-Tool Action Row Migration
 - Flowboard: none.
 - Connections: `Add Connection`, `Toggle Relations`.
@@ -74,6 +96,10 @@ Each tool is exposed through a common adapter API:
 - Trash: filter dropdown + `Empty Trash` (optional text filter later).
 - Debug: `Clear` (and future `Copy to Card`).
 
+Status:
+- Completed for Connections, Resources, Terminals, Trash, Debug.
+- Flowboard intentionally has no action row controls.
+
 ## Navigation Behavior Rules
 - Breadcrumb click starts a navigation transaction in `ToolboxNavigationController`.
 - No immediate content/editor clearing.
@@ -81,12 +107,24 @@ Each tool is exposed through a common adapter API:
 - On success, swap to the new scope atomically.
 - On failure, keep previous state and show error/toast.
 
+Status:
+- Partially implemented.
+- Loading indicator wiring exists (`ToolShell` / `ToolActionBar`).
+- Stale dropping exists for key project-overview path.
+- Still needs full coordinator-managed coverage across all toolbox navigation paths.
+
 ## Acceptance Criteria
 - Breadcrumb rendering/handling comes from one shared component.
 - Tool controls remain visible while content scrolls.
 - Clicking breadcrumb segments does not produce intermediate blank/incorrect states.
 - Stale async responses never overwrite newer navigation state.
 - Flowboard and Connections use the same shell behavior and contract.
+
+Progress:
+- 1 and 2 are complete.
+- 3 is improved but not complete in all paths.
+- 4 is partially complete.
+- 5 is partially complete (behavior aligned; formal contract not yet introduced).
 
 ## Implementation Plan
 1. Add model + components (`NavigationBreadcrumbs`, `ToolActionBar`).
@@ -96,3 +134,21 @@ Each tool is exposed through a common adapter API:
 5. Move controls from Resources/Terminals/Trash/Debug into action row.
 6. Remove legacy in-tool breadcrumb/header logic.
 7. Validate against acceptance criteria and then expand to remaining tools.
+
+## Completed
+- 1 complete.
+- 2 complete.
+- 3 partially complete (sequence + loading + unified breadcrumb routing).
+- 5 complete.
+- 6 partially complete (done for Trash; remaining cleanup in other tools is minor).
+
+## Remaining (Toolbox Scope)
+1. Introduce a formal toolbox tool adapter interface and migrate Flowboard/Connections.
+2. Move remaining toolbox navigation policy from `MainWindow` into toolbox coordinator.
+3. Ensure all breadcrumb/tool-scope async branches are stale-safe.
+4. Final toolbox-focused tests for atomic navigation rendering behavior.
+
+## Deferred To Global Plan
+- App-wide selection/app-state ownership migration.
+- Unifying non-toolbox transitions under one global transition coordinator.
+- Broader renderer/apply-state guard pattern across window/sidebar/editor/AI.

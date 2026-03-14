@@ -111,7 +111,8 @@ public class MainWindow : Adw.ApplicationWindow {
     private PrintService print_service;
     private AiRunController ai_run_controller;
     private FlowboardController flowboard_controller;
-    private ToolboxNavigationController toolbox_navigation_controller;
+    private AppStateStore app_state_store;
+    private AppTransitionController app_transition_controller;
     private Settings? settings;
     private uint flowboard_refresh_idle_id = 0;
     private uint flowboard_context_request_serial = 0;
@@ -207,7 +208,8 @@ public class MainWindow : Adw.ApplicationWindow {
         recovery_controller = new RecoveryController(new WindowRecoveryContext(controller));
         ai_run_controller = new AiRunController(controller);
         flowboard_controller = new FlowboardController(project_store, project_selection, card_store);
-        toolbox_navigation_controller = new ToolboxNavigationController();
+        app_state_store = new AppStateStore();
+        app_transition_controller = new AppTransitionController(app_state_store);
 
         sidebar = new SidebarPane(project_selection, card_selection, ai_thread_selection);
         sidebar.card_move_to_trash_requested.connect((card_id) => {
@@ -356,15 +358,14 @@ public class MainWindow : Adw.ApplicationWindow {
             if (controller.should_ignore_project_selection_events()) {
                 return;
             }
-            controller.on_project_selected();
-            flowboard_controller.refresh();
+            handle_project_selection_intent.begin();
         });
 
         card_selection.notify["selected"].connect(() => {
             if (controller.should_ignore_card_selection_events()) {
                 return;
             }
-            controller.on_card_selected();
+            handle_card_selection_intent.begin();
         });
 
         ai_thread_selection.notify["selected"].connect(() => {
@@ -480,18 +481,8 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.toast_requested.connect((message) => {
             add_toast(message);
         });
-        toolbox.connections_project_overview_requested.connect((_project_id) => {
-            navigate_tool_project_overview.begin();
-        });
-        toolbox.connections_projects_root_requested.connect(() => {
-            toolbox_navigation_controller.begin_navigation();
-            toolbox.set_navigation_loading(false);
-            show_connections_help_page();
-        });
-        toolbox.tool_help_requested.connect((tool_id) => {
-            toolbox_navigation_controller.begin_navigation();
-            toolbox.set_navigation_loading(false);
-            show_tool_help_page(tool_id);
+        toolbox.breadcrumb_navigation_requested.connect((tool_id, segment_index, project_id, card_id) => {
+            navigate_toolbox_breadcrumb.begin(tool_id, segment_index, project_id, card_id);
         });
         toolbox.flowboard_card_open_requested.connect((card_id) => {
             open_card_from_flowboard(card_id);
@@ -569,14 +560,92 @@ public class MainWindow : Adw.ApplicationWindow {
         });
     }
 
-    private async void navigate_tool_project_overview() {
-        var seq = toolbox_navigation_controller.begin_navigation();
+    private async void navigate_toolbox_breadcrumb(string tool_id,
+                                                   int segment_index,
+                                                   string? project_id,
+                                                   string? card_id) {
+        var seq = app_transition_controller.begin(
+            "toolbox-breadcrumb",
+            project_id,
+            card_id
+        );
         toolbox.set_navigation_loading(true);
         try {
-            yield controller.show_project_overview();
+            if (segment_index == 0) {
+                if (tool_id == "flowboard") {
+                    toolbox.show_flowboard_projects_root();
+                } else {
+                    show_tool_help_page(tool_id);
+                }
+                return;
+            }
+
+            if (segment_index == 1) {
+                if (project_id == null || project_id.strip().length == 0) {
+                    return;
+                }
+                if (tool_id == "flowboard") {
+                    toolbox.show_flowboard_project_root();
+                    return;
+                }
+                yield controller.show_project_overview();
+                return;
+            }
+
+            if (segment_index == 2) {
+                if (card_id == null || card_id.strip().length == 0) {
+                    return;
+                }
+                if (tool_id == "flowboard" || tool_id == "connections") {
+                    open_card_from_flowboard(card_id);
+                }
+                return;
+            }
         } finally {
-            if (toolbox_navigation_controller.is_current(seq)) {
+            if (app_transition_controller.is_current(seq)) {
                 toolbox.set_navigation_loading(false);
+                app_transition_controller.finish(seq);
+            }
+        }
+    }
+
+    private async void handle_project_selection_intent() {
+        var selected = project_selection.get_selected_item() as Project;
+        var project_id = selected != null ? selected.project_id : null;
+        var seq = app_transition_controller.begin("project-selection", project_id, null, null);
+        toolbox.set_navigation_loading(true);
+        try {
+            app_transition_controller.commit_selection(seq, project_id, null, null);
+            yield controller.reload_cards_for_selected_project();
+            if (!app_transition_controller.is_current(seq)) {
+                return;
+            }
+            flowboard_controller.refresh();
+        } finally {
+            if (app_transition_controller.is_current(seq)) {
+                toolbox.set_navigation_loading(false);
+                app_transition_controller.finish(seq);
+            }
+        }
+    }
+
+    private async void handle_card_selection_intent() {
+        var selected = card_selection.get_selected_item() as CardSummary;
+        if (selected == null) {
+            return;
+        }
+        var seq = app_transition_controller.begin("card-selection", selected.project_id, selected.card_id, null);
+        toolbox.set_navigation_loading(true);
+        try {
+            app_transition_controller.commit_selection(seq, selected.project_id, selected.card_id, null);
+            yield controller.load_selected_card();
+            if (!app_transition_controller.is_current(seq)) {
+                return;
+            }
+        } finally {
+            if (app_transition_controller.is_current(seq)) {
+                toolbox.set_navigation_loading(false);
+                app_transition_controller.finish(seq);
             }
         }
     }
@@ -893,10 +962,6 @@ public class MainWindow : Adw.ApplicationWindow {
             }
         }
         return "this card";
-    }
-
-    private void show_connections_help_page() {
-        show_tool_help_page("connections");
     }
 
     private void show_tool_help_page(string tool_id) {
