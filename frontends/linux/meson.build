@@ -36,6 +36,7 @@ sources = [
   'src/views/components/navigation_breadcrumbs.vala',
   'src/views/components/tool_action_bar.vala',
   'src/views/adapters/local_info.vala',
+  'src/views/adapters/window_actions.vala',
   'src/views/adapters/recovery_dialog.vala',
   'src/views/toolbox.vala',
   'src/views/toolbox/tool_shell.vala',

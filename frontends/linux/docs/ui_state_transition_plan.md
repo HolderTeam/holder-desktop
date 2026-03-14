@@ -49,6 +49,7 @@
     - Internal-link list extraction for Connections (`[[...]]` parse/dedupe) now runs through `InternalLinkController`; `MainWindow` now only forwards editor text and applies returned links.
     - Flowboard context async load sequencing/stale-drop now runs through `FlowboardContextController`; `MainWindow` no longer owns flowboard context request serial state.
     - Recovery dialog orchestration (`request PIN`, `save-file picker`, `import file + unlock`, `import summary dialog`) now runs through `RecoveryDialogAdapter`; `MainWindow` now wires toolbox actions and import completion only.
+    - Window-level non-state actions (`About`, `Preferences`) now run through `WindowActionsAdapter`; `MainWindow` now forwards action signals and no longer builds those dialogs inline.
   - Consolidating all state commits so UI render changes are coordinated through one path.
 - Not started:
   - Full renderer-from-state model (widgets fully driven from a committed state snapshot).

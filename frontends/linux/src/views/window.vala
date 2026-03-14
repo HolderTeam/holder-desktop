@@ -185,6 +185,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private LocalInfoFlowController local_info_flow_controller;
     private LocalInfoPresenter local_info_presenter;
     private LocalInfoViewAdapter local_info_view_adapter;
+    private WindowActionsAdapter window_actions_adapter;
     private PrintService print_service;
     private AiRunController ai_run_controller;
     private FindReplaceController find_replace_controller;
@@ -322,6 +323,7 @@ public class MainWindow : Adw.ApplicationWindow {
             new WindowLocalInfoViewSink(this),
             local_info_presenter
         );
+        window_actions_adapter = new WindowActionsAdapter(this);
         print_service = new PrintService();
         recovery_controller = new RecoveryController(new WindowRecoveryContext(controller));
         recovery_ui_controller = new RecoveryUiController(recovery_controller);
@@ -1252,8 +1254,12 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void show_preferences_dialog() {
-        var dialog = new PreferencesDialog(editor_buffer, editor_view, spelling_adapter, settings);
-        dialog.present(this);
+        window_actions_adapter.show_preferences(
+            editor_buffer,
+            editor_view,
+            spelling_adapter,
+            settings
+        );
     }
 
     private void send_current_card_as_email() {
@@ -1347,31 +1353,7 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void show_about_dialog() {
-        var dialog = new Adw.MessageDialog(
-            this,
-            "Holder 0.1.0",
-            "Holder Linux frontend"
-        );
-        dialog.add_response("close", "Close");
-        dialog.set_default_response("close");
-        dialog.set_close_response("close");
-
-        var logo = new Gtk.Picture.for_resource("/io/holder/linux/assets/holder.jpg");
-        logo.set_can_shrink(true);
-        logo.set_content_fit(Gtk.ContentFit.CONTAIN);
-        logo.set_size_request(220, 220);
-
-        var link = new Gtk.LinkButton.with_label(
-            "https://github.com/HolderTeam",
-            "github.com/HolderTeam"
-        );
-        link.set_halign(Gtk.Align.CENTER);
-
-        var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 12);
-        content.append(logo);
-        content.append(link);
-        dialog.set_extra_child(content);
-        dialog.present();
+        window_actions_adapter.show_about();
     }
 
     private void refresh_connections_internal_links_from_editor() {
