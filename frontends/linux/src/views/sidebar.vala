@@ -4,6 +4,7 @@ public class SidebarPane : Object {
     public Gtk.Widget widget { get; private set; }
     private Gtk.Label status_label;
     public signal void card_move_to_trash_requested(string card_id);
+    public signal void card_context_selection_requested(string card_id);
 
     public SidebarPane(Gtk.SelectionModel project_selection,
                        Gtk.SelectionModel card_selection,
@@ -92,15 +93,11 @@ public class SidebarPane : Object {
                 if (n_press != 1) {
                     return;
                 }
-                var position = list_item.get_position();
-                var single = card_selection as Gtk.SingleSelection;
-                if (single != null) {
-                    single.set_selected(position);
-                }
                 var card_id = row.get_data<string>("sidebar-card-id");
                 if (card_id == null || card_id.strip().length == 0) {
                     return;
                 }
+                card_context_selection_requested(card_id);
                 show_card_menu_at(row, card_id, x, y);
             });
             row.add_controller(context_click);

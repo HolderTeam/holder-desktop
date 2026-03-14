@@ -222,6 +222,9 @@ public class MainWindow : Adw.ApplicationWindow {
         sidebar.card_move_to_trash_requested.connect((card_id) => {
             confirm_move_card_to_trash(card_id);
         });
+        sidebar.card_context_selection_requested.connect((card_id) => {
+            request_card_selection(card_id);
+        });
 
         app_state_store.state_changed.connect(() => {
             apply_sidebar_from_state();
@@ -259,8 +262,17 @@ public class MainWindow : Adw.ApplicationWindow {
         controller.ai_status_refresh_requested.connect(() => {
             ai_run_controller.refresh_status.begin();
         });
+        controller.project_selection_requested.connect((project_id) => {
+            request_project_selection(project_id);
+        });
+        controller.card_selection_requested.connect((card_id) => {
+            request_card_selection(card_id);
+        });
         controller.ai_thread_title_changed.connect((title_text) => {
             ai_panel.set_thread_title(title_text);
+        });
+        controller.ai_thread_selection_requested.connect((thread_id) => {
+            request_ai_thread_selection(thread_id);
         });
         controller.api_client_ready.connect((api_client) => {
             ai_panel.set_api_client(api_client);
@@ -386,6 +398,9 @@ public class MainWindow : Adw.ApplicationWindow {
         });
 
         ai_thread_selection.notify["selected"].connect(() => {
+            if (is_applying_state()) {
+                return;
+            }
             handle_ai_thread_selection_intent();
         });
 
@@ -504,6 +519,9 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.flowboard_card_open_requested.connect((card_id) => {
             open_card_from_flowboard(card_id);
         });
+        toolbox.connections_card_open_requested.connect((card_id) => {
+            open_card_from_flowboard(card_id);
+        });
         toolbox.flowboard_card_move_to_trash_requested.connect((card_id) => {
             confirm_move_card_to_trash(card_id);
         });
@@ -546,8 +564,8 @@ public class MainWindow : Adw.ApplicationWindow {
         card_store.items_changed.connect((position, removed, added) => {
             queue_flowboard_refresh();
         });
-        flowboard_controller.project_overview_requested.connect((_project_id) => {
-            controller.show_project_overview.begin();
+        flowboard_controller.project_overview_requested.connect((project_id) => {
+            controller.show_project_overview_for.begin(project_id);
         });
         flowboard_controller.context_load_requested.connect((project_id, parent_card_id) => {
             flowboard_context_request_serial++;
@@ -767,8 +785,7 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private async void handle_search_result_activation_intent(uint position) {
-        var item = search_store.get_item(position) as SearchCardResult;
-        var target_card_id = item != null ? item.card_id : null;
+        var target_card_id = yield controller.prepare_search_result_card_at(position);
         var seq = app_transition_controller.begin(
             "search-result-activation",
             controller.selected_project_id(),
@@ -777,19 +794,23 @@ public class MainWindow : Adw.ApplicationWindow {
         );
         toolbox.set_navigation_loading(true);
         try {
-            if (item == null) {
+            if (target_card_id == null || target_card_id.strip().length == 0) {
                 return;
             }
-            yield controller.open_search_result_at(position);
-            if (!app_transition_controller.is_current(seq)) {
+            var selected_card = select_card_in_sidebar_by_id(target_card_id);
+            if (selected_card == null) {
                 return;
             }
             app_transition_controller.commit_selection(
                 seq,
-                controller.selected_project_id(),
-                controller.selected_card_id(),
+                selected_card.project_id,
+                selected_card.card_id,
                 null
             );
+            yield controller.load_selected_card();
+            if (!app_transition_controller.is_current(seq)) {
+                return;
+            }
         } finally {
             if (app_transition_controller.is_current(seq)) {
                 toolbox.set_navigation_loading(false);
@@ -821,6 +842,71 @@ public class MainWindow : Adw.ApplicationWindow {
             if (app_transition_controller.is_current(seq)) {
                 app_transition_controller.finish(seq);
             }
+        }
+    }
+
+    private void request_ai_thread_selection(string? thread_id) {
+        if (thread_id == null || thread_id.strip().length == 0) {
+            with_state_apply(() => {
+                ai_thread_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+            });
+            handle_ai_thread_selection_intent();
+            return;
+        }
+
+        for (uint i = 0; i < ai_thread_store.get_n_items(); i++) {
+            var thread = ai_thread_store.get_item(i) as AiThreadSummary;
+            if (thread == null || thread.thread_id != thread_id) {
+                continue;
+            }
+            with_state_apply(() => {
+                ai_thread_selection.set_selected(i);
+            });
+            handle_ai_thread_selection_intent();
+            return;
+        }
+
+        with_state_apply(() => {
+            ai_thread_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+        });
+        handle_ai_thread_selection_intent();
+    }
+
+    private void request_project_selection(string? project_id) {
+        if (project_id == null || project_id.strip().length == 0) {
+            with_state_apply(() => {
+                project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+            });
+            return;
+        }
+        for (uint i = 0; i < project_store.get_n_items(); i++) {
+            var project = project_store.get_item(i) as Project;
+            if (project == null || project.project_id != project_id) {
+                continue;
+            }
+            with_state_apply(() => {
+                project_selection.set_selected(i);
+            });
+            return;
+        }
+    }
+
+    private void request_card_selection(string? card_id) {
+        if (card_id == null || card_id.strip().length == 0) {
+            with_state_apply(() => {
+                card_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+            });
+            return;
+        }
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null || card.card_id != card_id) {
+                continue;
+            }
+            with_state_apply(() => {
+                card_selection.set_selected(i);
+            });
+            return;
         }
     }
 
@@ -1118,6 +1204,36 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void open_card_from_flowboard(string card_id) {
+        open_card_with_transition.begin(card_id, "tool-card-open");
+    }
+
+    private async void open_card_with_transition(string card_id, string reason) {
+        var selected_card = select_card_in_sidebar_by_id(card_id);
+        if (selected_card == null) {
+            return;
+        }
+        var seq = app_transition_controller.begin(reason, selected_card.project_id, selected_card.card_id, null);
+        toolbox.set_navigation_loading(true);
+        try {
+            app_transition_controller.commit_selection(
+                seq,
+                selected_card.project_id,
+                selected_card.card_id,
+                null
+            );
+            yield controller.load_selected_card();
+            if (!app_transition_controller.is_current(seq)) {
+                return;
+            }
+        } finally {
+            if (app_transition_controller.is_current(seq)) {
+                toolbox.set_navigation_loading(false);
+                app_transition_controller.finish(seq);
+            }
+        }
+    }
+
+    private CardSummary? select_card_in_sidebar_by_id(string card_id) {
         for (uint i = 0; i < card_store.get_n_items(); i++) {
             var card = card_store.get_item(i) as CardSummary;
             if (card == null || card.card_id != card_id) {
@@ -1126,9 +1242,9 @@ public class MainWindow : Adw.ApplicationWindow {
             with_state_apply(() => {
                 card_selection.set_selected(i);
             });
-            handle_card_selection_intent.begin();
-            return;
+            return card;
         }
+        return null;
     }
 
     private bool is_applying_state() {

@@ -154,7 +154,6 @@ public class FlowboardController : Object {
 
     internal void activate_tile(FlowboardTile tile) {
         if (tile.project_id != null) {
-            select_project(tile.project_id);
             project_overview_requested(tile.project_id);
             return;
         }
@@ -510,22 +509,6 @@ public class FlowboardController : Object {
             return selected_project.name;
         }
         return "project";
-    }
-
-    private void select_project(string project_id) {
-        for (uint i = 0; i < project_store.get_n_items(); i++) {
-            var project = project_store.get_item(i) as Project;
-            if (project != null && project.project_id == project_id) {
-                project_selection.set_selected(i);
-                current_project_id = project_id;
-                current_parent_card_id = null;
-                parent_stack_ids.clear();
-                showing_projects = false;
-                clear_context_cache();
-                refresh();
-                return;
-            }
-        }
     }
 
     private void rebuild_parent_stack_from_context(CardContextData context) {

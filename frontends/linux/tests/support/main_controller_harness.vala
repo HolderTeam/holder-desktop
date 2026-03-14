@@ -48,6 +48,36 @@ public class MainControllerTestHarness : Object {
             scheduler,
             inject_initial_api ? (initial_api ?? api) : null
         );
+
+        controller.project_selection_requested.connect((project_id) => {
+            if (project_id == null || project_id.strip().length == 0) {
+                project_selection.set_selected_index(uint.MAX);
+                return;
+            }
+            for (uint i = 0; i < project_store.get_n_items(); i++) {
+                var project = project_store.get_item(i) as HolderLinux.Project;
+                if (project != null && project.project_id == project_id) {
+                    project_selection.set_selected_index(i);
+                    return;
+                }
+            }
+            project_selection.set_selected_index(uint.MAX);
+        });
+
+        controller.card_selection_requested.connect((card_id) => {
+            if (card_id == null || card_id.strip().length == 0) {
+                card_selection.set_selected_index(uint.MAX);
+                return;
+            }
+            for (uint i = 0; i < card_store.get_n_items(); i++) {
+                var card = card_store.get_item(i) as HolderLinux.CardSummary;
+                if (card != null && card.card_id == card_id) {
+                    card_selection.set_selected_index(i);
+                    return;
+                }
+            }
+            card_selection.set_selected_index(uint.MAX);
+        });
     }
 }
 

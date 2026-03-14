@@ -69,7 +69,8 @@ internal class CardsController : Object {
             for (uint i = 0; i < owner.card_store.get_n_items(); i++) {
                 var item = owner.card_store.get_item(i) as CardSummary;
                 if (item != null && item.card_id == new_id) {
-                    owner.card_selection.set_selected_index(i);
+                    owner.select_card_by_id(new_id);
+                    owner.load_selected_card.begin();
                     break;
                 }
             }

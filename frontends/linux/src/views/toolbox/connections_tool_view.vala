@@ -90,6 +90,7 @@ public class ConnectionsToolView : Object {
     public signal void debug_log_requested(string line);
     public signal void project_overview_requested(string project_id);
     public signal void projects_root_requested();
+    public signal void card_open_requested(string card_id);
 
     public ConnectionsToolView() {
         controller = new ConnectionsController();
@@ -919,7 +920,7 @@ public class ConnectionsToolView : Object {
                 focus_project_overview(project_id);
                 return;
             }
-            select_card_by_id(node.card_id);
+            card_open_requested(node.card_id);
         });
         return button;
     }
@@ -1372,42 +1373,6 @@ public class ConnectionsToolView : Object {
         );
     }
 
-    private bool select_card_by_id(string card_id) {
-        if (card_selection == null) {
-            return false;
-        }
-        var model = card_selection.get_model();
-        if (model == null) {
-            return false;
-        }
-        for (uint i = 0; i < model.get_n_items(); i++) {
-            var card = model.get_item(i) as CardSummary;
-            if (card != null && card.card_id == card_id) {
-                card_selection.set_selected(i);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private bool select_project_by_id(string project_id) {
-        if (project_selection == null) {
-            return false;
-        }
-        var model = project_selection.get_model();
-        if (model == null) {
-            return false;
-        }
-        for (uint i = 0; i < model.get_n_items(); i++) {
-            var project = model.get_item(i) as Project;
-            if (project != null && project.project_id == project_id) {
-                project_selection.set_selected(i);
-                return true;
-            }
-        }
-        return false;
-    }
-
     private bool on_connections_link_activated(string uri) {
         var selected_project = project_selection != null
             ? project_selection.get_selected_item() as Project
@@ -1420,7 +1385,7 @@ public class ConnectionsToolView : Object {
         if (action.select_card) {
             var card_id = action.target_id;
             Idle.add(() => {
-                select_card_by_id(card_id);
+                card_open_requested(card_id);
                 return Source.REMOVE;
             });
         } else if (action.select_project) {
@@ -1435,10 +1400,6 @@ public class ConnectionsToolView : Object {
 
     private void focus_project_overview(string project_id) {
         show_projects_root = false;
-        select_project_by_id(project_id);
-        if (card_selection != null) {
-            card_selection.set_selected(Gtk.INVALID_LIST_POSITION);
-        }
         project_overview_requested(project_id);
         refresh_connections_structure();
         queue_connections_graph_refresh();

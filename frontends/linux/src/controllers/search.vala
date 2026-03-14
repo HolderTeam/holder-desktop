@@ -59,17 +59,25 @@ internal class SearchController : Object {
         owner.search_summary_changed("Search results will appear here.");
     }
 
-    public async void open_search_result_at(uint position) {
+    public async string? prepare_search_result_card_at(uint position) {
         var item = owner.search_store.get_item(position) as SearchCardResult;
         if (item == null) {
-            return;
+            return null;
+        }
+
+        if (owner.select_card_by_id(item.card_id)) {
+            return item.card_id;
         }
 
         if (!owner.select_card_by_id(item.card_id)) {
             yield owner.reload_cards_for_selected_project(item.card_id);
-        } else {
-            yield owner.load_selected_card();
         }
+
+        if (owner.select_card_by_id(item.card_id)) {
+            return item.card_id;
+        }
+
+        return owner.selected_card_id();
     }
 }
 

@@ -23,6 +23,7 @@ public class ToolboxPane : Object {
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
     public signal void flowboard_card_open_requested(string card_id);
+    public signal void connections_card_open_requested(string card_id);
     public signal void flowboard_card_move_to_trash_requested(string card_id);
     public signal void flowboard_move_intent_requested(string card_id,
                                                        string project_id,
@@ -215,6 +216,9 @@ public class ToolboxPane : Object {
         });
         connections_tool.projects_root_requested.connect(() => {
             breadcrumb_navigation_requested("connections", 0, null, null);
+        });
+        connections_tool.card_open_requested.connect((card_id) => {
+            connections_card_open_requested(card_id);
         });
         connections_tool.set_api_client(api);
         connections_tool.set_settings(settings);

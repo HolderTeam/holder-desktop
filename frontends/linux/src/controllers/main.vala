@@ -49,7 +49,10 @@ public class MainController : Object, IAiRunContext {
     public signal void show_search_requested();
     public signal void search_summary_changed(string text);
     public signal void ai_status_refresh_requested();
+    public signal void project_selection_requested(string? project_id);
+    public signal void card_selection_requested(string? card_id);
     public signal void ai_thread_title_changed(string? title);
+    public signal void ai_thread_selection_requested(string? thread_id);
     public signal void api_client_ready(IHolderApi api);
     public signal void card_trashed(string card_id);
 
@@ -244,6 +247,13 @@ public class MainController : Object, IAiRunContext {
         status_changed("Loaded project overview");
     }
 
+    public async void show_project_overview_for(string project_id) {
+        if (!select_project_by_id(project_id)) {
+            return;
+        }
+        yield show_project_overview();
+    }
+
     public void on_card_selected() {
         selection_controller.on_card_selected();
     }
@@ -276,8 +286,8 @@ public class MainController : Object, IAiRunContext {
         search_controller.clear_search_results();
     }
 
-    public async void open_search_result_at(uint position) {
-        yield search_controller.open_search_result_at(position);
+    public async string? prepare_search_result_card_at(uint position) {
+        return yield search_controller.prepare_search_result_card_at(position);
     }
 
     public void schedule_autosave() {
@@ -337,9 +347,10 @@ public class MainController : Object, IAiRunContext {
                 selected = select_project_by_id(preferred_project_id);
             }
             if (!selected) {
-                suppress_project_selection_events = true;
-                project_selection.set_selected_index(0);
-                suppress_project_selection_events = false;
+                var first_project = project_store.get_item(0) as Project;
+                if (first_project != null) {
+                    select_project_by_id(first_project.project_id);
+                }
             }
             yield reload_cards_for_selected_project(preferred_card_id);
             ai_status_refresh_requested();
@@ -388,17 +399,16 @@ public class MainController : Object, IAiRunContext {
             if (preferred_card_id != null) {
                 var selected_card = select_card_by_id(preferred_card_id);
                 if (!selected_card && card_store.get_n_items() > 0) {
-                    suppress_card_selection_events = true;
-                    card_selection.set_selected_index(0);
-                    suppress_card_selection_events = false;
+                    var first_card = card_store.get_item(0) as CardSummary;
+                    if (first_card != null) {
+                        select_card_by_id(first_card.card_id);
+                    }
                 }
                 load_selected_card.begin();
                 return;
             }
 
-            suppress_card_selection_events = true;
-            card_selection.set_selected_index(uint.MAX);
-            suppress_card_selection_events = false;
+            card_selection_requested(null);
             yield show_project_overview();
         } catch (Error e) {
             if (project_cards_loading_status_id != 0) {
@@ -552,9 +562,7 @@ public class MainController : Object, IAiRunContext {
         for (uint i = 0; i < project_store.get_n_items(); i++) {
             var project = project_store.get_item(i) as Project;
             if (project != null && project.project_id == project_id) {
-                suppress_project_selection_events = true;
-                project_selection.set_selected_index(i);
-                suppress_project_selection_events = false;
+                project_selection_requested(project_id);
                 return true;
             }
         }
@@ -565,9 +573,7 @@ public class MainController : Object, IAiRunContext {
         for (uint i = 0; i < card_store.get_n_items(); i++) {
             var card = card_store.get_item(i) as CardSummary;
             if (card != null && card.card_id == card_id) {
-                suppress_card_selection_events = true;
-                card_selection.set_selected_index(i);
-                suppress_card_selection_events = false;
+                card_selection_requested(card_id);
                 return true;
             }
         }
