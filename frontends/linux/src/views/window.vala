@@ -104,8 +104,11 @@ public class MainWindow : Adw.ApplicationWindow {
     private AiPanel ai_panel;
     private ToolboxPane toolbox;
     private MainController controller;
+    private ExplorerSelectionController explorer_selection_controller;
+    private SearchSelectionController search_selection_controller;
     private SelectionController selection_controller;
     private SelectionTransitionController selection_transition_controller;
+    private ToolboxBreadcrumbController toolbox_breadcrumb_controller;
     private RecoveryController recovery_controller;
     private LocalInfoController local_info_controller;
     private LocalInfoFlowController local_info_flow_controller;
@@ -207,7 +210,18 @@ public class MainWindow : Adw.ApplicationWindow {
             null,
             app_state_store
         );
+        explorer_selection_controller = new ExplorerSelectionController(
+            project_store,
+            card_store,
+            ai_thread_store
+        );
+        search_selection_controller = new SearchSelectionController(search_store);
         selection_controller = new SelectionController(controller);
+        toolbox_breadcrumb_controller = new ToolboxBreadcrumbController(
+            selection_transition_controller,
+            controller,
+            toolbox
+        );
         local_info_flow_controller = new LocalInfoFlowController(
             new WindowLocalInfoFlowContext(controller),
             local_info_controller
@@ -517,7 +531,18 @@ public class MainWindow : Adw.ApplicationWindow {
             add_toast(message);
         });
         toolbox.breadcrumb_navigation_requested.connect((tool_id, segment_index, project_id, card_id) => {
-            navigate_toolbox_breadcrumb.begin(tool_id, segment_index, project_id, card_id);
+            toolbox_breadcrumb_controller.navigate.begin(
+                tool_id,
+                segment_index,
+                project_id,
+                card_id,
+                (id) => {
+                    open_card_from_flowboard(id);
+                },
+                (id) => {
+                    show_tool_help_page(id);
+                }
+            );
         });
         toolbox.flowboard_card_open_requested.connect((card_id) => {
             open_card_from_flowboard(card_id);
@@ -697,51 +722,6 @@ public class MainWindow : Adw.ApplicationWindow {
         });
     }
 
-    private async void navigate_toolbox_breadcrumb(string tool_id,
-                                                   int segment_index,
-                                                   string? project_id,
-                                                   string? card_id) {
-        var seq = selection_transition_controller.begin_navigation(
-            "toolbox-breadcrumb",
-            project_id,
-            card_id
-        );
-        try {
-            if (segment_index == 0) {
-                if (tool_id == "flowboard") {
-                    toolbox.show_flowboard_projects_root();
-                } else {
-                    show_tool_help_page(tool_id);
-                }
-                return;
-            }
-
-            if (segment_index == 1) {
-                if (project_id == null || project_id.strip().length == 0) {
-                    return;
-                }
-                if (tool_id == "flowboard") {
-                    toolbox.show_flowboard_project_root();
-                    return;
-                }
-                yield controller.show_project_overview();
-                return;
-            }
-
-            if (segment_index == 2) {
-                if (card_id == null || card_id.strip().length == 0) {
-                    return;
-                }
-                if (tool_id == "flowboard" || tool_id == "connections") {
-                    open_card_from_flowboard(card_id);
-                }
-                return;
-            }
-        } finally {
-            selection_transition_controller.finish_navigation_if_current(seq);
-        }
-    }
-
     private async void handle_project_selection_intent() {
         var selected = project_selection.get_selected_item() as Project;
         var project_id = selected != null ? selected.project_id : null;
@@ -794,86 +774,29 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void request_ai_thread_selection(string? thread_id) {
-        if (thread_id == null || thread_id.strip().length == 0) {
-            with_state_apply(() => {
-                ai_thread_selection.set_selected(Gtk.INVALID_LIST_POSITION);
-            });
-            handle_ai_thread_selection_intent();
-            return;
-        }
-
-        for (uint i = 0; i < ai_thread_store.get_n_items(); i++) {
-            var thread = ai_thread_store.get_item(i) as AiThreadSummary;
-            if (thread == null || thread.thread_id != thread_id) {
-                continue;
-            }
-            with_state_apply(() => {
-                ai_thread_selection.set_selected(i);
-            });
-            handle_ai_thread_selection_intent();
-            return;
-        }
-
+        var target = explorer_selection_controller.ai_thread_position_for_id(thread_id);
         with_state_apply(() => {
-            ai_thread_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+            ai_thread_selection.set_selected(target);
         });
         handle_ai_thread_selection_intent();
     }
 
     private void request_project_selection(string? project_id) {
-        if (project_id == null || project_id.strip().length == 0) {
-            with_state_apply(() => {
-                project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
-            });
-            return;
-        }
-        for (uint i = 0; i < project_store.get_n_items(); i++) {
-            var project = project_store.get_item(i) as Project;
-            if (project == null || project.project_id != project_id) {
-                continue;
-            }
-            with_state_apply(() => {
-                project_selection.set_selected(i);
-            });
-            return;
-        }
+        var target = explorer_selection_controller.project_position_for_id(project_id);
+        with_state_apply(() => {
+            project_selection.set_selected(target);
+        });
     }
 
     private void request_card_selection(string? card_id) {
-        if (card_id == null || card_id.strip().length == 0) {
-            with_state_apply(() => {
-                card_selection.set_selected(Gtk.INVALID_LIST_POSITION);
-            });
-            return;
-        }
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
-            if (card == null || card.card_id != card_id) {
-                continue;
-            }
-            with_state_apply(() => {
-                card_selection.set_selected(i);
-            });
-            return;
-        }
+        var target = explorer_selection_controller.card_position_for_id(card_id);
+        with_state_apply(() => {
+            card_selection.set_selected(target);
+        });
     }
 
     private void request_search_selection(int position) {
-        if (position < 0) {
-            with_state_apply(() => {
-                search_selection.set_selected(Gtk.INVALID_LIST_POSITION);
-            });
-            return;
-        }
-
-        var target = (uint) position;
-        if (target >= search_store.get_n_items()) {
-            with_state_apply(() => {
-                search_selection.set_selected(Gtk.INVALID_LIST_POSITION);
-            });
-            return;
-        }
-
+        var target = search_selection_controller.position_for_request(position);
         with_state_apply(() => {
             search_selection.set_selected(target);
         });

@@ -33,6 +33,9 @@
     - Added `SelectionTransitionController` to centralize navigation-loading and transition begin/commit/finish mechanics for selection-driven window transitions.
     - AI thread selection transition begin/commit/finish now runs through `SelectionTransitionController`, removing manual transition orchestration from `MainWindow`.
     - Shared card-open transition flow (used by search-result activation and tool-driven card open) now runs through `SelectionTransitionController.run_card_open_transition(...)`.
+    - Toolbox breadcrumb navigation orchestration moved out of `MainWindow` into `ToolboxBreadcrumbController`; window now forwards breadcrumb intents plus UI callbacks only.
+    - Explorer ID-to-selection resolution for project/card/AI-thread request paths now runs through `ExplorerSelectionController` instead of inline loops in `MainWindow`.
+    - Search selection bounds/invalid handling now runs through `SearchSelectionController` rather than inline position checks in `MainWindow`.
   - Consolidating all state commits so UI render changes are coordinated through one path.
 - Not started:
   - Full renderer-from-state model (widgets fully driven from a committed state snapshot).
