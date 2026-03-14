@@ -27,6 +27,7 @@ public class MainController : Object, IAiRunContext {
     internal bool create_card_in_flight = false;
     internal uint autosave_id = 0;
     internal uint search_debounce_id = 0;
+    private uint project_overview_request_serial = 0;
 
     private ProjectsController projects_controller;
     private CardsController cards_controller;
@@ -191,6 +192,8 @@ public class MainController : Object, IAiRunContext {
     }
 
     public async void show_project_overview() {
+        project_overview_request_serial++;
+        var request_serial = project_overview_request_serial;
         var selected = project_selection.get_selected_item() as Project;
         if (selected == null) {
             current_project = null;
@@ -198,6 +201,7 @@ public class MainController : Object, IAiRunContext {
             editor_state_changed("# No Project Selected\n\nSelect a project to view its overview.", false);
             return;
         }
+        var selected_project_id = selected.project_id;
 
         current_project = selected;
         current_card = null;
@@ -208,10 +212,24 @@ public class MainController : Object, IAiRunContext {
         if (api != null) {
             try {
                 var resources = yield api.list_resources(selected.project_id);
+                if (request_serial != project_overview_request_serial) {
+                    return;
+                }
                 resources_text = resources.size.to_string();
             } catch (Error e) {
+                if (request_serial != project_overview_request_serial) {
+                    return;
+                }
                 resources_text = "unknown";
             }
+        }
+
+        if (request_serial != project_overview_request_serial) {
+            return;
+        }
+        var latest_selected = project_selection.get_selected_item() as Project;
+        if (latest_selected == null || latest_selected.project_id != selected_project_id) {
+            return;
         }
 
         editor_state_changed(build_project_overview_text(selected, card_count, resources_text, thread_count), false);

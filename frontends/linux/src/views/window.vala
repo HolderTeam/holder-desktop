@@ -111,6 +111,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private PrintService print_service;
     private AiRunController ai_run_controller;
     private FlowboardController flowboard_controller;
+    private ToolboxNavigationController toolbox_navigation_controller;
     private Settings? settings;
     private uint flowboard_refresh_idle_id = 0;
     private uint flowboard_context_request_serial = 0;
@@ -206,6 +207,7 @@ public class MainWindow : Adw.ApplicationWindow {
         recovery_controller = new RecoveryController(new WindowRecoveryContext(controller));
         ai_run_controller = new AiRunController(controller);
         flowboard_controller = new FlowboardController(project_store, project_selection, card_store);
+        toolbox_navigation_controller = new ToolboxNavigationController();
 
         sidebar = new SidebarPane(project_selection, card_selection, ai_thread_selection);
         sidebar.card_move_to_trash_requested.connect((card_id) => {
@@ -479,12 +481,16 @@ public class MainWindow : Adw.ApplicationWindow {
             add_toast(message);
         });
         toolbox.connections_project_overview_requested.connect((_project_id) => {
-            controller.show_project_overview.begin();
+            navigate_tool_project_overview.begin();
         });
         toolbox.connections_projects_root_requested.connect(() => {
+            toolbox_navigation_controller.begin_navigation();
+            toolbox.set_navigation_loading(false);
             show_connections_help_page();
         });
         toolbox.tool_help_requested.connect((tool_id) => {
+            toolbox_navigation_controller.begin_navigation();
+            toolbox.set_navigation_loading(false);
             show_tool_help_page(tool_id);
         });
         toolbox.flowboard_card_open_requested.connect((card_id) => {
@@ -561,6 +567,18 @@ public class MainWindow : Adw.ApplicationWindow {
             flowboard_controller.refresh();
             return Source.REMOVE;
         });
+    }
+
+    private async void navigate_tool_project_overview() {
+        var seq = toolbox_navigation_controller.begin_navigation();
+        toolbox.set_navigation_loading(true);
+        try {
+            yield controller.show_project_overview();
+        } finally {
+            if (toolbox_navigation_controller.is_current(seq)) {
+                toolbox.set_navigation_loading(false);
+            }
+        }
     }
 
     private async void load_flowboard_context(uint request_serial,

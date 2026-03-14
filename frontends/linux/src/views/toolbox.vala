@@ -149,6 +149,12 @@ public class ToolboxPane : Object {
         }
     }
 
+    public void set_navigation_loading(bool loading) {
+        if (tool_shell != null) {
+            ((!) tool_shell).set_loading(loading);
+        }
+    }
+
     private Gtk.Widget build_ui() {
         var frame = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
         frame.set_margin_top(6);
@@ -267,14 +273,6 @@ public class ToolboxPane : Object {
         });
         trash_tool.toast_requested.connect((message) => {
             toast_requested(message);
-        });
-        trash_tool.breadcrumb_activated.connect((index) => {
-            if (index == 0) {
-                flowboard_tool.show_projects_root();
-            }
-            if (index < 2 && toolbox_stack != null) {
-                toolbox_stack.set_visible_child_name("flowboard");
-            }
         });
         trash_tool.set_api_client(api);
         trash_tool.set_project_selection(project_selection);
@@ -437,9 +435,6 @@ public class ToolboxPane : Object {
         if (segment_index == 1) {
             if (selected_project == null) {
                 return;
-            }
-            if (card_selection != null && tool_id != "flowboard") {
-                card_selection.set_selected(Gtk.INVALID_LIST_POSITION);
             }
             if (tool_id == "connections") {
                 connections_project_overview_requested(selected_project.project_id);

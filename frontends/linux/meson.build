@@ -63,6 +63,7 @@ sources = [
   'src/controllers/terminal.vala',
   'src/controllers/flowboard.vala',
   'src/controllers/trash.vala',
+  'src/controllers/toolbox_navigation.vala',
   'src/controllers/local_info.vala',
   'src/controllers/local_info_flow.vala',
   'src/controllers/local_info_presenter.vala',
