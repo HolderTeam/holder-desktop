@@ -1350,7 +1350,7 @@ public class MainWindow : Adw.ApplicationWindow {
         var dialog = new Adw.MessageDialog(
             this,
             "Holder 0.1.0",
-            "Holder Linux frontend\nhttps://github.com/HolderTeam"
+            "Holder Linux frontend"
         );
         dialog.add_response("close", "Close");
         dialog.set_default_response("close");
@@ -1360,7 +1360,17 @@ public class MainWindow : Adw.ApplicationWindow {
         logo.set_can_shrink(true);
         logo.set_content_fit(Gtk.ContentFit.CONTAIN);
         logo.set_size_request(220, 220);
-        dialog.set_extra_child(logo);
+
+        var link = new Gtk.LinkButton.with_label(
+            "https://github.com/HolderTeam",
+            "github.com/HolderTeam"
+        );
+        link.set_halign(Gtk.Align.CENTER);
+
+        var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 12);
+        content.append(logo);
+        content.append(link);
+        dialog.set_extra_child(content);
         dialog.present();
     }
 
