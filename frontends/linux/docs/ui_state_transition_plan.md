@@ -36,6 +36,19 @@
     - Toolbox breadcrumb navigation orchestration moved out of `MainWindow` into `ToolboxBreadcrumbController`; window now forwards breadcrumb intents plus UI callbacks only.
     - Explorer ID-to-selection resolution for project/card/AI-thread request paths now runs through `ExplorerSelectionController` instead of inline loops in `MainWindow`.
     - Search selection bounds/invalid handling now runs through `SearchSelectionController` rather than inline position checks in `MainWindow`.
+    - Sidebar state-apply selection rendering (project/card/AI-thread) now runs through `SidebarSelectionRenderer`; `MainWindow` no longer carries inline ID scan/apply methods for those three lists.
+    - Sidebar list data rendering now runs through `SidebarDataRenderer`; `MainWindow` no longer carries inline list-population loops for projects/cards/AI threads.
+    - Selection request apply paths (project/card/AI-thread/search + select-card-by-id) now run through `SelectionRequestController`; direct `request_*_selection` methods were removed from `MainWindow`.
+    - Selection intent transition logic (project/card/AI-thread/search-result/tool-card-open) now runs through `SelectionIntentController`; `MainWindow` now mostly extracts selected IDs and forwards.
+    - Tool help title mapping and help markdown resource loading now run through `ToolHelpController`; `MainWindow` now only renders returned help content.
+    - Internal-link parsing and project-card target resolution now run through `InternalLinkController`; `MainWindow` now only extracts current line/cursor context and handles UI reactions.
+    - Find/replace validation and flow now run through `FindReplaceController`; `MainWindow` now only wires workspace events and hosts the low-level GtkSource operations adapter.
+    - Recovery export/import flow decisions (project/pin/path validation, export/import orchestration, summary text formatting) now run through `RecoveryUiController`; `MainWindow` now primarily hosts dialogs and forwards user input/results.
+    - Card email-share flow now runs through `ShareController`; `MainWindow` now only provides current card/editor text and wires toast/error signals.
+    - Card append-from-terminal decision logic now runs through `CardAppendController`; `MainWindow` now only applies returned text to the editor.
+    - Internal-link list extraction for Connections (`[[...]]` parse/dedupe) now runs through `InternalLinkController`; `MainWindow` now only forwards editor text and applies returned links.
+    - Flowboard context async load sequencing/stale-drop now runs through `FlowboardContextController`; `MainWindow` no longer owns flowboard context request serial state.
+    - Recovery dialog orchestration (`request PIN`, `save-file picker`, `import file + unlock`, `import summary dialog`) now runs through `RecoveryDialogAdapter`; `MainWindow` now wires toolbox actions and import completion only.
   - Consolidating all state commits so UI render changes are coordinated through one path.
 - Not started:
   - Full renderer-from-state model (widgets fully driven from a committed state snapshot).

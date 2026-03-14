@@ -11,4 +11,7 @@
     <file alias="toolbox/trash.md">../../help/toolbox/trash.md</file>
     <file alias="toolbox/debug.md">../../help/toolbox/debug.md</file>
   </gresource>
+  <gresource prefix="/io/holder/linux/assets">
+    <file alias="holder.jpg">../img/holder.jpg</file>
+  </gresource>
 </gresources>
