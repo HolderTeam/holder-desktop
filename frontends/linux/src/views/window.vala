@@ -186,9 +186,12 @@ public class MainWindow : Adw.ApplicationWindow {
     private LocalInfoFlowController local_info_flow_controller;
     private LocalInfoPresenter local_info_presenter;
     private LocalInfoViewAdapter local_info_view_adapter;
+    private LocalInfoUiController local_info_ui_controller;
     private WindowActionsAdapter window_actions_adapter;
+    private CardActionDialogAdapter card_action_dialog_adapter;
     private ProjectCreateDialogAdapter project_create_dialog_adapter;
     private PrintService print_service;
+    private PrintUiController print_ui_controller;
     private AiRunController ai_run_controller;
     private FindReplaceController find_replace_controller;
     private FlowboardController flowboard_controller;
@@ -326,9 +329,15 @@ public class MainWindow : Adw.ApplicationWindow {
             new WindowLocalInfoViewSink(this),
             local_info_presenter
         );
+        local_info_ui_controller = new LocalInfoUiController(
+            local_info_flow_controller,
+            local_info_view_adapter
+        );
         window_actions_adapter = new WindowActionsAdapter(this);
+        card_action_dialog_adapter = new CardActionDialogAdapter(this);
         project_create_dialog_adapter = new ProjectCreateDialogAdapter(this);
         print_service = new PrintService();
+        print_ui_controller = new PrintUiController(print_service);
         recovery_controller = new RecoveryController(new WindowRecoveryContext(controller));
         recovery_ui_controller = new RecoveryUiController(recovery_controller);
         recovery_dialog_adapter = new RecoveryDialogAdapter(this, recovery_ui_controller);
@@ -661,6 +670,12 @@ public class MainWindow : Adw.ApplicationWindow {
         ai_run_controller.set_send_enabled_requested.connect((enabled) => {
             ai_panel.set_send_enabled(enabled);
         });
+        print_ui_controller.toast_requested.connect((message) => {
+            add_toast(message);
+        });
+        print_ui_controller.error_reported.connect((title_text, details) => {
+            show_error(title_text, details);
+        });
 
         toolbox.error_reported.connect((title, details) => {
             show_error(title, details);
@@ -969,7 +984,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private void register_local_info_action() {
         var show_local_info_action = new SimpleAction("show-local-info", null);
         show_local_info_action.activate.connect(() => {
-            show_local_info_page.begin();
+            local_info_ui_controller.show_page.begin();
         });
         add_action(show_local_info_action);
     }
@@ -1113,23 +1128,9 @@ public class MainWindow : Adw.ApplicationWindow {
         }
 
         var title_text = card_title_for_id(card_id);
-        var dialog = new Adw.MessageDialog(
-            this,
-            "Move to Trash",
-            "Move \"%s\" to Trash?\n\nYou can restore it from the Trash tool.".printf(title_text)
-        );
-        dialog.add_response("cancel", "Cancel");
-        dialog.add_response("trash", "Move to Trash");
-        dialog.set_response_appearance("trash", Adw.ResponseAppearance.DESTRUCTIVE);
-        dialog.set_default_response("trash");
-        dialog.set_close_response("cancel");
-        dialog.response.connect((response) => {
-            if (response == "trash") {
-                controller.move_card_to_trash.begin(card_id);
-            }
-            dialog.close();
+        card_action_dialog_adapter.confirm_move_to_trash(title_text, () => {
+            controller.move_card_to_trash.begin(card_id);
         });
-        dialog.present();
     }
 
     private string? internal_link_target_at_iter(Gtk.TextIter iter) {
@@ -1175,7 +1176,9 @@ public class MainWindow : Adw.ApplicationWindow {
             add_toast("No card matches [[%s]].".printf(target));
             var target_copy = target;
             Idle.add(() => {
-                show_create_internal_link_card_dialog(target_copy);
+                card_action_dialog_adapter.confirm_create_linked_card(target_copy, () => {
+                    controller.create_card_with_title.begin(target_copy);
+                });
                 return Source.REMOVE;
             });
             return true;
@@ -1183,28 +1186,6 @@ public class MainWindow : Adw.ApplicationWindow {
 
         open_card_from_flowboard(card_id);
         return true;
-    }
-
-    private void show_create_internal_link_card_dialog(string target) {
-        var dialog = new Adw.MessageDialog(
-            this,
-            "Create Linked Card?",
-            "No card matches [[%s]] in this project.".printf(target)
-        );
-        dialog.add_response("cancel", "Cancel");
-        dialog.add_response("create", "Create Card");
-        dialog.set_response_appearance("create", Adw.ResponseAppearance.SUGGESTED);
-        dialog.set_default_response("create");
-        dialog.set_close_response("cancel");
-
-        dialog.response.connect((response) => {
-            if (response == "create") {
-                controller.create_card_with_title.begin(target);
-            }
-            dialog.close();
-        });
-
-        dialog.present();
     }
 
     private void show_preferences_dialog() {
@@ -1280,30 +1261,7 @@ public class MainWindow : Adw.ApplicationWindow {
         Gtk.TextIter end;
         editor_buffer.get_bounds(out start, out end);
         var text = editor_buffer.get_text(start, end, false);
-        try {
-            yield print_service.print_text(this, text);
-        } catch (Error e) {
-            if (e.message == "Nothing to print.") {
-                add_toast("Nothing to print.");
-                return;
-            }
-            show_error("Print failed", e.message);
-        }
-    }
-
-    private async void show_local_info_page() {
-        var result = yield local_info_flow_controller.load();
-        switch (result.state) {
-        case LocalInfoLoadState.NOT_CONNECTED:
-            local_info_view_adapter.render_not_connected();
-            break;
-        case LocalInfoLoadState.SUCCESS:
-            local_info_view_adapter.render_success(result.markdown);
-            break;
-        case LocalInfoLoadState.FAILURE:
-            local_info_view_adapter.render_failure(result.error_details);
-            break;
-        }
+        yield print_ui_controller.print_text(this, text);
     }
 
     private void show_about_dialog() {
