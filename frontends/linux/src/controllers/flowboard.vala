@@ -272,6 +272,14 @@ public class FlowboardController : Object {
         refresh();
     }
 
+    public bool is_showing_projects_root() {
+        return showing_projects;
+    }
+
+    public bool is_showing_project_root_level() {
+        return !showing_projects && normalize_parent(current_parent_card_id) == null;
+    }
+
     public void on_card_drop(string source_card_id, string target_card_id, double target_x_fraction) {
         if (source_card_id == target_card_id) {
             return;

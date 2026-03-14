@@ -363,6 +363,10 @@ public class ToolboxPane : Object {
             selected_card.title.strip().length > 0) {
             card_name = selected_card.title;
         }
+        if (tool_name == "Flowboard" &&
+            (flowboard_tool.is_showing_projects_root() || flowboard_tool.is_showing_project_root_level())) {
+            card_name = "Overview";
+        }
 
         append_header_segment(tool_name, true, true, 0);
         append_header_separator();
@@ -410,6 +414,7 @@ public class ToolboxPane : Object {
         if (segment_index == 0) {
             if (tool_id == "flowboard") {
                 flowboard_tool.show_projects_root();
+                refresh_header_breadcrumbs();
                 return;
             }
             tool_help_requested(tool_id);
@@ -420,7 +425,7 @@ public class ToolboxPane : Object {
             if (selected_project == null) {
                 return;
             }
-            if (card_selection != null) {
+            if (card_selection != null && tool_id != "flowboard") {
                 card_selection.set_selected(Gtk.INVALID_LIST_POSITION);
             }
             if (tool_id == "connections") {
@@ -429,6 +434,7 @@ public class ToolboxPane : Object {
             }
             if (tool_id == "flowboard") {
                 flowboard_tool.show_project_root();
+                refresh_header_breadcrumbs();
                 return;
             }
             return;

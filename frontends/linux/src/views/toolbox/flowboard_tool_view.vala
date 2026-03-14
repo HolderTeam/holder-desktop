@@ -91,6 +91,14 @@ public class FlowboardToolView : Object {
         }
         flowboard_controller.navigate_to_breadcrumb_index(1);
     }
+
+    public bool is_showing_projects_root() {
+        return flowboard_controller != null && flowboard_controller.is_showing_projects_root();
+    }
+
+    public bool is_showing_project_root_level() {
+        return flowboard_controller != null && flowboard_controller.is_showing_project_root_level();
+    }
 }
 
 }
