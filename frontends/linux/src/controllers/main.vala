@@ -51,6 +51,7 @@ public class MainController : Object, IAiRunContext {
     public signal void ai_status_refresh_requested();
     public signal void project_selection_requested(string? project_id);
     public signal void card_selection_requested(string? card_id);
+    public signal void search_selection_requested(int position);
     public signal void ai_thread_title_changed(string? title);
     public signal void ai_thread_selection_requested(string? thread_id);
     public signal void api_client_ready(IHolderApi api);
@@ -554,8 +555,10 @@ public class MainController : Object, IAiRunContext {
             search_store.append(result);
         }
         if (results.size > 0) {
-            search_selection.set_selected_index(0);
+            search_selection_requested(0);
+            return;
         }
+        search_selection_requested(-1);
     }
 
     internal bool select_project_by_id(string project_id) {

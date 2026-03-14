@@ -268,6 +268,9 @@ public class MainWindow : Adw.ApplicationWindow {
         controller.card_selection_requested.connect((card_id) => {
             request_card_selection(card_id);
         });
+        controller.search_selection_requested.connect((position) => {
+            request_search_selection(position);
+        });
         controller.ai_thread_title_changed.connect((title_text) => {
             ai_panel.set_thread_title(title_text);
         });
@@ -345,7 +348,7 @@ public class MainWindow : Adw.ApplicationWindow {
             }
             show_search_mode();
             if (search_selection.get_selected() == Gtk.INVALID_LIST_POSITION) {
-                search_selection.set_selected(0);
+                request_search_selection(0);
             }
             search_list.grab_focus();
         });
@@ -908,6 +911,27 @@ public class MainWindow : Adw.ApplicationWindow {
             });
             return;
         }
+    }
+
+    private void request_search_selection(int position) {
+        if (position < 0) {
+            with_state_apply(() => {
+                search_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+            });
+            return;
+        }
+
+        var target = (uint) position;
+        if (target >= search_store.get_n_items()) {
+            with_state_apply(() => {
+                search_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+            });
+            return;
+        }
+
+        with_state_apply(() => {
+            search_selection.set_selected(target);
+        });
     }
 
     private async void load_flowboard_context(uint request_serial,

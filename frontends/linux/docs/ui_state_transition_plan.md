@@ -22,6 +22,7 @@
   - Expanding transition ownership beyond project/card + breadcrumb paths (search/AI thread/flowboard context paths still mixed).
   - Recent progress:
     - Search-result activation now uses an explicit prepare/select/load transition path (no hidden controller-side selection+load side effects in the window intent path).
+    - Search result selection now routes through `MainController.search_selection_requested` + window state apply helpers (removed direct `set_selected_index` mutations in controller/view intent handlers).
     - Connections tool card opens now emit intent signals up to toolbox/window instead of mutating `Gtk.SingleSelection` directly.
     - AI thread selection notify path is now state-apply guarded to prevent programmatic apply loops.
     - Flowboard project tile activation now routes through `MainController.show_project_overview_for(project_id)` instead of mutating `Gtk.SingleSelection` directly inside flowboard controller logic.
