@@ -10,7 +10,6 @@ public class MainController : Object, IAiRunContext {
     internal GLib.ListStore ai_thread_store;
     internal ISelectionState ai_thread_selection;
     internal GLib.ListStore search_store;
-    internal ISelectionState search_selection;
     internal ITextProvider search_text;
     internal ITextProvider editor_text;
 
@@ -23,8 +22,6 @@ public class MainController : Object, IAiRunContext {
     internal CardDetail? current_card;
     internal AiThreadSummary? current_ai_thread;
 
-    internal bool suppress_project_selection_events = false;
-    internal bool suppress_card_selection_events = false;
     internal bool create_card_in_flight = false;
     internal uint autosave_id = 0;
     internal uint search_debounce_id = 0;
@@ -35,7 +32,6 @@ public class MainController : Object, IAiRunContext {
     private ProjectsController projects_controller;
     private CardsController cards_controller;
     private SearchController search_controller;
-    private SelectionController selection_controller;
     private AiThreadsController ai_threads_controller;
     private IExplorerStateSink? explorer_state_sink;
     // LCOV_EXCL_STOP
@@ -64,7 +60,6 @@ public class MainController : Object, IAiRunContext {
                           GLib.ListStore ai_thread_store,
                           ISelectionState ai_thread_selection,
                           GLib.ListStore search_store,
-                          ISelectionState search_selection,
                           ITextProvider search_text,
                           ITextProvider editor_text,
                           IApiFactory api_factory,
@@ -80,7 +75,6 @@ public class MainController : Object, IAiRunContext {
         this.ai_thread_store = ai_thread_store;
         this.ai_thread_selection = ai_thread_selection;
         this.search_store = search_store;
-        this.search_selection = search_selection;
         this.search_text = search_text;
         this.editor_text = editor_text;
         this.api_factory = api_factory;
@@ -92,16 +86,7 @@ public class MainController : Object, IAiRunContext {
         this.projects_controller = new ProjectsController(this);
         this.cards_controller = new CardsController(this);
         this.search_controller = new SearchController(this);
-        this.selection_controller = new SelectionController(this);
         this.ai_threads_controller = new AiThreadsController(this);
-    }
-
-    public bool should_ignore_project_selection_events() {
-        return suppress_project_selection_events;
-    }
-
-    public bool should_ignore_card_selection_events() {
-        return suppress_card_selection_events;
     }
 
     public IHolderApi? get_api_client() {
@@ -197,10 +182,6 @@ public class MainController : Object, IAiRunContext {
         yield reload_everything_with_selection(preferred_project_id, preferred_card_id);
     }
 
-    public void on_project_selected() {
-        selection_controller.on_project_selected();
-    }
-
     public async void show_project_overview() {
         project_overview_request_serial++;
         var request_serial = project_overview_request_serial;
@@ -253,10 +234,6 @@ public class MainController : Object, IAiRunContext {
             return;
         }
         yield show_project_overview();
-    }
-
-    public void on_card_selected() {
-        selection_controller.on_card_selected();
     }
 
     public void on_ai_thread_selected() {
@@ -594,7 +571,6 @@ public class MainController : Object, IAiRunContext {
             source_cards.add(card_store.get_item(i) as CardSummary);
         }
         var updated_cards = rebuild_card_summaries(source_cards, target_card_id, title, updated_at);
-        suppress_card_selection_events = true;
         updated_cards.sort((a, b) => compare_cards_for_sidebar(a, b));
         card_store.remove_all();
         foreach (var card in updated_cards) {
@@ -603,7 +579,6 @@ public class MainController : Object, IAiRunContext {
         if (selected_card_id != null) {
             select_card_by_id(selected_card_id);
         }
-        suppress_card_selection_events = false;
     }
 
     public void update_selected_card_summary_for_tests(string title, int64 updated_at) {

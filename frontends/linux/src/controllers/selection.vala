@@ -7,12 +7,12 @@ internal class SelectionController : Object {
         this.owner = owner;
     }
 
-    public void on_project_selected() {
-        owner.reload_cards_for_selected_project.begin();
+    public async void on_project_selected() {
+        yield owner.reload_cards_for_selected_project();
     }
 
-    public void on_card_selected() {
-        owner.load_selected_card.begin();
+    public async void on_card_selected() {
+        yield owner.load_selected_card();
     }
 }
 

@@ -104,6 +104,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private AiPanel ai_panel;
     private ToolboxPane toolbox;
     private MainController controller;
+    private SelectionController selection_controller;
     private RecoveryController recovery_controller;
     private LocalInfoController local_info_controller;
     private LocalInfoFlowController local_info_flow_controller;
@@ -195,7 +196,6 @@ public class MainWindow : Adw.ApplicationWindow {
             ai_thread_store,
             new GtkSingleSelectionState(ai_thread_selection),
             search_store,
-            new GtkSingleSelectionState(search_selection),
             new SearchEntryTextProvider(search_entry),
             new SourceBufferTextProvider(editor_buffer),
             new DefaultApiFactory(),
@@ -205,6 +205,7 @@ public class MainWindow : Adw.ApplicationWindow {
             null,
             app_state_store
         );
+        selection_controller = new SelectionController(controller);
         local_info_flow_controller = new LocalInfoFlowController(
             new WindowLocalInfoFlowContext(controller),
             local_info_controller
@@ -384,17 +385,11 @@ public class MainWindow : Adw.ApplicationWindow {
             if (is_applying_state()) {
                 return;
             }
-            if (controller.should_ignore_project_selection_events()) {
-                return;
-            }
             handle_project_selection_intent.begin();
         });
 
         card_selection.notify["selected"].connect(() => {
             if (is_applying_state()) {
-                return;
-            }
-            if (controller.should_ignore_card_selection_events()) {
                 return;
             }
             handle_card_selection_intent.begin();
@@ -753,7 +748,7 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.set_navigation_loading(true);
         try {
             app_transition_controller.commit_selection(seq, project_id, null, null);
-            yield controller.reload_cards_for_selected_project();
+            yield selection_controller.on_project_selected();
             if (!app_transition_controller.is_current(seq)) {
                 return;
             }
@@ -775,7 +770,7 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.set_navigation_loading(true);
         try {
             app_transition_controller.commit_selection(seq, selected.project_id, selected.card_id, null);
-            yield controller.load_selected_card();
+            yield selection_controller.on_card_selected();
             if (!app_transition_controller.is_current(seq)) {
                 return;
             }

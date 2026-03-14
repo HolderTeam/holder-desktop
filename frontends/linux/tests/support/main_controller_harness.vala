@@ -39,7 +39,6 @@ public class MainControllerTestHarness : Object {
             thread_store,
             thread_selection,
             search_store,
-            search_selection,
             search_text,
             editor_text,
             new MainControllerFakeApiFactory(api, api),

@@ -162,7 +162,6 @@ main_controller_test_exe = executable(
     'src/controllers/projects.vala',
     'src/controllers/cards.vala',
     'src/controllers/search.vala',
-    'src/controllers/selection.vala',
     'src/controllers/ai_threads.vala',
     'tests/main_controller_test.vala',
   ],
