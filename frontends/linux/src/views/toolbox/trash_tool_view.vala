@@ -2,8 +2,8 @@ namespace HolderLinux {
 
 public class TrashToolView : Object {
     private TrashController controller;
+    private Gtk.Box trash_actions_bar;
     private Gtk.DropDown filter_dropdown;
-    private Gtk.Box scope_breadcrumb_bar;
     private string scope_text_cache = "Projects / (none) / Trash";
     private Gtk.Label empty_label;
     private Gtk.Button empty_trash_btn;
@@ -28,6 +28,10 @@ public class TrashToolView : Object {
         widget = build_ui();
     }
 
+    public Gtk.Widget get_actions_widget() {
+        return trash_actions_bar;
+    }
+
     public void set_api_client(IHolderApi? api) {
         controller.set_api_client(api);
     }
@@ -43,12 +47,8 @@ public class TrashToolView : Object {
     private Gtk.Widget build_ui() {
         var root = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
 
-        var header = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
-        scope_breadcrumb_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
-        header.append(scope_breadcrumb_bar);
-        set_scope_breadcrumbs(scope_text_cache);
-
-        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        trash_actions_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        trash_actions_bar.set_hexpand(true);
         var filter_options = new Gtk.StringList(null);
         filter_options.append("All");
         filter_options.append("Cards");
@@ -58,24 +58,21 @@ public class TrashToolView : Object {
         filter_dropdown.notify["selected"].connect(() => {
             controller.set_filter_index(filter_dropdown.get_selected());
         });
-        actions.append(filter_dropdown);
+        trash_actions_bar.append(filter_dropdown);
 
         var refresh_btn = new Gtk.Button.from_icon_name("view-refresh-symbolic");
         refresh_btn.set_tooltip_text("Refresh trash");
         refresh_btn.clicked.connect(() => {
             controller.queue_refresh();
         });
-        actions.append(refresh_btn);
+        trash_actions_bar.append(refresh_btn);
 
         empty_trash_btn = new Gtk.Button.with_label("Empty Trash");
         empty_trash_btn.add_css_class("destructive-action");
         empty_trash_btn.clicked.connect(() => {
             confirm_empty_trash();
         });
-        actions.append(empty_trash_btn);
-
-        header.append(actions);
-        root.append(header);
+        trash_actions_bar.append(empty_trash_btn);
 
         var selection = new Gtk.NoSelection(controller.items_store);
         var view = new Gtk.ColumnView(selection);
@@ -178,39 +175,9 @@ public class TrashToolView : Object {
 
     private void apply_state() {
         scope_text_cache = controller.scope_text;
-        set_scope_breadcrumbs(scope_text_cache);
         empty_label.set_text(controller.empty_text);
         empty_label.set_visible(controller.empty_visible);
         empty_trash_btn.set_sensitive(controller.empty_trash_sensitive);
-    }
-
-    private void set_scope_breadcrumbs(string scope_text) {
-        clear_box_children(scope_breadcrumb_bar);
-        var segments = scope_text.split(" / ");
-        for (int i = 0; i < segments.length; i++) {
-            var idx = i;
-            var btn = new Gtk.Button.with_label(segments[i]);
-            btn.add_css_class("flat");
-            btn.set_focusable(false);
-            btn.clicked.connect(() => {
-                breadcrumb_activated(idx);
-            });
-            scope_breadcrumb_bar.append(btn);
-            if (i < segments.length - 1) {
-                var sep = new Gtk.Label(" / ");
-                sep.add_css_class("dim-label");
-                scope_breadcrumb_bar.append(sep);
-            }
-        }
-    }
-
-    private void clear_box_children(Gtk.Box box) {
-        Gtk.Widget? child = box.get_first_child();
-        while (child != null) {
-            var next = child.get_next_sibling();
-            box.remove(child);
-            child = next;
-        }
     }
 
 #if TRASH_TOOL_VIEW_TEST

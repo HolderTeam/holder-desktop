@@ -1,6 +1,8 @@
 namespace HolderLinux {
 
 public class DebugToolView : Object {
+    private Gtk.Box debug_actions_bar;
+    private Gtk.Button clear_btn;
     private Gtk.TextBuffer debug_buffer;
     private Gtk.TextView debug_view;
 
@@ -8,6 +10,10 @@ public class DebugToolView : Object {
 
     public DebugToolView() {
         widget = build_ui();
+    }
+
+    public Gtk.Widget get_actions_widget() {
+        return debug_actions_bar;
     }
 
     public void append_log_line(string line) {
@@ -28,6 +34,8 @@ public class DebugToolView : Object {
 
     private Gtk.Widget build_ui() {
         var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        debug_actions_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        debug_actions_bar.set_hexpand(true);
         debug_buffer = new Gtk.TextBuffer(null);
         debug_view = new Gtk.TextView.with_buffer(debug_buffer);
         debug_view.set_editable(false);
@@ -35,13 +43,11 @@ public class DebugToolView : Object {
         debug_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
         debug_view.set_vexpand(true);
 
-        var controls = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var clear = new Gtk.Button.with_label("Clear");
-        clear.clicked.connect(() => {
+        clear_btn = new Gtk.Button.with_label("Clear");
+        clear_btn.clicked.connect(() => {
             debug_buffer.set_text("", -1);
         });
-        controls.append(clear);
-        box.append(controls);
+        debug_actions_bar.append(clear_btn);
 
         var scroll = new Gtk.ScrolledWindow();
         scroll.set_vexpand(true);

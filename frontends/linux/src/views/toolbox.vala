@@ -352,6 +352,18 @@ public class ToolboxPane : Object {
         case "connections":
             ((!) tool_shell).set_actions_widget(connections_tool.get_actions_widget());
             break;
+        case "resources":
+            ((!) tool_shell).set_actions_widget(resources_tool.get_actions_widget());
+            break;
+        case "terminals":
+            ((!) tool_shell).set_actions_widget(terminal_tool.get_actions_widget());
+            break;
+        case "trash":
+            ((!) tool_shell).set_actions_widget(trash_tool.get_actions_widget());
+            break;
+        case "debug":
+            ((!) tool_shell).set_actions_widget(debug_tool.get_actions_widget());
+            break;
         default:
             ((!) tool_shell).set_actions_widget(null);
             break;

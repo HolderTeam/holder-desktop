@@ -1,6 +1,8 @@
 namespace HolderLinux {
 
 public class TerminalToolView : Object {
+    private Gtk.Box terminal_actions_bar;
+    private Gtk.Button terminal_new_btn;
     private Gtk.Notebook terminal_notebook;
     private int next_terminal_index = 1;
     private TerminalController controller;
@@ -16,20 +18,25 @@ public class TerminalToolView : Object {
         widget = build_terminal_tab();
     }
 
+    public Gtk.Widget get_actions_widget() {
+        return terminal_actions_bar;
+    }
+
     private Gtk.Widget build_terminal_tab() {
         var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        terminal_actions_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        terminal_actions_bar.set_hexpand(true);
+        terminal_new_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
+        terminal_new_btn.set_tooltip_text("New Terminal");
+        terminal_new_btn.add_css_class("flat");
+        terminal_new_btn.clicked.connect(() => {
+            add_terminal_tab();
+        });
+        terminal_actions_bar.append(terminal_new_btn);
 
         terminal_notebook = new Gtk.Notebook();
         terminal_notebook.set_vexpand(true);
         terminal_notebook.set_hexpand(true);
-
-        var add_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
-        add_btn.set_tooltip_text("New Terminal");
-        add_btn.add_css_class("flat");
-        add_btn.clicked.connect(() => {
-            add_terminal_tab();
-        });
-        terminal_notebook.set_action_widget(add_btn, Gtk.PackType.END);
 
         box.append(terminal_notebook);
 

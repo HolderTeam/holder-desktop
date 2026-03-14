@@ -4,6 +4,7 @@ public class ResourcesToolView : Object {
     private ResourcesController controller;
     private IHolderApi? api;
     private Gtk.SingleSelection? project_selection;
+    private Gtk.Box resources_actions_bar;
     private GLib.ListStore resources_store;
     private Gtk.SingleSelection resources_selection;
     private Gtk.SearchEntry resources_search_entry;
@@ -24,6 +25,10 @@ public class ResourcesToolView : Object {
         widget = build_resources_tab();
     }
 
+    public Gtk.Widget get_actions_widget() {
+        return resources_actions_bar;
+    }
+
     public void set_api_client(IHolderApi? api) {
         this.api = api;
         queue_resources_refresh();
@@ -42,29 +47,29 @@ public class ResourcesToolView : Object {
     private Gtk.Widget build_resources_tab() {
         var root = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
 
-        var header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        resources_actions_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        resources_actions_bar.set_hexpand(true);
         resources_search_entry = new Gtk.SearchEntry();
         resources_search_entry.set_placeholder_text("Filter resources...");
         resources_search_entry.set_hexpand(true);
         resources_search_entry.search_changed.connect(() => {
             apply_resources_filter();
         });
-        header.append(resources_search_entry);
+        resources_actions_bar.append(resources_search_entry);
 
         var add_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
         add_btn.set_tooltip_text("Add resource");
         add_btn.clicked.connect(() => {
             open_resource_dialog(null);
         });
-        header.append(add_btn);
+        resources_actions_bar.append(add_btn);
 
         var refresh_btn = new Gtk.Button.from_icon_name("view-refresh-symbolic");
         refresh_btn.set_tooltip_text("Refresh resources");
         refresh_btn.clicked.connect(() => {
             queue_resources_refresh();
         });
-        header.append(refresh_btn);
-        root.append(header);
+        resources_actions_bar.append(refresh_btn);
 
         resources_store = new GLib.ListStore(typeof(ProjectResource));
         resources_selection = new Gtk.SingleSelection(resources_store);
@@ -91,12 +96,11 @@ public class ResourcesToolView : Object {
         resources_empty_label.set_visible(false);
         root.append(resources_empty_label);
 
-        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         resources_open_btn = new Gtk.Button.with_label("Open");
         resources_open_btn.clicked.connect(() => {
             open_selected_resource();
         });
-        actions.append(resources_open_btn);
+        resources_actions_bar.append(resources_open_btn);
 
         resources_edit_btn = new Gtk.Button.with_label("Edit");
         resources_edit_btn.clicked.connect(() => {
@@ -105,15 +109,14 @@ public class ResourcesToolView : Object {
                 open_resource_dialog(selected);
             }
         });
-        actions.append(resources_edit_btn);
+        resources_actions_bar.append(resources_edit_btn);
 
         resources_delete_btn = new Gtk.Button.with_label("Delete");
         resources_delete_btn.add_css_class("destructive-action");
         resources_delete_btn.clicked.connect(() => {
             confirm_delete_selected_resource();
         });
-        actions.append(resources_delete_btn);
-        root.append(actions);
+        resources_actions_bar.append(resources_delete_btn);
 
         refresh_resource_action_state();
         return root;
