@@ -11,6 +11,7 @@ public class AiPanel : Object {
     private Gtk.TextView ai_prompt_view;
     private Gtk.Label ai_assistant_thread_label;
     private Gtk.Button send_btn;
+    private AiCatalogToolView ai_catalog_tool;
 
     public Gtk.Widget widget { get; private set; }
 
@@ -18,9 +19,26 @@ public class AiPanel : Object {
     public signal void new_thread_requested();
     public signal void status_refresh_requested();
     public signal void pull_model_requested(string model_tag);
+    public signal void error_reported(string title, string details);
+    public signal void debug_log_requested(string line);
 
     public AiPanel() {
+        ai_catalog_tool = new AiCatalogToolView();
+        ai_catalog_tool.error_reported.connect((title, details) => {
+            error_reported(title, details);
+        });
+        ai_catalog_tool.debug_log_requested.connect((line) => {
+            debug_log_requested(line);
+        });
         widget = build_ui();
+    }
+
+    public void set_api_client(IHolderApi? api) {
+        ai_catalog_tool.set_api_client(api);
+    }
+
+    public void refresh_catalog() {
+        ai_catalog_tool.refresh.begin();
     }
 
     public void set_thread_title(string? title) {
@@ -193,6 +211,7 @@ public class AiPanel : Object {
 
         stack.add_titled(assistant, "assistant", "Assistant");
         stack.add_titled(status_page, "status", "Status");
+        stack.add_titled(ai_catalog_tool.widget, "catalog", "Catalog");
         stack.set_visible_child_name("assistant");
 
         var scroll = new Gtk.ScrolledWindow();

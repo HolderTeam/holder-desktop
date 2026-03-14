@@ -1,7 +1,6 @@
 namespace HolderLinux {
 
 public class ToolboxPane : Object {
-    private AiCatalogToolView ai_catalog_tool;
     private ConnectionsToolView connections_tool;
     private GitSyncToolView git_sync_tool;
     private RecoveryKeyToolView recovery_key_tool;
@@ -46,9 +45,6 @@ public class ToolboxPane : Object {
 
     public void set_api_client(IHolderApi? api) {
         this.api = api;
-        if (ai_catalog_tool != null) {
-            ai_catalog_tool.set_api_client(api);
-        }
         if (connections_tool != null) {
             connections_tool.set_api_client(api);
         }
@@ -138,12 +134,6 @@ public class ToolboxPane : Object {
         flowboard_tool.toast_requested.connect((message) => {
             toast_requested(message);
         });
-    }
-
-    public void refresh_catalogs() {
-        if (ai_catalog_tool != null) {
-            ai_catalog_tool.refresh.begin();
-        }
     }
 
     public void refresh_trash() {
@@ -238,17 +228,6 @@ public class ToolboxPane : Object {
         });
         var terminals_page = stack.add_titled(terminal_tool.widget, "terminals", "Terminals");
         terminals_page.set_icon_name("utilities-terminal-symbolic");
-
-        ai_catalog_tool = new AiCatalogToolView();
-        ai_catalog_tool.error_reported.connect((title_text, details) => {
-            error_reported(title_text, details);
-        });
-        ai_catalog_tool.debug_log_requested.connect((line) => {
-            log_debug(line);
-        });
-        ai_catalog_tool.set_api_client(api);
-        var catalog_page = stack.add_titled(ai_catalog_tool.widget, "catalog", "AI Catalog");
-        catalog_page.set_icon_name("x-office-address-book-symbolic");
 
         git_sync_tool = new GitSyncToolView();
         git_sync_tool.error_reported.connect((title_text, details) => {

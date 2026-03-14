@@ -248,6 +248,8 @@ public class MainWindow : Adw.ApplicationWindow {
             ai_panel.set_thread_title(title_text);
         });
         controller.api_client_ready.connect((api_client) => {
+            ai_panel.set_api_client(api_client);
+            ai_panel.refresh_catalog();
             toolbox.set_api_client(api_client);
         });
         controller.card_trashed.connect((_card_id) => {
@@ -278,12 +280,14 @@ public class MainWindow : Adw.ApplicationWindow {
         workspace.ai_panel_toggled.connect((visible) => {
             workspace.set_ai_panel_visible(visible);
             ai_run_controller.set_panel_visible(visible);
+            if (visible) {
+                ai_panel.refresh_catalog();
+            }
         });
         workspace.toolbox_toggled.connect((visible) => {
             workspace.set_toolbox_visible(visible);
             if (visible) {
                 toolbox.log_debug("Toolbox opened");
-                toolbox.refresh_catalogs();
                 toolbox.refresh_trash();
             } else {
                 toolbox.log_debug("Toolbox closed");
@@ -429,6 +433,12 @@ public class MainWindow : Adw.ApplicationWindow {
         });
         ai_panel.status_refresh_requested.connect(() => {
             ai_run_controller.refresh_status.begin();
+        });
+        ai_panel.error_reported.connect((title_text, details) => {
+            show_error(title_text, details);
+        });
+        ai_panel.debug_log_requested.connect((line) => {
+            toolbox.log_debug(line);
         });
         ai_panel.pull_model_requested.connect((model_tag) => {
             ai_run_controller.start_model_pull.begin(model_tag);
