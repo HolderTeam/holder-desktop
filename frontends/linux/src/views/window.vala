@@ -745,17 +745,11 @@ public class MainWindow : Adw.ApplicationWindow {
     private async void handle_project_selection_intent() {
         var selected = project_selection.get_selected_item() as Project;
         var project_id = selected != null ? selected.project_id : null;
-        var seq = selection_transition_controller.begin_navigation("project-selection", project_id, null, null);
-        try {
-            selection_transition_controller.commit_selection(seq, project_id, null, null);
-            yield selection_controller.on_project_selected();
-            if (!selection_transition_controller.is_current(seq)) {
-                return;
-            }
-            flowboard_controller.refresh();
-        } finally {
-            selection_transition_controller.finish_navigation_if_current(seq);
-        }
+        yield selection_transition_controller.run_project_selection(
+            project_id,
+            selection_controller,
+            flowboard_controller
+        );
     }
 
     private async void handle_card_selection_intent() {
@@ -763,83 +757,40 @@ public class MainWindow : Adw.ApplicationWindow {
         if (selected == null) {
             return;
         }
-        var seq = selection_transition_controller.begin_navigation(
-            "card-selection",
+        yield selection_transition_controller.run_card_selection(
             selected.project_id,
             selected.card_id,
-            null
+            selection_controller
         );
-        try {
-            selection_transition_controller.commit_selection(
-                seq,
-                selected.project_id,
-                selected.card_id,
-                null
-            );
-            yield selection_controller.on_card_selected();
-            if (!selection_transition_controller.is_current(seq)) {
-                return;
-            }
-        } finally {
-            selection_transition_controller.finish_navigation_if_current(seq);
-        }
     }
 
     private async void handle_search_result_activation_intent(uint position) {
         var target_card_id = yield controller.prepare_search_result_card_at(position);
-        var seq = selection_transition_controller.begin_navigation(
+        if (target_card_id == null || target_card_id.strip().length == 0) {
+            return;
+        }
+        var selected_card = select_card_in_sidebar_by_id(target_card_id);
+        if (selected_card == null) {
+            return;
+        }
+        yield selection_transition_controller.run_card_open_transition(
             "search-result-activation",
             controller.selected_project_id(),
             target_card_id,
-            null
+            selected_card.project_id,
+            selected_card.card_id,
+            selection_controller
         );
-        try {
-            if (target_card_id == null || target_card_id.strip().length == 0) {
-                return;
-            }
-            var selected_card = select_card_in_sidebar_by_id(target_card_id);
-            if (selected_card == null) {
-                return;
-            }
-            selection_transition_controller.commit_selection(
-                seq,
-                selected_card.project_id,
-                selected_card.card_id,
-                null
-            );
-            yield selection_controller.on_card_selected();
-            if (!selection_transition_controller.is_current(seq)) {
-                return;
-            }
-        } finally {
-            selection_transition_controller.finish_navigation_if_current(seq);
-        }
     }
 
     private void handle_ai_thread_selection_intent() {
         var selected = ai_thread_selection.get_selected_item() as AiThreadSummary;
-        var seq = app_transition_controller.begin(
-            "ai-thread-selection",
+        selection_transition_controller.run_ai_thread_selection(
             controller.selected_project_id(),
             controller.selected_card_id(),
-            selected != null ? selected.thread_id : null
+            selected != null ? selected.thread_id : null,
+            controller
         );
-        try {
-            controller.on_ai_thread_selected();
-            if (!app_transition_controller.is_current(seq)) {
-                return;
-            }
-            app_transition_controller.commit_selection(
-                seq,
-                controller.selected_project_id(),
-                controller.selected_card_id(),
-                selected != null ? selected.thread_id : null
-            );
-        } finally {
-            if (app_transition_controller.is_current(seq)) {
-                app_transition_controller.finish(seq);
-            }
-        }
     }
 
     private void request_ai_thread_selection(string? thread_id) {
@@ -1230,26 +1181,14 @@ public class MainWindow : Adw.ApplicationWindow {
         if (selected_card == null) {
             return;
         }
-        var seq = selection_transition_controller.begin_navigation(
+        yield selection_transition_controller.run_card_open_transition(
             reason,
             selected_card.project_id,
             selected_card.card_id,
-            null
+            selected_card.project_id,
+            selected_card.card_id,
+            selection_controller
         );
-        try {
-            selection_transition_controller.commit_selection(
-                seq,
-                selected_card.project_id,
-                selected_card.card_id,
-                null
-            );
-            yield selection_controller.on_card_selected();
-            if (!selection_transition_controller.is_current(seq)) {
-                return;
-            }
-        } finally {
-            selection_transition_controller.finish_navigation_if_current(seq);
-        }
     }
 
     private CardSummary? select_card_in_sidebar_by_id(string card_id) {
