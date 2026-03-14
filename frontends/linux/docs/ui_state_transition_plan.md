@@ -30,6 +30,7 @@
     - AI thread selection notify path is now state-apply guarded to prevent programmatic apply loops.
     - Flowboard project tile activation now routes through `MainController.show_project_overview_for(project_id)` instead of mutating `Gtk.SingleSelection` directly inside flowboard controller logic.
     - Remaining window transition paths that loaded cards directly (`search-result-activation`, `tool-card-open`) now route through `SelectionController.on_card_selected()` so card-load entry is centralized at window selection intent level.
+    - Added `SelectionTransitionController` to centralize navigation-loading and transition begin/commit/finish mechanics for selection-driven window transitions.
   - Consolidating all state commits so UI render changes are coordinated through one path.
 - Not started:
   - Full renderer-from-state model (widgets fully driven from a committed state snapshot).

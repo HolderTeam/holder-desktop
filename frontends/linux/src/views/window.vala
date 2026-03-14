@@ -105,6 +105,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private ToolboxPane toolbox;
     private MainController controller;
     private SelectionController selection_controller;
+    private SelectionTransitionController selection_transition_controller;
     private RecoveryController recovery_controller;
     private LocalInfoController local_info_controller;
     private LocalInfoFlowController local_info_flow_controller;
@@ -188,6 +189,7 @@ public class MainWindow : Adw.ApplicationWindow {
         local_info_presenter = new LocalInfoPresenter();
         app_state_store = new AppStateStore();
         app_transition_controller = new AppTransitionController(app_state_store);
+        selection_transition_controller = new SelectionTransitionController(app_transition_controller);
         controller = new MainController(
             project_store,
             new GtkSingleSelectionState(project_selection),
@@ -229,6 +231,9 @@ public class MainWindow : Adw.ApplicationWindow {
 
         app_state_store.state_changed.connect(() => {
             apply_sidebar_from_state();
+        });
+        selection_transition_controller.navigation_loading_changed.connect((loading) => {
+            toolbox.set_navigation_loading(loading);
         });
         root_paned.set_start_child(sidebar.widget);
         root_paned.set_end_child(workspace.widget);
@@ -696,12 +701,11 @@ public class MainWindow : Adw.ApplicationWindow {
                                                    int segment_index,
                                                    string? project_id,
                                                    string? card_id) {
-        var seq = app_transition_controller.begin(
+        var seq = selection_transition_controller.begin_navigation(
             "toolbox-breadcrumb",
             project_id,
             card_id
         );
-        toolbox.set_navigation_loading(true);
         try {
             if (segment_index == 0) {
                 if (tool_id == "flowboard") {
@@ -734,30 +738,23 @@ public class MainWindow : Adw.ApplicationWindow {
                 return;
             }
         } finally {
-            if (app_transition_controller.is_current(seq)) {
-                toolbox.set_navigation_loading(false);
-                app_transition_controller.finish(seq);
-            }
+            selection_transition_controller.finish_navigation_if_current(seq);
         }
     }
 
     private async void handle_project_selection_intent() {
         var selected = project_selection.get_selected_item() as Project;
         var project_id = selected != null ? selected.project_id : null;
-        var seq = app_transition_controller.begin("project-selection", project_id, null, null);
-        toolbox.set_navigation_loading(true);
+        var seq = selection_transition_controller.begin_navigation("project-selection", project_id, null, null);
         try {
-            app_transition_controller.commit_selection(seq, project_id, null, null);
+            selection_transition_controller.commit_selection(seq, project_id, null, null);
             yield selection_controller.on_project_selected();
-            if (!app_transition_controller.is_current(seq)) {
+            if (!selection_transition_controller.is_current(seq)) {
                 return;
             }
             flowboard_controller.refresh();
         } finally {
-            if (app_transition_controller.is_current(seq)) {
-                toolbox.set_navigation_loading(false);
-                app_transition_controller.finish(seq);
-            }
+            selection_transition_controller.finish_navigation_if_current(seq);
         }
     }
 
@@ -766,31 +763,36 @@ public class MainWindow : Adw.ApplicationWindow {
         if (selected == null) {
             return;
         }
-        var seq = app_transition_controller.begin("card-selection", selected.project_id, selected.card_id, null);
-        toolbox.set_navigation_loading(true);
+        var seq = selection_transition_controller.begin_navigation(
+            "card-selection",
+            selected.project_id,
+            selected.card_id,
+            null
+        );
         try {
-            app_transition_controller.commit_selection(seq, selected.project_id, selected.card_id, null);
+            selection_transition_controller.commit_selection(
+                seq,
+                selected.project_id,
+                selected.card_id,
+                null
+            );
             yield selection_controller.on_card_selected();
-            if (!app_transition_controller.is_current(seq)) {
+            if (!selection_transition_controller.is_current(seq)) {
                 return;
             }
         } finally {
-            if (app_transition_controller.is_current(seq)) {
-                toolbox.set_navigation_loading(false);
-                app_transition_controller.finish(seq);
-            }
+            selection_transition_controller.finish_navigation_if_current(seq);
         }
     }
 
     private async void handle_search_result_activation_intent(uint position) {
         var target_card_id = yield controller.prepare_search_result_card_at(position);
-        var seq = app_transition_controller.begin(
+        var seq = selection_transition_controller.begin_navigation(
             "search-result-activation",
             controller.selected_project_id(),
             target_card_id,
             null
         );
-        toolbox.set_navigation_loading(true);
         try {
             if (target_card_id == null || target_card_id.strip().length == 0) {
                 return;
@@ -799,21 +801,18 @@ public class MainWindow : Adw.ApplicationWindow {
             if (selected_card == null) {
                 return;
             }
-            app_transition_controller.commit_selection(
+            selection_transition_controller.commit_selection(
                 seq,
                 selected_card.project_id,
                 selected_card.card_id,
                 null
             );
             yield selection_controller.on_card_selected();
-            if (!app_transition_controller.is_current(seq)) {
+            if (!selection_transition_controller.is_current(seq)) {
                 return;
             }
         } finally {
-            if (app_transition_controller.is_current(seq)) {
-                toolbox.set_navigation_loading(false);
-                app_transition_controller.finish(seq);
-            }
+            selection_transition_controller.finish_navigation_if_current(seq);
         }
     }
 
@@ -1231,24 +1230,25 @@ public class MainWindow : Adw.ApplicationWindow {
         if (selected_card == null) {
             return;
         }
-        var seq = app_transition_controller.begin(reason, selected_card.project_id, selected_card.card_id, null);
-        toolbox.set_navigation_loading(true);
+        var seq = selection_transition_controller.begin_navigation(
+            reason,
+            selected_card.project_id,
+            selected_card.card_id,
+            null
+        );
         try {
-            app_transition_controller.commit_selection(
+            selection_transition_controller.commit_selection(
                 seq,
                 selected_card.project_id,
                 selected_card.card_id,
                 null
             );
             yield selection_controller.on_card_selected();
-            if (!app_transition_controller.is_current(seq)) {
+            if (!selection_transition_controller.is_current(seq)) {
                 return;
             }
         } finally {
-            if (app_transition_controller.is_current(seq)) {
-                toolbox.set_navigation_loading(false);
-                app_transition_controller.finish(seq);
-            }
+            selection_transition_controller.finish_navigation_if_current(seq);
         }
     }
 

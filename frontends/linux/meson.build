@@ -55,6 +55,7 @@ sources = [
   'src/controllers/cards.vala',
   'src/controllers/search.vala',
   'src/controllers/selection.vala',
+  'src/controllers/selection_transition.vala',
   'src/controllers/ai_threads.vala',
   'src/controllers/ai_run.vala',
   'src/controllers/git_sync.vala',
