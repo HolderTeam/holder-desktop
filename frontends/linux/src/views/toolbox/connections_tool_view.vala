@@ -51,7 +51,7 @@ public class ConnectionsToolView : Object {
         uint priority
     );
 
-    private Gtk.Box connections_top_actions_bar;
+    private Gtk.Box connections_actions_bar;
     private Gtk.Paned connections_main_pane;
     private Gtk.Overlay connections_board_overlay;
     private Gtk.DrawingArea connections_board_canvas;
@@ -97,6 +97,10 @@ public class ConnectionsToolView : Object {
         widget = build_connections_tab();
     }
 
+    public Gtk.Widget get_actions_widget() {
+        return connections_actions_bar;
+    }
+
     public void set_api_client(IHolderApi? api) {
         this.api = api;
         queue_connections_graph_refresh();
@@ -134,17 +138,9 @@ public class ConnectionsToolView : Object {
 
     private Gtk.Widget build_connections_tab() {
         var root = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
-        var top_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        top_row.set_margin_top(6);
-        top_row.set_margin_bottom(6);
-        top_row.set_margin_start(6);
-        top_row.set_margin_end(6);
-        root.append(top_row);
-
-        connections_top_actions_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        connections_top_actions_bar.set_hexpand(true);
-        connections_top_actions_bar.set_halign(Gtk.Align.END);
-        top_row.append(connections_top_actions_bar);
+        connections_actions_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        connections_actions_bar.set_hexpand(true);
+        connections_actions_bar.set_halign(Gtk.Align.END);
 
         var content_shell = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
         content_shell.add_css_class("flowboard-tile");
@@ -195,8 +191,8 @@ public class ConnectionsToolView : Object {
             bool visible = connections_relations_toggle_btn.get_active();
             connections_relations_scroller.set_visible(visible);
         });
-        connections_top_actions_bar.append(connections_add_graph_link_btn);
-        connections_top_actions_bar.append(connections_relations_toggle_btn);
+        connections_actions_bar.append(connections_add_graph_link_btn);
+        connections_actions_bar.append(connections_relations_toggle_btn);
         graph_column.append(graph_header);
 
         connections_board_overlay = new Gtk.Overlay();
