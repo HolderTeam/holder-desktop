@@ -51,7 +51,6 @@ public class ConnectionsToolView : Object {
         uint priority
     );
 
-    private Gtk.Box connections_breadcrumb_bar;
     private Gtk.Box connections_top_actions_bar;
     private Gtk.Paned connections_main_pane;
     private Gtk.Overlay connections_board_overlay;
@@ -142,11 +141,8 @@ public class ConnectionsToolView : Object {
         top_row.set_margin_end(6);
         root.append(top_row);
 
-        connections_breadcrumb_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
-        connections_breadcrumb_bar.set_hexpand(true);
-        top_row.append(connections_breadcrumb_bar);
-
         connections_top_actions_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        connections_top_actions_bar.set_hexpand(true);
         connections_top_actions_bar.set_halign(Gtk.Align.END);
         top_row.append(connections_top_actions_bar);
 
@@ -305,7 +301,6 @@ public class ConnectionsToolView : Object {
         queue_apply_default_relations_split();
 
         refresh_connections_structure();
-        refresh_connections_breadcrumbs();
         set_graph_empty_state("Select a card to view graph links.");
         return root;
     }
@@ -1454,7 +1449,6 @@ public class ConnectionsToolView : Object {
     }
 
     private void refresh_connections_structure() {
-        refresh_connections_breadcrumbs();
         refresh_relations_title();
         update_add_graph_link_button_state();
     }
@@ -1489,56 +1483,6 @@ public class ConnectionsToolView : Object {
         connections_relations_title_label.set_text("Relations");
     }
 
-    private void refresh_connections_breadcrumbs() {
-        if (connections_breadcrumb_bar == null) {
-            return;
-        }
-        clear_box_children(connections_breadcrumb_bar);
-
-        var selected_project = project_selection != null
-            ? project_selection.get_selected_item() as Project
-            : null;
-        var selected_card = card_selection != null
-            ? card_selection.get_selected_item() as CardSummary
-            : null;
-        string[] segments;
-        if (show_projects_root) {
-            segments = { "Projects" };
-        } else {
-            var project_label = selected_project != null ? selected_project.name : "(none)";
-            var leaf_label = selected_card != null
-                ? controller.ellipsize_title(selected_card.title)
-                : "Overview";
-            segments = { "Projects", project_label, leaf_label };
-        }
-
-        for (int i = 0; i < segments.length; i++) {
-            var btn = new Gtk.Button.with_label(segments[i]);
-            btn.add_css_class("flat");
-            btn.set_focusable(false);
-            if (i == 0) {
-                btn.clicked.connect(() => {
-                    show_projects_root = true;
-                    projects_root_requested();
-                    refresh_connections_structure();
-                    queue_connections_graph_refresh();
-                });
-            }
-            if (i == 1 && selected_project != null) {
-                var project_id = selected_project.project_id;
-                btn.clicked.connect(() => {
-                    focus_project_overview(project_id);
-                });
-            }
-            connections_breadcrumb_bar.append(btn);
-            if (i < segments.length - 1) {
-                var sep = new Gtk.Label(" / ");
-                sep.add_css_class("dim-label");
-                connections_breadcrumb_bar.append(sep);
-            }
-        }
-    }
-
     private Gee.ArrayList<CardSummary> snapshot_cards() {
         var cards = new Gee.ArrayList<CardSummary>();
         if (card_store == null) {
@@ -1562,14 +1506,6 @@ public class ConnectionsToolView : Object {
         }
     }
 
-    private void clear_box_children(Gtk.Box box) {
-        Gtk.Widget? child = box.get_first_child();
-        while (child != null) {
-            var next = child.get_next_sibling();
-            box.remove(child);
-            child = next;
-        }
-    }
 }
 
 }

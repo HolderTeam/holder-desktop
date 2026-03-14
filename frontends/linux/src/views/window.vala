@@ -484,6 +484,9 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.connections_projects_root_requested.connect(() => {
             show_connections_help_page();
         });
+        toolbox.tool_help_requested.connect((tool_id) => {
+            show_tool_help_page(tool_id);
+        });
         toolbox.flowboard_card_open_requested.connect((card_id) => {
             open_card_from_flowboard(card_id);
         });
@@ -875,20 +878,61 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void show_connections_help_page() {
+        show_tool_help_page("connections");
+    }
+
+    private void show_tool_help_page(string tool_id) {
+        string title;
+        switch (tool_id) {
+        case "flowboard":
+            title = "Flowboard";
+            break;
+        case "connections":
+            title = "Connections";
+            break;
+        case "resources":
+            title = "Resources";
+            break;
+        case "sharing":
+            title = "Sharing";
+            break;
+        case "terminals":
+            title = "Terminals";
+            break;
+        case "git":
+            title = "Git Sync";
+            break;
+        case "recovery":
+            title = "Recovery Key";
+            break;
+        case "trash":
+            title = "Trash";
+            break;
+        case "debug":
+            title = "Debug";
+            break;
+        default:
+            var readable = tool_id.replace("-", " ").replace("_", " ");
+            if (readable.strip().length == 0) {
+                title = "Tool Help";
+            } else {
+                title = readable.substring(0, 1).up() + readable.substring(1);
+            }
+            break;
+        }
+
         string markdown;
+        string resource_path = "/io/holder/linux/help/toolbox/%s.md".printf(tool_id);
         try {
-            var bytes = resources_lookup_data(
-                "/io/holder/linux/help/toolbox/connections.md",
-                ResourceLookupFlags.NONE
-            );
+            var bytes = resources_lookup_data(resource_path, ResourceLookupFlags.NONE);
             markdown = (string) bytes.get_data();
         } catch (Error e) {
-            markdown = "# Connections\n\nHelp page resource missing: %s".printf(e.message);
+            markdown = "# %s\n\nHelp page resource missing: %s".printf(title, e.message);
         }
         set_editor_state(markdown, false);
-        update_window_title("Connections");
+        update_window_title(title);
         show_editor_mode();
-        set_status("Loaded Connections help.");
+        set_status("Loaded %s help.".printf(title));
     }
 
     private void confirm_move_card_to_trash(string card_id) {

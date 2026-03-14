@@ -36,6 +36,7 @@ public class ToolboxPane : Object {
     public signal void terminal_copy_to_card_requested(string text);
     public signal void connections_project_overview_requested(string project_id);
     public signal void connections_projects_root_requested();
+    public signal void tool_help_requested(string tool_id);
 
     public ToolboxPane() {
         widget = new Gtk.Revealer();
@@ -363,24 +364,86 @@ public class ToolboxPane : Object {
             card_name = selected_card.title;
         }
 
-        append_header_segment(tool_name, true);
+        append_header_segment(tool_name, true, true, 0);
         append_header_separator();
-        append_header_segment(project_name, false);
+        append_header_segment(project_name, false, selected_project != null, 1);
         append_header_separator();
-        append_header_segment(card_name, false);
+        append_header_segment(card_name, false, selected_card != null, 2);
     }
 
-    private void append_header_segment(string text, bool emphasized) {
+    private void append_header_segment(string text, bool emphasized, bool clickable, int segment_index) {
         if (header_breadcrumb_bar == null) {
             return;
         }
-        var label = new Gtk.Label(text) { xalign = 0.0f };
-        if (emphasized) {
-            label.add_css_class("title-5");
+        if (clickable) {
+            var btn = new Gtk.Button.with_label(text);
+            btn.add_css_class("flat");
+            if (emphasized) {
+                btn.add_css_class("title-5");
+            } else {
+                btn.add_css_class("heading");
+            }
+            btn.clicked.connect(() => {
+                on_header_breadcrumb_clicked(segment_index);
+            });
+            header_breadcrumb_bar.append(btn);
         } else {
-            label.add_css_class("heading");
+            var label = new Gtk.Label(text) { xalign = 0.0f };
+            if (emphasized) {
+                label.add_css_class("title-5");
+            } else {
+                label.add_css_class("heading");
+            }
+            header_breadcrumb_bar.append(label);
         }
-        header_breadcrumb_bar.append(label);
+    }
+
+    private void on_header_breadcrumb_clicked(int segment_index) {
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        var selected_card = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary
+            : null;
+
+        var tool_id = current_tool_id();
+        if (segment_index == 0) {
+            tool_help_requested(tool_id);
+            return;
+        }
+
+        if (segment_index == 1) {
+            if (selected_project == null) {
+                return;
+            }
+            if (tool_id == "connections") {
+                connections_project_overview_requested(selected_project.project_id);
+                return;
+            }
+            if (tool_id == "flowboard") {
+                if (toolbox_stack != null) {
+                    toolbox_stack.set_visible_child_name("flowboard");
+                }
+                return;
+            }
+            return;
+        }
+
+        if (segment_index == 2) {
+            if (selected_card == null) {
+                return;
+            }
+            if (tool_id == "flowboard") {
+                flowboard_card_open_requested(selected_card.card_id);
+                return;
+            }
+            if (tool_id == "connections") {
+                // Re-assert selected card in case active tool needs a context refresh.
+                select_card_by_id(selected_card.card_id);
+                return;
+            }
+            return;
+        }
     }
 
     private void append_header_separator() {
@@ -399,6 +462,39 @@ public class ToolboxPane : Object {
             box.remove(child);
             child = next;
         }
+    }
+
+    private string current_tool_id() {
+        if (toolbox_stack == null) {
+            return "tool";
+        }
+        var child = toolbox_stack.get_visible_child();
+        if (child == null) {
+            return "tool";
+        }
+        var page = toolbox_stack.get_page(child);
+        if (page == null || page.name == null || page.name.strip().length == 0) {
+            return "tool";
+        }
+        return page.name;
+    }
+
+    private bool select_card_by_id(string card_id) {
+        if (card_selection == null) {
+            return false;
+        }
+        var model = card_selection.get_model();
+        if (model == null) {
+            return false;
+        }
+        for (uint i = 0; i < model.get_n_items(); i++) {
+            var card = model.get_item(i) as CardSummary;
+            if (card != null && card.card_id == card_id) {
+                card_selection.set_selected(i);
+                return true;
+            }
+        }
+        return false;
     }
 
 }

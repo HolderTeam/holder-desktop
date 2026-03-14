@@ -12,7 +12,6 @@ public class FlowboardPane : Object {
     private const string DRAG_ACTIVE_CLASS = "flowboard-drag-active";
     private static bool drop_css_installed = false;
 
-    private Gtk.Box breadcrumb_bar;
     private Gtk.Label empty_label;
     private Gtk.Stack state_stack;
     private Gtk.MultiSelection selection;
@@ -34,7 +33,6 @@ public class FlowboardPane : Object {
     public signal void card_move_right_requested(string card_id);
     public signal void card_move_to_start_requested(string card_id);
     public signal void card_move_to_end_requested(string card_id);
-    public signal void breadcrumb_segment_activated(int index);
 
     public FlowboardPane() {
         ensure_drop_css();
@@ -51,34 +49,12 @@ public class FlowboardPane : Object {
         update_state_visibility();
     }
 
-    public void set_breadcrumb_segments(Gee.ArrayList<FlowboardBreadcrumbSegment> segments) {
-        clear_box_children(breadcrumb_bar);
-        for (int i = 0; i < segments.size; i++) {
-            var segment = segments[i];
-            var idx = i;
-            var btn = new Gtk.Button.with_label(segment.label);
-            btn.add_css_class("flat");
-            btn.clicked.connect(() => {
-                breadcrumb_segment_activated(idx);
-            });
-            breadcrumb_bar.append(btn);
-            if (i < segments.size - 1) {
-                var sep = new Gtk.Label(" / ");
-                sep.add_css_class("dim-label");
-                breadcrumb_bar.append(sep);
-            }
-        }
-    }
-
     public void set_empty_message(string text) {
         empty_label.set_text(text);
     }
 
     private Gtk.Widget build_ui() {
         var outer = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
-
-        breadcrumb_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
-        outer.append(breadcrumb_bar);
 
         var factory = new Gtk.SignalListItemFactory();
         factory.setup.connect((item) => {
@@ -462,15 +438,6 @@ public class FlowboardPane : Object {
             return;
         }
         row_widget.add_css_class(DROP_INTO_CLASS);
-    }
-
-    private void clear_box_children(Gtk.Box box) {
-        Gtk.Widget? child = box.get_first_child();
-        while (child != null) {
-            var next = child.get_next_sibling();
-            box.remove(child);
-            child = next;
-        }
     }
 
     private void show_background_menu_at(double x, double y) {
