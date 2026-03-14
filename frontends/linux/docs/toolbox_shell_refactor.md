@@ -54,7 +54,9 @@
 - Keeps current content/editor visible until replacement data is ready.
 
 Status:
-- Implemented as sequencing primitive in `src/controllers/toolbox_navigation.vala`.
+- Implemented via app-wide sequencing primitives:
+  - `src/state/app_state.vala`
+  - `src/controllers/app_transition.vala`
 - Breadcrumb routing unified through a single `MainWindow` handler.
 - Full coordinator ownership of toolbox navigation policy is still pending.
 

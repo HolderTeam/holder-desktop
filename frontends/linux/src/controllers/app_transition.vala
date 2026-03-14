@@ -35,15 +35,7 @@ public class AppTransitionController : Object {
         if (!is_current(sequence)) {
             return;
         }
-        if (project_id != null) {
-            state_store.set_selected_project(project_id);
-        }
-        if (card_id != null) {
-            state_store.set_selected_card(card_id);
-        }
-        if (ai_thread_id != null) {
-            state_store.set_selected_ai_thread(ai_thread_id);
-        }
+        state_store.set_selection_snapshot(project_id, card_id, ai_thread_id);
     }
 
     public void finish(uint sequence) {

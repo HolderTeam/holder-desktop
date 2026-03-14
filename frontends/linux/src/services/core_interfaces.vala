@@ -138,6 +138,12 @@ public interface ITextProvider : Object {
     public abstract string get_text();
 }
 
+public interface IExplorerStateSink : Object {
+    public abstract void replace_projects_snapshot(Gee.ArrayList<Project> projects);
+    public abstract void replace_cards_snapshot(Gee.ArrayList<CardSummary> cards);
+    public abstract void replace_ai_threads_snapshot(Gee.ArrayList<AiThreadSummary> ai_threads);
+}
+
 public class MainLoopScheduler : Object, IScheduler {
     public uint schedule_once(uint delay_ms, owned SourceFunc callback) {
         return Timeout.add(delay_ms, () => {

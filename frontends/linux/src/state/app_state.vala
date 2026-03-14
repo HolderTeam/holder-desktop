@@ -28,15 +28,22 @@ public class AppTransitionSnapshot : Object {
     }
 }
 
-public class AppStateStore : Object {
+public class AppStateStore : Object, IExplorerStateSink {
     public AppSelectionSnapshot selection { get; private set; }
     public AppTransitionSnapshot transition { get; private set; }
+    public Gee.ArrayList<Project> projects { get; private set; }
+    public Gee.ArrayList<CardSummary> cards { get; private set; }
+    public Gee.ArrayList<AiThreadSummary> ai_threads { get; private set; }
+    public uint data_version { get; private set; default = 0; }
 
     public signal void state_changed();
 
     public AppStateStore() {
         selection = new AppSelectionSnapshot();
         transition = new AppTransitionSnapshot();
+        projects = new Gee.ArrayList<Project>();
+        cards = new Gee.ArrayList<CardSummary>();
+        ai_threads = new Gee.ArrayList<AiThreadSummary>();
     }
 
     public void set_selected_project(string? project_id) {
@@ -51,6 +58,42 @@ public class AppStateStore : Object {
 
     public void set_selected_ai_thread(string? thread_id) {
         selection.ai_thread_id = thread_id;
+        state_changed();
+    }
+
+    public void set_selection_snapshot(string? project_id,
+                                       string? card_id,
+                                       string? ai_thread_id) {
+        selection.project_id = project_id;
+        selection.card_id = card_id;
+        selection.ai_thread_id = ai_thread_id;
+        state_changed();
+    }
+
+    public void replace_projects_snapshot(Gee.ArrayList<Project> values) {
+        projects.clear();
+        foreach (var value in values) {
+            projects.add(value);
+        }
+        data_version++;
+        state_changed();
+    }
+
+    public void replace_cards_snapshot(Gee.ArrayList<CardSummary> values) {
+        cards.clear();
+        foreach (var value in values) {
+            cards.add(value);
+        }
+        data_version++;
+        state_changed();
+    }
+
+    public void replace_ai_threads_snapshot(Gee.ArrayList<AiThreadSummary> values) {
+        ai_threads.clear();
+        foreach (var value in values) {
+            ai_threads.add(value);
+        }
+        data_version++;
         state_changed();
     }
 

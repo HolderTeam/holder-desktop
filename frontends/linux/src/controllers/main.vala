@@ -1,6 +1,7 @@
 namespace HolderLinux {
 
 public class MainController : Object, IAiRunContext {
+    private const uint LOADING_STATUS_DEBOUNCE_MS = 300;
     // LCOV_EXCL_START: field declaration-only coverage artifacts
     internal GLib.ListStore project_store;
     internal ISelectionState project_selection;
@@ -27,6 +28,8 @@ public class MainController : Object, IAiRunContext {
     internal bool create_card_in_flight = false;
     internal uint autosave_id = 0;
     internal uint search_debounce_id = 0;
+    internal uint card_loading_status_id = 0;
+    internal uint project_cards_loading_status_id = 0;
     private uint project_overview_request_serial = 0;
 
     private ProjectsController projects_controller;
@@ -34,6 +37,7 @@ public class MainController : Object, IAiRunContext {
     private SearchController search_controller;
     private SelectionController selection_controller;
     private AiThreadsController ai_threads_controller;
+    private IExplorerStateSink? explorer_state_sink;
     // LCOV_EXCL_STOP
 
     public signal void status_changed(string text);
@@ -63,7 +67,8 @@ public class MainController : Object, IAiRunContext {
                           IServerDiscovery server_discovery,
                           IClock? clock = null,
                           IScheduler? scheduler = null,
-                          IHolderApi? initial_api = null) {
+                          IHolderApi? initial_api = null,
+                          IExplorerStateSink? explorer_state_sink = null) {
         this.project_store = project_store;
         this.project_selection = project_selection;
         this.card_store = card_store;
@@ -79,6 +84,7 @@ public class MainController : Object, IAiRunContext {
         this.clock = clock ?? new SystemClock();
         this.scheduler = scheduler ?? new MainLoopScheduler();
         this.api = initial_api;
+        this.explorer_state_sink = explorer_state_sink;
         this.projects_controller = new ProjectsController(this);
         this.cards_controller = new CardsController(this);
         this.search_controller = new SearchController(this);
@@ -356,10 +362,27 @@ public class MainController : Object, IAiRunContext {
 
         current_project = selected;
         window_title_changed(selected.name);
-        status_changed("Loading cards for %s...".printf(selected.name));
+        if (project_cards_loading_status_id != 0) {
+            scheduler.cancel(project_cards_loading_status_id);
+            project_cards_loading_status_id = 0;
+        }
+        var requested_project_id = selected.project_id;
+        var requested_project_name = selected.name;
+        project_cards_loading_status_id = scheduler.schedule_once(LOADING_STATUS_DEBOUNCE_MS, () => {
+            project_cards_loading_status_id = 0;
+            var still_selected = project_selection.get_selected_item() as Project;
+            if (still_selected != null && still_selected.project_id == requested_project_id) {
+                status_changed("Loading cards for %s...".printf(requested_project_name));
+            }
+            return Source.REMOVE;
+        });
 
         try {
             var cards = yield api.list_cards(selected.project_id, "recent");
+            if (project_cards_loading_status_id != 0) {
+                scheduler.cancel(project_cards_loading_status_id);
+                project_cards_loading_status_id = 0;
+            }
             replace_cards(cards);
             yield reload_ai_threads_for_project(selected.project_id);
             if (preferred_card_id != null) {
@@ -378,6 +401,10 @@ public class MainController : Object, IAiRunContext {
             suppress_card_selection_events = false;
             yield show_project_overview();
         } catch (Error e) {
+            if (project_cards_loading_status_id != 0) {
+                scheduler.cancel(project_cards_loading_status_id);
+                project_cards_loading_status_id = 0;
+            }
             error_reported("Failed to load cards", e.message);
         }
     }
@@ -427,10 +454,23 @@ public class MainController : Object, IAiRunContext {
         }
         var requested_card_id = selected.card_id;
 
-        status_changed("Loading card...");
-        editor_state_changed("Loading card...", false);
+        if (card_loading_status_id != 0) {
+            scheduler.cancel(card_loading_status_id);
+            card_loading_status_id = 0;
+        }
+        card_loading_status_id = scheduler.schedule_once(LOADING_STATUS_DEBOUNCE_MS, () => {
+            card_loading_status_id = 0;
+            if (selected_card_id() == requested_card_id) {
+                status_changed("Loading card...");
+            }
+            return Source.REMOVE;
+        });
         try {
             var card = yield api.get_card(requested_card_id);
+            if (card_loading_status_id != 0) {
+                scheduler.cancel(card_loading_status_id);
+                card_loading_status_id = 0;
+            }
             if (selected_card_id() != requested_card_id) {
                 return;
             }
@@ -440,6 +480,10 @@ public class MainController : Object, IAiRunContext {
             window_title_changed(card.title);
             status_changed("Loaded %s".printf(card.title));
         } catch (Error e) {
+            if (card_loading_status_id != 0) {
+                scheduler.cancel(card_loading_status_id);
+                card_loading_status_id = 0;
+            }
             if (selected_card_id() != requested_card_id) {
                 return;
             }
@@ -456,6 +500,9 @@ public class MainController : Object, IAiRunContext {
         foreach (var project in projects) {
             project_store.append(project);
         }
+        if (explorer_state_sink != null) {
+            ((!) explorer_state_sink).replace_projects_snapshot(projects);
+        }
     }
 
     internal void replace_cards(Gee.ArrayList<CardSummary> cards) {
@@ -464,12 +511,18 @@ public class MainController : Object, IAiRunContext {
         foreach (var card in cards) {
             card_store.append(card);
         }
+        if (explorer_state_sink != null) {
+            ((!) explorer_state_sink).replace_cards_snapshot(cards);
+        }
     }
 
     internal void replace_ai_threads(Gee.ArrayList<AiThreadSummary> threads) {
         ai_thread_store.remove_all();
         foreach (var thread in threads) {
             ai_thread_store.append(thread);
+        }
+        if (explorer_state_sink != null) {
+            ((!) explorer_state_sink).replace_ai_threads_snapshot(threads);
         }
     }
 
@@ -479,6 +532,10 @@ public class MainController : Object, IAiRunContext {
         ai_thread_store.remove_all();
         current_ai_thread = null;
         ai_thread_title_changed(null);
+        if (explorer_state_sink != null) {
+            ((!) explorer_state_sink).replace_cards_snapshot(new Gee.ArrayList<CardSummary>());
+            ((!) explorer_state_sink).replace_ai_threads_snapshot(new Gee.ArrayList<AiThreadSummary>());
+        }
     }
 
     internal void replace_search_results(Gee.ArrayList<SearchCardResult> results) {

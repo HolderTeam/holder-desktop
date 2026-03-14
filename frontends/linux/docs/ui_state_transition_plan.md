@@ -10,6 +10,21 @@
 - Make widgets render from committed app state.
 - Make navigation transitions atomic: keep prior committed view until next state is ready.
 
+## Current Status
+- Completed:
+  - Added global transition primitives:
+    - `src/state/app_state.vala` (`AppStateStore`)
+    - `src/controllers/app_transition.vala` (`AppTransitionController`)
+  - Wired `MainWindow` project/card selection and toolbox breadcrumb navigation through the global transition controller.
+  - Added window-level guarded apply section (`with_state_apply`) to suppress signal loops during programmatic selection updates.
+  - Removed old toolbox-only transition primitive (`src/controllers/toolbox_navigation.vala`).
+- In progress:
+  - Expanding transition ownership beyond project/card + breadcrumb paths (search/AI thread/flowboard context paths still mixed).
+  - Consolidating all state commits so UI render changes are coordinated through one path.
+- Not started:
+  - Full renderer-from-state model (widgets fully driven from a committed state snapshot).
+  - Transition-focused tests in this document’s Phase C.
+
 ## Design Principles
 - Widgets emit **intents**, not state mutations.
 - One coordinator owns async transition flow and stale response dropping.
@@ -90,9 +105,10 @@ AppState
   - Toolbox breadcrumb project/card navigation
 
 ### Phase A.1: Centralize transition sequencing
-- Extend existing `ToolboxNavigationController` concept into app-wide `NavigationTransitionController`.
-- File target:
-  - `src/controllers/navigation_transition.vala` (new)
+- Replace toolbox-local sequencing with app-wide transition controller.
+- Implemented:
+  - `src/state/app_state.vala`
+  - `src/controllers/app_transition.vala`
 
 ### Phase A.2: Normalize intent entry points
 - `MainWindow` handlers convert widget callbacks into intents only.
@@ -137,7 +153,7 @@ AppState
 
 ## Current Code Notes
 - Already good:
-  - `src/controllers/toolbox_navigation.vala` sequence primitive exists.
+  - `src/controllers/app_transition.vala` sequence primitive exists and is wired for key navigation paths.
   - `MainController.show_project_overview()` already has serial stale checks.
 - Still risky:
   - `MainWindow` remains orchestration-heavy with many direct signal fanouts.
@@ -148,4 +164,3 @@ AppState
 - Switching project P1 -> P2 never clears editor/sidebar/toolbox to placeholder first.
 - Breadcrumb navigation follows one transition path with stale response dropping.
 - Late async responses cannot overwrite newer committed selection state.
-
