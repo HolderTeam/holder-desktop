@@ -408,6 +408,10 @@ public class ToolboxPane : Object {
 
         var tool_id = current_tool_id();
         if (segment_index == 0) {
+            if (tool_id == "flowboard") {
+                flowboard_tool.show_projects_root();
+                return;
+            }
             tool_help_requested(tool_id);
             return;
         }
@@ -416,12 +420,15 @@ public class ToolboxPane : Object {
             if (selected_project == null) {
                 return;
             }
+            if (card_selection != null) {
+                card_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+            }
             if (tool_id == "connections") {
                 connections_project_overview_requested(selected_project.project_id);
                 return;
             }
             if (tool_id == "flowboard") {
-                connections_project_overview_requested(selected_project.project_id);
+                flowboard_tool.show_project_root();
                 return;
             }
             return;
