@@ -805,7 +805,7 @@ public class MainWindow : Adw.ApplicationWindow {
                 selected_card.card_id,
                 null
             );
-            yield controller.load_selected_card();
+            yield selection_controller.on_card_selected();
             if (!app_transition_controller.is_current(seq)) {
                 return;
             }
@@ -1240,7 +1240,7 @@ public class MainWindow : Adw.ApplicationWindow {
                 selected_card.card_id,
                 null
             );
-            yield controller.load_selected_card();
+            yield selection_controller.on_card_selected();
             if (!app_transition_controller.is_current(seq)) {
                 return;
             }
