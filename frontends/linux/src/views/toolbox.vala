@@ -11,6 +11,7 @@ public class ToolboxPane : Object {
     private FlowboardToolView flowboard_tool;
     private TrashToolView trash_tool;
     private Gtk.Stack? toolbox_stack;
+    private Gtk.Box? header_breadcrumb_bar;
     private Gtk.SingleSelection? project_selection;
     private GLib.ListStore? card_store;
     private Gtk.SingleSelection? card_selection;
@@ -82,14 +83,18 @@ public class ToolboxPane : Object {
 
         project_selection.notify["selected"].connect(() => {
             refresh_sharing_action_state();
+            refresh_header_breadcrumbs();
         });
         card_selection.notify["selected"].connect(() => {
             refresh_sharing_action_state();
+            refresh_header_breadcrumbs();
         });
         card_store.items_changed.connect((position, removed, added) => {
             refresh_sharing_action_state();
+            refresh_header_breadcrumbs();
         });
         refresh_sharing_action_state();
+        refresh_header_breadcrumbs();
         if (git_sync_tool != null) {
             git_sync_tool.set_project_selection(project_selection);
         }
@@ -151,12 +156,10 @@ public class ToolboxPane : Object {
         frame.add_css_class("toolbar");
 
         var header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var title = new Gtk.Label("Toolbox");
-        title.add_css_class("title-5");
-        title.set_halign(Gtk.Align.START);
-        title.set_hexpand(true);
         var switcher = new Gtk.StackSwitcher();
-        header.append(title);
+        header_breadcrumb_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        header_breadcrumb_bar.set_hexpand(true);
+        header.append(header_breadcrumb_bar);
         header.append(switcher);
         frame.append(header);
 
@@ -283,27 +286,13 @@ public class ToolboxPane : Object {
         stack.set_visible_child_name("flowboard");
         stack.notify["visible-child"].connect(() => {
             var visible = stack.get_visible_child();
-            if (visible == null) {
-                title.set_label("Toolbox");
-                return;
-            }
-            var page = stack.get_page(visible);
-            if (page == null || page.title == null || page.title.length == 0) {
-                title.set_label("Toolbox");
-                return;
-            }
-            title.set_label("Toolbox: %s".printf(page.title));
+            var page = visible != null ? stack.get_page(visible) : null;
+            refresh_header_breadcrumbs();
             if (page.title == "Trash") {
                 refresh_trash();
             }
         });
-        var initial_visible = stack.get_visible_child();
-        if (initial_visible != null) {
-            var initial_page = stack.get_page(initial_visible);
-            if (initial_page != null && initial_page.title != null && initial_page.title.length > 0) {
-                title.set_label("Toolbox: %s".printf(initial_page.title));
-            }
-        }
+        refresh_header_breadcrumbs();
 
         var scroller = new Gtk.ScrolledWindow();
         scroller.set_vexpand(true);
@@ -337,6 +326,79 @@ public class ToolboxPane : Object {
             ? card_selection.get_selected_item() as CardSummary
             : null;
         sharing_tool.set_has_selected_card(selected_card != null);
+    }
+
+    private void refresh_header_breadcrumbs() {
+        if (header_breadcrumb_bar == null) {
+            return;
+        }
+        clear_box_children(header_breadcrumb_bar);
+
+        string tool_name = "Tool";
+        if (toolbox_stack != null) {
+            var visible = toolbox_stack.get_visible_child();
+            if (visible != null) {
+                var page = toolbox_stack.get_page(visible);
+                if (page != null && page.title != null && page.title.strip().length > 0) {
+                    tool_name = page.title;
+                }
+            }
+        }
+
+        string project_name = "(none)";
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        if (selected_project != null && selected_project.name.strip().length > 0) {
+            project_name = selected_project.name;
+        }
+
+        string card_name = "Overview";
+        var selected_card = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary
+            : null;
+        if (selected_card != null &&
+            (selected_project == null || selected_card.project_id == selected_project.project_id) &&
+            selected_card.title.strip().length > 0) {
+            card_name = selected_card.title;
+        }
+
+        append_header_segment(tool_name, true);
+        append_header_separator();
+        append_header_segment(project_name, false);
+        append_header_separator();
+        append_header_segment(card_name, false);
+    }
+
+    private void append_header_segment(string text, bool emphasized) {
+        if (header_breadcrumb_bar == null) {
+            return;
+        }
+        var label = new Gtk.Label(text) { xalign = 0.0f };
+        if (emphasized) {
+            label.add_css_class("title-5");
+        } else {
+            label.add_css_class("heading");
+        }
+        header_breadcrumb_bar.append(label);
+    }
+
+    private void append_header_separator() {
+        if (header_breadcrumb_bar == null) {
+            return;
+        }
+        var sep = new Gtk.Label("  >  ");
+        sep.add_css_class("dim-label");
+        header_breadcrumb_bar.append(sep);
+    }
+
+    private void clear_box_children(Gtk.Box box) {
+        Gtk.Widget? child = box.get_first_child();
+        while (child != null) {
+            var next = child.get_next_sibling();
+            box.remove(child);
+            child = next;
+        }
     }
 
 }
