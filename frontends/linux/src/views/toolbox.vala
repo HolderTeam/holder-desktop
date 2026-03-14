@@ -421,9 +421,7 @@ public class ToolboxPane : Object {
                 return;
             }
             if (tool_id == "flowboard") {
-                if (toolbox_stack != null) {
-                    toolbox_stack.set_visible_child_name("flowboard");
-                }
+                connections_project_overview_requested(selected_project.project_id);
                 return;
             }
             return;
