@@ -50,6 +50,7 @@
     - Flowboard context async load sequencing/stale-drop now runs through `FlowboardContextController`; `MainWindow` no longer owns flowboard context request serial state.
     - Recovery dialog orchestration (`request PIN`, `save-file picker`, `import file + unlock`, `import summary dialog`) now runs through `RecoveryDialogAdapter`; `MainWindow` now wires toolbox actions and import completion only.
     - Window-level non-state actions (`About`, `Preferences`) now run through `WindowActionsAdapter`; `MainWindow` now forwards action signals and no longer builds those dialogs inline.
+    - New-project dialog rendering now runs through `ProjectCreateDialogAdapter` and submission validation/privacy-mode mapping now runs through `ProjectCreateController`; `MainWindow` now only forwards create intent to `MainController`.
   - Consolidating all state commits so UI render changes are coordinated through one path.
 - Not started:
   - Full renderer-from-state model (widgets fully driven from a committed state snapshot).

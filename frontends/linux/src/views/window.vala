@@ -166,6 +166,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private AiPanel ai_panel;
     private ToolboxPane toolbox;
     private MainController controller;
+    private ProjectCreateController project_create_controller;
     private ExplorerSelectionController explorer_selection_controller;
     private SidebarDataRenderer sidebar_data_renderer;
     private SidebarSelectionRenderer sidebar_selection_renderer;
@@ -186,6 +187,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private LocalInfoPresenter local_info_presenter;
     private LocalInfoViewAdapter local_info_view_adapter;
     private WindowActionsAdapter window_actions_adapter;
+    private ProjectCreateDialogAdapter project_create_dialog_adapter;
     private PrintService print_service;
     private AiRunController ai_run_controller;
     private FindReplaceController find_replace_controller;
@@ -284,6 +286,7 @@ public class MainWindow : Adw.ApplicationWindow {
             null,
             app_state_store
         );
+        project_create_controller = new ProjectCreateController();
         explorer_selection_controller = new ExplorerSelectionController(
             project_store,
             card_store,
@@ -324,6 +327,7 @@ public class MainWindow : Adw.ApplicationWindow {
             local_info_presenter
         );
         window_actions_adapter = new WindowActionsAdapter(this);
+        project_create_dialog_adapter = new ProjectCreateDialogAdapter(this);
         print_service = new PrintService();
         recovery_controller = new RecoveryController(new WindowRecoveryContext(controller));
         recovery_ui_controller = new RecoveryUiController(recovery_controller);
@@ -372,6 +376,9 @@ public class MainWindow : Adw.ApplicationWindow {
             add_toast(message);
         });
         controller.error_reported.connect((title_text, details) => {
+            show_error(title_text, details);
+        });
+        project_create_controller.error_reported.connect((title_text, details) => {
             show_error(title_text, details);
         });
         controller.show_editor_requested.connect(() => {
@@ -969,66 +976,13 @@ public class MainWindow : Adw.ApplicationWindow {
 
 
     private void show_new_project_dialog() {
-        var dialog = new Adw.MessageDialog(
-            this,
-            "New Project",
-            "Enter a project name."
-        );
-        dialog.add_response("cancel", "Cancel");
-        dialog.add_response("create", "Create");
-        dialog.set_response_appearance("create", Adw.ResponseAppearance.SUGGESTED);
-        dialog.set_default_response("create");
-        dialog.set_close_response("cancel");
-
-        var entry = new Gtk.Entry();
-        entry.set_placeholder_text("Project name");
-        var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
-        content.append(entry);
-
-        var chooser_label = new Gtk.Label("Choose project visibility");
-        chooser_label.set_halign(Gtk.Align.CENTER);
-        content.append(chooser_label);
-
-        var privacy_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 12);
-        privacy_row.set_halign(Gtk.Align.CENTER);
-        var private_btn = new Gtk.CheckButton.with_label("Private");
-        var shared_btn = new Gtk.CheckButton.with_label("Shared");
-        shared_btn.set_group(private_btn);
-        private_btn.set_active(true);
-        privacy_row.append(private_btn);
-        privacy_row.append(shared_btn);
-        content.append(privacy_row);
-
-        var help = new Gtk.Label(
-            "A private project is encrypted, only you can read it.\n\n" +
-            "A shared project is useful for collaboration. You must be very careful not store sensitive information (passwords, personal data, private notes)."
-        );
-        help.set_xalign(0.0f);
-        help.set_wrap(true);
-        help.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
-        help.add_css_class("dim-label");
-        content.append(help);
-
-        dialog.set_extra_child(content);
-
-        dialog.response.connect((response) => {
-            if (response == "create") {
-                var name = entry.get_text().strip();
-                if (name.length == 0) {
-                    show_error("Project name required", "Please enter a non-empty project name.");
-                } else {
-                    var privacy_mode = private_btn.get_active() ? "encrypted_git" : "plain";
-                    create_project_named.begin(name, privacy_mode);
-                }
+        project_create_dialog_adapter.show((raw_name, is_private_mode) => {
+            var submission = project_create_controller.build_submission(raw_name, is_private_mode);
+            if (submission == null) {
+                return;
             }
-            dialog.close();
+            controller.create_project_named.begin(submission.name, submission.privacy_mode);
         });
-
-        dialog.present();
-    }
-
-    private async void create_project_named(string name, string privacy_mode = "encrypted_git") {
-        yield controller.create_project_named(name, privacy_mode);
     }
 
     internal void set_status(string text) {
