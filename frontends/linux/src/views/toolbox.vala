@@ -234,6 +234,7 @@ public class ToolboxPane : Object {
         connections_page.set_icon_name("network-wired-symbolic");
 
         resources_tool = new ResourcesToolView();
+        tool_adapters.set("resources", resources_tool);
         resources_tool.error_reported.connect((title_text, details) => {
             error_reported(title_text, details);
         });
@@ -253,6 +254,7 @@ public class ToolboxPane : Object {
         sharing_page.set_icon_name("emblem-shared-symbolic");
 
         terminal_tool = new TerminalToolView();
+        tool_adapters.set("terminals", terminal_tool);
         terminal_tool.debug_log_requested.connect((line) => {
             log_debug(line);
         });
@@ -293,6 +295,7 @@ public class ToolboxPane : Object {
         recovery_page.set_icon_name("dialog-password-symbolic");
 
         trash_tool = new TrashToolView();
+        tool_adapters.set("trash", trash_tool);
         trash_tool.error_reported.connect((title_text, details) => {
             error_reported(title_text, details);
         });
@@ -305,6 +308,7 @@ public class ToolboxPane : Object {
         trash_page.set_icon_name("user-trash-symbolic");
 
         debug_tool = new DebugToolView();
+        tool_adapters.set("debug", debug_tool);
         var debug_page = stack.add_titled(debug_tool.widget, "debug", "Debug");
         debug_page.set_icon_name("view-reveal-symbolic");
 
@@ -376,23 +380,7 @@ public class ToolboxPane : Object {
             ((!) tool_shell).set_actions_widget(adapter.get_actions_widget());
             return;
         }
-        switch (page.name) {
-        case "resources":
-            ((!) tool_shell).set_actions_widget(resources_tool.get_actions_widget());
-            break;
-        case "terminals":
-            ((!) tool_shell).set_actions_widget(terminal_tool.get_actions_widget());
-            break;
-        case "trash":
-            ((!) tool_shell).set_actions_widget(trash_tool.get_actions_widget());
-            break;
-        case "debug":
-            ((!) tool_shell).set_actions_widget(debug_tool.get_actions_widget());
-            break;
-        default:
-            ((!) tool_shell).set_actions_widget(null);
-            break;
-        }
+        ((!) tool_shell).set_actions_widget(null);
     }
 
     private void refresh_header_breadcrumbs() {

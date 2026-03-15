@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-public class TerminalToolView : Object {
+public class TerminalToolView : Object, IToolShellAdapter {
     private Gtk.Box terminal_actions_bar;
     private Gtk.Button terminal_new_btn;
     private Gtk.Notebook terminal_notebook;
@@ -8,6 +8,12 @@ public class TerminalToolView : Object {
     private TerminalController controller;
 
     public Gtk.Widget widget { get; private set; }
+    public string tool_id {
+        owned get { return "terminals"; }
+    }
+    public string tool_label {
+        owned get { return "Terminals"; }
+    }
 
     public signal void debug_log_requested(string line);
     public signal void toast_requested(string message);
@@ -18,8 +24,52 @@ public class TerminalToolView : Object {
         widget = build_terminal_tab();
     }
 
-    public Gtk.Widget get_actions_widget() {
+    public Gtk.Widget? get_actions_widget() {
         return terminal_actions_bar;
+    }
+
+    public Gtk.Widget get_content_widget() {
+        return widget;
+    }
+
+    public ToolScopeSnapshot get_scope_snapshot(Project? selected_project, CardSummary? selected_card) {
+        var project_id = selected_project != null ? selected_project.project_id : null;
+        var project_label = selected_project != null ? selected_project.name : "(none)";
+        var card_id = selected_card != null ? selected_card.card_id : null;
+        var card_label = selected_card != null ? selected_card.title : "Overview";
+
+        ToolScopeMode scope_mode = selected_card != null
+            ? ToolScopeMode.CARD_FOCUS
+            : ToolScopeMode.PROJECT_ROOT;
+        if (project_id == null) {
+            scope_mode = ToolScopeMode.PROJECTS_ROOT;
+            project_label = "Projects";
+            card_id = null;
+            card_label = "Overview";
+        }
+
+        return new ToolScopeSnapshot(
+            tool_id,
+            tool_label,
+            project_id,
+            project_label,
+            card_id,
+            card_label,
+            scope_mode,
+            false
+        );
+    }
+
+    public async bool navigate_to_projects_root(string? selected_project_id) {
+        return true;
+    }
+
+    public async bool navigate_to_project_root(string project_id) {
+        return true;
+    }
+
+    public async bool navigate_to_card(string card_id) {
+        return true;
     }
 
     private Gtk.Widget build_terminal_tab() {
