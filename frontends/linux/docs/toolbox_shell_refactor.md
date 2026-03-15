@@ -152,6 +152,12 @@ Progress:
 3. Ensure all breadcrumb/tool-scope async branches are stale-safe.
 4. Final toolbox-focused tests for atomic navigation rendering behavior.
 
+## Remaining Toolbox-Specific Checklist
+- [ ] Replace `MainWindow` callback-based `open_card_with_transition(...)` handoff with a toolbox navigation controller method that takes `tool_id + card_id` intent directly.
+- [ ] Remove remaining toolbox->window widget-selection coupling used for card open (`SelectionRequestController.select_card_by_id(...)` path).
+- [ ] Formalize tool adapter interface (`get_actions_widget`, `get_content_widget`, `get_scope_snapshot`) and migrate Flowboard/Connections implementations.
+- [ ] Keep breadcrumb/tool action rows fixed while proving no tool-specific header logic remains in content widgets.
+
 ## Deferred To Global Plan
 - App-wide selection/app-state ownership migration.
 - Unifying non-toolbox transitions under one global transition coordinator.
