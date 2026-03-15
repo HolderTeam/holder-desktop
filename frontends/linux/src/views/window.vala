@@ -291,6 +291,221 @@ private class WindowFeedbackSink : Object, IWindowFeedbackSink {
     }
 }
 
+private class WindowActionSink : Object, IWindowActionSink {
+    private MainWindow owner;
+
+    public WindowActionSink(MainWindow owner) {
+        this.owner = owner;
+    }
+
+    public void on_refresh_requested() {
+        owner.handle_refresh_action();
+    }
+
+    public void on_new_project_requested() {
+        owner.handle_new_project_action();
+    }
+
+    public void on_new_card_requested() {
+        owner.handle_new_card_action();
+    }
+
+    public void on_toggle_toolbox_requested() {
+        owner.handle_toggle_toolbox_action();
+    }
+
+    public void on_find_replace_requested() {
+        owner.handle_find_replace_action();
+    }
+
+    public void on_print_requested() {
+        owner.handle_print_action();
+    }
+
+    public void on_show_local_info_requested() {
+        owner.handle_show_local_info_action();
+    }
+
+    public void on_show_preferences_requested() {
+        owner.handle_show_preferences_action();
+    }
+
+    public void on_show_about_requested() {
+        owner.handle_show_about_action();
+    }
+}
+
+private class WindowSidebarEventSink : Object, ISidebarEventSink {
+    private MainWindow owner;
+
+    public WindowSidebarEventSink(MainWindow owner) {
+        this.owner = owner;
+    }
+
+    public void on_sidebar_card_move_to_trash_requested(string card_id) {
+        owner.on_sidebar_card_move_to_trash_requested(card_id);
+    }
+
+    public void on_sidebar_card_context_selection_requested(string card_id) {
+        owner.on_sidebar_card_context_selection_requested(card_id);
+    }
+}
+
+private class WindowWorkspaceEventSink : Object, IWorkspaceEventSink {
+    private MainWindow owner;
+
+    public WindowWorkspaceEventSink(MainWindow owner) {
+        this.owner = owner;
+    }
+
+    public void on_workspace_refresh_requested() {
+        owner.on_workspace_refresh_requested();
+    }
+
+    public void on_workspace_new_project_requested() {
+        owner.on_workspace_new_project_requested();
+    }
+
+    public void on_workspace_new_card_requested() {
+        owner.on_workspace_new_card_requested();
+    }
+
+    public void on_workspace_explorer_panel_toggled(bool visible) {
+        owner.on_workspace_explorer_panel_toggled(visible);
+    }
+
+    public void on_workspace_ai_panel_toggled(bool visible) {
+        owner.on_workspace_ai_panel_toggled(visible);
+    }
+
+    public void on_workspace_toolbox_toggled(bool visible) {
+        owner.on_workspace_toolbox_toggled(visible);
+    }
+
+    public void on_workspace_search_activated() {
+        owner.on_workspace_search_activated();
+    }
+
+    public void on_workspace_search_changed() {
+        owner.on_workspace_search_changed();
+    }
+
+    public void on_workspace_search_cleared() {
+        owner.on_workspace_search_cleared();
+    }
+
+    public void on_workspace_search_focus_results_requested() {
+        owner.on_workspace_search_focus_results_requested();
+    }
+
+    public void on_workspace_search_result_activated(uint position) {
+        owner.on_workspace_search_result_activated(position);
+    }
+
+    public void on_workspace_find_next_requested() {
+        owner.on_workspace_find_next_requested();
+    }
+
+    public void on_workspace_replace_requested() {
+        owner.on_workspace_replace_requested();
+    }
+
+    public void on_workspace_replace_all_requested() {
+        owner.on_workspace_replace_all_requested();
+    }
+}
+
+private class WindowSelectionEditorEventSink : Object, IWindowSelectionEditorEventSink {
+    private MainWindow owner;
+
+    public WindowSelectionEditorEventSink(MainWindow owner) {
+        this.owner = owner;
+    }
+
+    public void on_project_selection_changed() {
+        owner.on_project_selection_changed();
+    }
+
+    public void on_card_selection_changed() {
+        owner.on_card_selection_changed();
+    }
+
+    public void on_ai_thread_selection_changed() {
+        owner.on_ai_thread_selection_changed();
+    }
+
+    public void on_editor_buffer_changed() {
+        owner.on_editor_buffer_changed();
+    }
+
+    public void on_internal_link_click_pressed(Gtk.GestureClick gesture,
+                                               int n_press,
+                                               double x,
+                                               double y) {
+        owner.on_internal_link_click_pressed(gesture, n_press, x, y);
+    }
+
+    public bool on_internal_link_key_pressed(uint keyval, uint keycode, Gdk.ModifierType state) {
+        return owner.on_internal_link_key_pressed(keyval, keycode, state);
+    }
+}
+
+private class WindowFlowboardEventSink : Object, IWindowFlowboardEventSink {
+    private MainWindow owner;
+
+    public WindowFlowboardEventSink(MainWindow owner) {
+        this.owner = owner;
+    }
+
+    public void on_card_store_items_changed(uint position, uint removed, uint added) {
+        owner.on_card_store_items_changed(position, removed, added);
+    }
+
+    public void on_flowboard_project_overview_requested(string project_id) {
+        owner.on_flowboard_project_overview_requested(project_id);
+    }
+
+    public void on_flowboard_context_load_requested(string project_id, string? parent_card_id) {
+        owner.on_flowboard_context_load_requested(project_id, parent_card_id);
+    }
+}
+
+private class WindowLifecycleEventSink : Object, IWindowLifecycleEventSink {
+    private MainWindow owner;
+
+    public WindowLifecycleEventSink(MainWindow owner) {
+        this.owner = owner;
+    }
+
+    public void on_project_create_error_reported(string title_text, string details) {
+        owner.on_project_create_error_reported(title_text, details);
+    }
+
+    public bool on_window_close_requested() {
+        return owner.on_window_close_requested();
+    }
+}
+
+private class WindowStateEventSink : Object, IWindowStateEventSink {
+    private MainWindow owner;
+
+    public WindowStateEventSink(MainWindow owner) {
+        this.owner = owner;
+    }
+
+    public void on_root_paned_position_changed(int position) {
+        owner.on_root_paned_position_changed(position);
+    }
+
+    public void on_app_state_changed() {
+        owner.on_app_state_changed();
+    }
+
+    public void on_navigation_loading_changed(bool loading) {
+        owner.on_navigation_loading_changed(loading);
+    }
+}
+
 public class MainWindow : Adw.ApplicationWindow {
     private delegate void StateApplyFunc();
 
@@ -339,6 +554,13 @@ public class MainWindow : Adw.ApplicationWindow {
     private ToolboxBreadcrumbController toolbox_breadcrumb_controller;
     private ToolboxEventOrchestrator toolbox_event_orchestrator;
     private WindowFeedbackOrchestrator window_feedback_orchestrator;
+    private WindowActionBinder window_action_binder;
+    private WindowSidebarEventBinder window_sidebar_event_binder;
+    private WindowWorkspaceEventBinder window_workspace_event_binder;
+    private WindowSelectionEditorEventBinder window_selection_editor_event_binder;
+    private WindowFlowboardEventBinder window_flowboard_event_binder;
+    private WindowLifecycleEventBinder window_lifecycle_event_binder;
+    private WindowStateEventBinder window_state_event_binder;
     private ShareController share_controller;
     private CardAppendController card_append_controller;
     private RecoveryController recovery_controller;
@@ -406,11 +628,6 @@ public class MainWindow : Adw.ApplicationWindow {
         root_paned = new Gtk.Paned(Gtk.Orientation.HORIZONTAL);
         root_paned.set_wide_handle(true);
         root_paned.set_position(last_sidebar_position);
-        root_paned.notify["position"].connect(() => {
-            if (sidebar_visible && root_paned.get_position() > 0) {
-                last_sidebar_position = clamp_sidebar_width(root_paned.get_position());
-            }
-        });
         toast_overlay.set_child(root_paned);
         set_content(toast_overlay);
 
@@ -544,23 +761,41 @@ public class MainWindow : Adw.ApplicationWindow {
             print_ui_controller,
             new WindowFeedbackSink(this)
         );
+        window_action_binder = new WindowActionBinder(this, new WindowActionSink(this));
 
         sidebar = new SidebarPane(project_selection, card_selection, ai_thread_selection);
-        sidebar.card_move_to_trash_requested.connect((card_id) => {
-            confirm_move_card_to_trash(card_id);
-        });
-        sidebar.card_context_selection_requested.connect((card_id) => {
-            with_state_apply(() => {
-                selection_request_controller.request_card(card_selection, card_id);
-            });
-        });
-
-        app_state_store.state_changed.connect(() => {
-            apply_sidebar_from_state();
-        });
-        selection_transition_controller.navigation_loading_changed.connect((loading) => {
-            toolbox.set_navigation_loading(loading);
-        });
+        window_sidebar_event_binder = new WindowSidebarEventBinder(
+            sidebar,
+            new WindowSidebarEventSink(this)
+        );
+        window_workspace_event_binder = new WindowWorkspaceEventBinder(
+            workspace,
+            new WindowWorkspaceEventSink(this)
+        );
+        window_selection_editor_event_binder = new WindowSelectionEditorEventBinder(
+            project_selection,
+            card_selection,
+            ai_thread_selection,
+            editor_buffer,
+            editor_view,
+            new WindowSelectionEditorEventSink(this)
+        );
+        window_flowboard_event_binder = new WindowFlowboardEventBinder(
+            card_store,
+            flowboard_controller,
+            new WindowFlowboardEventSink(this)
+        );
+        window_lifecycle_event_binder = new WindowLifecycleEventBinder(
+            project_create_controller,
+            this,
+            new WindowLifecycleEventSink(this)
+        );
+        window_state_event_binder = new WindowStateEventBinder(
+            root_paned,
+            app_state_store,
+            selection_transition_controller,
+            new WindowStateEventSink(this)
+        );
         root_paned.set_start_child(sidebar.widget);
         root_paned.set_end_child(workspace.widget);
         root_paned.set_resize_start_child(true);
@@ -575,198 +810,17 @@ public class MainWindow : Adw.ApplicationWindow {
         ai_panel_event_orchestrator.bind();
         toolbox_event_orchestrator.bind();
         window_feedback_orchestrator.bind();
-        project_create_controller.error_reported.connect((title_text, details) => {
-            show_error(title_text, details);
-        });
-
-        workspace.refresh_requested.connect(() => {
-            controller.reload_everything.begin();
-        });
-        workspace.new_project_requested.connect(() => {
-            show_new_project_dialog();
-        });
-        workspace.new_card_requested.connect(() => {
-            controller.create_card.begin();
-        });
-        workspace.explorer_panel_toggled.connect((visible) => {
-            sidebar_visible = visible;
-            if (visible) {
-                root_paned.set_start_child(sidebar.widget);
-                root_paned.set_position(clamp_sidebar_width(last_sidebar_position));
-            } else {
-                if (root_paned.get_position() > 0) {
-                    last_sidebar_position = clamp_sidebar_width(root_paned.get_position());
-                }
-                root_paned.set_start_child(null);
-            }
-        });
-        workspace.ai_panel_toggled.connect((visible) => {
-            workspace.set_ai_panel_visible(visible);
-            ai_run_controller.set_panel_visible(visible);
-            if (visible) {
-                ai_panel.refresh_catalog();
-            }
-        });
-        workspace.toolbox_toggled.connect((visible) => {
-            workspace.set_toolbox_visible(visible);
-            if (visible) {
-                toolbox.log_debug("Toolbox opened");
-                toolbox.refresh_trash();
-            } else {
-                toolbox.log_debug("Toolbox closed");
-            }
-        });
-        workspace.search_activated.connect(() => {
-            controller.cancel_pending_search();
-            controller.run_search.begin();
-        });
-        workspace.search_changed.connect(() => {
-            var q = search_entry.get_text().strip();
-            if (q.length == 0) {
-                controller.cancel_pending_search();
-                controller.clear_search_results();
-                show_editor_mode();
-                return;
-            }
-            controller.schedule_search();
-        });
-        workspace.search_cleared.connect(() => {
-            search_entry.set_text("");
-            controller.clear_search_results();
-            show_editor_mode();
-        });
-        workspace.search_focus_results_requested.connect(() => {
-            if (search_store.get_n_items() == 0) {
-                return;
-            }
-            show_search_mode();
-            if (search_selection.get_selected() == Gtk.INVALID_LIST_POSITION) {
-                with_state_apply(() => {
-                    selection_request_controller.request_search(search_selection, 0);
-                });
-            }
-            search_list.grab_focus();
-        });
-        workspace.search_result_activated.connect((position) => {
-            selection_intent_orchestrator.on_search_result_activation.begin(position);
-        });
-        workspace.find_next_requested.connect(() => {
-            find_replace_controller.on_find_next_requested(workspace.get_find_text());
-        });
-        workspace.replace_requested.connect(() => {
-            find_replace_controller.on_replace_requested(
-                workspace.get_find_text(),
-                workspace.get_replace_text()
-            );
-        });
-        workspace.replace_all_requested.connect(() => {
-            find_replace_controller.on_replace_all_requested(
-                workspace.get_find_text(),
-                workspace.get_replace_text()
-            );
-        });
-
-        project_selection.notify["selected"].connect(() => {
-            if (is_applying_state()) {
-                return;
-            }
-            selection_intent_orchestrator.on_project_selection_changed.begin();
-        });
-
-        card_selection.notify["selected"].connect(() => {
-            if (is_applying_state()) {
-                return;
-            }
-            selection_intent_orchestrator.on_card_selection_changed.begin();
-        });
-
-        ai_thread_selection.notify["selected"].connect(() => {
-            if (is_applying_state()) {
-                return;
-            }
-            selection_intent_orchestrator.on_ai_thread_selection_changed();
-        });
-
-        editor_buffer.changed.connect(() => {
-            if (suppress_editor_events || controller.get_current_card() == null) {
-                return;
-            }
-            refresh_connections_internal_links_from_editor();
-            controller.schedule_autosave();
-        });
-
-        var internal_link_click = new Gtk.GestureClick();
-        internal_link_click.set_button(Gdk.BUTTON_PRIMARY);
-        internal_link_click.pressed.connect((n_press, x, y) => {
-            if (n_press != 1) {
-                return;
-            }
-            var sequence = internal_link_click.get_current_sequence();
-            var event = internal_link_click.get_last_event(sequence);
-            if (event == null) {
-                return;
-            }
-            if ((event.get_modifier_state() & Gdk.ModifierType.CONTROL_MASK) == 0) {
-                return;
-            }
-
-            int buffer_x;
-            int buffer_y;
-            editor_view.window_to_buffer_coords(
-                Gtk.TextWindowType.WIDGET,
-                (int) x,
-                (int) y,
-                out buffer_x,
-                out buffer_y
-            );
-            Gtk.TextIter iter;
-            if (!editor_view.get_iter_at_location(out iter, buffer_x, buffer_y)) {
-                return;
-            }
-            if (navigate_internal_link_at_iter(iter)) {
-                internal_link_click.set_state(Gtk.EventSequenceState.CLAIMED);
-            }
-        });
-        editor_view.add_controller(internal_link_click);
-
-        var internal_link_key = new Gtk.EventControllerKey();
-        internal_link_key.key_pressed.connect((keyval, keycode, state) => {
-            if ((state & Gdk.ModifierType.CONTROL_MASK) == 0) {
-                return false;
-            }
-            if (keyval != Gdk.Key.Return && keyval != Gdk.Key.KP_Enter) {
-                return false;
-            }
-            Gtk.TextIter cursor;
-            editor_buffer.get_iter_at_mark(out cursor, editor_buffer.get_insert());
-            return navigate_internal_link_at_iter(cursor);
-        });
-        editor_view.add_controller(internal_link_key);
+        window_action_binder.bind();
+        window_sidebar_event_binder.bind();
+        window_workspace_event_binder.bind();
+        window_selection_editor_event_binder.bind();
 
         toolbox.set_settings(settings);
         toolbox.bind_connections_context(project_selection, card_store, card_selection);
         toolbox.bind_flowboard_controller(flowboard_controller);
-        card_store.items_changed.connect((position, removed, added) => {
-            queue_flowboard_refresh();
-        });
-        flowboard_controller.project_overview_requested.connect((project_id) => {
-            selection_intent_orchestrator.on_flowboard_project_overview.begin(project_id);
-        });
-        flowboard_controller.context_load_requested.connect((project_id, parent_card_id) => {
-            var request_serial = flowboard_context_controller.begin_request();
-            flowboard_context_controller.load_context.begin(
-                request_serial,
-                project_id,
-                parent_card_id,
-                controller.get_api_client(),
-                flowboard_controller
-            );
-        });
-
-        close_request.connect(() => {
-            persist_window_state();
-            return false;
-        });
+        window_flowboard_event_binder.bind();
+        window_lifecycle_event_binder.bind();
+        window_state_event_binder.bind();
 
         if (start_maximized) {
             maximize();
@@ -889,67 +943,6 @@ public class MainWindow : Adw.ApplicationWindow {
         return width;
     }
 
-    construct {
-        var refresh_action = new SimpleAction("refresh", null);
-        refresh_action.activate.connect(() => {
-            controller.reload_everything.begin();
-        });
-        add_action(refresh_action);
-
-        var new_project_action = new SimpleAction("new-project", null);
-        new_project_action.activate.connect(() => {
-            show_new_project_dialog();
-        });
-        add_action(new_project_action);
-
-        var new_card_action = new SimpleAction("new-card", null);
-        new_card_action.activate.connect(() => {
-            controller.create_card.begin();
-        });
-        add_action(new_card_action);
-
-        var toggle_toolbox_action = new SimpleAction("toggle-toolbox", null);
-        toggle_toolbox_action.activate.connect(() => {
-            workspace.toggle_toolbox();
-        });
-        add_action(toggle_toolbox_action);
-
-        var find_replace_action = new SimpleAction("find-replace", null);
-        find_replace_action.activate.connect(() => {
-            workspace.show_find_replace_bar(true);
-        });
-        add_action(find_replace_action);
-
-        var print_action = new SimpleAction("print", null);
-        print_action.activate.connect(() => {
-            print_current_card.begin();
-        });
-        add_action(print_action);
-
-        register_local_info_action();
-
-        var show_preferences_action = new SimpleAction("show-preferences", null);
-        show_preferences_action.activate.connect(() => {
-            show_preferences_dialog();
-        });
-        add_action(show_preferences_action);
-
-        var show_about_action = new SimpleAction("show-about", null);
-        show_about_action.activate.connect(() => {
-            show_about_dialog();
-        });
-        add_action(show_about_action);
-    }
-
-    private void register_local_info_action() {
-        var show_local_info_action = new SimpleAction("show-local-info", null);
-        show_local_info_action.activate.connect(() => {
-            local_info_ui_controller.show_page.begin();
-        });
-        add_action(show_local_info_action);
-    }
-
-
     private void show_new_project_dialog() {
         project_create_dialog_adapter.show((raw_name, is_private_mode) => {
             var submission = project_create_controller.build_submission(raw_name, is_private_mode);
@@ -958,6 +951,269 @@ public class MainWindow : Adw.ApplicationWindow {
             }
             controller.create_project_named.begin(submission.name, submission.privacy_mode);
         });
+    }
+
+    internal void handle_refresh_action() {
+        controller.reload_everything.begin();
+    }
+
+    internal void handle_new_project_action() {
+        show_new_project_dialog();
+    }
+
+    internal void handle_new_card_action() {
+        controller.create_card.begin();
+    }
+
+    internal void handle_toggle_toolbox_action() {
+        workspace.toggle_toolbox();
+    }
+
+    internal void handle_find_replace_action() {
+        workspace.show_find_replace_bar(true);
+    }
+
+    internal void handle_print_action() {
+        print_current_card.begin();
+    }
+
+    internal void handle_show_local_info_action() {
+        local_info_ui_controller.show_page.begin();
+    }
+
+    internal void handle_show_preferences_action() {
+        show_preferences_dialog();
+    }
+
+    internal void handle_show_about_action() {
+        show_about_dialog();
+    }
+
+    internal void on_sidebar_card_move_to_trash_requested(string card_id) {
+        confirm_move_card_to_trash(card_id);
+    }
+
+    internal void on_sidebar_card_context_selection_requested(string card_id) {
+        with_state_apply(() => {
+            selection_request_controller.request_card(card_selection, card_id);
+        });
+    }
+
+    internal void on_workspace_refresh_requested() {
+        controller.reload_everything.begin();
+    }
+
+    internal void on_workspace_new_project_requested() {
+        show_new_project_dialog();
+    }
+
+    internal void on_workspace_new_card_requested() {
+        controller.create_card.begin();
+    }
+
+    internal void on_workspace_explorer_panel_toggled(bool visible) {
+        sidebar_visible = visible;
+        if (visible) {
+            root_paned.set_start_child(sidebar.widget);
+            root_paned.set_position(clamp_sidebar_width(last_sidebar_position));
+            return;
+        }
+        if (root_paned.get_position() > 0) {
+            last_sidebar_position = clamp_sidebar_width(root_paned.get_position());
+        }
+        root_paned.set_start_child(null);
+    }
+
+    internal void on_workspace_ai_panel_toggled(bool visible) {
+        workspace.set_ai_panel_visible(visible);
+        ai_run_controller.set_panel_visible(visible);
+        if (visible) {
+            ai_panel.refresh_catalog();
+        }
+    }
+
+    internal void on_workspace_toolbox_toggled(bool visible) {
+        workspace.set_toolbox_visible(visible);
+        if (visible) {
+            toolbox.log_debug("Toolbox opened");
+            toolbox.refresh_trash();
+            return;
+        }
+        toolbox.log_debug("Toolbox closed");
+    }
+
+    internal void on_workspace_search_activated() {
+        controller.cancel_pending_search();
+        controller.run_search.begin();
+    }
+
+    internal void on_workspace_search_changed() {
+        var q = search_entry.get_text().strip();
+        if (q.length == 0) {
+            controller.cancel_pending_search();
+            controller.clear_search_results();
+            show_editor_mode();
+            return;
+        }
+        controller.schedule_search();
+    }
+
+    internal void on_workspace_search_cleared() {
+        search_entry.set_text("");
+        controller.clear_search_results();
+        show_editor_mode();
+    }
+
+    internal void on_workspace_search_focus_results_requested() {
+        if (search_store.get_n_items() == 0) {
+            return;
+        }
+        show_search_mode();
+        if (search_selection.get_selected() == Gtk.INVALID_LIST_POSITION) {
+            with_state_apply(() => {
+                selection_request_controller.request_search(search_selection, 0);
+            });
+        }
+        search_list.grab_focus();
+    }
+
+    internal void on_workspace_search_result_activated(uint position) {
+        selection_intent_orchestrator.on_search_result_activation.begin(position);
+    }
+
+    internal void on_workspace_find_next_requested() {
+        find_replace_controller.on_find_next_requested(workspace.get_find_text());
+    }
+
+    internal void on_workspace_replace_requested() {
+        find_replace_controller.on_replace_requested(
+            workspace.get_find_text(),
+            workspace.get_replace_text()
+        );
+    }
+
+    internal void on_workspace_replace_all_requested() {
+        find_replace_controller.on_replace_all_requested(
+            workspace.get_find_text(),
+            workspace.get_replace_text()
+        );
+    }
+
+    internal void on_project_selection_changed() {
+        if (is_applying_state()) {
+            return;
+        }
+        selection_intent_orchestrator.on_project_selection_changed.begin();
+    }
+
+    internal void on_card_selection_changed() {
+        if (is_applying_state()) {
+            return;
+        }
+        selection_intent_orchestrator.on_card_selection_changed.begin();
+    }
+
+    internal void on_ai_thread_selection_changed() {
+        if (is_applying_state()) {
+            return;
+        }
+        selection_intent_orchestrator.on_ai_thread_selection_changed();
+    }
+
+    internal void on_editor_buffer_changed() {
+        if (suppress_editor_events || controller.get_current_card() == null) {
+            return;
+        }
+        refresh_connections_internal_links_from_editor();
+        controller.schedule_autosave();
+    }
+
+    internal void on_internal_link_click_pressed(Gtk.GestureClick gesture,
+                                                 int n_press,
+                                                 double x,
+                                                 double y) {
+        if (n_press != 1) {
+            return;
+        }
+        var sequence = gesture.get_current_sequence();
+        var event = gesture.get_last_event(sequence);
+        if (event == null) {
+            return;
+        }
+        if ((event.get_modifier_state() & Gdk.ModifierType.CONTROL_MASK) == 0) {
+            return;
+        }
+
+        int buffer_x;
+        int buffer_y;
+        editor_view.window_to_buffer_coords(
+            Gtk.TextWindowType.WIDGET,
+            (int) x,
+            (int) y,
+            out buffer_x,
+            out buffer_y
+        );
+        Gtk.TextIter iter;
+        if (!editor_view.get_iter_at_location(out iter, buffer_x, buffer_y)) {
+            return;
+        }
+        if (navigate_internal_link_at_iter(iter)) {
+            gesture.set_state(Gtk.EventSequenceState.CLAIMED);
+        }
+    }
+
+    internal bool on_internal_link_key_pressed(uint keyval, uint keycode, Gdk.ModifierType state) {
+        if ((state & Gdk.ModifierType.CONTROL_MASK) == 0) {
+            return false;
+        }
+        if (keyval != Gdk.Key.Return && keyval != Gdk.Key.KP_Enter) {
+            return false;
+        }
+        Gtk.TextIter cursor;
+        editor_buffer.get_iter_at_mark(out cursor, editor_buffer.get_insert());
+        return navigate_internal_link_at_iter(cursor);
+    }
+
+    internal void on_card_store_items_changed(uint position, uint removed, uint added) {
+        queue_flowboard_refresh();
+    }
+
+    internal void on_flowboard_project_overview_requested(string project_id) {
+        selection_intent_orchestrator.on_flowboard_project_overview.begin(project_id);
+    }
+
+    internal void on_flowboard_context_load_requested(string project_id, string? parent_card_id) {
+        var request_serial = flowboard_context_controller.begin_request();
+        flowboard_context_controller.load_context.begin(
+            request_serial,
+            project_id,
+            parent_card_id,
+            controller.get_api_client(),
+            flowboard_controller
+        );
+    }
+
+    internal void on_project_create_error_reported(string title_text, string details) {
+        show_error(title_text, details);
+    }
+
+    internal bool on_window_close_requested() {
+        persist_window_state();
+        return false;
+    }
+
+    internal void on_root_paned_position_changed(int position) {
+        if (sidebar_visible && position > 0) {
+            last_sidebar_position = clamp_sidebar_width(position);
+        }
+    }
+
+    internal void on_app_state_changed() {
+        apply_sidebar_from_state();
+    }
+
+    internal void on_navigation_loading_changed(bool loading) {
+        toolbox.set_navigation_loading(loading);
     }
 
     internal void set_status(string text) {

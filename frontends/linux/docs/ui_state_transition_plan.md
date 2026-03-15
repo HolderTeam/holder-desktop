@@ -69,6 +69,11 @@
     - AI panel and AI run bidirectional signal wiring now runs through `AiPanelEventOrchestrator` + `IAiPanelEventSink`; `MainWindow` no longer carries the inline AI panel event fanout block.
     - Toolbox event fanout wiring (breadcrumb navigation, flowboard/connect card-open, trash/move/new-card actions, share/recovery/terminal actions) now runs through `ToolboxEventOrchestrator` + `IToolboxEventSink`; `MainWindow` no longer carries the inline toolbox signal block.
     - Cross-controller feedback fanout (`find/share/card-append/recovery/print` toast/error propagation) now runs through `WindowFeedbackOrchestrator` + `IWindowFeedbackSink`; `MainWindow` no longer carries that inline feedback block.
+    - Window action registration (`refresh/new-project/new-card/toggle-toolbox/find-replace/print/show-local-info/show-preferences/show-about`) now runs through `WindowActionBinder` + `IWindowActionSink`; `MainWindow` no longer carries the inline `construct` action block.
+    - Sidebar/Workspace widget signal fanout now runs through `WindowSidebarEventBinder` + `ISidebarEventSink` and `WindowWorkspaceEventBinder` + `IWorkspaceEventSink`; `MainWindow` now handles these via internal intent methods rather than inline connect blocks.
+    - Selection/editor/internal-link signal fanout now runs through `WindowSelectionEditorEventBinder` + `IWindowSelectionEditorEventSink`; `MainWindow` no longer carries inline selection-notify/editor-change/controller-key/gesture wiring.
+    - Flowboard/context/card-store signal fanout now runs through `WindowFlowboardEventBinder` + `IWindowFlowboardEventSink`; `MainWindow` no longer carries inline flowboard event wiring.
+    - Lifecycle and state signal fanout now runs through `WindowLifecycleEventBinder` + `IWindowLifecycleEventSink` and `WindowStateEventBinder` + `IWindowStateEventSink`; `MainWindow` no longer carries inline project-create error, close-request, app-state-changed, transition-loading, or paned-position wiring.
   - Consolidating all state commits so UI render changes are coordinated through one path.
 - Not started:
   - Full renderer-from-state model (widgets fully driven from a committed state snapshot).
@@ -213,7 +218,7 @@ AppState
 - [x] `SelectionRequestController.select_card_by_id(...)` removed.
 - [x] `MainController.reload_cards_for_selected_project(...)` no longer triggers `load_selected_card.begin()` internally; card-load kickoff moved to explicit caller flows.
 - [x] `CardsController` and `SearchController` no longer call `reload_cards_for_selected_project()` for side effects; they now use pure data reload path.
-- [ ] `MainWindow` still has broad signal fanout wiring (status/editor/title/toast/error/search/AI/thread/selection requests); continue extracting orchestration seams so the window is primarily render + signal binding.
+- [x] `MainWindow` signal fanout wiring has been extracted into binders/orchestrators (`MainControllerSignalBinder`, `AiPanelEventOrchestrator`, `ToolboxEventOrchestrator`, `WindowFeedbackOrchestrator`, `WindowActionBinder`, `WindowSidebarEventBinder`, `WindowWorkspaceEventBinder`, `WindowSelectionEditorEventBinder`, `WindowFlowboardEventBinder`, `WindowLifecycleEventBinder`, `WindowStateEventBinder`); `MainWindow` is now primarily composition + apply/render handlers.
 
 ## Acceptance Criteria
 - Switching card A -> B never visibly renders `No card selected`.
