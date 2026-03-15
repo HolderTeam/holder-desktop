@@ -43,6 +43,10 @@ It consolidates:
 - [ ] Ensure loading/error states are transition states, not domain-empty states.
 - [ ] Keep previous committed content visible until next commit is ready (all panes).
 
+Recent progress:
+- `CardsController.move_card_by_intent(...)` no longer triggers direct `load_selected_card.begin()` side effects after requesting selection.
+- `CardsController.move_card_to_trash(...)` now uses centralized `MainController.reload_cards_for_selected_project()` instead of inlined `card_selection_requested(null)` + `show_project_overview()` flow.
+
 ## Toolbox-Specific Remaining Work
 - [ ] Add final toolbox-focused tests for atomic breadcrumb navigation:
   - no intermediate blank/placeholder states on valid-to-valid transitions
