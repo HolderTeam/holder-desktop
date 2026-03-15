@@ -268,6 +268,7 @@ public class ToolboxPane : Object {
         terminals_page.set_icon_name("utilities-terminal-symbolic");
 
         git_sync_tool = new GitSyncToolView();
+        tool_adapters.set("git", git_sync_tool);
         git_sync_tool.error_reported.connect((title_text, details) => {
             error_reported(title_text, details);
         });
@@ -282,6 +283,7 @@ public class ToolboxPane : Object {
         git_page.set_icon_name("folder-remote-symbolic");
 
         recovery_key_tool = new RecoveryKeyToolView();
+        tool_adapters.set("recovery", recovery_key_tool);
         recovery_key_tool.send_recovery_key_as_email_requested.connect(() => {
             send_recovery_key_as_email_requested();
         });
@@ -344,6 +346,7 @@ public class ToolboxPane : Object {
 
     private Gtk.Widget build_sharing_tab() {
         sharing_tool = new SharingToolView();
+        tool_adapters.set("sharing", sharing_tool);
         sharing_tool.send_card_as_email_requested.connect(() => {
             send_card_as_email_requested();
         });

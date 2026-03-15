@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-public class GitSyncToolView : Object {
+public class GitSyncToolView : Object, IToolShellAdapter {
     private IHolderApi? api;
     private GitSyncController controller;
     private Gtk.SingleSelection? project_selection;
@@ -57,6 +57,12 @@ public class GitSyncToolView : Object {
     private string git_gh_login = "";
 
     public Gtk.Widget widget { get; private set; }
+    public string tool_id {
+        owned get { return "git"; }
+    }
+    public string tool_label {
+        owned get { return "Git Sync"; }
+    }
 
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
@@ -64,6 +70,63 @@ public class GitSyncToolView : Object {
     public GitSyncToolView() {
         controller = new GitSyncController();
         widget = build_git_sync_tab();
+    }
+
+    public Gtk.Widget get_content_widget() {
+        return widget;
+    }
+
+    public Gtk.Widget? get_actions_widget() {
+        return null;
+    }
+
+    public ToolScopeSnapshot get_scope_snapshot(Project? selected_project, CardSummary? selected_card) {
+        var project_id = selected_project != null ? selected_project.project_id : null;
+        var project_label = selected_project != null ? selected_project.name : "(none)";
+        var card_id = selected_card != null ? selected_card.card_id : null;
+        var card_label = selected_card != null ? selected_card.title : "Overview";
+
+        ToolScopeMode scope_mode = selected_card != null
+            ? ToolScopeMode.CARD_FOCUS
+            : ToolScopeMode.PROJECT_ROOT;
+        if (project_id == null) {
+            scope_mode = ToolScopeMode.PROJECTS_ROOT;
+            project_label = "Projects";
+            card_id = null;
+            card_label = "Overview";
+        }
+
+        return new ToolScopeSnapshot(
+            tool_id,
+            tool_label,
+            project_id,
+            project_label,
+            card_id,
+            card_label,
+            scope_mode,
+            false
+        );
+    }
+
+    public async bool navigate_to_projects_root(string? selected_project_id) {
+        if (git_sync_stack != null) {
+            git_sync_stack.set_visible_child_name("start");
+        }
+        return true;
+    }
+
+    public async bool navigate_to_project_root(string project_id) {
+        if (git_sync_stack != null) {
+            git_sync_stack.set_visible_child_name("start");
+        }
+        return true;
+    }
+
+    public async bool navigate_to_card(string card_id) {
+        if (git_sync_stack != null) {
+            git_sync_stack.set_visible_child_name("start");
+        }
+        return true;
     }
 
     public void set_api_client(IHolderApi? api) {
