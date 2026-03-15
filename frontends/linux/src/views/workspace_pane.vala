@@ -305,7 +305,7 @@ public class WorkspacePane : Object {
 
         toolbox_toggle_btn = new Gtk.ToggleButton();
         toolbox_toggle_btn.set_icon_name("applications-science-symbolic");
-        toolbox_toggle_btn.set_tooltip_text("Toggle toolbox panel");
+        toolbox_toggle_btn.set_tooltip_text("Toggle project toolbox panel");
         toolbox_toggle_btn.toggled.connect(() => {
             toolbox_toggled(toolbox_toggle_btn.get_active());
         });
