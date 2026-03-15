@@ -234,6 +234,9 @@ public class ResourcesToolView : Object, IToolShellAdapter {
     }
 
     private async void refresh_resources(uint request_serial) {
+        if (request_serial != resources_refresh_serial) {
+            return;
+        }
         if (resources_store == null) {
             return;
         }

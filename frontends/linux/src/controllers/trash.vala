@@ -78,10 +78,16 @@ public class TrashController : Object {
     }
 
     public async void refresh(uint serial) {
+        if (serial != refresh_serial) {
+            return;
+        }
         clear_store();
 
         var project = selected_project();
         if (project == null) {
+            if (serial != refresh_serial) {
+                return;
+            }
             scope_text = "Projects / (none) / Trash";
             empty_text = "Select a project to view trash.";
             empty_visible = true;
@@ -93,6 +99,9 @@ public class TrashController : Object {
         scope_text = "Projects / %s / Trash".printf(project.name);
 
         if (api == null) {
+            if (serial != refresh_serial) {
+                return;
+            }
             empty_text = "API unavailable.";
             empty_visible = true;
             empty_trash_sensitive = false;

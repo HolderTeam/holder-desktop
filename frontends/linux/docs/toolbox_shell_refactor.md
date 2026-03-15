@@ -161,13 +161,13 @@ Progress:
 - Breadcrumb project-level navigation now runs on a single transition sequence (no nested transition calls), with current-sequence checks before scope UI application.
 
 ## Remaining (Toolbox Scope)
-1. Ensure all breadcrumb/tool-scope async branches are stale-safe.
-2. Final toolbox-focused tests for atomic navigation rendering behavior.
+1. Final toolbox-focused tests for atomic navigation rendering behavior.
 
 ## Remaining Toolbox-Specific Checklist
 - [x] Replace `MainWindow` callback-based `open_card_with_transition(...)` handoff with toolbox-owned intent orchestration (`ToolboxEventOrchestrator` -> `SelectionIntentOrchestrator`).
 - [x] Remove remaining toolbox->window widget-selection coupling used for card open (`SelectionRequestController.select_card_by_id(...)` path).
 - [x] Formalize tool adapter interface (`get_actions_widget`, `get_content_widget`, `get_scope_snapshot`) and migrate project-scoped toolbox tools.
+- [x] Ensure toolbox refresh pipelines (Connections/Resources/Trash) and breadcrumb project navigation gate stale requests before rendering.
 - [ ] Keep breadcrumb/tool action rows fixed while proving no tool-specific header logic remains in content widgets.
 
 ## Deferred To Global Plan

@@ -642,10 +642,16 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     }
 
     private async void refresh_connections_graph(uint request_serial) {
+        if (request_serial != connections_graph_refresh_serial) {
+            return;
+        }
         if (connections_board_overlay == null || connections_board_nodes_layer == null || connections_board_canvas == null) {
             return;
         }
         if (show_projects_root) {
+            if (request_serial != connections_graph_refresh_serial) {
+                return;
+            }
             render_projects_root_board();
             update_add_graph_link_button_state();
             return;
@@ -657,6 +663,9 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             ? card_selection.get_selected_item() as CardSummary
             : null;
         if (selected_project == null) {
+            if (request_serial != connections_graph_refresh_serial) {
+                return;
+            }
             set_graph_empty_state("Select a project to view connections.");
             return;
         }
@@ -690,6 +699,9 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         }
 
         if (api == null) {
+            if (request_serial != connections_graph_refresh_serial) {
+                return;
+            }
             set_graph_empty_state("API unavailable.");
             return;
         }
