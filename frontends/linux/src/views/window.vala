@@ -203,6 +203,30 @@ private class WindowMainControllerSignalSink : Object, IMainControllerSignalSink
     }
 }
 
+private class WindowAiPanelEventSink : Object, IAiPanelEventSink {
+    private MainWindow owner;
+
+    public WindowAiPanelEventSink(MainWindow owner) {
+        this.owner = owner;
+    }
+
+    public void set_status(string text) {
+        owner.set_status(text);
+    }
+
+    public void show_error(string title_text, string details) {
+        owner.show_error(title_text, details);
+    }
+
+    public void add_toast(string message) {
+        owner.add_toast(message);
+    }
+
+    public void log_debug(string message) {
+        owner.log_debug_line(message);
+    }
+}
+
 public class MainWindow : Adw.ApplicationWindow {
     private delegate void StateApplyFunc();
 
@@ -266,6 +290,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private PrintService print_service;
     private PrintUiController print_ui_controller;
     private AiRunController ai_run_controller;
+    private AiPanelEventOrchestrator ai_panel_event_orchestrator;
     private FindReplaceController find_replace_controller;
     private FlowboardController flowboard_controller;
     private FlowboardContextController flowboard_context_controller;
@@ -432,6 +457,11 @@ public class MainWindow : Adw.ApplicationWindow {
             ai_thread_selection,
             card_store
         );
+        ai_panel_event_orchestrator = new AiPanelEventOrchestrator(
+            ai_panel,
+            ai_run_controller,
+            new WindowAiPanelEventSink(this)
+        );
         tool_help_controller = new ToolHelpController();
 
         sidebar = new SidebarPane(project_selection, card_selection, ai_thread_selection);
@@ -461,6 +491,7 @@ public class MainWindow : Adw.ApplicationWindow {
             new WindowMainControllerSignalSink(this)
         );
         main_controller_signal_binder.bind();
+        ai_panel_event_orchestrator.bind();
         project_create_controller.error_reported.connect((title_text, details) => {
             show_error(title_text, details);
         });
@@ -629,50 +660,6 @@ public class MainWindow : Adw.ApplicationWindow {
         });
         editor_view.add_controller(internal_link_key);
 
-        ai_panel.send_requested.connect(() => {
-            ai_run_controller.on_send_clicked(ai_panel.get_prompt_text());
-        });
-        ai_panel.new_thread_requested.connect(() => {
-            ai_run_controller.create_thread_from_prompt.begin();
-        });
-        ai_panel.status_refresh_requested.connect(() => {
-            ai_run_controller.refresh_status.begin();
-        });
-        ai_panel.error_reported.connect((title_text, details) => {
-            show_error(title_text, details);
-        });
-        ai_panel.debug_log_requested.connect((line) => {
-            toolbox.log_debug(line);
-        });
-        ai_panel.pull_model_requested.connect((model_tag) => {
-            ai_run_controller.start_model_pull.begin(model_tag);
-        });
-
-        ai_run_controller.status_changed.connect((text) => {
-            set_status(text);
-        });
-        ai_run_controller.error_reported.connect((title_text, details) => {
-            show_error(title_text, details);
-        });
-        ai_run_controller.toast_requested.connect((message) => {
-            add_toast(message);
-        });
-        ai_run_controller.render_status_requested.connect((capabilities, status) => {
-            ai_panel.render_status(capabilities, status);
-        });
-        ai_run_controller.render_status_error_requested.connect((message) => {
-            ai_panel.render_status_error(message);
-        });
-        ai_run_controller.append_output_requested.connect((role, text) => {
-            ai_panel.append_output(role, text);
-        });
-        ai_run_controller.append_output_chunk_requested.connect((text) => {
-            ai_panel.append_output_chunk(text);
-        });
-        ai_run_controller.clear_prompt_requested.connect(() => {
-            ai_panel.clear_prompt();
-        });
-
         find_replace_controller.toast_requested.connect((message) => {
             add_toast(message);
         });
@@ -696,9 +683,6 @@ public class MainWindow : Adw.ApplicationWindow {
         });
         recovery_dialog_adapter.error_reported.connect((title_text, details) => {
             show_error(title_text, details);
-        });
-        ai_run_controller.set_send_enabled_requested.connect((enabled) => {
-            ai_panel.set_send_enabled(enabled);
         });
         print_ui_controller.toast_requested.connect((message) => {
             add_toast(message);
@@ -1054,6 +1038,12 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void refresh_trash_tool() {
         toolbox.refresh_trash();
+    }
+
+    internal void log_debug_line(string message) {
+        if (toolbox != null) {
+            toolbox.log_debug(message);
+        }
     }
 
     internal void add_toast(string msg) {
