@@ -22,6 +22,16 @@ internal class ToolboxBreadcrumbController : Object {
                                string? card_id,
                                OpenCardFunc open_card,
                                ShowToolHelpFunc show_tool_help) {
+        if (segment_index == 2) {
+            if (card_id == null || card_id.strip().length == 0) {
+                return;
+            }
+            if (tool_id == "flowboard" || tool_id == "connections") {
+                open_card(card_id);
+            }
+            return;
+        }
+
         var seq = selection_transitions.begin_navigation(
             "toolbox-breadcrumb",
             project_id,
@@ -29,6 +39,9 @@ internal class ToolboxBreadcrumbController : Object {
         );
         try {
             if (segment_index == 0) {
+                if (!selection_transitions.is_current(seq)) {
+                    return;
+                }
                 if (tool_id == "flowboard") {
                     toolbox.show_flowboard_projects_root();
                 } else {
@@ -41,27 +54,13 @@ internal class ToolboxBreadcrumbController : Object {
                 if (project_id == null || project_id.strip().length == 0) {
                     return;
                 }
+                selection_transitions.commit_selection(seq, project_id, null, null);
+                yield selection_controller.on_project_selected();
+                if (!selection_transitions.is_current(seq)) {
+                    return;
+                }
                 if (tool_id == "flowboard") {
-                    yield selection_transitions.run_project_selection_without_flowboard(
-                        project_id,
-                        selection_controller
-                    );
                     toolbox.show_flowboard_project_root();
-                    return;
-                }
-                yield selection_transitions.run_project_selection_without_flowboard(
-                    project_id,
-                    selection_controller
-                );
-                return;
-            }
-
-            if (segment_index == 2) {
-                if (card_id == null || card_id.strip().length == 0) {
-                    return;
-                }
-                if (tool_id == "flowboard" || tool_id == "connections") {
-                    open_card(card_id);
                 }
                 return;
             }

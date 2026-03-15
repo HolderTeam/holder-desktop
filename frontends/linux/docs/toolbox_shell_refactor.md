@@ -158,6 +158,7 @@ Progress:
 - 5 complete.
 - 6 partially complete (done for Trash; remaining cleanup in other tools is minor).
 - Toolbox card-open events (Flowboard, Connections, breadcrumb card segment) now route through `SelectionIntentOrchestrator` in `ToolboxEventOrchestrator`, removing the `MainWindow` callback handoff.
+- Breadcrumb project-level navigation now runs on a single transition sequence (no nested transition calls), with current-sequence checks before scope UI application.
 
 ## Remaining (Toolbox Scope)
 1. Ensure all breadcrumb/tool-scope async branches are stale-safe.
