@@ -324,14 +324,25 @@ public class MainController : Object, IAiRunContext {
                     project_selection_requested(first_project.project_id);
                 }
             }
-            yield reload_cards_for_selected_project(preferred_card_id);
+            yield reload_cards_for_selected_project();
+            if (preferred_card_id != null) {
+                if (has_card_summary(preferred_card_id)) {
+                    card_selection_requested(preferred_card_id);
+                } else if (card_store.get_n_items() > 0) {
+                    var first_card = card_store.get_item(0) as CardSummary;
+                    if (first_card != null) {
+                        card_selection_requested(first_card.card_id);
+                    }
+                }
+                load_selected_card.begin();
+            }
             ai_status_refresh_requested();
         } catch (Error e) {
             error_reported("Failed to refresh", e.message);
         }
     }
 
-    internal async void reload_cards_for_selected_project(string? preferred_card_id = null) {
+    internal async void reload_cards_for_selected_project() {
         if (api == null) {
             return;
         }
@@ -368,19 +379,6 @@ public class MainController : Object, IAiRunContext {
             }
             replace_cards(cards);
             yield reload_ai_threads_for_project(selected.project_id);
-            if (preferred_card_id != null) {
-                if (has_card_summary(preferred_card_id)) {
-                    card_selection_requested(preferred_card_id);
-                } else if (card_store.get_n_items() > 0) {
-                    var first_card = card_store.get_item(0) as CardSummary;
-                    if (first_card != null) {
-                        card_selection_requested(first_card.card_id);
-                    }
-                }
-                load_selected_card.begin();
-                return;
-            }
-
             card_selection_requested(null);
             yield show_project_overview();
         } catch (Error e) {

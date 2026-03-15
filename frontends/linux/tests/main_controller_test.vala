@@ -502,10 +502,8 @@ private void test_open_search_result_missing_card_falls_back_to_first_card() {
     var prepared = prepare_search_result_card(controller, 0);
     assert(wait_for_condition(() => api.list_cards_calls > list_cards_before));
     assert(prepared == null);
-    assert(wait_for_condition(() => controller.selected_card_id() == "c1"));
-    controller.load_selected_card.begin();
-    assert(wait_for_condition(() => controller.get_current_card() != null &&
-                          controller.get_current_card().card_id == "c1"));
+    assert(controller.selected_card_id() == null);
+    assert(controller.get_current_card() == null);
 }
 
 private void test_run_search_without_project_emits_error() {

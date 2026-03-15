@@ -69,7 +69,7 @@ internal class SearchController : Object {
             return item.card_id;
         }
 
-        yield owner.reload_cards_for_selected_project(item.card_id);
+        yield owner.reload_cards_for_selected_project();
         if (owner.has_card_summary(item.card_id)) {
             return item.card_id;
         }
