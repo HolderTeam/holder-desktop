@@ -61,9 +61,11 @@
     - `MainController` card-list reload/update flows now use explicit `card_selection_requested(...)` (and `has_card_summary(...)`) instead of internal `select_card_by_id(...)` mutation helper.
     - `MainController` project selection in reload flows now uses explicit `project_selection_requested(...)` + `has_project_summary(...)`; legacy `select_project_by_id(...)` and `show_project_overview_for(...)` were removed.
     - `MainController.reload_cards_for_selected_project()` is now data-only (no preferred-card parameter and no internal `load_selected_card.begin()` side effect); preferred-card selection/load is now explicit in caller flow (`reload_everything_with_selection(...)`, card move flow).
-    - `SelectionIntentController` card-open flows now resolve card summaries from controller state (`card_summary_by_id`) and request selection via signal; window no longer mutates selection through `SelectionRequestController.select_card_by_id(...)`.
+    - `SelectionIntentController` card-open flows now resolve card summaries via a resolver callback and request selection via signal; window no longer mutates selection through `SelectionRequestController.select_card_by_id(...)`.
     - `SelectionRequestController.select_card_by_id(...)` helper was removed; `SelectionRequestController` now contains request/apply methods only.
     - `CardsController` and `SearchController` now call `reload_selected_project_cards_data()` (pure data reload) instead of `reload_cards_for_selected_project()` side-effect flow.
+    - `MainController` signal fanout wiring in `MainWindow` now runs through `MainControllerSignalBinder` + `IMainControllerSignalSink`; window constructor no longer owns the full inline connect block.
+    - Window-level selection intent handlers (`project/card/ai-thread/search result/flowboard project/card-open`) now run through `SelectionIntentOrchestrator`; `MainWindow` now wires selection signals directly to orchestrator entry points.
   - Consolidating all state commits so UI render changes are coordinated through one path.
 - Not started:
   - Full renderer-from-state model (widgets fully driven from a committed state snapshot).

@@ -131,6 +131,78 @@ private class WindowFindReplaceOps : Object, IFindReplaceOps {
     }
 }
 
+private class WindowMainControllerSignalSink : Object, IMainControllerSignalSink {
+    private MainWindow owner;
+
+    public WindowMainControllerSignalSink(MainWindow owner) {
+        this.owner = owner;
+    }
+
+    public void on_status_changed(string text) {
+        owner.set_status(text);
+    }
+
+    public void on_editor_state_changed(string text, bool editable) {
+        owner.set_editor_state(text, editable);
+    }
+
+    public void on_window_title_changed(string title_text) {
+        owner.update_window_title(title_text);
+    }
+
+    public void on_toast_requested(string message) {
+        owner.add_toast(message);
+    }
+
+    public void on_error_reported(string title_text, string details) {
+        owner.show_error(title_text, details);
+    }
+
+    public void on_show_editor_requested() {
+        owner.show_editor_mode();
+    }
+
+    public void on_show_search_requested() {
+        owner.show_search_mode();
+    }
+
+    public void on_search_summary_changed(string text) {
+        owner.set_search_summary_text(text);
+    }
+
+    public void on_ai_status_refresh_requested() {
+        owner.refresh_ai_status();
+    }
+
+    public void on_project_selection_requested(string? project_id) {
+        owner.request_project_selection(project_id);
+    }
+
+    public void on_card_selection_requested(string? card_id) {
+        owner.request_card_selection(card_id);
+    }
+
+    public void on_search_selection_requested(int position) {
+        owner.request_search_selection(position);
+    }
+
+    public void on_ai_thread_title_changed(string? title_text) {
+        owner.set_ai_thread_title(title_text);
+    }
+
+    public void on_ai_thread_selection_requested(string? thread_id) {
+        owner.request_ai_thread_selection(thread_id);
+    }
+
+    public void on_api_client_ready(IHolderApi api_client) {
+        owner.on_api_client_connected(api_client);
+    }
+
+    public void on_card_trashed(string card_id) {
+        owner.refresh_trash_tool();
+    }
+}
+
 public class MainWindow : Adw.ApplicationWindow {
     private delegate void StateApplyFunc();
 
@@ -173,6 +245,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private SearchSelectionController search_selection_controller;
     private SelectionRequestController selection_request_controller;
     private SelectionIntentController selection_intent_controller;
+    private SelectionIntentOrchestrator selection_intent_orchestrator;
     private SelectionController selection_controller;
     private SelectionTransitionController selection_transition_controller;
     private ToolboxBreadcrumbController toolbox_breadcrumb_controller;
@@ -199,6 +272,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private ToolHelpController tool_help_controller;
     private AppStateStore app_state_store;
     private AppTransitionController app_transition_controller;
+    private MainControllerSignalBinder main_controller_signal_binder;
     private Settings? settings;
     private uint flowboard_refresh_idle_id = 0;
     private bool sidebar_visible = true;
@@ -347,6 +421,17 @@ public class MainWindow : Adw.ApplicationWindow {
         );
         flowboard_controller = new FlowboardController(project_store, project_selection, card_store);
         flowboard_context_controller = new FlowboardContextController();
+        selection_intent_orchestrator = new SelectionIntentOrchestrator(
+            selection_intent_controller,
+            selection_transition_controller,
+            selection_controller,
+            controller,
+            flowboard_controller,
+            project_selection,
+            card_selection,
+            ai_thread_selection,
+            card_store
+        );
         tool_help_controller = new ToolHelpController();
 
         sidebar = new SidebarPane(project_selection, card_selection, ai_thread_selection);
@@ -371,67 +456,13 @@ public class MainWindow : Adw.ApplicationWindow {
         root_paned.set_shrink_start_child(false);
         root_paned.set_position(last_sidebar_position);
 
-        controller.status_changed.connect((text) => {
-            set_status(text);
-        });
-        controller.editor_state_changed.connect((text, editable) => {
-            set_editor_state(text, editable);
-        });
-        controller.window_title_changed.connect((title_text) => {
-            update_window_title(title_text);
-        });
-        controller.toast_requested.connect((message) => {
-            add_toast(message);
-        });
-        controller.error_reported.connect((title_text, details) => {
-            show_error(title_text, details);
-        });
+        main_controller_signal_binder = new MainControllerSignalBinder(
+            controller,
+            new WindowMainControllerSignalSink(this)
+        );
+        main_controller_signal_binder.bind();
         project_create_controller.error_reported.connect((title_text, details) => {
             show_error(title_text, details);
-        });
-        controller.show_editor_requested.connect(() => {
-            show_editor_mode();
-        });
-        controller.show_search_requested.connect(() => {
-            show_search_mode();
-        });
-        controller.search_summary_changed.connect((text) => {
-            search_summary_label.set_text(text);
-        });
-        controller.ai_status_refresh_requested.connect(() => {
-            ai_run_controller.refresh_status.begin();
-        });
-        controller.project_selection_requested.connect((project_id) => {
-            with_state_apply(() => {
-                selection_request_controller.request_project(project_selection, project_id);
-            });
-        });
-        controller.card_selection_requested.connect((card_id) => {
-            with_state_apply(() => {
-                selection_request_controller.request_card(card_selection, card_id);
-            });
-        });
-        controller.search_selection_requested.connect((position) => {
-            with_state_apply(() => {
-                selection_request_controller.request_search(search_selection, position);
-            });
-        });
-        controller.ai_thread_title_changed.connect((title_text) => {
-            ai_panel.set_thread_title(title_text);
-        });
-        controller.ai_thread_selection_requested.connect((thread_id) => {
-            with_state_apply(() => {
-                selection_request_controller.request_ai_thread(ai_thread_selection, thread_id);
-            });
-            handle_ai_thread_selection_intent();
-        });
-        controller.api_client_ready.connect((api_client) => {
-            ai_panel.set_api_client(api_client);
-            ai_panel.refresh_catalog();
-            toolbox.set_api_client(api_client);
-        });
-        controller.card_trashed.connect((_card_id) => {
-            toolbox.refresh_trash();
         });
 
         workspace.refresh_requested.connect(() => {
@@ -503,7 +534,7 @@ public class MainWindow : Adw.ApplicationWindow {
             search_list.grab_focus();
         });
         workspace.search_result_activated.connect((position) => {
-            handle_search_result_activation_intent.begin(position);
+            selection_intent_orchestrator.on_search_result_activation.begin(position);
         });
         workspace.find_next_requested.connect(() => {
             find_replace_controller.on_find_next_requested(workspace.get_find_text());
@@ -525,21 +556,21 @@ public class MainWindow : Adw.ApplicationWindow {
             if (is_applying_state()) {
                 return;
             }
-            handle_project_selection_intent.begin();
+            selection_intent_orchestrator.on_project_selection_changed.begin();
         });
 
         card_selection.notify["selected"].connect(() => {
             if (is_applying_state()) {
                 return;
             }
-            handle_card_selection_intent.begin();
+            selection_intent_orchestrator.on_card_selection_changed.begin();
         });
 
         ai_thread_selection.notify["selected"].connect(() => {
             if (is_applying_state()) {
                 return;
             }
-            handle_ai_thread_selection_intent();
+            selection_intent_orchestrator.on_ai_thread_selection_changed();
         });
 
         editor_buffer.changed.connect(() => {
@@ -747,7 +778,7 @@ public class MainWindow : Adw.ApplicationWindow {
             queue_flowboard_refresh();
         });
         flowboard_controller.project_overview_requested.connect((project_id) => {
-            handle_flowboard_project_overview_intent.begin(project_id);
+            selection_intent_orchestrator.on_flowboard_project_overview.begin(project_id);
         });
         flowboard_controller.context_load_requested.connect((project_id, parent_card_id) => {
             var request_serial = flowboard_context_controller.begin_request();
@@ -800,57 +831,6 @@ public class MainWindow : Adw.ApplicationWindow {
             flowboard_controller.refresh();
             return Source.REMOVE;
         });
-    }
-
-    private async void handle_project_selection_intent() {
-        var selected = project_selection.get_selected_item() as Project;
-        var project_id = selected != null ? selected.project_id : null;
-        yield selection_intent_controller.on_project_selection(
-            project_id,
-            selection_transition_controller,
-            selection_controller,
-            flowboard_controller
-        );
-    }
-
-    private async void handle_card_selection_intent() {
-        var selected = card_selection.get_selected_item() as CardSummary;
-        yield selection_intent_controller.on_card_selection(
-            selected != null ? selected.project_id : null,
-            selected != null ? selected.card_id : null,
-            selection_transition_controller,
-            selection_controller
-        );
-    }
-
-    private async void handle_search_result_activation_intent(uint position) {
-        yield selection_intent_controller.on_search_result_activation(
-            position,
-            controller,
-            resolve_card_summary_by_id,
-            selection_transition_controller,
-            selection_controller
-        );
-    }
-
-    private async void handle_flowboard_project_overview_intent(string project_id) {
-        yield selection_intent_controller.on_project_selection(
-            project_id,
-            selection_transition_controller,
-            selection_controller,
-            flowboard_controller
-        );
-    }
-
-    private void handle_ai_thread_selection_intent() {
-        var selected = ai_thread_selection.get_selected_item() as AiThreadSummary;
-        selection_intent_controller.on_ai_thread_selection(
-            selected != null ? selected.thread_id : null,
-            controller.selected_project_id(),
-            controller.selected_card_id(),
-            selection_transition_controller,
-            controller
-        );
     }
 
     private static void resolve_startup_window_state(
@@ -1029,7 +1009,54 @@ public class MainWindow : Adw.ApplicationWindow {
         title = title_text;
     }
 
-    private void add_toast(string msg) {
+    internal void set_search_summary_text(string text) {
+        search_summary_label.set_text(text);
+    }
+
+    internal void refresh_ai_status() {
+        ai_run_controller.refresh_status.begin();
+    }
+
+    internal void request_project_selection(string? project_id) {
+        with_state_apply(() => {
+            selection_request_controller.request_project(project_selection, project_id);
+        });
+    }
+
+    internal void request_card_selection(string? card_id) {
+        with_state_apply(() => {
+            selection_request_controller.request_card(card_selection, card_id);
+        });
+    }
+
+    internal void request_search_selection(int position) {
+        with_state_apply(() => {
+            selection_request_controller.request_search(search_selection, position);
+        });
+    }
+
+    internal void set_ai_thread_title(string? title_text) {
+        ai_panel.set_thread_title(title_text);
+    }
+
+    internal void request_ai_thread_selection(string? thread_id) {
+        with_state_apply(() => {
+            selection_request_controller.request_ai_thread(ai_thread_selection, thread_id);
+        });
+        selection_intent_orchestrator.on_ai_thread_selection_changed();
+    }
+
+    internal void on_api_client_connected(IHolderApi api_client) {
+        ai_panel.set_api_client(api_client);
+        ai_panel.refresh_catalog();
+        toolbox.set_api_client(api_client);
+    }
+
+    internal void refresh_trash_tool() {
+        toolbox.refresh_trash();
+    }
+
+    internal void add_toast(string msg) {
         toast_overlay.add_toast(new Adw.Toast(msg));
     }
 
@@ -1045,7 +1072,7 @@ public class MainWindow : Adw.ApplicationWindow {
         workspace.show_editor_mode();
     }
 
-    private void show_search_mode() {
+    internal void show_search_mode() {
         workspace.show_search_mode();
     }
 
@@ -1076,28 +1103,7 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void open_card_from_flowboard(string card_id) {
-        open_card_with_transition.begin(card_id, "tool-card-open");
-    }
-
-    private async void open_card_with_transition(string card_id, string reason) {
-        yield selection_intent_controller.open_card_with_transition(
-            card_id,
-            reason,
-            controller,
-            resolve_card_summary_by_id,
-            selection_transition_controller,
-            selection_controller
-        );
-    }
-
-    private CardSummary? resolve_card_summary_by_id(string card_id) {
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
-            if (card != null && card.card_id == card_id) {
-                return card;
-            }
-        }
-        return null;
+        selection_intent_orchestrator.open_card_with_transition.begin(card_id, "tool-card-open");
     }
 
     private bool is_applying_state() {
