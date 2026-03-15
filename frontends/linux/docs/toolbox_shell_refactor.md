@@ -1,7 +1,7 @@
 # Toolbox Shell Refactor
 
 ## Status
-- This refactor is active and partially complete.
+- This refactor is active and near completion.
 - It is now governed by the global transition architecture in:
   - `frontends/linux/docs/ui_state_transition_plan.md`
 - Scope remains toolbox-specific; app-wide state migration is tracked in the global doc.
@@ -57,8 +57,8 @@ Status:
 - Implemented via app-wide sequencing primitives:
   - `src/state/app_state.vala`
   - `src/controllers/app_transition.vala`
-- Breadcrumb routing unified through a single `MainWindow` handler.
-- Full coordinator ownership of toolbox navigation policy is still pending.
+- Breadcrumb routing is unified through toolbox/window orchestrators (`ToolboxBreadcrumbController`, `ToolboxEventOrchestrator`, `SelectionIntentOrchestrator`).
+- Full coordinator ownership is complete for project-scoped toolbox navigation.
 
 ## Data Model
 
@@ -99,7 +99,7 @@ Status:
   - Sharing
   - Recovery Key
 - `ToolboxPane` now uses adapter snapshots/action-row resolution for migrated tools.
-- `AI Catalog` is intentionally global-scoped and remains outside the project-tool adapter path.
+- `AI Catalog` is intentionally global-scoped and now lives under the AI panel (`src/views/ai_panel/catalog.vala`) outside the project-tool adapter path.
 
 ## Per-Tool Action Row Migration
 - Flowboard: none.
@@ -121,10 +121,10 @@ Status:
 - On failure, keep previous state and show error/toast.
 
 Status:
-- Partially implemented.
+- Implemented for project-scoped tools.
 - Loading indicator wiring exists (`ToolShell` / `ToolActionBar`).
-- Stale dropping exists for key project-overview path.
-- Still needs full coordinator-managed coverage across all toolbox navigation paths.
+- Stale dropping is in place for key toolbox refresh/navigation paths.
+- Remaining work is test hardening, not behavior wiring.
 
 ## Acceptance Criteria
 - Breadcrumb rendering/handling comes from one shared component.
@@ -135,8 +135,8 @@ Status:
 
 Progress:
 - 1 and 2 are complete.
-- 3 is improved but not complete in all paths.
-- 4 is functionally complete for project-scoped tools (adapter contract implemented + wired).
+- 3 is complete for project-scoped tools; broader app-wide rendering guarantees are tracked in `ui_state_transition_plan.md`.
+- 4 is complete for project-scoped tools (adapter contract implemented + wired).
 - 5 is complete.
 
 ## Implementation Plan
@@ -156,7 +156,7 @@ Progress:
 - Toolbox breadcrumb project segment now routes through selection transition + selection controller (no direct `MainController.show_project_overview()` call from breadcrumb controller).
 - 4 complete for project-scoped tools (`ToolboxPane` consumes adapter contract for all project tools; `AI Catalog` remains global).
 - 5 complete.
-- 6 partially complete (done for Trash; remaining cleanup in other tools is minor).
+- 6 complete (legacy in-tool shell header scaffolding removed; shell header/action rows are owned by `ToolShell` + adapters).
 - Toolbox card-open events (Flowboard, Connections, breadcrumb card segment) now route through `SelectionIntentOrchestrator` in `ToolboxEventOrchestrator`, removing the `MainWindow` callback handoff.
 - Breadcrumb project-level navigation now runs on a single transition sequence (no nested transition calls), with current-sequence checks before scope UI application.
 
@@ -168,7 +168,7 @@ Progress:
 - [x] Remove remaining toolbox->window widget-selection coupling used for card open (`SelectionRequestController.select_card_by_id(...)` path).
 - [x] Formalize tool adapter interface (`get_actions_widget`, `get_content_widget`, `get_scope_snapshot`) and migrate project-scoped toolbox tools.
 - [x] Ensure toolbox refresh pipelines (Connections/Resources/Trash) and breadcrumb project navigation gate stale requests before rendering.
-- [ ] Keep breadcrumb/tool action rows fixed while proving no tool-specific header logic remains in content widgets.
+- [x] Keep breadcrumb/tool action rows fixed while proving no tool-specific header logic remains in content widgets.
 
 ## Deferred To Global Plan
 - App-wide selection/app-state ownership migration.

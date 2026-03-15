@@ -234,8 +234,6 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         graph_scroller.set_child(graph_column);
         connections_main_pane.set_start_child(graph_scroller);
 
-        var graph_header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
-        graph_header.set_visible(false);
         connections_add_graph_link_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
         connections_add_graph_link_btn.set_tooltip_text("Add graph connection");
         connections_add_graph_link_btn.set_sensitive(false);
@@ -253,8 +251,6 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         });
         connections_actions_bar.append(connections_add_graph_link_btn);
         connections_actions_bar.append(connections_relations_toggle_btn);
-        graph_column.append(graph_header);
-
         connections_board_overlay = new Gtk.Overlay();
         connections_board_overlay.add_css_class("connections-board-surface");
         connections_board_overlay.set_hexpand(true);

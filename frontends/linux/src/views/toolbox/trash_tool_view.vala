@@ -18,7 +18,6 @@ public class TrashToolView : Object, IToolShellAdapter {
 
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
-    public signal void breadcrumb_activated(int index);
 
     public TrashToolView() {
         controller = new TrashController();
