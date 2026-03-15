@@ -1,5 +1,24 @@
 namespace HolderLinux {
 
+internal class InternalLinkNavigationDecision : Object {
+    public bool handled { get; construct; }
+    public string? open_card_id { get; construct; }
+    public string? create_target { get; construct; }
+    public string? toast_message { get; construct; }
+
+    public InternalLinkNavigationDecision(bool handled,
+                                          string? open_card_id = null,
+                                          string? create_target = null,
+                                          string? toast_message = null) {
+        Object(
+            handled: handled,
+            open_card_id: open_card_id,
+            create_target: create_target,
+            toast_message: toast_message
+        );
+    }
+}
+
 internal class InternalLinkController : Object {
     public Gee.ArrayList<string> extract_internal_links(string text) {
         var results = new Gee.ArrayList<string>();
@@ -90,6 +109,25 @@ internal class InternalLinkController : Object {
         }
 
         return null;
+    }
+
+    public InternalLinkNavigationDecision decide_navigation(string? target,
+                                                            Gee.List<CardSummary> project_cards) {
+        if (target == null) {
+            return new InternalLinkNavigationDecision(false);
+        }
+
+        var card_id = resolve_target_card_id(target, project_cards);
+        if (card_id != null) {
+            return new InternalLinkNavigationDecision(true, card_id);
+        }
+
+        return new InternalLinkNavigationDecision(
+            true,
+            null,
+            target,
+            "No card matches [[%s]].".printf(target)
+        );
     }
 }
 

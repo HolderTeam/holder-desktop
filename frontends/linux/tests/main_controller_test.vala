@@ -74,6 +74,17 @@ private MainControllerTestHarness make_harness(MainControllerFakeApi api,
     return new MainControllerTestHarness(api, scheduler, clock, discovery, initial_api, inject_initial_api);
 }
 
+private string? prepare_search_result_card(HolderLinux.MainController controller, uint position) {
+    string? prepared = null;
+    bool completed = false;
+    controller.prepare_search_result_card_at.begin(position, (obj, res) => {
+        prepared = controller.prepare_search_result_card_at.end(res);
+        completed = true;
+    });
+    assert(wait_for_condition(() => completed));
+    return prepared;
+}
+
 private void test_reload_everything_loads_project_and_card() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -431,9 +442,11 @@ private void test_open_search_result_existing_card_skips_reload() {
     controller.run_search.begin();
     assert(wait_for_condition(() => api.search_calls == 1));
     var list_cards_before = api.list_cards_calls;
-    controller.prepare_search_result_card_at.begin(0);
-    assert(wait_for_condition(() => controller.selected_card_id() == "c2"));
+    var prepared = prepare_search_result_card(controller, 0);
+    assert(prepared == "c2");
+    controller.card_selection_requested("c2");
     controller.load_selected_card.begin();
+    assert(wait_for_condition(() => controller.selected_card_id() == "c2"));
     assert(wait_for_condition(() => controller.get_current_card() != null &&
                           controller.get_current_card().card_id == "c2"));
     assert(api.get_card_calls >= 1);
@@ -458,10 +471,12 @@ private void test_open_search_result_missing_card_triggers_reload() {
 
     var before_reload = api.list_cards_calls;
     api.include_card2 = true;
-    controller.prepare_search_result_card_at.begin(0);
+    var prepared = prepare_search_result_card(controller, 0);
     assert(wait_for_condition(() => api.list_cards_calls > before_reload));
-    assert(wait_for_condition(() => controller.selected_card_id() == "c2"));
+    assert(prepared == "c2");
+    controller.card_selection_requested("c2");
     controller.load_selected_card.begin();
+    assert(wait_for_condition(() => controller.selected_card_id() == "c2"));
     assert(wait_for_condition(() => controller.get_current_card() != null &&
                           controller.get_current_card().card_id == "c2"));
 }
@@ -484,8 +499,9 @@ private void test_open_search_result_missing_card_falls_back_to_first_card() {
     assert(wait_for_condition(() => api.search_calls == 1));
 
     var list_cards_before = api.list_cards_calls;
-    controller.prepare_search_result_card_at.begin(0);
+    var prepared = prepare_search_result_card(controller, 0);
     assert(wait_for_condition(() => api.list_cards_calls > list_cards_before));
+    assert(prepared == null);
     assert(wait_for_condition(() => controller.selected_card_id() == "c1"));
     controller.load_selected_card.begin();
     assert(wait_for_condition(() => controller.get_current_card() != null &&

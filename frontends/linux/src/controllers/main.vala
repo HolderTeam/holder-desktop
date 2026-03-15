@@ -560,6 +560,16 @@ public class MainController : Object, IAiRunContext {
         return false;
     }
 
+    internal bool has_card_summary(string card_id) {
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card != null && card.card_id == card_id) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     internal void update_selected_card_summary(string title, int64 updated_at) {
         if (current_card == null) {
             return;

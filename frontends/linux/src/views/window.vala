@@ -318,7 +318,7 @@ public class MainWindow : Adw.ApplicationWindow {
         card_append_controller = new CardAppendController();
         toolbox_breadcrumb_controller = new ToolboxBreadcrumbController(
             selection_transition_controller,
-            controller,
+            selection_controller,
             toolbox
         );
         local_info_flow_controller = new LocalInfoFlowController(
@@ -748,7 +748,7 @@ public class MainWindow : Adw.ApplicationWindow {
             queue_flowboard_refresh();
         });
         flowboard_controller.project_overview_requested.connect((project_id) => {
-            controller.show_project_overview_for.begin(project_id);
+            handle_flowboard_project_overview_intent.begin(project_id);
         });
         flowboard_controller.context_load_requested.connect((project_id, parent_card_id) => {
             var request_serial = flowboard_context_controller.begin_request();
@@ -831,6 +831,15 @@ public class MainWindow : Adw.ApplicationWindow {
             select_card_in_sidebar_by_id,
             selection_transition_controller,
             selection_controller
+        );
+    }
+
+    private async void handle_flowboard_project_overview_intent(string project_id) {
+        yield selection_intent_controller.on_project_selection(
+            project_id,
+            selection_transition_controller,
+            selection_controller,
+            flowboard_controller
         );
     }
 
@@ -1149,42 +1158,48 @@ public class MainWindow : Adw.ApplicationWindow {
         return internal_link_controller.extract_target_from_line(line_text, cursor_byte_offset);
     }
 
-    private string? resolve_internal_link_target_card_id(string target) {
+    private Gee.ArrayList<CardSummary> project_cards_for_selected_project() {
+        var project_cards = new Gee.ArrayList<CardSummary>();
         var project_id = controller.selected_project_id();
-        if (project_id == null || target.length == 0) {
-            return null;
+        if (project_id == null) {
+            return project_cards;
         }
 
-        var project_cards = new Gee.ArrayList<CardSummary>();
         for (uint i = 0; i < card_store.get_n_items(); i++) {
             var card = card_store.get_item(i) as CardSummary;
             if (card != null && card.project_id == project_id) {
                 project_cards.add(card);
             }
         }
-        return internal_link_controller.resolve_target_card_id(target, project_cards);
+        return project_cards;
     }
 
     private bool navigate_internal_link_at_iter(Gtk.TextIter iter) {
-        var target = internal_link_target_at_iter(iter);
-        if (target == null) {
+        var decision = internal_link_controller.decide_navigation(
+            internal_link_target_at_iter(iter),
+            project_cards_for_selected_project()
+        );
+        if (!decision.handled) {
             return false;
         }
 
-        var card_id = resolve_internal_link_target_card_id(target);
-        if (card_id == null) {
-            add_toast("No card matches [[%s]].".printf(target));
-            var target_copy = target;
+        if (decision.open_card_id == null) {
+            if (decision.toast_message != null) {
+                add_toast(decision.toast_message);
+            }
+            var target_copy = decision.create_target;
             Idle.add(() => {
-                card_action_dialog_adapter.confirm_create_linked_card(target_copy, () => {
-                    controller.create_card_with_title.begin(target_copy);
-                });
+                if (target_copy != null) {
+                    card_action_dialog_adapter.confirm_create_linked_card(target_copy, () => {
+                        controller.create_card_with_title.begin(target_copy);
+                    });
+                }
                 return Source.REMOVE;
             });
             return true;
         }
 
-        open_card_from_flowboard(card_id);
+        open_card_from_flowboard((!) decision.open_card_id);
         return true;
     }
 

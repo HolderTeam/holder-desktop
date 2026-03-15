@@ -65,14 +65,8 @@ internal class CardsController : Object {
             );
             var cards = yield owner.api.list_cards(owner.current_project.project_id, "recent");
             owner.replace_cards(cards);
-
-            for (uint i = 0; i < owner.card_store.get_n_items(); i++) {
-                var item = owner.card_store.get_item(i) as CardSummary;
-                if (item != null && item.card_id == new_id) {
-                    owner.select_card_by_id(new_id);
-                    owner.load_selected_card.begin();
-                    break;
-                }
+            if (owner.has_card_summary(new_id)) {
+                owner.card_selection_requested(new_id);
             }
 
             owner.toast_requested(success_toast);

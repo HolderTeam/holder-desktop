@@ -5,14 +5,14 @@ internal class ToolboxBreadcrumbController : Object {
     public delegate void ShowToolHelpFunc(string tool_id);
 
     private SelectionTransitionController selection_transitions;
-    private MainController main_controller;
+    private SelectionController selection_controller;
     private ToolboxPane toolbox;
 
     public ToolboxBreadcrumbController(SelectionTransitionController selection_transitions,
-                                       MainController main_controller,
+                                       SelectionController selection_controller,
                                        ToolboxPane toolbox) {
         this.selection_transitions = selection_transitions;
-        this.main_controller = main_controller;
+        this.selection_controller = selection_controller;
         this.toolbox = toolbox;
     }
 
@@ -42,10 +42,17 @@ internal class ToolboxBreadcrumbController : Object {
                     return;
                 }
                 if (tool_id == "flowboard") {
+                    yield selection_transitions.run_project_selection_without_flowboard(
+                        project_id,
+                        selection_controller
+                    );
                     toolbox.show_flowboard_project_root();
                     return;
                 }
-                yield main_controller.show_project_overview();
+                yield selection_transitions.run_project_selection_without_flowboard(
+                    project_id,
+                    selection_controller
+                );
                 return;
             }
 

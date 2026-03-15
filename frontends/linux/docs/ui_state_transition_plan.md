@@ -54,6 +54,10 @@
     - Card-action dialogs (`Move to Trash` confirm, `Create Linked Card` confirm) now run through `CardActionDialogAdapter`; `MainWindow` now forwards confirmed actions only.
     - Print action orchestration now runs through `PrintUiController` (error/toast mapping centralized); `MainWindow` now only provides current editor text + parent window.
     - Local-info action orchestration now runs through `LocalInfoUiController`; `MainWindow` now triggers the flow only.
+    - Internal-link navigation decisioning (`open existing` vs `offer create` vs `ignore`) now runs through `InternalLinkController.decide_navigation(...)`; `MainWindow` now only provides cursor context/card snapshot and executes UI callbacks from the decision.
+    - Flowboard project-overview tile activation now routes through `SelectionIntentController.on_project_selection(...)` + `SelectionTransitionController` instead of directly calling `MainController.show_project_overview_for(...)`.
+    - Toolbox breadcrumb project-scope navigation now routes through `SelectionTransitionController.run_project_selection_without_flowboard(...)` + `SelectionController` instead of directly calling `MainController.show_project_overview()`.
+    - Flowboard project-segment breadcrumb clicks now also run through the same project-selection transition path before switching flowboard scope.
   - Consolidating all state commits so UI render changes are coordinated through one path.
 - Not started:
   - Full renderer-from-state model (widgets fully driven from a committed state snapshot).

@@ -141,6 +141,8 @@ Progress:
 - 1 complete.
 - 2 complete.
 - 3 partially complete (sequence + loading + unified breadcrumb routing).
+- Flowboard project-card project-overview hops now also route through selection intent + transition controller (no direct `MainController.show_project_overview_for(...)` call from `MainWindow` flowboard signal path).
+- Toolbox breadcrumb project segment now routes through selection transition + selection controller (no direct `MainController.show_project_overview()` call from breadcrumb controller).
 - 5 complete.
 - 6 partially complete (done for Trash; remaining cleanup in other tools is minor).
 

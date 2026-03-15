@@ -57,6 +57,20 @@ internal class SelectionTransitionController : Object {
         }
     }
 
+    public async void run_project_selection_without_flowboard(string? project_id,
+                                                              SelectionController selection_controller) {
+        var seq = begin_navigation("project-selection", project_id, null, null);
+        try {
+            commit_selection(seq, project_id, null, null);
+            yield selection_controller.on_project_selected();
+            if (!is_current(seq)) {
+                return;
+            }
+        } finally {
+            finish_navigation_if_current(seq);
+        }
+    }
+
     public async void run_card_selection(string project_id,
                                          string card_id,
                                          SelectionController selection_controller) {
