@@ -324,7 +324,10 @@ public class MainController : Object, IAiRunContext {
                     project_selection_requested(first_project.project_id);
                 }
             }
-            yield reload_cards_for_selected_project();
+            var loaded = yield reload_selected_project_cards_data();
+            if (!loaded) {
+                return;
+            }
             if (preferred_card_id != null) {
                 if (has_card_summary(preferred_card_id)) {
                     card_selection_requested(preferred_card_id);
@@ -335,6 +338,9 @@ public class MainController : Object, IAiRunContext {
                     }
                 }
                 load_selected_card.begin();
+            } else {
+                card_selection_requested(null);
+                yield show_project_overview();
             }
             ai_status_refresh_requested();
         } catch (Error e) {
@@ -343,15 +349,24 @@ public class MainController : Object, IAiRunContext {
     }
 
     internal async void reload_cards_for_selected_project() {
-        if (api == null) {
+        var loaded = yield reload_selected_project_cards_data();
+        if (!loaded) {
             return;
+        }
+        card_selection_requested(null);
+        yield show_project_overview();
+    }
+
+    internal async bool reload_selected_project_cards_data() {
+        if (api == null) {
+            return false;
         }
 
         var selected = project_selection.get_selected_item() as Project;
         if (selected == null) {
             current_project = null;
             clear_cards();
-            return;
+            return false;
         }
 
         current_project = selected;
@@ -379,14 +394,14 @@ public class MainController : Object, IAiRunContext {
             }
             replace_cards(cards);
             yield reload_ai_threads_for_project(selected.project_id);
-            card_selection_requested(null);
-            yield show_project_overview();
+            return true;
         } catch (Error e) {
             if (project_cards_loading_status_id != 0) {
                 scheduler.cancel(project_cards_loading_status_id);
                 project_cards_loading_status_id = 0;
             }
             error_reported("Failed to load cards", e.message);
+            return false;
         }
     }
 

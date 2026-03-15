@@ -137,14 +137,16 @@ internal class CardsController : Object {
                 owner.toast_requested("Moved card into %s".printf(moved.moved_into_title));
             }
             owner.status_changed("Moved card");
-            yield owner.reload_cards_for_selected_project();
+            if (!(yield owner.reload_selected_project_cards_data())) {
+                return;
+            }
             if (owner.has_card_summary(card_id)) {
                 owner.card_selection_requested(card_id);
                 owner.load_selected_card.begin();
             }
         } catch (Error e) {
             owner.error_reported("Move card failed", e.message);
-            owner.reload_cards_for_selected_project.begin();
+            owner.reload_selected_project_cards_data.begin();
         }
     }
 
@@ -167,7 +169,10 @@ internal class CardsController : Object {
             yield owner.api.delete_card(card_id);
             owner.status_changed("Moved card to trash");
             owner.toast_requested("Moved \"%s\" to Trash".printf(card_title));
-            yield owner.reload_cards_for_selected_project();
+            if (yield owner.reload_selected_project_cards_data()) {
+                owner.card_selection_requested(null);
+                yield owner.show_project_overview();
+            }
             owner.card_trashed(card_id);
         } catch (Error e) {
             owner.error_reported("Move to trash failed", e.message);
