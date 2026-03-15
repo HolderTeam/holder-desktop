@@ -556,16 +556,6 @@ public class MainController : Object, IAiRunContext {
         return false;
     }
 
-    internal CardSummary? card_summary_by_id(string card_id) {
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
-            if (card != null && card.card_id == card_id) {
-                return card;
-            }
-        }
-        return null;
-    }
-
     internal bool has_project_summary(string project_id) {
         for (uint i = 0; i < project_store.get_n_items(); i++) {
             var project = project_store.get_item(i) as Project;

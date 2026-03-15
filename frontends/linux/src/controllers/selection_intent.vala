@@ -1,5 +1,7 @@
 namespace HolderLinux {
 
+public delegate CardSummary? CardSummaryResolver(string card_id);
+
 internal class SelectionIntentController : Object {
     public async void on_project_selection(string? project_id,
                                            SelectionTransitionController selection_transition_controller,
@@ -42,13 +44,14 @@ internal class SelectionIntentController : Object {
 
     public async void on_search_result_activation(uint position,
                                                   MainController controller,
+                                                  CardSummaryResolver resolve_card_summary,
                                                   SelectionTransitionController selection_transition_controller,
                                                   SelectionController selection_controller) {
         var target_card_id = yield controller.prepare_search_result_card_at(position);
         if (target_card_id == null || target_card_id.strip().length == 0) {
             return;
         }
-        var selected_card = controller.card_summary_by_id(target_card_id);
+        var selected_card = resolve_card_summary(target_card_id);
         if (selected_card == null) {
             return;
         }
@@ -66,9 +69,10 @@ internal class SelectionIntentController : Object {
     public async void open_card_with_transition(string card_id,
                                                 string reason,
                                                 MainController controller,
+                                                CardSummaryResolver resolve_card_summary,
                                                 SelectionTransitionController selection_transition_controller,
                                                 SelectionController selection_controller) {
-        var selected_card = controller.card_summary_by_id(card_id);
+        var selected_card = resolve_card_summary(card_id);
         if (selected_card == null) {
             return;
         }

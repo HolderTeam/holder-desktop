@@ -827,6 +827,7 @@ public class MainWindow : Adw.ApplicationWindow {
         yield selection_intent_controller.on_search_result_activation(
             position,
             controller,
+            resolve_card_summary_by_id,
             selection_transition_controller,
             selection_controller
         );
@@ -1083,9 +1084,20 @@ public class MainWindow : Adw.ApplicationWindow {
             card_id,
             reason,
             controller,
+            resolve_card_summary_by_id,
             selection_transition_controller,
             selection_controller
         );
+    }
+
+    private CardSummary? resolve_card_summary_by_id(string card_id) {
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card != null && card.card_id == card_id) {
+                return card;
+            }
+        }
+        return null;
     }
 
     private bool is_applying_state() {
