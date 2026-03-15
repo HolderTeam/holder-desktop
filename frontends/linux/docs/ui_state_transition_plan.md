@@ -67,6 +67,7 @@
     - `MainController` signal fanout wiring in `MainWindow` now runs through `MainControllerSignalBinder` + `IMainControllerSignalSink`; window constructor no longer owns the full inline connect block.
     - Window-level selection intent handlers (`project/card/ai-thread/search result/flowboard project/card-open`) now run through `SelectionIntentOrchestrator`; `MainWindow` now wires selection signals directly to orchestrator entry points.
     - AI panel and AI run bidirectional signal wiring now runs through `AiPanelEventOrchestrator` + `IAiPanelEventSink`; `MainWindow` no longer carries the inline AI panel event fanout block.
+    - Toolbox event fanout wiring (breadcrumb navigation, flowboard/connect card-open, trash/move/new-card actions, share/recovery/terminal actions) now runs through `ToolboxEventOrchestrator` + `IToolboxEventSink`; `MainWindow` no longer carries the inline toolbox signal block.
   - Consolidating all state commits so UI render changes are coordinated through one path.
 - Not started:
   - Full renderer-from-state model (widgets fully driven from a committed state snapshot).

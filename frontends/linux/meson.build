@@ -71,6 +71,7 @@ sources = [
   'src/controllers/selection.vala',
   'src/controllers/selection_transition.vala',
   'src/controllers/toolbox_breadcrumb.vala',
+  'src/controllers/toolbox_event_orchestrator.vala',
   'src/controllers/ai_threads.vala',
   'src/controllers/ai_run.vala',
   'src/controllers/ai_panel_event_orchestrator.vala',

@@ -227,6 +227,54 @@ private class WindowAiPanelEventSink : Object, IAiPanelEventSink {
     }
 }
 
+private class WindowToolboxEventSink : Object, IToolboxEventSink {
+    private MainWindow owner;
+
+    public WindowToolboxEventSink(MainWindow owner) {
+        this.owner = owner;
+    }
+
+    public void show_error(string title_text, string details) {
+        owner.show_error(title_text, details);
+    }
+
+    public void add_toast(string message) {
+        owner.add_toast(message);
+    }
+
+    public void open_card(string card_id) {
+        owner.open_card_from_flowboard(card_id);
+    }
+
+    public void show_tool_help_page(string tool_id) {
+        owner.show_tool_help_page(tool_id);
+    }
+
+    public void confirm_move_card_to_trash(string card_id) {
+        owner.confirm_move_card_to_trash(card_id);
+    }
+
+    public void send_current_card_as_email() {
+        owner.send_current_card_as_email();
+    }
+
+    public void request_send_recovery_key_as_email() {
+        owner.request_send_recovery_key_as_email();
+    }
+
+    public void request_save_recovery_key_to_usb() {
+        owner.request_save_recovery_key_to_usb();
+    }
+
+    public void request_import_recovery_key() {
+        owner.request_import_recovery_key();
+    }
+
+    public void append_text_to_current_card(string text) {
+        owner.append_text_to_current_card(text);
+    }
+}
+
 public class MainWindow : Adw.ApplicationWindow {
     private delegate void StateApplyFunc();
 
@@ -273,6 +321,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private SelectionController selection_controller;
     private SelectionTransitionController selection_transition_controller;
     private ToolboxBreadcrumbController toolbox_breadcrumb_controller;
+    private ToolboxEventOrchestrator toolbox_event_orchestrator;
     private ShareController share_controller;
     private CardAppendController card_append_controller;
     private RecoveryController recovery_controller;
@@ -463,6 +512,12 @@ public class MainWindow : Adw.ApplicationWindow {
             new WindowAiPanelEventSink(this)
         );
         tool_help_controller = new ToolHelpController();
+        toolbox_event_orchestrator = new ToolboxEventOrchestrator(
+            toolbox,
+            toolbox_breadcrumb_controller,
+            controller,
+            new WindowToolboxEventSink(this)
+        );
 
         sidebar = new SidebarPane(project_selection, card_selection, ai_thread_selection);
         sidebar.card_move_to_trash_requested.connect((card_id) => {
@@ -492,6 +547,7 @@ public class MainWindow : Adw.ApplicationWindow {
         );
         main_controller_signal_binder.bind();
         ai_panel_event_orchestrator.bind();
+        toolbox_event_orchestrator.bind();
         project_create_controller.error_reported.connect((title_text, details) => {
             show_error(title_text, details);
         });
@@ -691,70 +747,6 @@ public class MainWindow : Adw.ApplicationWindow {
             show_error(title_text, details);
         });
 
-        toolbox.error_reported.connect((title, details) => {
-            show_error(title, details);
-        });
-        toolbox.toast_requested.connect((message) => {
-            add_toast(message);
-        });
-        toolbox.breadcrumb_navigation_requested.connect((tool_id, segment_index, project_id, card_id) => {
-            toolbox_breadcrumb_controller.navigate.begin(
-                tool_id,
-                segment_index,
-                project_id,
-                card_id,
-                (id) => {
-                    open_card_from_flowboard(id);
-                },
-                (id) => {
-                    show_tool_help_page(id);
-                }
-            );
-        });
-        toolbox.flowboard_card_open_requested.connect((card_id) => {
-            open_card_from_flowboard(card_id);
-        });
-        toolbox.connections_card_open_requested.connect((card_id) => {
-            open_card_from_flowboard(card_id);
-        });
-        toolbox.flowboard_card_move_to_trash_requested.connect((card_id) => {
-            confirm_move_card_to_trash(card_id);
-        });
-        toolbox.flowboard_move_intent_requested.connect((card_id, _project_id, intent, target_card_id, parent_card_id) => {
-            controller.move_card_by_intent.begin(card_id, intent, target_card_id, parent_card_id);
-        });
-        toolbox.flowboard_new_card_requested.connect((parent_card_id) => {
-            controller.create_card.begin(parent_card_id);
-        });
-        toolbox.send_card_as_email_requested.connect(() => {
-            send_current_card_as_email();
-        });
-        toolbox.send_recovery_key_as_email_requested.connect(() => {
-            recovery_dialog_adapter.request_pin(
-                "Email Recovery Key",
-                "Set a recovery key PIN to export and email your `.hrk` file.",
-                (pin) => {
-                    send_recovery_key_as_email.begin(pin);
-                }
-            );
-        });
-        toolbox.save_recovery_key_to_usb_requested.connect(() => {
-            recovery_dialog_adapter.request_pin(
-                "Save Recovery Key",
-                "Set a recovery key PIN to export a `.hrk` file.",
-                (pin) => {
-                    save_recovery_key_to_usb.begin(pin);
-                }
-            );
-        });
-        toolbox.import_recovery_key_requested.connect(() => {
-            recovery_dialog_adapter.open_import_dialog((pin, recovery_token) => {
-                import_recovery_key_payload.begin(pin, recovery_token);
-            });
-        });
-        toolbox.terminal_copy_to_card_requested.connect((text) => {
-            append_text_to_current_card(text);
-        });
         toolbox.set_settings(settings);
         toolbox.bind_connections_context(project_selection, card_store, card_selection);
         toolbox.bind_flowboard_controller(flowboard_controller);
@@ -1092,7 +1084,7 @@ public class MainWindow : Adw.ApplicationWindow {
 
     }
 
-    private void open_card_from_flowboard(string card_id) {
+    internal void open_card_from_flowboard(string card_id) {
         selection_intent_orchestrator.open_card_with_transition.begin(card_id, "tool-card-open");
     }
 
@@ -1121,7 +1113,7 @@ public class MainWindow : Adw.ApplicationWindow {
         return "this card";
     }
 
-    private void show_tool_help_page(string tool_id) {
+    internal void show_tool_help_page(string tool_id) {
         var help = tool_help_controller.load(tool_id);
         set_editor_state(help.markdown, false);
         update_window_title(help.title);
@@ -1129,7 +1121,7 @@ public class MainWindow : Adw.ApplicationWindow {
         set_status(help.status_text);
     }
 
-    private void confirm_move_card_to_trash(string card_id) {
+    internal void confirm_move_card_to_trash(string card_id) {
         if (card_id.strip().length == 0) {
             return;
         }
@@ -1210,13 +1202,39 @@ public class MainWindow : Adw.ApplicationWindow {
         );
     }
 
-    private void send_current_card_as_email() {
+    internal void send_current_card_as_email() {
         var card = controller.get_current_card();
         Gtk.TextIter start;
         Gtk.TextIter end;
         editor_buffer.get_bounds(out start, out end);
         var body_text = editor_buffer.get_text(start, end, false);
         share_controller.send_card_as_email(card, body_text);
+    }
+
+    internal void request_send_recovery_key_as_email() {
+        recovery_dialog_adapter.request_pin(
+            "Email Recovery Key",
+            "Set a recovery key PIN to export and email your `.hrk` file.",
+            (pin) => {
+                send_recovery_key_as_email.begin(pin);
+            }
+        );
+    }
+
+    internal void request_save_recovery_key_to_usb() {
+        recovery_dialog_adapter.request_pin(
+            "Save Recovery Key",
+            "Set a recovery key PIN to export a `.hrk` file.",
+            (pin) => {
+                save_recovery_key_to_usb.begin(pin);
+            }
+        );
+    }
+
+    internal void request_import_recovery_key() {
+        recovery_dialog_adapter.open_import_dialog((pin, recovery_token) => {
+            import_recovery_key_payload.begin(pin, recovery_token);
+        });
     }
 
     private async void send_recovery_key_as_email(string pin) {
@@ -1247,7 +1265,7 @@ public class MainWindow : Adw.ApplicationWindow {
         add_toast("Recovery key imported.");
     }
 
-    private void append_text_to_current_card(string text) {
+    internal void append_text_to_current_card(string text) {
         Gtk.TextIter end_iter;
         editor_buffer.get_end_iter(out end_iter);
         Gtk.TextIter start_iter;
