@@ -337,7 +337,6 @@ public class MainController : Object, IAiRunContext {
                         card_selection_requested(first_card.card_id);
                     }
                 }
-                load_selected_card.begin();
             } else {
                 card_selection_requested(null);
                 yield show_project_overview();

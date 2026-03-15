@@ -1246,12 +1246,14 @@ public class MainWindow : Adw.ApplicationWindow {
         with_state_apply(() => {
             selection_request_controller.request_project(project_selection, project_id);
         });
+        selection_intent_orchestrator.on_project_selection_changed.begin();
     }
 
     internal void request_card_selection(string? card_id) {
         with_state_apply(() => {
             selection_request_controller.request_card(card_selection, card_id);
         });
+        selection_intent_orchestrator.on_card_selection_changed.begin();
     }
 
     internal void request_search_selection(int position) {
