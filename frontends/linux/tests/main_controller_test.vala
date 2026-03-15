@@ -63,6 +63,23 @@ private HolderLinux.MainController make_controller(MainControllerFakeApi api,
         }
         card_selection.set_selected_index(uint.MAX);
     });
+    controller.ai_thread_selection_requested.connect((thread_id) => {
+        if (thread_id == null || thread_id.strip().length == 0) {
+            thread_selection.set_selected_index(uint.MAX);
+            controller.on_ai_thread_selected();
+            return;
+        }
+        for (uint i = 0; i < thread_store.get_n_items(); i++) {
+            var thread = thread_store.get_item(i) as HolderLinux.AiThreadSummary;
+            if (thread != null && thread.thread_id == thread_id) {
+                thread_selection.set_selected_index(i);
+                controller.on_ai_thread_selected();
+                return;
+            }
+        }
+        thread_selection.set_selected_index(uint.MAX);
+        controller.on_ai_thread_selected();
+    });
     return controller;
 }
 

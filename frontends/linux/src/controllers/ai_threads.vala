@@ -11,8 +11,6 @@ internal class AiThreadsController : Object {
         for (uint i = 0; i < owner.ai_thread_store.get_n_items(); i++) {
             var thread = owner.ai_thread_store.get_item(i) as AiThreadSummary;
             if (thread != null && thread.thread_id == thread_id) {
-                owner.current_ai_thread = thread;
-                owner.ai_thread_title_changed(thread.title);
                 owner.ai_thread_selection_requested(thread_id);
                 return true;
             }
@@ -46,12 +44,8 @@ internal class AiThreadsController : Object {
             owner.replace_ai_threads(threads);
             if (owner.ai_thread_store.get_n_items() > 0) {
                 var first_thread = owner.ai_thread_store.get_item(0) as AiThreadSummary;
-                owner.current_ai_thread = first_thread;
-                owner.ai_thread_title_changed(first_thread != null ? first_thread.title : null);
                 owner.ai_thread_selection_requested(first_thread != null ? first_thread.thread_id : null);
             } else {
-                owner.current_ai_thread = null;
-                owner.ai_thread_title_changed(null);
                 owner.ai_thread_selection_requested(null);
             }
         } catch (Error e) {

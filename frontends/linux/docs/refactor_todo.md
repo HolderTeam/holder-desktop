@@ -50,6 +50,10 @@ Recent progress:
   - `SelectionIntentController.on_card_selection(...)` now routes `card_id == null` to `SelectionTransitionController.run_project_overview_selection(...)`.
   - `MainController.reload_everything_with_selection(...)` and `MainController.reload_cards_for_selected_project()` no longer directly call `show_project_overview()` after emitting `card_selection_requested(null)`.
   - `MainWindow.request_project_selection(...)` and `MainWindow.request_card_selection(...)` now trigger selection intent orchestration so controller-driven requests follow the same transition gate as widget-driven requests.
+- AI-thread selection flows now follow the same ownership rules:
+  - `AiThreadsController.select_ai_thread_by_id(...)` and `AiThreadsController.reload_ai_threads_for_project(...)` no longer directly mutate `current_ai_thread`/title; they emit selection requests and let selection handling apply state.
+  - `SelectionTransitionController.run_ai_thread_selection(...)` now uses the common begin/finish navigation flow (`begin_navigation` + `finish_navigation_if_current`) instead of bespoke transition calls.
+  - Main-controller test harness now models `ai_thread_selection_requested(...)` by applying selection and invoking `on_ai_thread_selected()` through the same signal path.
 
 ## Toolbox-Specific Remaining Work
 - [ ] Add final toolbox-focused tests for atomic breadcrumb navigation:

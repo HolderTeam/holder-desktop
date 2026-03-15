@@ -120,12 +120,7 @@ internal class SelectionTransitionController : Object {
                                         string? card_id,
                                         string? ai_thread_id,
                                         MainController main_controller) {
-        var seq = transitions.begin(
-            "ai-thread-selection",
-            project_id,
-            card_id,
-            ai_thread_id
-        );
+        var seq = begin_navigation("ai-thread-selection", project_id, card_id, ai_thread_id);
         try {
             main_controller.on_ai_thread_selected();
             if (!is_current(seq)) {
@@ -133,9 +128,7 @@ internal class SelectionTransitionController : Object {
             }
             commit_selection(seq, project_id, card_id, ai_thread_id);
         } finally {
-            if (is_current(seq)) {
-                transitions.finish(seq);
-            }
+            finish_navigation_if_current(seq);
         }
     }
 }
