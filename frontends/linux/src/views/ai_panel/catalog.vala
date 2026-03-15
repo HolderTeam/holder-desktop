@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-public class AiCatalogToolView : Object {
+public class AiCatalogPanelView : Object {
     private IHolderApi? api;
     private AiCatalogController controller;
     private Gtk.ListBox ai_catalog_list;
@@ -10,7 +10,7 @@ public class AiCatalogToolView : Object {
     public signal void error_reported(string title, string details);
     public signal void debug_log_requested(string line);
 
-    public AiCatalogToolView() {
+    public AiCatalogPanelView() {
         controller = new AiCatalogController();
         widget = build_ui();
     }

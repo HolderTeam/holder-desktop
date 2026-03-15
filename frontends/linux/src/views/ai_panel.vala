@@ -11,7 +11,7 @@ public class AiPanel : Object {
     private Gtk.TextView ai_prompt_view;
     private Gtk.Label ai_assistant_thread_label;
     private Gtk.Button send_btn;
-    private AiCatalogToolView ai_catalog_tool;
+    private AiCatalogPanelView ai_catalog_tool;
 
     public Gtk.Widget widget { get; private set; }
 
@@ -23,7 +23,7 @@ public class AiPanel : Object {
     public signal void debug_log_requested(string line);
 
     public AiPanel() {
-        ai_catalog_tool = new AiCatalogToolView();
+        ai_catalog_tool = new AiCatalogPanelView();
         ai_catalog_tool.error_reported.connect((title, details) => {
             error_reported(title, details);
         });
