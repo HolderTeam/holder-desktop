@@ -1,7 +1,5 @@
 namespace HolderLinux {
 
-public delegate CardSummary? CardSelectionResolver(string card_id);
-
 internal class SelectionIntentController : Object {
     public async void on_project_selection(string? project_id,
                                            SelectionTransitionController selection_transition_controller,
@@ -44,17 +42,17 @@ internal class SelectionIntentController : Object {
 
     public async void on_search_result_activation(uint position,
                                                   MainController controller,
-                                                  CardSelectionResolver resolve_card_selection,
                                                   SelectionTransitionController selection_transition_controller,
                                                   SelectionController selection_controller) {
         var target_card_id = yield controller.prepare_search_result_card_at(position);
         if (target_card_id == null || target_card_id.strip().length == 0) {
             return;
         }
-        var selected_card = resolve_card_selection(target_card_id);
+        var selected_card = controller.card_summary_by_id(target_card_id);
         if (selected_card == null) {
             return;
         }
+        controller.card_selection_requested(target_card_id);
         yield selection_transition_controller.run_card_open_transition(
             "search-result-activation",
             controller.selected_project_id(),
@@ -67,13 +65,14 @@ internal class SelectionIntentController : Object {
 
     public async void open_card_with_transition(string card_id,
                                                 string reason,
-                                                CardSelectionResolver resolve_card_selection,
+                                                MainController controller,
                                                 SelectionTransitionController selection_transition_controller,
                                                 SelectionController selection_controller) {
-        var selected_card = resolve_card_selection(card_id);
+        var selected_card = controller.card_summary_by_id(card_id);
         if (selected_card == null) {
             return;
         }
+        controller.card_selection_requested(card_id);
         yield selection_transition_controller.run_card_open_transition(
             reason,
             selected_card.project_id,

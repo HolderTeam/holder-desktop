@@ -61,6 +61,8 @@
     - `MainController` card-list reload/update flows now use explicit `card_selection_requested(...)` (and `has_card_summary(...)`) instead of internal `select_card_by_id(...)` mutation helper.
     - `MainController` project selection in reload flows now uses explicit `project_selection_requested(...)` + `has_project_summary(...)`; legacy `select_project_by_id(...)` and `show_project_overview_for(...)` were removed.
     - `MainController.reload_cards_for_selected_project()` is now data-only (no preferred-card parameter and no internal `load_selected_card.begin()` side effect); preferred-card selection/load is now explicit in caller flow (`reload_everything_with_selection(...)`, card move flow).
+    - `SelectionIntentController` card-open flows now resolve card summaries from controller state (`card_summary_by_id`) and request selection via signal; window no longer mutates selection through `SelectionRequestController.select_card_by_id(...)`.
+    - `SelectionRequestController.select_card_by_id(...)` helper was removed; `SelectionRequestController` now contains request/apply methods only.
   - Consolidating all state commits so UI render changes are coordinated through one path.
 - Not started:
   - Full renderer-from-state model (widgets fully driven from a committed state snapshot).
@@ -201,8 +203,8 @@ AppState
   - Selection changes still originate from widgets in multiple places.
 
 ## Remaining Bypass Checklist
-- [ ] `MainWindow.open_card_with_transition(...)` still resolves by mutating sidebar card selection via `SelectionRequestController.select_card_by_id(...)` before transition begin; move to ID-based intent path that resolves from state snapshot instead of widget selection mutation.
-- [ ] `SelectionRequestController.select_card_by_id(...)` is still a direct selection-mutating helper used by window card-open paths; replace with pure resolver + explicit request/intent split, then remove helper.
+- [x] `MainWindow.open_card_with_transition(...)` no longer mutates sidebar selection via `SelectionRequestController.select_card_by_id(...)`; it now delegates to intent flow that resolves from controller state snapshot.
+- [x] `SelectionRequestController.select_card_by_id(...)` removed.
 - [x] `MainController.reload_cards_for_selected_project(...)` no longer triggers `load_selected_card.begin()` internally; card-load kickoff moved to explicit caller flows.
 - [ ] `CardsController` and `SearchController` still call `MainController.reload_cards_for_selected_project(...)` directly for side effects; convert to explicit transition intents once reload path no longer owns card-load side effect.
 - [ ] `MainWindow` still has broad signal fanout wiring (status/editor/title/toast/error/search/AI/thread/selection requests); continue extracting orchestration seams so the window is primarily render + signal binding.

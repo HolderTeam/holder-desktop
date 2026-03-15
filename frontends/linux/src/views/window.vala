@@ -309,8 +309,7 @@ public class MainWindow : Adw.ApplicationWindow {
         search_selection_controller = new SearchSelectionController(search_store);
         selection_request_controller = new SelectionRequestController(
             explorer_selection_controller,
-            search_selection_controller,
-            card_store
+            search_selection_controller
         );
         selection_intent_controller = new SelectionIntentController();
         selection_controller = new SelectionController(controller);
@@ -828,7 +827,6 @@ public class MainWindow : Adw.ApplicationWindow {
         yield selection_intent_controller.on_search_result_activation(
             position,
             controller,
-            select_card_in_sidebar_by_id,
             selection_transition_controller,
             selection_controller
         );
@@ -1084,18 +1082,10 @@ public class MainWindow : Adw.ApplicationWindow {
         yield selection_intent_controller.open_card_with_transition(
             card_id,
             reason,
-            select_card_in_sidebar_by_id,
+            controller,
             selection_transition_controller,
             selection_controller
         );
-    }
-
-    private CardSummary? select_card_in_sidebar_by_id(string card_id) {
-        CardSummary? selected_card = null;
-        with_state_apply(() => {
-            selected_card = selection_request_controller.select_card_by_id(card_selection, card_id);
-        });
-        return selected_card;
     }
 
     private bool is_applying_state() {
