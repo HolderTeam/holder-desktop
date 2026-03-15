@@ -242,10 +242,6 @@ private class WindowToolboxEventSink : Object, IToolboxEventSink {
         owner.add_toast(message);
     }
 
-    public void open_card(string card_id) {
-        owner.open_card_from_flowboard(card_id);
-    }
-
     public void show_tool_help_page(string tool_id) {
         owner.show_tool_help_page(tool_id);
     }
@@ -749,6 +745,7 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox_event_orchestrator = new ToolboxEventOrchestrator(
             toolbox,
             toolbox_breadcrumb_controller,
+            selection_intent_orchestrator,
             controller,
             new WindowToolboxEventSink(this)
         );

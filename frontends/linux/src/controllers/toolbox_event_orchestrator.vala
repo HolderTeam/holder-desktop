@@ -3,7 +3,6 @@ namespace HolderLinux {
 internal interface IToolboxEventSink : Object {
     public abstract void show_error(string title_text, string details);
     public abstract void add_toast(string message);
-    public abstract void open_card(string card_id);
     public abstract void show_tool_help_page(string tool_id);
     public abstract void confirm_move_card_to_trash(string card_id);
     public abstract void send_current_card_as_email();
@@ -16,15 +15,18 @@ internal interface IToolboxEventSink : Object {
 internal class ToolboxEventOrchestrator : Object {
     private ToolboxPane toolbox; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private ToolboxBreadcrumbController toolbox_breadcrumb_controller; // LCOV_EXCL_LINE: field declaration-only coverage artifact
+    private SelectionIntentOrchestrator selection_intent_orchestrator; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private MainController controller; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private IToolboxEventSink sink; // LCOV_EXCL_LINE: field declaration-only coverage artifact
 
     public ToolboxEventOrchestrator(ToolboxPane toolbox,
                                     ToolboxBreadcrumbController toolbox_breadcrumb_controller,
+                                    SelectionIntentOrchestrator selection_intent_orchestrator,
                                     MainController controller,
                                     IToolboxEventSink sink) {
         this.toolbox = toolbox;
         this.toolbox_breadcrumb_controller = toolbox_breadcrumb_controller;
+        this.selection_intent_orchestrator = selection_intent_orchestrator;
         this.controller = controller;
         this.sink = sink;
     }
@@ -43,7 +45,10 @@ internal class ToolboxEventOrchestrator : Object {
                 project_id,
                 card_id,
                 (id) => {
-                    sink.open_card(id);
+                    selection_intent_orchestrator.open_card_with_transition.begin(
+                        id,
+                        "toolbox-breadcrumb-card-open"
+                    );
                 },
                 (id) => {
                     sink.show_tool_help_page(id);
@@ -51,10 +56,16 @@ internal class ToolboxEventOrchestrator : Object {
             );
         });
         toolbox.flowboard_card_open_requested.connect((card_id) => {
-            sink.open_card(card_id);
+            selection_intent_orchestrator.open_card_with_transition.begin(
+                card_id,
+                "toolbox-flowboard-card-open"
+            );
         });
         toolbox.connections_card_open_requested.connect((card_id) => {
-            sink.open_card(card_id);
+            selection_intent_orchestrator.open_card_with_transition.begin(
+                card_id,
+                "toolbox-connections-card-open"
+            );
         });
         toolbox.flowboard_card_move_to_trash_requested.connect((card_id) => {
             sink.confirm_move_card_to_trash(card_id);
