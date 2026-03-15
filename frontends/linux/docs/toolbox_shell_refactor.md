@@ -81,14 +81,16 @@ Status:
 Each tool is exposed through a common adapter API:
 - `Gtk.Widget get_content_widget()`
 - `Gtk.Widget? get_actions_widget()`
-- `ToolScopeSnapshot get_scope_snapshot()`
-- `async bool navigate_to_projects_root(uint seq)`
-- `async bool navigate_to_project_root(string project_id, uint seq)`
-- `async bool navigate_to_card(string card_id, uint seq)`
+- `ToolScopeSnapshot get_scope_snapshot(Project?, CardSummary?)`
+- `async bool navigate_to_projects_root(string? selected_project_id)`
+- `async bool navigate_to_project_root(string project_id)`
+- `async bool navigate_to_card(string card_id)`
 
 Status:
-- Not formalized as an interface yet.
-- Current tools still wired ad hoc in `ToolboxPane`.
+- Formal interface now exists: `src/views/toolbox/tool_adapter.vala` (`IToolShellAdapter`).
+- Flowboard and Connections now implement the adapter contract.
+- `ToolboxPane` now uses adapter snapshots for Flowboard/Connections breadcrumb state and action-row resolution.
+- Remaining tools are still wired ad hoc in `ToolboxPane`.
 
 ## Per-Tool Action Row Migration
 - Flowboard: none.
@@ -125,8 +127,10 @@ Status:
 Progress:
 - 1 and 2 are complete.
 - 3 is improved but not complete in all paths.
-- 4 is partially complete.
-- 5 is partially complete (behavior aligned; formal contract not yet introduced).
+- 1 and 2 are complete.
+- 3 is improved but not complete in all paths.
+- 4 is now partially complete with a formal adapter contract implemented for Flowboard/Connections.
+- 5 is partially complete (behavior aligned; some tools still not migrated to adapter contract).
 
 ## Implementation Plan
 1. Add model + components (`NavigationBreadcrumbs`, `ToolActionBar`).
@@ -143,11 +147,12 @@ Progress:
 - 3 partially complete (sequence + loading + unified breadcrumb routing).
 - Flowboard project-card project-overview hops now also route through selection intent + transition controller (no direct `MainController.show_project_overview_for(...)` call from `MainWindow` flowboard signal path).
 - Toolbox breadcrumb project segment now routes through selection transition + selection controller (no direct `MainController.show_project_overview()` call from breadcrumb controller).
+- 4 partially complete (adapter contract implemented for Flowboard/Connections and consumed by `ToolboxPane`).
 - 5 complete.
 - 6 partially complete (done for Trash; remaining cleanup in other tools is minor).
 
 ## Remaining (Toolbox Scope)
-1. Introduce a formal toolbox tool adapter interface and migrate Flowboard/Connections.
+1. Extend adapter migration beyond Flowboard/Connections to remaining tools.
 2. Move remaining toolbox navigation policy from `MainWindow` into toolbox coordinator.
 3. Ensure all breadcrumb/tool-scope async branches are stale-safe.
 4. Final toolbox-focused tests for atomic navigation rendering behavior.
@@ -155,7 +160,7 @@ Progress:
 ## Remaining Toolbox-Specific Checklist
 - [ ] Replace `MainWindow` callback-based `open_card_with_transition(...)` handoff with a toolbox navigation controller method that takes `tool_id + card_id` intent directly.
 - [x] Remove remaining toolbox->window widget-selection coupling used for card open (`SelectionRequestController.select_card_by_id(...)` path).
-- [ ] Formalize tool adapter interface (`get_actions_widget`, `get_content_widget`, `get_scope_snapshot`) and migrate Flowboard/Connections implementations.
+- [x] Formalize tool adapter interface (`get_actions_widget`, `get_content_widget`, `get_scope_snapshot`) and migrate Flowboard/Connections implementations.
 - [ ] Keep breadcrumb/tool action rows fixed while proving no tool-specific header logic remains in content widgets.
 
 ## Deferred To Global Plan

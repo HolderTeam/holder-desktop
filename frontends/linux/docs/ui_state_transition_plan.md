@@ -210,8 +210,8 @@ AppState
   - `src/controllers/app_transition.vala` sequence primitive exists and is wired for key navigation paths.
   - `MainController.show_project_overview()` already has serial stale checks.
 - Still risky:
-  - `MainWindow` remains orchestration-heavy with many direct signal fanouts.
-  - Selection changes still originate from widgets in multiple places.
+  - Full renderer-from-state is not complete across all panes.
+  - Selection still originates at widget edges (by design), but several async commit paths are still mixed between transition and domain controllers.
 
 ## Remaining Bypass Checklist
 - [x] `MainWindow.open_card_with_transition(...)` no longer mutates sidebar selection via `SelectionRequestController.select_card_by_id(...)`; it now delegates to intent flow that resolves from controller state snapshot.

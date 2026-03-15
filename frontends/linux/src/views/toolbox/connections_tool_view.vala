@@ -36,7 +36,7 @@ private class ConnectionsBoardEdge : Object {
     }
 }
 
-public class ConnectionsToolView : Object {
+public class ConnectionsToolView : Object, IToolShellAdapter {
     private const int BOARD_NODE_WIDTH = 220;
     private const int BOARD_NODE_HEIGHT = 76;
     private const int BOARD_PADDING = 48;
@@ -84,6 +84,12 @@ public class ConnectionsToolView : Object {
     private bool show_projects_root = false;
 
     public Gtk.Widget widget { get; private set; }
+    public string tool_id {
+        owned get { return "connections"; }
+    }
+    public string tool_label {
+        owned get { return "Connections"; }
+    }
 
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
@@ -98,8 +104,12 @@ public class ConnectionsToolView : Object {
         widget = build_connections_tab();
     }
 
-    public Gtk.Widget get_actions_widget() {
+    public Gtk.Widget? get_actions_widget() {
         return connections_actions_bar;
+    }
+
+    public Gtk.Widget get_content_widget() {
+        return widget;
     }
 
     public void set_api_client(IHolderApi? api) {
@@ -135,6 +145,55 @@ public class ConnectionsToolView : Object {
 
         refresh_connections_structure();
         queue_connections_graph_refresh();
+    }
+
+    public ToolScopeSnapshot get_scope_snapshot(Project? selected_project, CardSummary? selected_card) {
+        var project_id = selected_project != null ? selected_project.project_id : null;
+        var project_label = selected_project != null ? selected_project.name : "(none)";
+        var card_id = selected_card != null ? selected_card.card_id : null;
+        var card_label = selected_card != null ? selected_card.title : "Overview";
+
+        ToolScopeMode scope_mode = ToolScopeMode.CARD_FOCUS;
+        if (show_projects_root) {
+            scope_mode = ToolScopeMode.PROJECTS_ROOT;
+            project_id = null;
+            project_label = "Projects";
+            card_id = null;
+            card_label = "Overview";
+        } else if (selected_card == null) {
+            scope_mode = ToolScopeMode.PROJECT_ROOT;
+            card_id = null;
+            card_label = "Overview";
+        }
+
+        return new ToolScopeSnapshot(
+            tool_id,
+            tool_label,
+            project_id,
+            project_label,
+            card_id,
+            card_label,
+            scope_mode,
+            false
+        );
+    }
+
+    public async bool navigate_to_projects_root(string? selected_project_id) {
+        show_projects_root = true;
+        projects_root_requested();
+        refresh_connections_structure();
+        queue_connections_graph_refresh();
+        return true;
+    }
+
+    public async bool navigate_to_project_root(string project_id) {
+        focus_project_overview(project_id);
+        return true;
+    }
+
+    public async bool navigate_to_card(string card_id) {
+        card_open_requested(card_id);
+        return true;
     }
 
     private Gtk.Widget build_connections_tab() {

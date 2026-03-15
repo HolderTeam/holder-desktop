@@ -42,6 +42,7 @@ sources = [
   'src/views/adapters/recovery_dialog.vala',
   'src/views/toolbox.vala',
   'src/views/toolbox/tool_shell.vala',
+  'src/views/toolbox/tool_adapter.vala',
   'src/views/toolbox/connections_tool_view.vala',
   'src/views/toolbox/ai_catalog_tool_view.vala',
   'src/views/toolbox/debug_tool_view.vala',
