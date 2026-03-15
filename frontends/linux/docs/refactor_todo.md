@@ -46,6 +46,10 @@ It consolidates:
 Recent progress:
 - `CardsController.move_card_by_intent(...)` no longer triggers direct `load_selected_card.begin()` side effects after requesting selection.
 - `CardsController.move_card_to_trash(...)` now uses centralized `MainController.reload_cards_for_selected_project()` instead of inlined `card_selection_requested(null)` + `show_project_overview()` flow.
+- Card deselection now has a transition-owned project-overview path:
+  - `SelectionIntentController.on_card_selection(...)` now routes `card_id == null` to `SelectionTransitionController.run_project_overview_selection(...)`.
+  - `MainController.reload_everything_with_selection(...)` and `MainController.reload_cards_for_selected_project()` no longer directly call `show_project_overview()` after emitting `card_selection_requested(null)`.
+  - `MainWindow.request_project_selection(...)` and `MainWindow.request_card_selection(...)` now trigger selection intent orchestration so controller-driven requests follow the same transition gate as widget-driven requests.
 
 ## Toolbox-Specific Remaining Work
 - [ ] Add final toolbox-focused tests for atomic breadcrumb navigation:

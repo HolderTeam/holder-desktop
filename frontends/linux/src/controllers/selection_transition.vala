@@ -72,6 +72,22 @@ internal class SelectionTransitionController : Object {
         }
     }
 
+    public async void run_project_overview_selection(string project_id,
+                                                     MainController main_controller,
+                                                     FlowboardController flowboard_controller) {
+        var seq = begin_navigation("project-overview-selection", project_id, null, null);
+        try {
+            commit_selection(seq, project_id, null, null);
+            yield main_controller.show_project_overview();
+            if (!is_current(seq)) {
+                return;
+            }
+            flowboard_controller.refresh();
+        } finally {
+            finish_navigation_if_current(seq);
+        }
+    }
+
     public async void run_card_open_transition(string reason,
                                                string? pending_project_id,
                                                string pending_card_id,

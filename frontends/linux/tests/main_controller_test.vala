@@ -51,6 +51,7 @@ private HolderLinux.MainController make_controller(MainControllerFakeApi api,
     controller.card_selection_requested.connect((card_id) => {
         if (card_id == null || card_id.strip().length == 0) {
             card_selection.set_selected_index(uint.MAX);
+            controller.show_project_overview.begin();
             return;
         }
         for (uint i = 0; i < card_store.get_n_items(); i++) {

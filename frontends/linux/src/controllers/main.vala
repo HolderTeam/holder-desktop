@@ -339,7 +339,6 @@ public class MainController : Object, IAiRunContext {
                 }
             } else {
                 card_selection_requested(null);
-                yield show_project_overview();
             }
             ai_status_refresh_requested();
         } catch (Error e) {
@@ -353,7 +352,6 @@ public class MainController : Object, IAiRunContext {
             return;
         }
         card_selection_requested(null);
-        yield show_project_overview();
     }
 
     internal async bool reload_selected_project_cards_data() {

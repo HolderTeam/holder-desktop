@@ -45,10 +45,12 @@ internal class SelectionIntentOrchestrator : Object {
     public async void on_card_selection_changed() {
         var selected = card_selection.get_selected_item() as CardSummary;
         yield selection_intent_controller.on_card_selection(
-            selected != null ? selected.project_id : null,
+            selected != null ? selected.project_id : controller.selected_project_id(),
             selected != null ? selected.card_id : null,
             selection_transition_controller,
-            selection_controller
+            selection_controller,
+            controller,
+            flowboard_controller
         );
     }
 

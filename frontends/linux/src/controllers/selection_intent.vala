@@ -17,9 +17,18 @@ internal class SelectionIntentController : Object {
     public async void on_card_selection(string? project_id,
                                         string? card_id,
                                         SelectionTransitionController selection_transition_controller,
-                                        SelectionController selection_controller) {
-        if (project_id == null || project_id.strip().length == 0 ||
-            card_id == null || card_id.strip().length == 0) {
+                                        SelectionController selection_controller,
+                                        MainController main_controller,
+                                        FlowboardController flowboard_controller) {
+        if (project_id == null || project_id.strip().length == 0) {
+            return;
+        }
+        if (card_id == null || card_id.strip().length == 0) {
+            yield selection_transition_controller.run_project_overview_selection(
+                project_id,
+                main_controller,
+                flowboard_controller
+            );
             return;
         }
         yield selection_transition_controller.run_card_selection(
