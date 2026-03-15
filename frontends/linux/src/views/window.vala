@@ -275,6 +275,22 @@ private class WindowToolboxEventSink : Object, IToolboxEventSink {
     }
 }
 
+private class WindowFeedbackSink : Object, IWindowFeedbackSink {
+    private MainWindow owner;
+
+    public WindowFeedbackSink(MainWindow owner) {
+        this.owner = owner;
+    }
+
+    public void add_toast(string message) {
+        owner.add_toast(message);
+    }
+
+    public void show_error(string title_text, string details) {
+        owner.show_error(title_text, details);
+    }
+}
+
 public class MainWindow : Adw.ApplicationWindow {
     private delegate void StateApplyFunc();
 
@@ -322,6 +338,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private SelectionTransitionController selection_transition_controller;
     private ToolboxBreadcrumbController toolbox_breadcrumb_controller;
     private ToolboxEventOrchestrator toolbox_event_orchestrator;
+    private WindowFeedbackOrchestrator window_feedback_orchestrator;
     private ShareController share_controller;
     private CardAppendController card_append_controller;
     private RecoveryController recovery_controller;
@@ -518,6 +535,15 @@ public class MainWindow : Adw.ApplicationWindow {
             controller,
             new WindowToolboxEventSink(this)
         );
+        window_feedback_orchestrator = new WindowFeedbackOrchestrator(
+            find_replace_controller,
+            share_controller,
+            card_append_controller,
+            recovery_ui_controller,
+            recovery_dialog_adapter,
+            print_ui_controller,
+            new WindowFeedbackSink(this)
+        );
 
         sidebar = new SidebarPane(project_selection, card_selection, ai_thread_selection);
         sidebar.card_move_to_trash_requested.connect((card_id) => {
@@ -548,6 +574,7 @@ public class MainWindow : Adw.ApplicationWindow {
         main_controller_signal_binder.bind();
         ai_panel_event_orchestrator.bind();
         toolbox_event_orchestrator.bind();
+        window_feedback_orchestrator.bind();
         project_create_controller.error_reported.connect((title_text, details) => {
             show_error(title_text, details);
         });
@@ -715,37 +742,6 @@ public class MainWindow : Adw.ApplicationWindow {
             return navigate_internal_link_at_iter(cursor);
         });
         editor_view.add_controller(internal_link_key);
-
-        find_replace_controller.toast_requested.connect((message) => {
-            add_toast(message);
-        });
-        find_replace_controller.error_reported.connect((title_text, details) => {
-            show_error(title_text, details);
-        });
-        share_controller.toast_requested.connect((message) => {
-            add_toast(message);
-        });
-        share_controller.error_reported.connect((title_text, details) => {
-            show_error(title_text, details);
-        });
-        card_append_controller.toast_requested.connect((message) => {
-            add_toast(message);
-        });
-        recovery_ui_controller.toast_requested.connect((message) => {
-            add_toast(message);
-        });
-        recovery_ui_controller.error_reported.connect((title_text, details) => {
-            show_error(title_text, details);
-        });
-        recovery_dialog_adapter.error_reported.connect((title_text, details) => {
-            show_error(title_text, details);
-        });
-        print_ui_controller.toast_requested.connect((message) => {
-            add_toast(message);
-        });
-        print_ui_controller.error_reported.connect((title_text, details) => {
-            show_error(title_text, details);
-        });
 
         toolbox.set_settings(settings);
         toolbox.bind_connections_context(project_selection, card_store, card_selection);
