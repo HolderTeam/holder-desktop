@@ -61,6 +61,12 @@ Recent progress:
 - Toolbox breadcrumb project navigation now uses the selection intent gate:
   - `ToolboxBreadcrumbController` no longer drives `SelectionTransitionController`/`SelectionController` directly for segment-1 project navigation.
   - It now delegates project navigation to `SelectionIntentOrchestrator.on_project_selection_requested(...)`, keeping breadcrumb navigation on the same selection-intent path as other navigation entry points.
+- Transition stale-drop behavior is now locked at the transition-owner layer:
+  - Added `tests/app_transition_test.vala` and `holder-linux-app-transition-tests`.
+  - Covers current-vs-stale behavior for `begin(...)`, `commit_selection(...)`, and `finish(...)`.
+- Selection-transition stale/drop + loading-signal behavior is now covered:
+  - Added `tests/selection_transition_test.vala` and `holder-linux-selection-transition-tests`.
+  - Covers `begin_navigation(...)` loading signal, stale-safe `finish_navigation_if_current(...)`, and stale-safe `commit_selection(...)`.
 
 ## Toolbox-Specific Remaining Work
 - [ ] Add final toolbox-focused tests for atomic breadcrumb navigation:

@@ -1174,7 +1174,7 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void on_flowboard_project_overview_requested(string project_id) {
-        selection_intent_orchestrator.on_flowboard_project_overview.begin(project_id);
+        selection_intent_orchestrator.on_project_selection_requested.begin(project_id);
     }
 
     internal void on_flowboard_context_load_requested(string project_id, string? parent_card_id) {
