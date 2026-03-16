@@ -1,6 +1,17 @@
 namespace HolderLinux {
 
 public class AiPanel : Object {
+    private class AiPanelRenderState : Object {
+        public string thread_title = "Thread: none selected";
+        public bool send_enabled = true;
+        public string summary = "Not loaded";
+        public string models = "";
+        public string recommended = "";
+        public Gee.ArrayList<string> recommended_models = new Gee.ArrayList<string>();
+        public string runtime = "";
+        public string pulls = "";
+    }
+
     private Gtk.Label ai_summary_label;
     private Gtk.Label ai_models_label;
     private Gtk.Label ai_recommended_label;
@@ -12,6 +23,7 @@ public class AiPanel : Object {
     private Gtk.Label ai_assistant_thread_label;
     private Gtk.Button send_btn;
     private AiCatalogPanelView ai_catalog_panel;
+    private AiPanelRenderState render_state;
 
     public Gtk.Widget widget { get; private set; }
 
@@ -23,6 +35,7 @@ public class AiPanel : Object {
     public signal void debug_log_requested(string line);
 
     public AiPanel() {
+        render_state = new AiPanelRenderState();
         ai_catalog_panel = new AiCatalogPanelView();
         ai_catalog_panel.error_reported.connect((title, details) => {
             error_reported(title, details);
@@ -31,6 +44,7 @@ public class AiPanel : Object {
             debug_log_requested(line);
         });
         widget = build_ui();
+        apply_render_state();
     }
 
     public void set_api_client(IHolderApi? api) {
@@ -43,10 +57,12 @@ public class AiPanel : Object {
 
     public void set_thread_title(string? title) {
         if (title == null || title.strip().length == 0) {
-            ai_assistant_thread_label.set_text("Thread: none selected");
+            render_state.thread_title = "Thread: none selected";
+            apply_render_state();
             return;
         }
-        ai_assistant_thread_label.set_text("Thread: %s".printf(title));
+        render_state.thread_title = "Thread: %s".printf(title);
+        apply_render_state();
     }
 
     public string get_prompt_text() {
@@ -62,7 +78,8 @@ public class AiPanel : Object {
     }
 
     public void set_send_enabled(bool enabled) {
-        send_btn.set_sensitive(enabled);
+        render_state.send_enabled = enabled;
+        apply_render_state();
     }
 
     public void append_output(string role, string text) {
@@ -81,44 +98,41 @@ public class AiPanel : Object {
     }
 
     public void render_status(AiCapabilitiesInfo capabilities, AiStatusInfo status) {
-        ai_summary_label.set_text(
-            "Runner: %s | Caste: %s | Version: %s".printf(
-                capabilities.runner_available ? "available" : "unavailable",
-                capabilities.caste_name.length > 0 ? capabilities.caste_name : "unknown",
-                capabilities.runner_version.length > 0 ? capabilities.runner_version : "unknown"
-            )
+        render_state.summary = "Runner: %s | Caste: %s | Version: %s".printf(
+            capabilities.runner_available ? "available" : "unavailable",
+            capabilities.caste_name.length > 0 ? capabilities.caste_name : "unknown",
+            capabilities.runner_version.length > 0 ? capabilities.runner_version : "unknown"
         );
         if (capabilities.runner_error.length > 0) {
-            ai_summary_label.set_text(ai_summary_label.get_text() + "\nError: " + capabilities.runner_error);
+            render_state.summary += "\nError: " + capabilities.runner_error;
         }
 
-        ai_models_label.set_text(
-            "Installed models (%d): %s".printf(
-                capabilities.models.size,
-                join_list(capabilities.models)
-            )
+        render_state.models = "Installed models (%d): %s".printf(
+            capabilities.models.size,
+            join_list(capabilities.models)
         );
-        ai_recommended_label.set_text(
-            "Recommended install: %s".printf(join_list(capabilities.recommended_install))
+        render_state.recommended = "Recommended install: %s".printf(join_list(capabilities.recommended_install));
+        render_state.recommended_models = new Gee.ArrayList<string>();
+        foreach (var model in capabilities.recommended_install) {
+            render_state.recommended_models.add(model);
+        }
+        render_state.runtime = "Active runs: %lld | Active pulls: %lld | Cloud providers configured: %lld".printf(
+            status.active_runs,
+            status.active_pull_jobs,
+            status.cloud_configured_providers
         );
-        rebuild_recommended_pull_buttons(capabilities.recommended_install);
-        ai_runtime_label.set_text(
-            "Active runs: %lld | Active pulls: %lld | Cloud providers configured: %lld".printf(
-                status.active_runs,
-                status.active_pull_jobs,
-                status.cloud_configured_providers
-            )
-        );
-        ai_pulls_label.set_text("Pull jobs: %s".printf(join_list(status.pull_jobs)));
+        render_state.pulls = "Pull jobs: %s".printf(join_list(status.pull_jobs));
+        apply_render_state();
     }
 
     public void render_status_error(string message) {
-        ai_summary_label.set_text("AI status unavailable");
-        ai_models_label.set_text("");
-        ai_recommended_label.set_text("");
-        ai_runtime_label.set_text(message);
-        ai_pulls_label.set_text("");
-        rebuild_recommended_pull_buttons(new Gee.ArrayList<string>());
+        render_state.summary = "AI status unavailable";
+        render_state.models = "";
+        render_state.recommended = "";
+        render_state.recommended_models = new Gee.ArrayList<string>();
+        render_state.runtime = message;
+        render_state.pulls = "";
+        apply_render_state();
     }
 
     private Gtk.Widget build_ui() {
@@ -245,6 +259,17 @@ public class AiPanel : Object {
             });
             ai_recommended_buttons_box.append(btn);
         }
+    }
+
+    private void apply_render_state() {
+        ai_assistant_thread_label.set_text(render_state.thread_title);
+        send_btn.set_sensitive(render_state.send_enabled);
+        ai_summary_label.set_text(render_state.summary);
+        ai_models_label.set_text(render_state.models);
+        ai_recommended_label.set_text(render_state.recommended);
+        ai_runtime_label.set_text(render_state.runtime);
+        ai_pulls_label.set_text(render_state.pulls);
+        rebuild_recommended_pull_buttons(render_state.recommended_models);
     }
 
     private string join_list(Gee.ArrayList<string> values) {

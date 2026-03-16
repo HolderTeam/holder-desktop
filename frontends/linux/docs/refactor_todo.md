@@ -32,7 +32,8 @@ It consolidates:
   - [x] Consolidated editor/title/mode/search-summary/AI-thread-title rendering behind `MainWindow.apply_editor_from_state()` with staged `EditorRenderState`; mutators now update state then commit through that single path (`src/views/window.vala`).
 - [x] Toolbox fully render-from-state (single committed apply path).
   - [x] Consolidated toolbox shell rendering behind `ToolboxPane.apply_shell_state()` (actions row + header breadcrumbs + loading indicator), replacing scattered direct refresh/set calls across selection/tool-change/navigation-loading paths (`src/views/toolbox.vala`).
-- [ ] AI panel fully render-from-state (single committed apply path).
+- [x] AI panel fully render-from-state (single committed apply path).
+  - [x] Consolidated AI panel status/thread/send-enabled rendering behind staged `AiPanelRenderState` + `AiPanel.apply_render_state()`; panel mutators now update staged state then apply through the single path (`src/views/ai_panel.vala`).
 - [ ] Remove remaining mixed ownership where transitions and domain controllers both commit UI-affecting state.
 
 ## In Progress: Transition Ownership Cleanup
