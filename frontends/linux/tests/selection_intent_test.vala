@@ -70,7 +70,8 @@ internal class SelectionTransitionController : Object {
 
     public async void run_card_selection(string project_id,
                                          string card_id,
-                                         SelectionController selection_controller) {
+                                         SelectionController selection_controller,
+                                         FlowboardController flowboard_controller) {
         run_card_selection_calls++;
         last_card_selection_project_id = project_id;
         last_card_selection_card_id = card_id;
@@ -91,7 +92,8 @@ internal class SelectionTransitionController : Object {
                                                string? card_id,
                                                string selected_project_id,
                                                string selected_card_id,
-                                               SelectionController selection_controller) {
+                                               SelectionController selection_controller,
+                                               FlowboardController flowboard_controller) {
         run_card_open_transition_calls++;
         last_open_reason = reason;
         last_open_requested_project_id = project_id;
@@ -230,6 +232,7 @@ private void test_search_activation_routes_through_card_open_transition() {
     var intents = new HolderLinux.SelectionIntentController();
     var transitions = new HolderLinux.SelectionTransitionController();
     var selection = new HolderLinux.SelectionController();
+    var flowboard = new HolderLinux.FlowboardController();
     var controller = new HolderLinux.MainController();
     controller.selected_project_id_value = "p-current";
     controller.prepared_search_card_id = "c2";
@@ -243,6 +246,7 @@ private void test_search_activation_routes_through_card_open_transition() {
         },
         transitions,
         selection,
+        flowboard,
         (obj, res) => {
             intents.on_search_result_activation.end(res);
             done = true;
@@ -262,6 +266,7 @@ private void test_open_card_with_transition_routes_through_card_open_transition(
     var intents = new HolderLinux.SelectionIntentController();
     var transitions = new HolderLinux.SelectionTransitionController();
     var selection = new HolderLinux.SelectionController();
+    var flowboard = new HolderLinux.FlowboardController();
     var controller = new HolderLinux.MainController();
 
     bool done = false;
@@ -274,6 +279,7 @@ private void test_open_card_with_transition_routes_through_card_open_transition(
         },
         transitions,
         selection,
+        flowboard,
         (obj, res) => {
             intents.open_card_with_transition.end(res);
             done = true;
@@ -293,6 +299,7 @@ private void test_open_card_with_transition_ignores_unknown_card() {
     var intents = new HolderLinux.SelectionIntentController();
     var transitions = new HolderLinux.SelectionTransitionController();
     var selection = new HolderLinux.SelectionController();
+    var flowboard = new HolderLinux.FlowboardController();
     var controller = new HolderLinux.MainController();
 
     bool done = false;
@@ -305,6 +312,7 @@ private void test_open_card_with_transition_ignores_unknown_card() {
         },
         transitions,
         selection,
+        flowboard,
         (obj, res) => {
             intents.open_card_with_transition.end(res);
             done = true;

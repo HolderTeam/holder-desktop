@@ -28,6 +28,7 @@ public class MainController : Object, IAiRunContext {
     internal uint card_loading_status_id = 0;
     internal uint project_cards_loading_status_id = 0;
     private uint project_overview_request_serial = 0;
+    private bool reconnect_in_flight = false;
 
     private ProjectsController projects_controller;
     private CardsController cards_controller;
@@ -293,7 +294,8 @@ public class MainController : Object, IAiRunContext {
     }
 
     internal async void reload_everything_with_selection(string? preferred_project_id,
-                                                         string? preferred_card_id) {
+                                                         string? preferred_card_id,
+                                                         bool allow_retry = true) {
         if (api == null) {
             return;
         }
@@ -338,6 +340,10 @@ public class MainController : Object, IAiRunContext {
             }
             ai_status_refresh_requested();
         } catch (Error e) {
+            if (allow_retry && (yield try_reconnect_after_transport_error(e))) {
+                yield reload_everything_with_selection(preferred_project_id, preferred_card_id, false);
+                return;
+            }
             error_reported("Failed to refresh", e.message);
         }
     }
@@ -350,7 +356,7 @@ public class MainController : Object, IAiRunContext {
         card_selection_requested(null);
     }
 
-    internal async bool reload_selected_project_cards_data() {
+    internal async bool reload_selected_project_cards_data(bool allow_retry = true) {
         if (api == null) {
             return false;
         }
@@ -401,6 +407,9 @@ public class MainController : Object, IAiRunContext {
             if (latest_selected == null || latest_selected.project_id != requested_project_id) {
                 return false;
             }
+            if (allow_retry && (yield try_reconnect_after_transport_error(e))) {
+                return yield reload_selected_project_cards_data(false);
+            }
             error_reported("Failed to load cards", e.message);
             return false;
         }
@@ -438,7 +447,7 @@ public class MainController : Object, IAiRunContext {
         return dt.format("%Y-%m-%d %H:%M");
     }
 
-    internal async void load_card_by_id(string requested_card_id) {
+    internal async void load_card_by_id(string requested_card_id, bool allow_retry = true) {
         if (api == null) {
             return;
         }
@@ -476,8 +485,56 @@ public class MainController : Object, IAiRunContext {
             if (selected_card_id() != requested_card_id) {
                 return;
             }
+            if (allow_retry && (yield try_reconnect_after_transport_error(e))) {
+                yield load_card_by_id(requested_card_id, false);
+                return;
+            }
             status_changed("Failed to load card.");
             error_reported("Failed to load card", e.message);
+        }
+    }
+
+    private bool is_transport_error_message(string message) {
+        var lower = message.down();
+        return lower.contains("connection")
+            || lower.contains("connect")
+            || lower.contains("refused")
+            || lower.contains("timed out")
+            || lower.contains("socket")
+            || lower.contains("network")
+            || lower.contains("http 401")
+            || lower.contains("unauthorized")
+            || lower.contains("could not resolve")
+            || lower.contains("unreachable");
+    }
+
+    private async bool try_reconnect_after_transport_error(Error e) {
+        if (!is_transport_error_message(e.message)) {
+            return false;
+        }
+        if (reconnect_in_flight) {
+            return false;
+        }
+        reconnect_in_flight = true;
+        try {
+            status_changed("Reconnecting to backend...");
+            var info = server_discovery.discover_server();
+            api = api_factory.create(info.base_url(), info.auth_token);
+            api_client_ready(api);
+            try {
+                yield ((!) api).health_check();
+            } catch (Error health_error) {
+                warning("Reconnect health-check failed: %s", health_error.message);
+                return false;
+            }
+            status_changed("Reconnected to %s:%d".printf(info.bind, info.port));
+            ai_status_refresh_requested();
+            return true;
+        } catch (Error reconnect_error) {
+            warning("Reconnect failed: %s", reconnect_error.message);
+            return false;
+        } finally {
+            reconnect_in_flight = false;
         }
     }
 
@@ -571,6 +628,9 @@ public class MainController : Object, IAiRunContext {
         card_store.remove_all();
         foreach (var card in updated_cards) {
             card_store.append(card);
+        }
+        if (explorer_state_sink != null) {
+            ((!) explorer_state_sink).replace_cards_snapshot(updated_cards);
         }
         if (selected_card_id != null) {
             card_selection_requested(selected_card_id);

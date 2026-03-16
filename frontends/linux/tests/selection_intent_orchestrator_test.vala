@@ -122,7 +122,8 @@ internal class SelectionIntentController : Object {
                                                   MainController controller,
                                                   owned CardSummaryResolver resolve_card_summary_by_id,
                                                   SelectionTransitionController transition,
-                                                  SelectionController selection) {
+                                                  SelectionController selection,
+                                                  FlowboardController flowboard) {
         on_search_result_activation_calls++;
         last_search_activation_position = position;
         resolved_search_card = resolve_card_summary_by_id("c-search");
@@ -133,7 +134,8 @@ internal class SelectionIntentController : Object {
                                                 MainController controller,
                                                 owned CardSummaryResolver resolve_card_summary_by_id,
                                                 SelectionTransitionController transition,
-                                                SelectionController selection) {
+                                                SelectionController selection,
+                                                FlowboardController flowboard) {
         open_card_with_transition_calls++;
         last_open_card_id = card_id;
         last_open_card_reason = reason;

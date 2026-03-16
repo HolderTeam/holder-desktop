@@ -59,7 +59,8 @@ internal class SelectionTransitionController : Object {
 
     public async void run_card_selection(string project_id,
                                          string card_id,
-                                         SelectionController selection_controller) {
+                                         SelectionController selection_controller,
+                                         FlowboardController flowboard_controller) {
         var seq = begin_navigation("card-selection", project_id, card_id, null);
         try {
             commit_selection(seq, project_id, card_id, null);
@@ -67,6 +68,7 @@ internal class SelectionTransitionController : Object {
             if (!is_current(seq)) {
                 return;
             }
+            flowboard_controller.refresh();
         } finally {
             finish_navigation_if_current(seq);
         }
@@ -93,7 +95,8 @@ internal class SelectionTransitionController : Object {
                                                string pending_card_id,
                                                string selected_project_id,
                                                string selected_card_id,
-                                               SelectionController selection_controller) {
+                                               SelectionController selection_controller,
+                                               FlowboardController flowboard_controller) {
         var seq = begin_navigation(
             reason,
             pending_project_id,
@@ -111,6 +114,7 @@ internal class SelectionTransitionController : Object {
             if (!is_current(seq)) {
                 return;
             }
+            flowboard_controller.refresh();
         } finally {
             finish_navigation_if_current(seq);
         }

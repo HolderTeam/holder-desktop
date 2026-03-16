@@ -77,7 +77,8 @@ internal class SelectionIntentOrchestrator : Object {
             controller,
             resolve_card_summary_by_id,
             selection_transition_controller,
-            selection_controller
+            selection_controller,
+            flowboard_controller
         );
     }
 
@@ -105,7 +106,8 @@ internal class SelectionIntentOrchestrator : Object {
             controller,
             resolve_card_summary_by_id,
             selection_transition_controller,
-            selection_controller
+            selection_controller,
+            flowboard_controller
         );
     }
 

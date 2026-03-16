@@ -330,10 +330,13 @@ public class FlowboardController : Object {
         visible_tiles.remove_all();
         for (int i = 0; i < cards.size; i++) {
             var card = cards[i];
+            var live = find_card(card.card_id);
+            var title = live != null ? live.title : card.title;
+            var updated_at = live != null ? live.updated_at : card.updated_at;
             visible_tiles.append(new FlowboardTile(
                 "card:%s".printf(card.card_id),
-                card.title,
-                card.updated_at,
+                title,
+                updated_at,
                 card.child_count > 0,
                 card.card_id,
                 null,

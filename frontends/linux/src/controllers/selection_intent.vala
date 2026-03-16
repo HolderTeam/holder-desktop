@@ -34,7 +34,8 @@ internal class SelectionIntentController : Object {
         yield selection_transition_controller.run_card_selection(
             project_id,
             card_id,
-            selection_controller
+            selection_controller,
+            flowboard_controller
         );
     }
 
@@ -55,7 +56,8 @@ internal class SelectionIntentController : Object {
                                                   MainController controller,
                                                   CardSummaryResolver resolve_card_summary,
                                                   SelectionTransitionController selection_transition_controller,
-                                                  SelectionController selection_controller) {
+                                                  SelectionController selection_controller,
+                                                  FlowboardController flowboard_controller) {
         var target_card_id = yield controller.prepare_search_result_card_at(position);
         if (target_card_id == null || target_card_id.strip().length == 0) {
             return;
@@ -70,7 +72,8 @@ internal class SelectionIntentController : Object {
             target_card_id,
             selected_card.project_id,
             selected_card.card_id,
-            selection_controller
+            selection_controller,
+            flowboard_controller
         );
     }
 
@@ -79,7 +82,8 @@ internal class SelectionIntentController : Object {
                                                 MainController controller,
                                                 CardSummaryResolver resolve_card_summary,
                                                 SelectionTransitionController selection_transition_controller,
-                                                SelectionController selection_controller) {
+                                                SelectionController selection_controller,
+                                                FlowboardController flowboard_controller) {
         var selected_card = resolve_card_summary(card_id);
         if (selected_card == null) {
             return;
@@ -90,7 +94,8 @@ internal class SelectionIntentController : Object {
             selected_card.card_id,
             selected_card.project_id,
             selected_card.card_id,
-            selection_controller
+            selection_controller,
+            flowboard_controller
         );
     }
 }

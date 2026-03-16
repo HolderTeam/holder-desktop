@@ -843,6 +843,28 @@ public class MainWindow : Adw.ApplicationWindow {
 
     private void apply_sidebar_from_state() {
         var snapshot = app_state_store.selection;
+        var transition = app_state_store.transition;
+        string? effective_project_id = snapshot.project_id;
+        string? effective_card_id = snapshot.card_id;
+        string? effective_ai_thread_id = snapshot.ai_thread_id;
+        if (transition.in_flight) {
+            if (transition.pending_selection.project_id != null) {
+                effective_project_id = transition.pending_selection.project_id;
+            } else {
+                var live_project = project_selection.get_selected_item() as Project;
+                if (live_project != null) {
+                    effective_project_id = live_project.project_id;
+                }
+            }
+            if (transition.pending_selection.project_id != null
+                || transition.pending_selection.card_id != null) {
+                effective_card_id = transition.pending_selection.card_id;
+            }
+            if (transition.pending_selection.ai_thread_id != null
+                || transition.pending_selection.project_id != null) {
+                effective_ai_thread_id = transition.pending_selection.ai_thread_id;
+            }
+        }
         with_state_apply(() => {
             if (rendered_sidebar_data_version != app_state_store.data_version) {
                 sidebar_data_renderer.apply(
@@ -853,9 +875,9 @@ public class MainWindow : Adw.ApplicationWindow {
                 rendered_sidebar_data_version = app_state_store.data_version;
             }
             sidebar_selection_renderer.apply_from_snapshot(
-                snapshot.project_id,
-                snapshot.card_id,
-                snapshot.ai_thread_id
+                effective_project_id,
+                effective_card_id,
+                effective_ai_thread_id
             );
         });
     }

@@ -7,11 +7,11 @@ It consolidates:
 - `toolbox_shell_refactor.md`
 
 ## Guiding Rules (non-negotiable)
-- [ ] Views emit intents; no business logic in views.
-- [ ] One owner per async flow; no competing orchestrators.
-- [ ] App state is source of truth; UI renders from committed state.
-- [ ] No valid-to-valid clear/refill flicker.
-- [ ] Sequence-guard async transitions; stale responses are dropped.
+- [x] Views emit intents; no business logic in views.
+- [x] One owner per async flow; no competing orchestrators.
+- [x] App state is source of truth; UI renders from committed state.
+- [x] No valid-to-valid clear/refill flicker.
+- [x] Sequence-guard async transitions; stale responses are dropped.
 
 ## Completed Foundation
 - [x] Global transition primitives added:
@@ -109,7 +109,7 @@ It consolidates:
 
 ## Acceptance Criteria for This Refactor
 - [x] All major navigation flows are intent -> transition gate -> commit -> render.
-- [ ] No visible valid-to-valid flicker in sidebar/editor/toolbox/AI panel.
+- [x] No visible valid-to-valid flicker in sidebar/editor/toolbox/AI panel.
 - [x] No stale async overwrite of newer committed selection/scope.
 - [x] Toolbox shell behavior is consistent across project-scoped tools.
 - [x] Transition and rendering behavior is locked by focused tests.
@@ -117,3 +117,7 @@ It consolidates:
 ## Notes
 - This TODO tracks active work only.
 - Historical implementation detail remains in the original three docs.
+- Final flicker hardening included:
+  - debounced loading status in card/project loads (`src/controllers/main.vala`)
+  - committed-content retention in flowboard/resources/trash/connections/AI failure and transient-selection paths
+  - Connections breadcrumb transient-null selection guard to avoid placeholder flash (`src/views/toolbox/connections_tool_view.vala`)
