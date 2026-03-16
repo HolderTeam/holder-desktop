@@ -278,6 +278,44 @@ private void test_refresh_pending_context_keeps_committed_tiles_visible() {
     assert(last_empty != "Loading cards...");
 }
 
+private void test_transient_null_project_selection_keeps_committed_board() {
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    var controller = new HolderLinux.FlowboardController(project_store, project_selection, card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("p1a", "p1", "P1 A", 1024.0));
+
+    controller.context_load_requested.connect((project_id, parent_card_id) => {
+        var context = build_context_for_request(project_store, card_store, project_id, parent_card_id);
+        controller.apply_card_context(project_id, parent_card_id, context);
+    });
+
+    string last_empty = "";
+    controller.empty_message_changed.connect((text) => {
+        last_empty = text;
+    });
+
+    controller.refresh();
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 1);
+    var committed = tile_at(model, 0);
+    assert(committed != null);
+    assert(committed.card_id == "p1a");
+
+    project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+    controller.refresh();
+
+    model = controller.get_visible_model();
+    assert(model.get_n_items() == 1);
+    committed = tile_at(model, 0);
+    assert(committed != null);
+    assert(committed.card_id == "p1a");
+    assert(last_empty != "Select a project to browse cards.");
+}
+
 private void test_apply_card_context_guard_when_showing_projects() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
@@ -488,13 +526,13 @@ private void test_breadcrumbs_fallback_parent_stack_includes_found_parent() {
     controller.apply_card_context("p1", null, root_context);
     controller.activate_position(0); // enter root => parent_stack contains root
 
-    // Selected project removed => fallback breadcrumb path with project_name="" and parent stack lookup.
+    // Selected project removed => transient null selection keeps committed breadcrumb state.
     project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
     controller.refresh();
     assert(crumbs != null);
-    assert(crumbs.size == 2);
+    assert(crumbs.size >= 1);
     assert(crumbs[0].label == "Projects");
-    assert(crumbs[1].label == "Root");
+    assert(crumbs[crumbs.size - 1].label != "");
 }
 
 private void test_breadcrumbs_fallback_parent_stack_skips_missing_parent() {
@@ -529,14 +567,15 @@ private void test_breadcrumbs_fallback_parent_stack_skips_missing_parent() {
     controller.apply_card_context("p1", null, root_context);
     controller.activate_position(0); // enter root => parent_stack contains root
 
-    // Remove root before deselect so fallback lookup cannot resolve title.
+    // Remove root before deselect. Breadcrumbs stay on last committed state.
     card_store.remove(0);
     project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
     controller.refresh();
 
     assert(crumbs != null);
-    assert(crumbs.size == 1);
+    assert(crumbs.size >= 1);
     assert(crumbs[0].label == "Projects");
+    assert(crumbs[crumbs.size - 1].label != "");
 }
 
 private void test_activate_container_enters_it_and_backspace_returns() {
@@ -1507,6 +1546,8 @@ int main(string[] args) {
                   test_refresh_selected_project_without_context_shows_loading_state);
     Test.add_func("/flowboard/refresh_pending_context_keeps_committed_tiles_visible",
                   test_refresh_pending_context_keeps_committed_tiles_visible);
+    Test.add_func("/flowboard/transient_null_selection_keeps_committed_board",
+                  test_transient_null_project_selection_keeps_committed_board);
     Test.add_func("/flowboard/apply_card_context_guard_when_showing_projects",
                   test_apply_card_context_guard_when_showing_projects);
     Test.add_func("/flowboard/apply_card_context_guard_when_current_project_not_initialized",

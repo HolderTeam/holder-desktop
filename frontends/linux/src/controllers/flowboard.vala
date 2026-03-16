@@ -61,6 +61,11 @@ public class FlowboardController : Object {
         }
 
         if (selected_project == null) {
+            // During valid-to-valid navigation, Gtk selection can be transiently null.
+            // Keep committed board state instead of flashing placeholder content.
+            if (current_project_id != null) {
+                return;
+            }
             visible_tiles.remove_all();
             breadcrumb_segments_changed(build_breadcrumb_segments());
             empty_message_changed("Select a project to browse cards.");

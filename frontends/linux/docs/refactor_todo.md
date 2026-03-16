@@ -69,7 +69,7 @@ It consolidates:
 ## Toolbox-Specific Remaining Work
 - [ ] Add final toolbox-focused tests for atomic breadcrumb navigation:
   - [x] breadcrumb segment routing semantics covered (`tests/toolbox_breadcrumb_controller_test.vala`)
-  - [ ] no intermediate blank/placeholder states on valid-to-valid transitions
+  - [x] no intermediate blank/placeholder states on valid-to-valid transitions (`src/controllers/flowboard.vala`, `tests/flowboard_controller_test.vala`)
   - [x] stale navigation responses cannot overwrite latest scope (`src/controllers/toolbox_breadcrumb.vala`, `tests/toolbox_breadcrumb_controller_test.vala`)
   - [x] fixed action row remains stable while content updates (`tests/tool_shell_test.vala`)
 
