@@ -2,6 +2,8 @@ using GLib;
 
 namespace HolderLinuxTests {
 
+public delegate void ListCardsBeforeCompleteHook(string project_id);
+
 public class FakeClock : Object, HolderLinux.IClock {
     public int64 now_value = 1000;
 
@@ -110,6 +112,11 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_get_card = false;
     public bool slow_get_card = false;
     public bool fail_list_cards = false;
+    public bool fail_list_cards_first = false;
+    public bool slow_list_cards_first = false;
+    public bool fail_list_cards_once = false;
+    public bool slow_list_cards_once = false;
+    public string fail_list_cards_for_project_id = "";
     public bool fail_set_project_git_remote = false;
     public bool fail_test_project_git_remote = false;
     public bool fail_push_project_git = false;
@@ -123,6 +130,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_delete_card_link = false;
     public string test_project_git_remote_status = "reachable";
     private int list_projects_index = 0;
+    private int list_cards_index = 0;
     public string last_resource_project_id = "";
     public string last_resource_kind = "";
     public string last_resource_uri = "";
@@ -149,6 +157,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public Gee.ArrayList<HolderLinux.CardLink> card_links = new Gee.ArrayList<HolderLinux.CardLink>();
     public Gee.ArrayList<HolderLinux.CardLink> card_backlinks = new Gee.ArrayList<HolderLinux.CardLink>();
     public Gee.ArrayList<HolderLinux.TrashItem> trash_items = new Gee.ArrayList<HolderLinux.TrashItem>();
+    public ListCardsBeforeCompleteHook? list_cards_before_complete_hook = null;
 
     public async void health_check() throws Error {
         if (fail_health) {
@@ -223,10 +232,39 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                                                     string view = "tree",
                                                                     string? parent_card_id = null,
                                                                     int limit = 0) throws Error {
+        list_cards_calls++;
+        list_cards_index++;
+        if (slow_list_cards_once) {
+            slow_list_cards_once = false;
+            var end = GLib.get_monotonic_time() + 50 * 1000;
+            while (GLib.get_monotonic_time() < end) {
+                while (MainContext.default().iteration(false)) {}
+                Thread.usleep(1000);
+            }
+        } else if (slow_list_cards_first && list_cards_index == 1) {
+            var end = GLib.get_monotonic_time() + 50 * 1000;
+            while (GLib.get_monotonic_time() < end) {
+                while (MainContext.default().iteration(false)) {}
+                Thread.usleep(1000);
+            }
+        }
+        if (list_cards_before_complete_hook != null) {
+            ((!) list_cards_before_complete_hook)(project_id);
+        }
+        if (fail_list_cards_for_project_id != ""
+            && project_id == fail_list_cards_for_project_id) {
+            throw new IOError.FAILED("list cards failed");
+        }
+        if (fail_list_cards_once) {
+            fail_list_cards_once = false;
+            throw new IOError.FAILED("list cards failed");
+        }
+        if (fail_list_cards_first && list_cards_index == 1) {
+            throw new IOError.FAILED("list cards failed");
+        }
         if (fail_list_cards) {
             throw new IOError.FAILED("list cards failed");
         }
-        list_cards_calls++;
         var cards = new Gee.ArrayList<HolderLinux.CardSummary>();
         if (list_cards_empty) {
             return cards;

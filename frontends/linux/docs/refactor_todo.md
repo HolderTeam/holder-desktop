@@ -63,13 +63,16 @@ It consolidates:
 - [ ] Transition stale-drop tests:
   - [x] `AppTransitionController`: stale-safe `commit_selection(...)` and `finish(...)` covered (`tests/app_transition_test.vala`)
   - [x] `SelectionTransitionController`: stale-safe `commit_selection(...)` and `finish_navigation_if_current(...)`, plus loading signal coverage (`tests/selection_transition_test.vala`)
-  - [ ] Add explicit late-response drop coverage for full project/card/tool transition flows.
+  - [x] Add explicit late-response drop coverage for full project/card/tool transition flows.
+    - [x] project flow: stale list-cards success/failure ignored (`tests/main_controller_test.vala`)
+    - [x] card flow: stale load-selected-card success/failure ignored (`tests/main_controller_test.vala`)
+    - [x] tool flow: stale serial refresh success/error ignored (`tests/trash_controller_test.vala`)
 - [x] No-intermediate-empty tests:
   - [x] card A -> card B does not render `No card selected` (`tests/main_controller_test.vala`)
   - [x] project P1 -> P2 does not clear to placeholder first (`tests/main_controller_test.vala`)
-- [ ] Failed-transition retention tests:
-  - previous committed content remains visible on failure
-  - error/toast emitted without destructive UI reset
+- [x] Failed-transition retention tests:
+  - [x] previous committed content remains visible on failure (`tests/main_controller_test.vala`)
+  - [x] error/toast emitted without destructive UI reset (`tests/main_controller_test.vala`)
 
 ## Cleanup / Debt
 - [ ] Remove obsolete comments/docs referring to pre-orchestrator paths.

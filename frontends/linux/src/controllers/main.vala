@@ -385,6 +385,10 @@ public class MainController : Object, IAiRunContext {
 
         try {
             var cards = yield api.list_cards(selected.project_id, "recent");
+            var latest_selected = project_selection.get_selected_item() as Project;
+            if (latest_selected == null || latest_selected.project_id != requested_project_id) {
+                return false;
+            }
             if (project_cards_loading_status_id != 0) {
                 scheduler.cancel(project_cards_loading_status_id);
                 project_cards_loading_status_id = 0;
@@ -396,6 +400,10 @@ public class MainController : Object, IAiRunContext {
             if (project_cards_loading_status_id != 0) {
                 scheduler.cancel(project_cards_loading_status_id);
                 project_cards_loading_status_id = 0;
+            }
+            var latest_selected = project_selection.get_selected_item() as Project;
+            if (latest_selected == null || latest_selected.project_id != requested_project_id) {
+                return false;
             }
             error_reported("Failed to load cards", e.message);
             return false;
@@ -480,10 +488,7 @@ public class MainController : Object, IAiRunContext {
             if (selected_card_id() != requested_card_id) {
                 return;
             }
-            editor_state_changed(
-                "# Error\n\nFailed to load card `%s`.\n\n%s".printf(requested_card_id, e.message),
-                false
-            );
+            status_changed("Failed to load card.");
             error_reported("Failed to load card", e.message);
         }
     }
