@@ -54,6 +54,10 @@ Recent progress:
   - `AiThreadsController.select_ai_thread_by_id(...)` and `AiThreadsController.reload_ai_threads_for_project(...)` no longer directly mutate `current_ai_thread`/title; they emit selection requests and let selection handling apply state.
   - `SelectionTransitionController.run_ai_thread_selection(...)` now uses the common begin/finish navigation flow (`begin_navigation` + `finish_navigation_if_current`) instead of bespoke transition calls.
   - Main-controller test harness now models `ai_thread_selection_requested(...)` by applying selection and invoking `on_ai_thread_selected()` through the same signal path.
+- Search selection request handling is now centralized at the window request entrypoint:
+  - `on_workspace_search_focus_results_requested()` now calls `request_search_selection(0)` instead of directly mutating search selection via `selection_request_controller`.
+  - `MainWindow.request_search_selection(...)` now delegates to `SelectionIntentOrchestrator.on_search_selection_requested(...)`.
+  - `SelectionRequestController` now owns only explorer selections (project/card/AI thread), removing split ownership for search selection requests.
 
 ## Toolbox-Specific Remaining Work
 - [ ] Add final toolbox-focused tests for atomic breadcrumb navigation:

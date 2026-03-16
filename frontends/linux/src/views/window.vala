@@ -686,8 +686,7 @@ public class MainWindow : Adw.ApplicationWindow {
         );
         search_selection_controller = new SearchSelectionController(search_store);
         selection_request_controller = new SelectionRequestController(
-            explorer_selection_controller,
-            search_selection_controller
+            explorer_selection_controller
         );
         selection_intent_controller = new SelectionIntentController();
         selection_controller = new SelectionController(controller);
@@ -734,7 +733,9 @@ public class MainWindow : Adw.ApplicationWindow {
             project_selection,
             card_selection,
             ai_thread_selection,
-            card_store
+            search_selection,
+            card_store,
+            search_selection_controller
         );
         ai_panel_event_orchestrator = new AiPanelEventOrchestrator(
             ai_panel,
@@ -1067,9 +1068,7 @@ public class MainWindow : Adw.ApplicationWindow {
         }
         show_search_mode();
         if (search_selection.get_selected() == Gtk.INVALID_LIST_POSITION) {
-            with_state_apply(() => {
-                selection_request_controller.request_search(search_selection, 0);
-            });
+            request_search_selection(0);
         }
         search_list.grab_focus();
     }
@@ -1258,7 +1257,7 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void request_search_selection(int position) {
         with_state_apply(() => {
-            selection_request_controller.request_search(search_selection, position);
+            selection_intent_orchestrator.on_search_selection_requested(position);
         });
     }
 

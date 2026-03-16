@@ -9,7 +9,9 @@ internal class SelectionIntentOrchestrator : Object {
     private Gtk.SingleSelection project_selection; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private Gtk.SingleSelection card_selection; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private Gtk.SingleSelection ai_thread_selection; // LCOV_EXCL_LINE: field declaration-only coverage artifact
+    private Gtk.SingleSelection search_selection; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private GLib.ListStore card_store; // LCOV_EXCL_LINE: field declaration-only coverage artifact
+    private SearchSelectionController search_selection_controller; // LCOV_EXCL_LINE: field declaration-only coverage artifact
 
     public SelectionIntentOrchestrator(SelectionIntentController selection_intent_controller,
                                        SelectionTransitionController selection_transition_controller,
@@ -19,7 +21,9 @@ internal class SelectionIntentOrchestrator : Object {
                                        Gtk.SingleSelection project_selection,
                                        Gtk.SingleSelection card_selection,
                                        Gtk.SingleSelection ai_thread_selection,
-                                       GLib.ListStore card_store) {
+                                       Gtk.SingleSelection search_selection,
+                                       GLib.ListStore card_store,
+                                       SearchSelectionController search_selection_controller) {
         this.selection_intent_controller = selection_intent_controller;
         this.selection_transition_controller = selection_transition_controller;
         this.selection_controller = selection_controller;
@@ -28,7 +32,9 @@ internal class SelectionIntentOrchestrator : Object {
         this.project_selection = project_selection;
         this.card_selection = card_selection;
         this.ai_thread_selection = ai_thread_selection;
+        this.search_selection = search_selection;
         this.card_store = card_store;
+        this.search_selection_controller = search_selection_controller;
     }
 
     public async void on_project_selection_changed() {
@@ -73,6 +79,14 @@ internal class SelectionIntentOrchestrator : Object {
             selection_transition_controller,
             selection_controller
         );
+    }
+
+    public void on_search_selection_requested(int position) {
+        var target = search_selection_controller.position_for_request(position);
+        if (search_selection.get_selected() == target) {
+            return;
+        }
+        search_selection.set_selected(target);
     }
 
     public async void on_flowboard_project_overview(string project_id) {

@@ -2,12 +2,9 @@ namespace HolderLinux {
 
 internal class SelectionRequestController : Object {
     private ExplorerSelectionController explorer_selection;
-    private SearchSelectionController search_selection;
 
-    public SelectionRequestController(ExplorerSelectionController explorer_selection,
-                                      SearchSelectionController search_selection) {
+    public SelectionRequestController(ExplorerSelectionController explorer_selection) {
         this.explorer_selection = explorer_selection;
-        this.search_selection = search_selection;
     }
 
     public void request_project(Gtk.SingleSelection project_selection, string? project_id) {
@@ -28,13 +25,6 @@ internal class SelectionRequestController : Object {
         apply_selection(
             ai_thread_selection,
             explorer_selection.ai_thread_position_for_id(thread_id)
-        );
-    }
-
-    public void request_search(Gtk.SingleSelection search_selection, int position) {
-        apply_selection(
-            search_selection,
-            this.search_selection.position_for_request(position)
         );
     }
 
