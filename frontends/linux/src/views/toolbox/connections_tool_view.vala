@@ -44,6 +44,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     private const int BOARD_MIN_HEIGHT = 240;
     private const int BOARD_BOTTOM_PADDING = 16;
     private const int PROJECT_MODE_MAX_NODES = 12;
+    private const uint PROJECT_EMPTY_STATE_DELAY_MS = 250;
     [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
     private static extern void gtk_style_context_add_provider_for_display(
         Gdk.Display display,
@@ -83,6 +84,11 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     private uint relations_default_split_idle_id = 0;
     private bool show_projects_root = false;
     private bool has_committed_board = false;
+    private uint pending_project_empty_state_id = 0;
+
+    private bool project_has_known_cards(Project project) {
+        return project.root_card_count > 0;
+    }
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id {
@@ -634,6 +640,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     }
 
     private void queue_connections_graph_refresh() {
+        clear_pending_project_empty_state();
         connections_graph_refresh_serial++;
         refresh_connections_graph.begin(connections_graph_refresh_serial);
     }
@@ -663,7 +670,11 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             if (request_serial != connections_graph_refresh_serial) {
                 return;
             }
-            set_graph_empty_state("Select a project to view connections.");
+            // During project/card transitions, selection can briefly pass through null.
+            // Keep the committed board to avoid flashing a transient empty state.
+            if (!has_committed_board) {
+                set_graph_empty_state("Select a project to view connections.");
+            }
             return;
         }
         if (selected_card != null && selected_card.project_id != selected_project.project_id) {
@@ -808,9 +819,20 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             }
         }
         if (project_cards.size == 0) {
-            set_graph_empty_state("No cards in this project yet.");
+            if (project_has_known_cards(project)) {
+                // Project metadata says cards exist, so an empty local snapshot is
+                // likely transitional while selection/data updates settle.
+                schedule_project_empty_state_if_still_empty(project.project_id);
+                return;
+            }
+            if (!has_committed_board) {
+                set_graph_empty_state("No cards in this project yet.");
+                return;
+            }
+            schedule_project_empty_state_if_still_empty(project.project_id);
             return;
         }
+        clear_pending_project_empty_state();
 
         var all_edges = new Gee.ArrayList<ConnectionsBoardEdge>();
         var edge_keys = new Gee.HashSet<string>();
@@ -871,6 +893,53 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         var summary = format_counts_summary(counts);
         render_board(nodes, edges, summary);
         set_relations_overview(summary);
+    }
+
+    private void clear_pending_project_empty_state() {
+        if (pending_project_empty_state_id != 0) {
+            Source.remove(pending_project_empty_state_id);
+            pending_project_empty_state_id = 0;
+        }
+    }
+
+    private void schedule_project_empty_state_if_still_empty(string project_id) {
+        clear_pending_project_empty_state();
+        var expected_serial = connections_graph_refresh_serial;
+        pending_project_empty_state_id = Timeout.add(PROJECT_EMPTY_STATE_DELAY_MS, () => {
+            pending_project_empty_state_id = 0;
+            if (expected_serial != connections_graph_refresh_serial) {
+                return Source.REMOVE;
+            }
+            if (show_projects_root) {
+                return Source.REMOVE;
+            }
+            var selected_project = project_selection != null
+                ? project_selection.get_selected_item() as Project
+                : null;
+            if (selected_project == null || selected_project.project_id != project_id) {
+                return Source.REMOVE;
+            }
+            if (project_has_known_cards(selected_project)) {
+                return Source.REMOVE;
+            }
+            var selected_card = card_selection != null
+                ? card_selection.get_selected_item() as CardSummary
+                : null;
+            if (selected_card != null) {
+                return Source.REMOVE;
+            }
+            int project_card_count = 0;
+            foreach (var card in snapshot_cards()) {
+                if (card.project_id == project_id) {
+                    project_card_count++;
+                    break;
+                }
+            }
+            if (project_card_count == 0) {
+                set_graph_empty_state("No cards in this project yet.");
+            }
+            return Source.REMOVE;
+        });
     }
 
     private void render_projects_root_board() {

@@ -3,17 +3,39 @@ using GLib;
 namespace HolderLinux {
 
 internal class SelectionController : Object {
-    public async void on_project_selected() {}
-    public async void on_card_selected(string card_id) {}
+    public int project_selected_calls = 0;
+    public int card_selected_calls = 0;
+    public string? last_card_id = null;
+
+    public async void on_project_selected() {
+        project_selected_calls++;
+    }
+
+    public async void on_card_selected(string card_id) {
+        card_selected_calls++;
+        last_card_id = card_id;
+    }
 }
 
 public class MainController : Object {
-    public async void show_project_overview() {}
-    public void on_ai_thread_selected() {}
+    public int project_overview_calls = 0;
+    public int ai_thread_selected_calls = 0;
+
+    public async void show_project_overview() {
+        project_overview_calls++;
+    }
+
+    public void on_ai_thread_selected() {
+        ai_thread_selected_calls++;
+    }
 }
 
 public class FlowboardController : Object {
-    public void refresh() {}
+    public int refresh_calls = 0;
+
+    public void refresh() {
+        refresh_calls++;
+    }
 }
 
 }
@@ -85,6 +107,82 @@ private void test_commit_selection_ignored_for_stale_sequence() {
     assert(state.selection.ai_thread_id == "t-current");
 }
 
+private void test_run_methods_cover_transition_paths() {
+    var state = new HolderLinux.AppStateStore();
+    var app_transitions = new HolderLinux.AppTransitionController(state);
+    var transitions = new HolderLinux.SelectionTransitionController(app_transitions);
+    var selection_controller = new HolderLinux.SelectionController();
+    var main_controller = new HolderLinux.MainController();
+    var flowboard_controller = new HolderLinux.FlowboardController();
+
+    {
+        var loop = new MainLoop();
+        transitions.run_project_selection.begin("p1", selection_controller, flowboard_controller, (obj, res) => {
+            transitions.run_project_selection.end(res);
+            loop.quit();
+        });
+        loop.run();
+    }
+    assert(selection_controller.project_selected_calls == 1);
+    assert(flowboard_controller.refresh_calls == 1);
+    assert(state.selection.project_id == "p1");
+    assert(state.selection.card_id == null);
+
+    {
+        var loop = new MainLoop();
+        transitions.run_card_selection.begin("p1", "c1", selection_controller, (obj, res) => {
+            transitions.run_card_selection.end(res);
+            loop.quit();
+        });
+        loop.run();
+    }
+    assert(selection_controller.card_selected_calls == 1);
+    assert(selection_controller.last_card_id == "c1");
+    assert(state.selection.project_id == "p1");
+    assert(state.selection.card_id == "c1");
+
+    {
+        var loop = new MainLoop();
+        transitions.run_project_overview_selection.begin("p2", main_controller, flowboard_controller, (obj, res) => {
+            transitions.run_project_overview_selection.end(res);
+            loop.quit();
+        });
+        loop.run();
+    }
+    assert(main_controller.project_overview_calls == 1);
+    assert(flowboard_controller.refresh_calls == 2);
+    assert(state.selection.project_id == "p2");
+    assert(state.selection.card_id == null);
+
+    transitions.run_ai_thread_selection("p3", "c3", "t3", main_controller);
+    assert(main_controller.ai_thread_selected_calls == 1);
+    assert(state.selection.project_id == "p3");
+    assert(state.selection.card_id == "c3");
+    assert(state.selection.ai_thread_id == "t3");
+
+    {
+        var loop = new MainLoop();
+        transitions.run_card_open_transition.begin(
+            "open-card",
+            "p4",
+            "c4-pending",
+            "p4",
+            "c4-selected",
+            selection_controller,
+            (obj, res) => {
+                transitions.run_card_open_transition.end(res);
+                loop.quit();
+            }
+        );
+        loop.run();
+    }
+    assert(selection_controller.card_selected_calls == 2);
+    assert(selection_controller.last_card_id == "c4-selected");
+    assert(state.selection.project_id == "p4");
+    assert(state.selection.card_id == "c4-selected");
+    assert(state.selection.ai_thread_id == null);
+}
+
 public int main(string[] args) {
     Test.init(ref args);
 
@@ -94,6 +192,8 @@ public int main(string[] args) {
                   test_finish_navigation_if_current_ignores_stale);
     Test.add_func("/selection_transition/commit_selection_ignored_for_stale_sequence",
                   test_commit_selection_ignored_for_stale_sequence);
+    Test.add_func("/selection_transition/run_methods_cover_transition_paths",
+                  test_run_methods_cover_transition_paths);
 
     return Test.run();
 }
