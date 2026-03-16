@@ -57,6 +57,13 @@
         Last width used for the left explorer sidebar.
       </description>
     </key>
+    <key name="ai-panel-width" type="i">
+      <default>0</default>
+      <summary>AI panel width in pixels</summary>
+      <description>
+        Last user-resized width for the AI panel. Zero means automatic width.
+      </description>
+    </key>
     <key name="tiny-close-streak" type="i">
       <default>0</default>
       <summary>Consecutive closes with tiny window size</summary>

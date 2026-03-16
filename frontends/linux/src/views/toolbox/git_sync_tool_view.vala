@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-public class GitSyncToolView : Object {
+public class GitSyncToolView : Object, IToolShellAdapter {
     private IHolderApi? api;
     private GitSyncController controller;
     private Gtk.SingleSelection? project_selection;
@@ -57,6 +57,12 @@ public class GitSyncToolView : Object {
     private string git_gh_login = "";
 
     public Gtk.Widget widget { get; private set; }
+    public string tool_id {
+        owned get { return "git"; }
+    }
+    public string tool_label {
+        owned get { return "Git Sync"; }
+    }
 
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
@@ -64,6 +70,63 @@ public class GitSyncToolView : Object {
     public GitSyncToolView() {
         controller = new GitSyncController();
         widget = build_git_sync_tab();
+    }
+
+    public Gtk.Widget get_content_widget() {
+        return widget;
+    }
+
+    public Gtk.Widget? get_actions_widget() {
+        return null;
+    }
+
+    public ToolScopeSnapshot get_scope_snapshot(Project? selected_project, CardSummary? selected_card) {
+        var project_id = selected_project != null ? selected_project.project_id : null;
+        var project_label = selected_project != null ? selected_project.name : "(none)";
+        var card_id = selected_card != null ? selected_card.card_id : null;
+        var card_label = selected_card != null ? selected_card.title : "Overview";
+
+        ToolScopeMode scope_mode = selected_card != null
+            ? ToolScopeMode.CARD_FOCUS
+            : ToolScopeMode.PROJECT_ROOT;
+        if (project_id == null) {
+            scope_mode = ToolScopeMode.PROJECTS_ROOT;
+            project_label = "Projects";
+            card_id = null;
+            card_label = "Overview";
+        }
+
+        return new ToolScopeSnapshot(
+            tool_id,
+            tool_label,
+            project_id,
+            project_label,
+            card_id,
+            card_label,
+            scope_mode,
+            false
+        );
+    }
+
+    public async bool navigate_to_projects_root(string? selected_project_id) {
+        if (git_sync_stack != null) {
+            git_sync_stack.set_visible_child_name("start");
+        }
+        return true;
+    }
+
+    public async bool navigate_to_project_root(string project_id) {
+        if (git_sync_stack != null) {
+            git_sync_stack.set_visible_child_name("start");
+        }
+        return true;
+    }
+
+    public async bool navigate_to_card(string card_id) {
+        if (git_sync_stack != null) {
+            git_sync_stack.set_visible_child_name("start");
+        }
+        return true;
     }
 
     public void set_api_client(IHolderApi? api) {
@@ -214,22 +277,19 @@ public class GitSyncToolView : Object {
         var selected_project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
-        if (selected_project == null) {
-            toast_requested("Select a project first.");
-            return;
-        }
-        if (api == null) {
-            error_reported("Git sync failed", "Backend API client is not ready.");
-            return;
-        }
         var remote_url = git_remote_entry != null ? git_remote_entry.get_text().strip() : "";
         var branch = git_branch_entry != null ? git_branch_entry.get_text().strip() : "";
-        if (remote_url.length == 0) {
-            toast_requested("Remote URL is required.");
+        var validation = controller.validate_remote_setup_inputs(selected_project, api, remote_url);
+        if (!validation.ok) {
+            if (validation.is_toast) {
+                toast_requested(validation.message);
+            } else {
+                error_reported(validation.error_title, validation.error_details);
+            }
             return;
         }
         yield apply_project_git_remote_and_sync(
-            selected_project,
+            (Project) selected_project,
             remote_url,
             branch,
             git_manual_status_label,
@@ -253,19 +313,18 @@ public class GitSyncToolView : Object {
             status_label.set_text("Saving remote and testing connectivity...");
         }
 
-        GitTestRemoteResult? test_result = null;
-        GitPushResult? push_result = null;
         try {
-            var apply_result = yield controller.configure_remote_and_sync(
+            var result = yield controller.apply_project_git_remote_and_sync(
                 api,
-                selected_project.project_id,
+                selected_project,
                 remote_url,
                 branch
             );
-            test_result = apply_result.test_result;
-            push_result = apply_result.push_result;
-            if (test_result != null && test_result.status == "reachable" && status_label != null) {
-                status_label.set_text("Remote reachable. Pushing project data...");
+            if (status_label != null) {
+                status_label.set_text(result.summary_text);
+            }
+            if (result.toast_message.strip().length > 0) {
+                toast_requested(result.toast_message);
             }
         } catch (Error e) {
             if (action_button != null) {
@@ -279,38 +338,6 @@ public class GitSyncToolView : Object {
         }
         if (action_button != null) {
             action_button.set_sensitive(true);
-        }
-        var lines = new StringBuilder();
-        lines.append("Project: %s\n".printf(selected_project.name));
-        lines.append("Remote: %s\n".printf(remote_url));
-        if (branch.length > 0) {
-            lines.append("Branch: %s\n".printf(branch));
-        }
-        if (test_result != null) {
-            lines.append("\nRemote test: %s".printf(test_result.status));
-            if (test_result.error_message.strip().length > 0) {
-                lines.append(" (%s)".printf(test_result.error_message.strip()));
-            }
-            lines.append("\n");
-        } else {
-            lines.append("\nRemote test: not run\n");
-        }
-        if (push_result != null) {
-            lines.append("Push: %s".printf(push_result.status));
-            if (push_result.error_message.strip().length > 0) {
-                lines.append(" (%s)".printf(push_result.error_message.strip()));
-            }
-            if (push_result.next_action.strip().length > 0) {
-                lines.append("\nNext action: %s".printf(push_result.next_action));
-            }
-            if (push_result.status == "pushed" || push_result.status == "up_to_date") {
-                toast_requested("Git remote configured and synced.");
-            }
-        } else {
-            lines.append("Push: not run");
-        }
-        if (status_label != null) {
-            status_label.set_text(lines.str.strip());
         }
     }
 
@@ -555,11 +582,6 @@ public class GitSyncToolView : Object {
 
         var username = git_gh_login.strip();
         var repo_name = controller.normalize_repository_name(selected_project.name ?? "");
-        if (repo_name.length == 0) {
-            error_reported("Git sync failed",
-                           "Project name does not produce a valid repository name. Rename project or use manual setup.");
-            return;
-        }
 
         if (git_gh_cli_auto_btn != null) {
             git_gh_cli_auto_btn.set_sensitive(false);
@@ -573,41 +595,19 @@ public class GitSyncToolView : Object {
             );
         }
 
-        var create_result = yield controller.create_private_repo_and_verify(username, repo_name);
-        var create_ok = create_result.created_ok;
-        if (!create_result.exists) {
-            var details = create_result.details.strip();
-            if (details.length == 0) {
-                details = "Repository could not be created.";
-            }
-            if (git_gh_cli_status_label != null) {
-                git_gh_cli_status_label.set_text("GitHub CLI setup failed: %s".printf(details));
-            }
-            error_reported("GitHub CLI setup failed", details);
-            refresh_git_cli_controls();
-            return;
-        }
-
-        var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
-        GitTestRemoteResult? test_result = null;
-        GitPushResult? push_result = null;
-
         try {
-            if (git_gh_cli_status_label != null) {
-                git_gh_cli_status_label.set_text("Saving remote and testing connectivity...");
-            }
-            var apply_result = yield controller.configure_remote_and_sync(
+            var flow_result = yield controller.run_github_cli_auto_sync_flow(
                 api,
-                selected_project.project_id,
-                remote_url,
-                ""
+                selected_project,
+                username
             );
-            test_result = apply_result.test_result;
-            push_result = apply_result.push_result;
-            if (test_result != null && test_result.status == "reachable") {
-                if (git_gh_cli_status_label != null) {
-                    git_gh_cli_status_label.set_text("Remote reachable. Pushing cards...");
-                }
+            if (git_gh_cli_status_label != null) {
+                git_gh_cli_status_label.set_text(flow_result.status_text);
+            }
+            if (flow_result.error_title.strip().length > 0) {
+                error_reported(flow_result.error_title, flow_result.error_details);
+            } else if (flow_result.toast_message.strip().length > 0) {
+                toast_requested(flow_result.toast_message);
             }
         } catch (Error e) {
             if (git_gh_cli_status_label != null) {
@@ -617,36 +617,6 @@ public class GitSyncToolView : Object {
             refresh_git_cli_controls();
             return;
         }
-
-        var status = new StringBuilder();
-        status.append("GitHub CLI: %s repo `%s/%s`. ".printf(
-            create_ok ? "created" : "using existing",
-            username,
-            repo_name
-        ));
-        if (test_result != null) {
-            status.append("Remote test: %s".printf(test_result.status));
-            if (test_result.error_message.strip().length > 0) {
-                status.append(" (%s)".printf(test_result.error_message.strip()));
-            }
-            status.append(". ");
-        }
-        if (push_result != null) {
-            status.append("Push: %s".printf(push_result.status));
-            if (push_result.error_message.strip().length > 0) {
-                status.append(" (%s)".printf(push_result.error_message.strip()));
-            }
-            status.append(".");
-            if (push_result.status == "pushed" || push_result.status == "up_to_date") {
-                toast_requested("GitHub CLI sync setup completed.");
-            }
-        } else {
-            status.append("Push not run.");
-        }
-        if (git_gh_cli_status_label != null) {
-            git_gh_cli_status_label.set_text(status.str);
-        }
-
         refresh_git_cli_controls();
     }
 
@@ -1167,18 +1137,19 @@ public class GitSyncToolView : Object {
         var selected_project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
-        if (selected_project == null) {
-            toast_requested("Select a project first.");
-            return;
-        }
         var remote_url = git_provider_remote_entry != null ? git_provider_remote_entry.get_text().strip() : "";
         var branch = git_provider_branch_entry != null ? git_provider_branch_entry.get_text().strip() : "";
-        if (remote_url.length == 0) {
-            toast_requested("Remote URL is required.");
+        var validation = controller.validate_remote_setup_inputs(selected_project, api, remote_url);
+        if (!validation.ok) {
+            if (validation.is_toast) {
+                toast_requested(validation.message);
+            } else {
+                error_reported(validation.error_title, validation.error_details);
+            }
             return;
         }
         yield apply_project_git_remote_and_sync(
-            selected_project,
+            (Project) selected_project,
             remote_url,
             branch,
             git_provider_status_label,
@@ -1228,22 +1199,18 @@ public class GitSyncToolView : Object {
         }
         git_guided_repo_status_label.set_text("Checking whether repository exists on GitHub...");
 
-        var repo_check = yield controller.check_repository_exists_via_ssh(username, repo_name);
-        var exists = repo_check.exists;
+        var verify_result = yield controller.verify_github_repository_exists_flow(username, repo_name);
 
         if (git_guided_repo_next_btn != null) {
             git_guided_repo_next_btn.set_sensitive(true);
         }
 
-        if (exists) {
-            git_guided_repo_status_label.set_text("Repository found on GitHub.");
+        if (verify_result.exists) {
+            git_guided_repo_status_label.set_text(verify_result.status_text);
             git_guided_part4_username = username;
             git_guided_part4_repo_name = repo_name;
             if (git_guided_push_intro_label != null) {
-                var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
-                git_guided_push_intro_label.set_text(
-                    "We'll now save this remote and push your cards.\nRemote: %s".printf(remote_url)
-                );
+                git_guided_push_intro_label.set_text(verify_result.push_intro_text);
             }
             if (git_guided_push_status_label != null) {
                 git_guided_push_status_label.set_text("");
@@ -1252,11 +1219,8 @@ public class GitSyncToolView : Object {
             return;
         }
 
-        var details = repo_check.error_text.length > 0 ? repo_check.error_text : "Repository not found.";
-        git_guided_repo_status_label.set_text(details);
-        error_reported("Repository check failed",
-                       "Could not find https://github.com/%s/%s . Create it first, then click Next again."
-                           .printf(username, repo_name));
+        git_guided_repo_status_label.set_text(verify_result.status_text);
+        error_reported(verify_result.error_title, verify_result.error_details);
     }
 
     private async void run_guided_part4_setup(string username, string repo_name) {
@@ -1272,11 +1236,6 @@ public class GitSyncToolView : Object {
             return;
         }
 
-        var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
-        GitTestRemoteResult? test_result = null;
-        GitPushResult? push_result = null;
-        Project? refreshed_project = null;
-
         if (git_guided_push_btn != null) {
             git_guided_push_btn.set_sensitive(false);
         }
@@ -1285,29 +1244,17 @@ public class GitSyncToolView : Object {
         }
 
         try {
-            var apply_result = yield controller.configure_remote_and_sync(
+            var result = yield controller.run_github_guided_sync_flow(
                 api,
-                selected_project.project_id,
-                remote_url,
-                ""
+                selected_project,
+                username,
+                repo_name
             );
-            test_result = apply_result.test_result;
-            push_result = apply_result.push_result;
-            if (test_result != null && test_result.status == "reachable") {
-                if (git_guided_push_status_label != null) {
-                    git_guided_push_status_label.set_text("Remote reachable. Pushing project data...");
-                }
-            } else if (test_result != null) {
-                if (git_guided_push_status_label != null) {
-                    git_guided_push_status_label.set_text("Remote test result: %s".printf(test_result.status));
-                }
+            if (git_guided_push_status_label != null) {
+                git_guided_push_status_label.set_text(result.status_text);
             }
-            var projects = yield api.list_projects();
-            foreach (var project in projects) {
-                if (project.project_id == selected_project.project_id) {
-                    refreshed_project = project;
-                    break;
-                }
+            if (result.toast_message.strip().length > 0) {
+                toast_requested(result.toast_message);
             }
         } catch (Error e) {
             if (git_guided_push_btn != null) {
@@ -1320,62 +1267,6 @@ public class GitSyncToolView : Object {
         if (git_guided_push_btn != null) {
             git_guided_push_btn.set_sensitive(true);
         }
-        if (git_guided_push_status_label != null) {
-            var lines = new StringBuilder();
-            if (test_result != null) {
-                lines.append("Remote test: %s".printf(test_result.status));
-                if (test_result.error_message.strip().length > 0) {
-                    lines.append(" (%s)".printf(test_result.error_message.strip()));
-                }
-                lines.append("\n");
-            } else {
-                lines.append("Remote test: not run\n");
-            }
-
-            if (push_result != null) {
-                lines.append("Push: %s".printf(push_result.status));
-                if (push_result.error_message.strip().length > 0) {
-                    lines.append(" (%s)".printf(push_result.error_message.strip()));
-                }
-                lines.append("\n");
-                if (push_result.next_action.strip().length > 0) {
-                    lines.append("Next action: %s\n".printf(push_result.next_action));
-                }
-                if (push_result.status == "pushed" || push_result.status == "up_to_date") {
-                    toast_requested("Git sync setup completed.");
-                }
-            } else {
-                lines.append("Push: not run\n");
-            }
-            if (refreshed_project != null) {
-                lines.append("\n");
-                lines.append("Sync state: ");
-                var status = refreshed_project.sync.last_push_status.strip();
-                lines.append(status.length > 0 ? status : "unknown");
-                lines.append("\n");
-                lines.append("Last push: ");
-                lines.append(format_sync_time(
-                    refreshed_project.sync.has_last_push_at,
-                    refreshed_project.sync.last_push_at
-                ));
-                lines.append("\n");
-                lines.append("Push retry count: %d\n".printf(refreshed_project.sync.retry_count));
-                lines.append("Pull retry count: %d".printf(refreshed_project.sync.pull_retry_count));
-                if (refreshed_project.sync.last_sync_error.strip().length > 0) {
-                    lines.append("\n");
-                    lines.append("Error: %s".printf(refreshed_project.sync.last_sync_error));
-                }
-            }
-            git_guided_push_status_label.set_text(lines.str.strip());
-        }
-    }
-
-    private string format_sync_time(bool has_timestamp, int64 timestamp) {
-        if (!has_timestamp || timestamp <= 0) {
-            return "never";
-        }
-        var now = new DateTime.now_utc().to_unix();
-        return TextUtils.format_relative_time(now, timestamp);
     }
 
     private void set_guided_key_ui_visibility(bool has_key) {

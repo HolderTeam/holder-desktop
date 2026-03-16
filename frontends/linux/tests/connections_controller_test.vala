@@ -1,5 +1,23 @@
 namespace HolderLinux.Tests {
 
+private bool wait_until_true(owned SourceFunc predicate, int timeout_ms = 2000) {
+    var loop = new MainLoop(null, false);
+    var deadline = GLib.get_monotonic_time() + (int64) timeout_ms * 1000;
+    Timeout.add(5, () => {
+        if (predicate()) {
+            loop.quit();
+            return Source.REMOVE;
+        }
+        if (GLib.get_monotonic_time() >= deadline) {
+            loop.quit();
+            return Source.REMOVE;
+        }
+        return Source.CONTINUE;
+    });
+    loop.run();
+    return predicate();
+}
+
 private CardSummary card(string id,
                          string project_id,
                          string title,
@@ -369,6 +387,260 @@ private void test_remember_custom_link_kind_null_settings_noop() {
     assert(true);
 }
 
+private void test_load_graph_links_api_unavailable() {
+    var controller = new ConnectionsController();
+    bool done = false;
+    ConnectionsGraphLoadResult? out_result = null;
+    controller.load_graph_links.begin(null, null, (obj, res) => {
+        out_result = controller.load_graph_links.end(res);
+        done = true;
+    });
+    assert(wait_until_true(() => done));
+    assert(out_result != null);
+    assert(!out_result.success);
+    assert(out_result.outgoing_empty_text == "API unavailable.");
+    assert(out_result.backlinks_empty_text == "API unavailable.");
+}
+
+private void test_load_graph_links_no_selected_card() {
+    var controller = new ConnectionsController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    bool done = false;
+    ConnectionsGraphLoadResult? out_result = null;
+    controller.load_graph_links.begin(api, null, (obj, res) => {
+        out_result = controller.load_graph_links.end(res);
+        done = true;
+    });
+    assert(wait_until_true(() => done));
+    assert(out_result != null);
+    assert(!out_result.success);
+    assert(out_result.outgoing_empty_text == "Select a card to view graph links.");
+    assert(out_result.backlinks_empty_text == "Select a card to view graph links.");
+}
+
+private void test_load_graph_links_success() {
+    var controller = new ConnectionsController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    api.card_links.add(new CardLink("a", "b", "card", "ref", null, 1));
+    api.card_backlinks.add(new CardLink("c", "a", "card", "depends_on", null, 1));
+    var selected = card("a", "p1", "A", 1);
+
+    bool done = false;
+    ConnectionsGraphLoadResult? out_result = null;
+    controller.load_graph_links.begin(api, selected, (obj, res) => {
+        out_result = controller.load_graph_links.end(res);
+        done = true;
+    });
+    assert(wait_until_true(() => done));
+    assert(out_result != null);
+    assert(out_result.success);
+    assert(out_result.outgoing != null && out_result.outgoing.size == 1);
+    assert(out_result.backlinks != null && out_result.backlinks.size == 1);
+    assert(api.list_card_links_calls == 1);
+    assert(api.list_card_backlinks_calls == 1);
+}
+
+private void test_load_graph_links_failure() {
+    var controller = new ConnectionsController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    api.fail_list_card_links = true;
+    var selected = card("a", "p1", "A", 1);
+
+    bool done = false;
+    ConnectionsGraphLoadResult? out_result = null;
+    controller.load_graph_links.begin(api, selected, (obj, res) => {
+        out_result = controller.load_graph_links.end(res);
+        done = true;
+    });
+    assert(wait_until_true(() => done));
+    assert(out_result != null);
+    assert(!out_result.success);
+    assert(out_result.outgoing_empty_text == "Failed to load outgoing links.");
+    assert(out_result.backlinks_empty_text == "Failed to load backlinks.");
+    assert(out_result.debug_message.contains("Graph links refresh failed"));
+}
+
+private void test_update_graph_link_flow_kind_changed() {
+    var controller = new ConnectionsController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var old_link = new CardLink("a", "b", "card", "ref", null, 1);
+
+    bool done = false;
+    ConnectionsMutationResult? out_result = null;
+    controller.update_graph_link_flow.begin(api, old_link, "depends_on", "why", false, null, (obj, res) => {
+        out_result = controller.update_graph_link_flow.end(res);
+        done = true;
+    });
+    assert(wait_until_true(() => done));
+    assert(out_result != null);
+    assert(out_result.success);
+    assert(out_result.toast_message == "Graph link updated.");
+    assert(out_result.should_refresh);
+    assert(api.create_card_link_calls == 1);
+    assert(api.delete_card_link_calls == 1);
+}
+
+private void test_update_graph_link_flow_same_kind_create_only() {
+    var controller = new ConnectionsController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var old_link = new CardLink("a", "b", "card", "ref", null, 1);
+
+    bool done = false;
+    ConnectionsMutationResult? out_result = null;
+    controller.update_graph_link_flow.begin(api, old_link, "ref", null, false, null, (obj, res) => {
+        out_result = controller.update_graph_link_flow.end(res);
+        done = true;
+    });
+    assert(wait_until_true(() => done));
+    assert(out_result != null);
+    assert(out_result.success);
+    assert(api.create_card_link_calls == 1);
+    assert(api.delete_card_link_calls == 0);
+}
+
+private void test_update_graph_link_flow_create_error() {
+    var controller = new ConnectionsController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    api.fail_create_card_link = true;
+    var old_link = new CardLink("a", "b", "card", "ref", null, 1);
+
+    bool done = false;
+    ConnectionsMutationResult? out_result = null;
+    controller.update_graph_link_flow.begin(api, old_link, "ref", null, false, null, (obj, res) => {
+        out_result = controller.update_graph_link_flow.end(res);
+        done = true;
+    });
+    assert(wait_until_true(() => done));
+    assert(out_result != null);
+    assert(!out_result.success);
+    assert(out_result.error_title == "Failed to edit graph link");
+    assert(out_result.error_details.contains("create card link failed"));
+}
+
+private void test_delete_graph_link_flow_success() {
+    var controller = new ConnectionsController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var link = new CardLink("a", "b", "card", "ref", null, 1);
+
+    bool done = false;
+    ConnectionsMutationResult? out_result = null;
+    controller.delete_graph_link_flow.begin(api, link, (obj, res) => {
+        out_result = controller.delete_graph_link_flow.end(res);
+        done = true;
+    });
+    assert(wait_until_true(() => done));
+    assert(out_result != null);
+    assert(out_result.success);
+    assert(out_result.toast_message == "Graph link deleted.");
+    assert(api.delete_card_link_calls == 1);
+}
+
+private void test_delete_graph_link_flow_error() {
+    var controller = new ConnectionsController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    api.fail_delete_card_link = true;
+    var link = new CardLink("a", "b", "card", "ref", null, 1);
+
+    bool done = false;
+    ConnectionsMutationResult? out_result = null;
+    controller.delete_graph_link_flow.begin(api, link, (obj, res) => {
+        out_result = controller.delete_graph_link_flow.end(res);
+        done = true;
+    });
+    assert(wait_until_true(() => done));
+    assert(out_result != null);
+    assert(!out_result.success);
+    assert(out_result.error_title == "Failed to delete graph link");
+    assert(out_result.error_details.contains("delete card link failed"));
+}
+
+private void test_has_graph_link_targets() {
+    var controller = new ConnectionsController();
+    var cards = new Gee.ArrayList<CardSummary>();
+    var selected = card("a", "p1", "A", 1);
+    cards.add(selected);
+    assert(!controller.has_graph_link_targets(selected, cards));
+
+    cards.add(card("b", "p2", "B", 1));
+    assert(!controller.has_graph_link_targets(selected, cards));
+
+    cards.add(card("c", "p1", "C", 1));
+    assert(controller.has_graph_link_targets(selected, cards));
+    assert(!controller.has_graph_link_targets(null, cards));
+}
+
+private void test_build_graph_link_target_options() {
+    var controller = new ConnectionsController();
+    var cards = new Gee.ArrayList<CardSummary>();
+    var selected = card("a", "p1", "A", 1);
+    cards.add(selected);
+    cards.add(card("b", "p1", "B", 1));
+    cards.add(card("c", "p2", "C", 1));
+
+    var options = controller.build_graph_link_target_options(selected, cards);
+    assert(options.size == 1);
+    assert(options[0].card_id == "b");
+    assert(options[0].display_text == "B (b)");
+
+    var none = controller.build_graph_link_target_options(null, cards);
+    assert(none.size == 0);
+}
+
+private void test_title_for_card_id() {
+    var controller = new ConnectionsController();
+    var cards = new Gee.ArrayList<CardSummary>();
+    cards.add(card("a", "p1", "Alpha", 1));
+
+    assert(controller.title_for_card_id("a", cards) == "Alpha");
+    assert(controller.title_for_card_id("missing", cards) == "missing");
+}
+
+private void test_group_links_by_kind_preserves_first_seen_order() {
+    var controller = new ConnectionsController();
+    var links = new Gee.ArrayList<CardLink>();
+    links.add(new CardLink("a", "b", "card", "depends_on", null, 1));
+    links.add(new CardLink("a", "c", "card", "", null, 2));
+    links.add(new CardLink("a", "d", "card", "depends_on", null, 3));
+    links.add(new CardLink("a", "e", "card", "ref", null, 4));
+
+    var groups = controller.group_links_by_kind(links);
+    assert(groups.size == 2);
+    assert(groups[0].kind == "depends_on");
+    assert(groups[0].links.size == 2);
+    assert(groups[1].kind == "ref");
+    assert(groups[1].links.size == 2);
+}
+
+private void test_resolve_link_action_card_project_ilink_and_unknown() {
+    var controller = new ConnectionsController();
+    var cards = new Gee.ArrayList<CardSummary>();
+    cards.add(card("a", "p1", "Alpha", 1));
+    cards.add(card("b", "p1", "Beta", 1));
+
+    var card_action = controller.resolve_link_action("card:a", "p1", cards);
+    assert(card_action.handled);
+    assert(card_action.select_card);
+    assert(card_action.target_id == "a");
+
+    var project_action = controller.resolve_link_action("project:p2", "p1", cards);
+    assert(project_action.handled);
+    assert(project_action.select_project);
+    assert(project_action.target_id == "p2");
+
+    var ilink_action = controller.resolve_link_action("ilink:Beta", "p1", cards);
+    assert(ilink_action.handled);
+    assert(ilink_action.select_card);
+    assert(ilink_action.target_id == "b");
+
+    var ilink_missing = controller.resolve_link_action("ilink:Missing", "p1", cards);
+    assert(ilink_missing.handled);
+    assert(!ilink_missing.select_card);
+    assert(!ilink_missing.select_project);
+
+    var unknown = controller.resolve_link_action("mailto:test@example.com", "p1", cards);
+    assert(!unknown.handled);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     Test.add_func("/holder/connections/ellipsize_title", test_ellipsize_title);
@@ -416,6 +688,34 @@ public static int main(string[] args) {
                   test_remember_custom_link_kind_limits_to_20_entries);
     Test.add_func("/holder/connections/remember_custom_link_kind_null_settings_noop",
                   test_remember_custom_link_kind_null_settings_noop);
+    Test.add_func("/holder/connections/load_graph_links_api_unavailable",
+                  test_load_graph_links_api_unavailable);
+    Test.add_func("/holder/connections/load_graph_links_no_selected_card",
+                  test_load_graph_links_no_selected_card);
+    Test.add_func("/holder/connections/load_graph_links_success",
+                  test_load_graph_links_success);
+    Test.add_func("/holder/connections/load_graph_links_failure",
+                  test_load_graph_links_failure);
+    Test.add_func("/holder/connections/update_graph_link_flow_kind_changed",
+                  test_update_graph_link_flow_kind_changed);
+    Test.add_func("/holder/connections/update_graph_link_flow_same_kind_create_only",
+                  test_update_graph_link_flow_same_kind_create_only);
+    Test.add_func("/holder/connections/update_graph_link_flow_create_error",
+                  test_update_graph_link_flow_create_error);
+    Test.add_func("/holder/connections/delete_graph_link_flow_success",
+                  test_delete_graph_link_flow_success);
+    Test.add_func("/holder/connections/delete_graph_link_flow_error",
+                  test_delete_graph_link_flow_error);
+    Test.add_func("/holder/connections/has_graph_link_targets",
+                  test_has_graph_link_targets);
+    Test.add_func("/holder/connections/build_graph_link_target_options",
+                  test_build_graph_link_target_options);
+    Test.add_func("/holder/connections/title_for_card_id",
+                  test_title_for_card_id);
+    Test.add_func("/holder/connections/group_links_by_kind_preserves_first_seen_order",
+                  test_group_links_by_kind_preserves_first_seen_order);
+    Test.add_func("/holder/connections/resolve_link_action_card_project_ilink_and_unknown",
+                  test_resolve_link_action_card_project_ilink_and_unknown);
     return Test.run();
 }
 

@@ -1,7 +1,6 @@
 namespace HolderLinux {
 
 public class ToolboxPane : Object {
-    private AiCatalogToolView ai_catalog_tool;
     private ConnectionsToolView connections_tool;
     private GitSyncToolView git_sync_tool;
     private RecoveryKeyToolView recovery_key_tool;
@@ -10,16 +9,24 @@ public class ToolboxPane : Object {
     private DebugToolView debug_tool;
     private TerminalToolView terminal_tool;
     private FlowboardToolView flowboard_tool;
+    private TrashToolView trash_tool;
+    private Gee.HashMap<string, IToolShellAdapter> tool_adapters;
+    private ToolShell? tool_shell;
+    private Gtk.Stack? toolbox_stack;
+    private NavigationBreadcrumbs? header_breadcrumbs;
     private Gtk.SingleSelection? project_selection;
     private GLib.ListStore? card_store;
     private Gtk.SingleSelection? card_selection;
     private IHolderApi? api;
     private Settings? settings;
+    private bool navigation_loading = false;
     public Gtk.Revealer widget { get; private set; }
 
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
     public signal void flowboard_card_open_requested(string card_id);
+    public signal void connections_card_open_requested(string card_id);
+    public signal void flowboard_card_move_to_trash_requested(string card_id);
     public signal void flowboard_move_intent_requested(string card_id,
                                                        string project_id,
                                                        string intent,
@@ -31,8 +38,13 @@ public class ToolboxPane : Object {
     public signal void save_recovery_key_to_usb_requested();
     public signal void import_recovery_key_requested();
     public signal void terminal_copy_to_card_requested(string text);
+    public signal void breadcrumb_navigation_requested(string tool_id,
+                                                       int segment_index,
+                                                       string? project_id,
+                                                       string? card_id);
 
     public ToolboxPane() {
+        tool_adapters = new Gee.HashMap<string, IToolShellAdapter>();
         widget = new Gtk.Revealer();
         widget.set_transition_type(Gtk.RevealerTransitionType.SLIDE_UP);
         widget.set_reveal_child(false);
@@ -41,9 +53,6 @@ public class ToolboxPane : Object {
 
     public void set_api_client(IHolderApi? api) {
         this.api = api;
-        if (ai_catalog_tool != null) {
-            ai_catalog_tool.set_api_client(api);
-        }
         if (connections_tool != null) {
             connections_tool.set_api_client(api);
         }
@@ -52,6 +61,9 @@ public class ToolboxPane : Object {
         }
         if (resources_tool != null) {
             resources_tool.set_api_client(api);
+        }
+        if (trash_tool != null) {
+            trash_tool.set_api_client(api);
         }
     }
 
@@ -78,19 +90,26 @@ public class ToolboxPane : Object {
 
         project_selection.notify["selected"].connect(() => {
             refresh_sharing_action_state();
+            apply_shell_state();
         });
         card_selection.notify["selected"].connect(() => {
             refresh_sharing_action_state();
+            apply_shell_state();
         });
         card_store.items_changed.connect((position, removed, added) => {
             refresh_sharing_action_state();
+            apply_shell_state();
         });
         refresh_sharing_action_state();
+        apply_shell_state();
         if (git_sync_tool != null) {
             git_sync_tool.set_project_selection(project_selection);
         }
         if (resources_tool != null) {
             resources_tool.set_project_selection(project_selection);
+        }
+        if (trash_tool != null) {
+            trash_tool.set_project_selection(project_selection);
         }
     }
 
@@ -115,6 +134,9 @@ public class ToolboxPane : Object {
         flowboard_tool.card_open_requested.connect((card_id) => {
             flowboard_card_open_requested(card_id);
         });
+        flowboard_tool.card_move_to_trash_requested.connect((card_id) => {
+            flowboard_card_move_to_trash_requested(card_id);
+        });
         flowboard_tool.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
             flowboard_move_intent_requested(card_id, project_id, intent, target_card_id, parent_card_id);
         });
@@ -126,10 +148,39 @@ public class ToolboxPane : Object {
         });
     }
 
-    public void refresh_catalogs() {
-        if (ai_catalog_tool != null) {
-            ai_catalog_tool.refresh.begin();
+    public void refresh_trash() {
+        if (trash_tool != null) {
+            trash_tool.refresh();
         }
+    }
+
+    public void show_flowboard_projects_root() {
+        if (flowboard_tool == null) {
+            return;
+        }
+        flowboard_tool.show_projects_root();
+        apply_shell_state();
+    }
+
+    public void show_flowboard_project_root() {
+        if (flowboard_tool == null) {
+            return;
+        }
+        flowboard_tool.show_project_root();
+        apply_shell_state();
+    }
+
+    public void show_connections_projects_root() {
+        if (connections_tool == null) {
+            return;
+        }
+        connections_tool.navigate_to_projects_root.begin(null);
+        apply_shell_state();
+    }
+
+    public void set_navigation_loading(bool loading) {
+        navigation_loading = loading;
+        apply_shell_state();
     }
 
     private Gtk.Widget build_ui() {
@@ -140,28 +191,29 @@ public class ToolboxPane : Object {
         frame.set_margin_end(6);
         frame.add_css_class("toolbar");
 
-        var header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var title = new Gtk.Label("Toolbox");
-        title.add_css_class("title-5");
-        title.set_halign(Gtk.Align.START);
-        title.set_hexpand(true);
         var switcher = new Gtk.StackSwitcher();
-        header.append(title);
-        header.append(switcher);
-        frame.append(header);
+        header_breadcrumbs = new NavigationBreadcrumbs();
+        header_breadcrumbs.segment_activated.connect((index) => {
+            on_header_breadcrumb_clicked(index);
+        });
+        tool_shell = new ToolShell((!) header_breadcrumbs, switcher);
+        frame.append((!) tool_shell.widget);
 
         var stack = new Gtk.Stack();
+        toolbox_stack = stack;
         stack.set_vexpand(true);
         stack.set_hexpand(true);
         switcher.set_stack(stack);
         stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT);
 
         flowboard_tool = new FlowboardToolView();
+        tool_adapters.set("flowboard", flowboard_tool);
         bind_flowboard_listener_signals();
         var flowboard_page = stack.add_titled(flowboard_tool.widget, "flowboard", "Flowboard");
         flowboard_page.set_icon_name("view-grid-symbolic");
 
         connections_tool = new ConnectionsToolView();
+        tool_adapters.set("connections", connections_tool);
         connections_tool.error_reported.connect((title_text, details) => {
             error_reported(title_text, details);
         });
@@ -170,6 +222,15 @@ public class ToolboxPane : Object {
         });
         connections_tool.debug_log_requested.connect((line) => {
             log_debug(line);
+        });
+        connections_tool.project_overview_requested.connect((project_id) => {
+            breadcrumb_navigation_requested("connections", 1, project_id, null);
+        });
+        connections_tool.projects_root_requested.connect(() => {
+            breadcrumb_navigation_requested("connections", 0, null, null);
+        });
+        connections_tool.card_open_requested.connect((card_id) => {
+            connections_card_open_requested(card_id);
         });
         connections_tool.set_api_client(api);
         connections_tool.set_settings(settings);
@@ -181,6 +242,7 @@ public class ToolboxPane : Object {
         connections_page.set_icon_name("network-wired-symbolic");
 
         resources_tool = new ResourcesToolView();
+        tool_adapters.set("resources", resources_tool);
         resources_tool.error_reported.connect((title_text, details) => {
             error_reported(title_text, details);
         });
@@ -200,6 +262,7 @@ public class ToolboxPane : Object {
         sharing_page.set_icon_name("emblem-shared-symbolic");
 
         terminal_tool = new TerminalToolView();
+        tool_adapters.set("terminals", terminal_tool);
         terminal_tool.debug_log_requested.connect((line) => {
             log_debug(line);
         });
@@ -212,18 +275,8 @@ public class ToolboxPane : Object {
         var terminals_page = stack.add_titled(terminal_tool.widget, "terminals", "Terminals");
         terminals_page.set_icon_name("utilities-terminal-symbolic");
 
-        ai_catalog_tool = new AiCatalogToolView();
-        ai_catalog_tool.error_reported.connect((title_text, details) => {
-            error_reported(title_text, details);
-        });
-        ai_catalog_tool.debug_log_requested.connect((line) => {
-            log_debug(line);
-        });
-        ai_catalog_tool.set_api_client(api);
-        var catalog_page = stack.add_titled(ai_catalog_tool.widget, "catalog", "AI Catalog");
-        catalog_page.set_icon_name("x-office-address-book-symbolic");
-
         git_sync_tool = new GitSyncToolView();
+        tool_adapters.set("git", git_sync_tool);
         git_sync_tool.error_reported.connect((title_text, details) => {
             error_reported(title_text, details);
         });
@@ -238,6 +291,7 @@ public class ToolboxPane : Object {
         git_page.set_icon_name("folder-remote-symbolic");
 
         recovery_key_tool = new RecoveryKeyToolView();
+        tool_adapters.set("recovery", recovery_key_tool);
         recovery_key_tool.send_recovery_key_as_email_requested.connect(() => {
             send_recovery_key_as_email_requested();
         });
@@ -250,44 +304,42 @@ public class ToolboxPane : Object {
         var recovery_page = stack.add_titled(recovery_key_tool.widget, "recovery", "Recovery Key");
         recovery_page.set_icon_name("dialog-password-symbolic");
 
-        var trash_page = stack.add_titled(
-            build_placeholder_tab("Trash tools are scaffolded and planned."),
-            "trash",
-            "Trash"
-        );
+        trash_tool = new TrashToolView();
+        tool_adapters.set("trash", trash_tool);
+        trash_tool.error_reported.connect((title_text, details) => {
+            error_reported(title_text, details);
+        });
+        trash_tool.toast_requested.connect((message) => {
+            toast_requested(message);
+        });
+        trash_tool.set_api_client(api);
+        trash_tool.set_project_selection(project_selection);
+        var trash_page = stack.add_titled(trash_tool.widget, "trash", "Trash");
         trash_page.set_icon_name("user-trash-symbolic");
 
         debug_tool = new DebugToolView();
+        tool_adapters.set("debug", debug_tool);
         var debug_page = stack.add_titled(debug_tool.widget, "debug", "Debug");
         debug_page.set_icon_name("view-reveal-symbolic");
 
         stack.set_visible_child_name("flowboard");
         stack.notify["visible-child"].connect(() => {
             var visible = stack.get_visible_child();
-            if (visible == null) {
-                title.set_label("Toolbox");
-                return;
+            var page = visible != null ? stack.get_page(visible) : null;
+            apply_shell_state();
+            if (page.title == "Trash") {
+                refresh_trash();
             }
-            var page = stack.get_page(visible);
-            if (page == null || page.title == null || page.title.length == 0) {
-                title.set_label("Toolbox");
-                return;
-            }
-            title.set_label("Toolbox: %s".printf(page.title));
         });
-        var initial_visible = stack.get_visible_child();
-        if (initial_visible != null) {
-            var initial_page = stack.get_page(initial_visible);
-            if (initial_page != null && initial_page.title != null && initial_page.title.length > 0) {
-                title.set_label("Toolbox: %s".printf(initial_page.title));
-            }
-        }
+        apply_shell_state();
 
         var scroller = new Gtk.ScrolledWindow();
         scroller.set_vexpand(true);
         scroller.set_min_content_height(180);
         scroller.set_child(stack);
-        frame.append(scroller);
+        ((!) tool_shell).set_content_widget(scroller);
+        ((!) tool_shell).set_actions_widget(null);
+        ((!) tool_shell).set_loading(navigation_loading);
 
         return frame;
     }
@@ -298,17 +350,9 @@ public class ToolboxPane : Object {
         }
     }
 
-    private Gtk.Widget build_placeholder_tab(string message) {
-        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
-        var info = new Gtk.Label(message) { xalign = 0.0f };
-        info.set_wrap(true);
-        info.add_css_class("dim-label");
-        box.append(info);
-        return box;
-    }
-
     private Gtk.Widget build_sharing_tab() {
         sharing_tool = new SharingToolView();
+        tool_adapters.set("sharing", sharing_tool);
         sharing_tool.send_card_as_email_requested.connect(() => {
             send_card_as_email_requested();
         });
@@ -324,6 +368,144 @@ public class ToolboxPane : Object {
             ? card_selection.get_selected_item() as CardSummary
             : null;
         sharing_tool.set_has_selected_card(selected_card != null);
+    }
+
+    private void refresh_tool_actions_row() {
+        if (tool_shell == null || toolbox_stack == null) {
+            return;
+        }
+        var child = toolbox_stack.get_visible_child();
+        if (child == null) {
+            ((!) tool_shell).set_actions_widget(null);
+            return;
+        }
+        var page = toolbox_stack.get_page(child);
+        if (page == null || page.name == null) {
+            ((!) tool_shell).set_actions_widget(null);
+            return;
+        }
+        var adapter = tool_adapters.get(page.name);
+        if (adapter != null) {
+            ((!) tool_shell).set_actions_widget(adapter.get_actions_widget());
+            return;
+        }
+        ((!) tool_shell).set_actions_widget(null);
+    }
+
+    private void apply_shell_state() {
+        refresh_tool_actions_row();
+        refresh_header_breadcrumbs();
+        if (tool_shell != null) {
+            ((!) tool_shell).set_loading(navigation_loading);
+        }
+    }
+
+    private void refresh_header_breadcrumbs() {
+        if (header_breadcrumbs == null) {
+            return;
+        }
+
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        var selected_card = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary
+            : null;
+
+        var page_name = current_tool_id();
+        var adapter = tool_adapters.get(page_name);
+        if (adapter != null) {
+            var snapshot = adapter.get_scope_snapshot(selected_project, selected_card);
+            var segments_adapter = new Gee.ArrayList<NavigationBreadcrumbSegment>();
+            segments_adapter.add(new NavigationBreadcrumbSegment(
+                snapshot.tool_label,
+                true,
+                true,
+                0
+            ));
+            segments_adapter.add(new NavigationBreadcrumbSegment(
+                snapshot.project_label,
+                false,
+                snapshot.project_id != null,
+                1
+            ));
+            segments_adapter.add(new NavigationBreadcrumbSegment(
+                snapshot.card_label,
+                false,
+                snapshot.card_id != null,
+                2
+            ));
+            ((!) header_breadcrumbs).set_segments(segments_adapter);
+            return;
+        }
+
+        string tool_name = "Tool";
+        if (toolbox_stack != null) {
+            var visible = toolbox_stack.get_visible_child();
+            if (visible != null) {
+                var page = toolbox_stack.get_page(visible);
+                if (page != null && page.title != null && page.title.strip().length > 0) {
+                    tool_name = page.title;
+                }
+            }
+        }
+        string project_name = selected_project != null && selected_project.name.strip().length > 0
+            ? selected_project.name
+            : "(none)";
+        string card_name = selected_card != null &&
+            (selected_project == null || selected_card.project_id == selected_project.project_id) &&
+            selected_card.title.strip().length > 0
+            ? selected_card.title
+            : "Overview";
+
+        var segments = new Gee.ArrayList<NavigationBreadcrumbSegment>();
+        segments.add(new NavigationBreadcrumbSegment(tool_name, true, true, 0));
+        segments.add(new NavigationBreadcrumbSegment(project_name, false, selected_project != null, 1));
+        segments.add(new NavigationBreadcrumbSegment(card_name, false, selected_card != null, 2));
+        ((!) header_breadcrumbs).set_segments(segments);
+    }
+
+    private void on_header_breadcrumb_clicked(int segment_index) {
+        var tool_id = current_tool_id();
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        var selected_card = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary
+            : null;
+        var adapter = tool_adapters.get(tool_id);
+        if (adapter != null) {
+            var snapshot = adapter.get_scope_snapshot(selected_project, selected_card);
+            breadcrumb_navigation_requested(
+                tool_id,
+                segment_index,
+                snapshot.project_id,
+                snapshot.card_id
+            );
+            return;
+        }
+
+        breadcrumb_navigation_requested(
+            tool_id,
+            segment_index,
+            selected_project != null ? selected_project.project_id : null,
+            selected_card != null ? selected_card.card_id : null
+        );
+    }
+
+    private string current_tool_id() {
+        if (toolbox_stack == null) {
+            return "tool";
+        }
+        var child = toolbox_stack.get_visible_child();
+        if (child == null) {
+            return "tool";
+        }
+        var page = toolbox_stack.get_page(child);
+        if (page == null || page.name == null || page.name.strip().length == 0) {
+            return "tool";
+        }
+        return page.name;
     }
 
 }

@@ -1,9 +1,10 @@
 namespace HolderLinux {
 
-public class ResourcesToolView : Object {
+public class ResourcesToolView : Object, IToolShellAdapter {
     private ResourcesController controller;
     private IHolderApi? api;
     private Gtk.SingleSelection? project_selection;
+    private Gtk.Box resources_actions_bar;
     private GLib.ListStore resources_store;
     private Gtk.SingleSelection resources_selection;
     private Gtk.SearchEntry resources_search_entry;
@@ -13,8 +14,15 @@ public class ResourcesToolView : Object {
     private Gtk.Button resources_delete_btn;
     private Gee.ArrayList<ProjectResource> all_resources = new Gee.ArrayList<ProjectResource>();
     private uint resources_refresh_serial = 0;
+    private bool has_committed_resources = false;
 
     public Gtk.Widget widget { get; private set; }
+    public string tool_id {
+        owned get { return "resources"; }
+    }
+    public string tool_label {
+        owned get { return "Resources"; }
+    }
 
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
@@ -22,6 +30,14 @@ public class ResourcesToolView : Object {
     public ResourcesToolView() {
         controller = new ResourcesController();
         widget = build_resources_tab();
+    }
+
+    public Gtk.Widget? get_actions_widget() {
+        return resources_actions_bar;
+    }
+
+    public Gtk.Widget get_content_widget() {
+        return widget;
     }
 
     public void set_api_client(IHolderApi? api) {
@@ -39,32 +55,75 @@ public class ResourcesToolView : Object {
         queue_resources_refresh();
     }
 
+    public ToolScopeSnapshot get_scope_snapshot(Project? selected_project, CardSummary? selected_card) {
+        var project_id = selected_project != null ? selected_project.project_id : null;
+        var project_label = selected_project != null ? selected_project.name : "(none)";
+        var card_id = selected_card != null ? selected_card.card_id : null;
+        var card_label = selected_card != null ? selected_card.title : "Overview";
+
+        ToolScopeMode scope_mode = selected_card != null
+            ? ToolScopeMode.CARD_FOCUS
+            : ToolScopeMode.PROJECT_ROOT;
+        if (project_id == null) {
+            scope_mode = ToolScopeMode.PROJECTS_ROOT;
+            project_label = "Projects";
+            card_id = null;
+            card_label = "Overview";
+        }
+
+        return new ToolScopeSnapshot(
+            tool_id,
+            tool_label,
+            project_id,
+            project_label,
+            card_id,
+            card_label,
+            scope_mode,
+            false
+        );
+    }
+
+    public async bool navigate_to_projects_root(string? selected_project_id) {
+        queue_resources_refresh();
+        return true;
+    }
+
+    public async bool navigate_to_project_root(string project_id) {
+        queue_resources_refresh();
+        return true;
+    }
+
+    public async bool navigate_to_card(string card_id) {
+        queue_resources_refresh();
+        return true;
+    }
+
     private Gtk.Widget build_resources_tab() {
         var root = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
 
-        var header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        resources_actions_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        resources_actions_bar.set_hexpand(true);
         resources_search_entry = new Gtk.SearchEntry();
         resources_search_entry.set_placeholder_text("Filter resources...");
         resources_search_entry.set_hexpand(true);
         resources_search_entry.search_changed.connect(() => {
             apply_resources_filter();
         });
-        header.append(resources_search_entry);
+        resources_actions_bar.append(resources_search_entry);
 
         var add_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
         add_btn.set_tooltip_text("Add resource");
         add_btn.clicked.connect(() => {
             open_resource_dialog(null);
         });
-        header.append(add_btn);
+        resources_actions_bar.append(add_btn);
 
         var refresh_btn = new Gtk.Button.from_icon_name("view-refresh-symbolic");
         refresh_btn.set_tooltip_text("Refresh resources");
         refresh_btn.clicked.connect(() => {
             queue_resources_refresh();
         });
-        header.append(refresh_btn);
-        root.append(header);
+        resources_actions_bar.append(refresh_btn);
 
         resources_store = new GLib.ListStore(typeof(ProjectResource));
         resources_selection = new Gtk.SingleSelection(resources_store);
@@ -91,12 +150,11 @@ public class ResourcesToolView : Object {
         resources_empty_label.set_visible(false);
         root.append(resources_empty_label);
 
-        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         resources_open_btn = new Gtk.Button.with_label("Open");
         resources_open_btn.clicked.connect(() => {
             open_selected_resource();
         });
-        actions.append(resources_open_btn);
+        resources_actions_bar.append(resources_open_btn);
 
         resources_edit_btn = new Gtk.Button.with_label("Edit");
         resources_edit_btn.clicked.connect(() => {
@@ -105,15 +163,14 @@ public class ResourcesToolView : Object {
                 open_resource_dialog(selected);
             }
         });
-        actions.append(resources_edit_btn);
+        resources_actions_bar.append(resources_edit_btn);
 
         resources_delete_btn = new Gtk.Button.with_label("Delete");
         resources_delete_btn.add_css_class("destructive-action");
         resources_delete_btn.clicked.connect(() => {
             confirm_delete_selected_resource();
         });
-        actions.append(resources_delete_btn);
-        root.append(actions);
+        resources_actions_bar.append(resources_delete_btn);
 
         refresh_resource_action_state();
         return root;
@@ -178,69 +235,66 @@ public class ResourcesToolView : Object {
     }
 
     private async void refresh_resources(uint request_serial) {
+        if (request_serial != resources_refresh_serial) {
+            return;
+        }
         if (resources_store == null) {
             return;
         }
-        while (resources_store.get_n_items() > 0) {
-            resources_store.remove(resources_store.get_n_items() - 1);
-        }
-        all_resources.clear();
 
         var project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
-        if (project == null) {
-            resources_empty_label.set_text("Select a project to view resources.");
-            resources_empty_label.set_visible(true);
-            refresh_resource_action_state();
+        var result = yield controller.refresh_resources_flow(api, project);
+        if (request_serial != resources_refresh_serial) {
             return;
         }
-        if (api == null) {
-            resources_empty_label.set_text("API unavailable.");
-            resources_empty_label.set_visible(true);
-            refresh_resource_action_state();
+        if (result.success) {
+            all_resources = result.resources;
+            apply_resources_filter();
+            has_committed_resources = true;
             return;
         }
 
-        try {
-            var resources = yield controller.list_resources(api, project.project_id);
-            if (request_serial != resources_refresh_serial) {
-                return;
-            }
-            all_resources = resources;
-            apply_resources_filter();
-        } catch (Error e) {
-            if (request_serial != resources_refresh_serial) {
-                return;
-            }
-            resources_empty_label.set_text("Failed to load resources.");
-            resources_empty_label.set_visible(true);
-            error_reported("Resources refresh failed", e.message);
-            refresh_resource_action_state();
+        if (result.has_error && has_committed_resources) {
+            error_reported(result.error_title, result.error_details);
+            return;
         }
+
+        clear_visible_resources();
+        all_resources.clear();
+        has_committed_resources = false;
+        resources_empty_label.set_text(result.empty_text);
+        resources_empty_label.set_visible(true);
+        if (result.has_error) {
+            error_reported(result.error_title, result.error_details);
+        }
+        refresh_resource_action_state();
     }
 
     private void apply_resources_filter() {
         if (resources_store == null) {
             return;
         }
-        while (resources_store.get_n_items() > 0) {
-            resources_store.remove(resources_store.get_n_items() - 1);
-        }
+        clear_visible_resources();
 
         var query = resources_search_entry != null ? resources_search_entry.get_text() : "";
-        var filtered = controller.filter_resources(all_resources, query);
-        foreach (var resource in filtered) {
+        var result = controller.apply_resources_filter_flow(all_resources, query);
+        foreach (var resource in result.filtered) {
             resources_store.append(resource);
         }
 
-        resources_empty_label.set_visible(resources_store.get_n_items() == 0);
-        if (resources_store.get_n_items() == 0) {
-            resources_empty_label.set_text(
-                query.strip().length > 0 ? "No resources match this filter." : "No resources in this project."
-            );
+        resources_empty_label.set_visible(result.empty);
+        if (result.empty) {
+            resources_empty_label.set_text(result.empty_text);
         }
         refresh_resource_action_state();
+    }
+
+    private void clear_visible_resources() {
+        while (resources_store.get_n_items() > 0) {
+            resources_store.remove(resources_store.get_n_items() - 1);
+        }
     }
 
     private ProjectResource? selected_resource() {
@@ -402,16 +456,18 @@ public class ResourcesToolView : Object {
                                        string uri,
                                        string label,
                                        string? desc) {
-        if (api == null) {
+        var result = yield controller.create_resource_flow(api, project_id, kind, uri, label, desc);
+        if (result.ignored) {
             return;
         }
-        try {
-            yield controller.create_resource(api, project_id, kind, uri, label, desc);
-            toast_requested("Resource added.");
+        if (result.success) {
+            if (result.toast_message.strip().length > 0) {
+                toast_requested(result.toast_message);
+            }
             queue_resources_refresh();
-        } catch (Error e) {
-            error_reported("Failed to create resource", e.message);
+            return;
         }
+        error_reported(result.error_title, result.error_details);
     }
 
     private async void update_resource(string resource_id,
@@ -419,16 +475,18 @@ public class ResourcesToolView : Object {
                                        string uri,
                                        string label,
                                        string? desc) {
-        if (api == null) {
+        var result = yield controller.update_resource_flow(api, resource_id, kind, uri, label, desc);
+        if (result.ignored) {
             return;
         }
-        try {
-            yield controller.update_resource(api, resource_id, kind, uri, label, desc);
-            toast_requested("Resource updated.");
+        if (result.success) {
+            if (result.toast_message.strip().length > 0) {
+                toast_requested(result.toast_message);
+            }
             queue_resources_refresh();
-        } catch (Error e) {
-            error_reported("Failed to update resource", e.message);
+            return;
         }
+        error_reported(result.error_title, result.error_details);
     }
 
     private void open_selected_resource() {
@@ -471,16 +529,18 @@ public class ResourcesToolView : Object {
     }
 
     private async void delete_resource(string resource_id) {
-        if (api == null) {
+        var result = yield controller.delete_resource_flow(api, resource_id);
+        if (result.ignored) {
             return;
         }
-        try {
-            yield controller.delete_resource(api, resource_id);
-            toast_requested("Resource deleted.");
+        if (result.success) {
+            if (result.toast_message.strip().length > 0) {
+                toast_requested(result.toast_message);
+            }
             queue_resources_refresh();
-        } catch (Error e) {
-            error_reported("Failed to delete resource", e.message);
+            return;
         }
+        error_reported(result.error_title, result.error_details);
     }
 
     private void open_local_resource_picker(Gtk.Window root_window,

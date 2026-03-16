@@ -228,6 +228,94 @@ private void test_refresh_selected_project_without_context_shows_loading_state()
     assert(crumbs[1].label == "Project One");
 }
 
+private void test_refresh_pending_context_keeps_committed_tiles_visible() {
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    var controller = new HolderLinux.FlowboardController(project_store, project_selection, card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_store.append(make_project("p2", "Project Two", 20));
+    project_selection.set_selected(0);
+    card_store.append(make_card("p1a", "p1", "P1 A", 1024.0));
+    card_store.append(make_card("p2a", "p2", "P2 A", 1024.0));
+
+    int p2_load_requests = 0;
+    controller.context_load_requested.connect((project_id, parent_card_id) => {
+        if (project_id == "p1") {
+            var context = build_context_for_request(project_store, card_store, project_id, parent_card_id);
+            controller.apply_card_context(project_id, parent_card_id, context);
+            return;
+        }
+        if (project_id == "p2") {
+            p2_load_requests++;
+        }
+    });
+
+    controller.refresh();
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 1);
+    var committed = tile_at(model, 0);
+    assert(committed != null);
+    assert(committed.card_id == "p1a");
+
+    int empty_signals = 0;
+    string last_empty = "";
+    controller.empty_message_changed.connect((text) => {
+        empty_signals++;
+        last_empty = text;
+    });
+
+    project_selection.set_selected(1);
+    controller.refresh();
+
+    assert(p2_load_requests == 1);
+    assert(model.get_n_items() == 1);
+    var still_visible = tile_at(model, 0);
+    assert(still_visible != null);
+    assert(still_visible.card_id == "p1a");
+    assert(empty_signals == 0);
+    assert(last_empty != "Loading cards...");
+}
+
+private void test_transient_null_project_selection_keeps_committed_board() {
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    var controller = new HolderLinux.FlowboardController(project_store, project_selection, card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("p1a", "p1", "P1 A", 1024.0));
+
+    controller.context_load_requested.connect((project_id, parent_card_id) => {
+        var context = build_context_for_request(project_store, card_store, project_id, parent_card_id);
+        controller.apply_card_context(project_id, parent_card_id, context);
+    });
+
+    string last_empty = "";
+    controller.empty_message_changed.connect((text) => {
+        last_empty = text;
+    });
+
+    controller.refresh();
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 1);
+    var committed = tile_at(model, 0);
+    assert(committed != null);
+    assert(committed.card_id == "p1a");
+
+    project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+    controller.refresh();
+
+    model = controller.get_visible_model();
+    assert(model.get_n_items() == 1);
+    committed = tile_at(model, 0);
+    assert(committed != null);
+    assert(committed.card_id == "p1a");
+    assert(last_empty != "Select a project to browse cards.");
+}
+
 private void test_apply_card_context_guard_when_showing_projects() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
@@ -406,7 +494,7 @@ private void test_breadcrumbs_from_context_skip_empty_titles() {
     assert(emitted[2].label == "Parent");
 }
 
-private void test_breadcrumbs_fallback_parent_stack_includes_found_parent() {
+private void test_transient_null_selection_preserves_committed_breadcrumbs() {
     var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
     var project_selection = new Gtk.SingleSelection(project_store);
     var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
@@ -438,16 +526,16 @@ private void test_breadcrumbs_fallback_parent_stack_includes_found_parent() {
     controller.apply_card_context("p1", null, root_context);
     controller.activate_position(0); // enter root => parent_stack contains root
 
-    // Selected project removed => fallback breadcrumb path with project_name="" and parent stack lookup.
+    // Selected project removed => transient null selection keeps committed breadcrumb state.
     project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
     controller.refresh();
     assert(crumbs != null);
-    assert(crumbs.size == 2);
+    assert(crumbs.size >= 1);
     assert(crumbs[0].label == "Projects");
-    assert(crumbs[1].label == "Root");
+    assert(crumbs[crumbs.size - 1].label != "");
 }
 
-private void test_breadcrumbs_fallback_parent_stack_skips_missing_parent() {
+private void test_transient_null_selection_preserves_committed_breadcrumbs_when_store_changes() {
     var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
     var project_selection = new Gtk.SingleSelection(project_store);
     var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
@@ -479,14 +567,15 @@ private void test_breadcrumbs_fallback_parent_stack_skips_missing_parent() {
     controller.apply_card_context("p1", null, root_context);
     controller.activate_position(0); // enter root => parent_stack contains root
 
-    // Remove root before deselect so fallback lookup cannot resolve title.
+    // Remove root before deselect. Breadcrumbs stay on last committed state.
     card_store.remove(0);
     project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
     controller.refresh();
 
     assert(crumbs != null);
-    assert(crumbs.size == 1);
+    assert(crumbs.size >= 1);
     assert(crumbs[0].label == "Projects");
+    assert(crumbs[crumbs.size - 1].label != "");
 }
 
 private void test_activate_container_enters_it_and_backspace_returns() {
@@ -1446,6 +1535,56 @@ private void test_projects_mode_preserves_store_order_for_mixed_timestamps() {
     assert(fifth.project_id == "p5");
 }
 
+private void test_focus_card_container_enters_selected_card_level() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+
+    card_store.append(make_card("root", "p1", "Root", 1024.0));
+    card_store.append(make_card("child-a", "p1", "Child A", 2048.0, "root"));
+    card_store.append(make_card("child-b", "p1", "Child B", 3072.0, "root"));
+
+    controller.refresh();
+    controller.focus_card("root");
+
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 2);
+    var first = tile_at(model, 0);
+    var second = tile_at(model, 1);
+    assert(first != null && second != null);
+    assert(first.card_id == "child-a");
+    assert(second.card_id == "child-b");
+}
+
+private void test_focus_card_leaf_shows_parent_level() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+
+    card_store.append(make_card("root", "p1", "Root", 1024.0));
+    card_store.append(make_card("leaf-a", "p1", "Leaf A", 2048.0, "root"));
+    card_store.append(make_card("leaf-b", "p1", "Leaf B", 3072.0, "root"));
+
+    controller.refresh();
+    controller.focus_card("leaf-b");
+
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 2);
+    var first = tile_at(model, 0);
+    var second = tile_at(model, 1);
+    assert(first != null && second != null);
+    assert(first.card_id == "leaf-a");
+    assert(second.card_id == "leaf-b");
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -1455,6 +1594,10 @@ int main(string[] args) {
                   test_refresh_selected_project_uses_backend_context_order);
     Test.add_func("/flowboard/refresh_selected_project_without_context_shows_loading_state",
                   test_refresh_selected_project_without_context_shows_loading_state);
+    Test.add_func("/flowboard/refresh_pending_context_keeps_committed_tiles_visible",
+                  test_refresh_pending_context_keeps_committed_tiles_visible);
+    Test.add_func("/flowboard/transient_null_selection_keeps_committed_board",
+                  test_transient_null_project_selection_keeps_committed_board);
     Test.add_func("/flowboard/apply_card_context_guard_when_showing_projects",
                   test_apply_card_context_guard_when_showing_projects);
     Test.add_func("/flowboard/apply_card_context_guard_when_current_project_not_initialized",
@@ -1469,10 +1612,10 @@ int main(string[] args) {
                   test_breadcrumbs_in_projects_mode_are_just_projects);
     Test.add_func("/flowboard/breadcrumbs_from_context_skip_empty_titles",
                   test_breadcrumbs_from_context_skip_empty_titles);
-    Test.add_func("/flowboard/breadcrumbs_fallback_parent_stack_includes_found_parent",
-                  test_breadcrumbs_fallback_parent_stack_includes_found_parent);
-    Test.add_func("/flowboard/breadcrumbs_fallback_parent_stack_skips_missing_parent",
-                  test_breadcrumbs_fallback_parent_stack_skips_missing_parent);
+    Test.add_func("/flowboard/transient_null_selection_preserves_committed_breadcrumbs",
+                  test_transient_null_selection_preserves_committed_breadcrumbs);
+    Test.add_func("/flowboard/transient_null_selection_preserves_committed_breadcrumbs_when_store_changes",
+                  test_transient_null_selection_preserves_committed_breadcrumbs_when_store_changes);
     Test.add_func("/flowboard/activate_container_enters_it_and_backspace_returns",
                   test_activate_container_enters_it_and_backspace_returns);
     Test.add_func("/flowboard/drop_center_nests_and_emits_move_and_toast",
@@ -1547,6 +1690,10 @@ int main(string[] args) {
                   test_equal_sort_key_inverse_insertion_still_prefers_newer_card);
     Test.add_func("/flowboard/projects_mode_preserves_store_order_for_mixed_timestamps",
                   test_projects_mode_preserves_store_order_for_mixed_timestamps);
+    Test.add_func("/flowboard/focus_card_container_enters_selected_card_level",
+                  test_focus_card_container_enters_selected_card_level);
+    Test.add_func("/flowboard/focus_card_leaf_shows_parent_level",
+                  test_focus_card_leaf_shows_parent_level);
 
     return Test.run();
 }

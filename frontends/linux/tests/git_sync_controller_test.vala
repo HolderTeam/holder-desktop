@@ -287,6 +287,374 @@ private void test_configure_remote_and_sync_failure_propagates() {
     assert(got_error);
 }
 
+private void test_apply_project_git_remote_and_sync_builds_summary_and_toast() {
+    var service = new FakeGitSyncService();
+    service.apply_result = new HolderLinux.GitRemoteApplyResult(
+        new HolderLinux.GitTestRemoteResult(
+            "p1",
+            "git@github.com:zeth/holder.git",
+            "cards",
+            "reachable",
+            true,
+            "",
+            "ok"
+        ),
+        new HolderLinux.GitPushResult(
+            "p1",
+            "git@github.com:zeth/holder.git",
+            "cards",
+            "pushed",
+            2,
+            0,
+            "",
+            "",
+            "none"
+        )
+    );
+
+    var controller = new HolderLinux.GitSyncController(service);
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var project = new HolderLinux.Project("p1", "Demo Project", "standard", "/tmp/demo", 1, 1);
+
+    bool done = false;
+    HolderLinux.GitSyncApplyFlowResult? out_result = null;
+    controller.apply_project_git_remote_and_sync.begin(
+        api,
+        project,
+        "git@github.com:zeth/holder.git",
+        "cards",
+        (obj, res) => {
+            try {
+                out_result = controller.apply_project_git_remote_and_sync.end(res);
+            } catch (Error e) {
+                assert_not_reached();
+            }
+            done = true;
+        }
+    );
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(out_result != null);
+    assert(out_result.summary_text.contains("Project: Demo Project"));
+    assert(out_result.summary_text.contains("Remote test: reachable (ok)"));
+    assert(out_result.summary_text.contains("Push: pushed"));
+    assert(out_result.summary_text.contains("Next action: none"));
+    assert(out_result.toast_message == "Git remote configured and synced.");
+}
+
+private void test_apply_project_git_remote_and_sync_handles_missing_results_without_toast() {
+    var service = new FakeGitSyncService();
+    service.apply_result = new HolderLinux.GitRemoteApplyResult(null, null);
+
+    var controller = new HolderLinux.GitSyncController(service);
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var project = new HolderLinux.Project("p1", "Demo Project", "standard", "/tmp/demo", 1, 1);
+
+    bool done = false;
+    HolderLinux.GitSyncApplyFlowResult? out_result = null;
+    controller.apply_project_git_remote_and_sync.begin(
+        api,
+        project,
+        "git@github.com:zeth/holder.git",
+        "",
+        (obj, res) => {
+            try {
+                out_result = controller.apply_project_git_remote_and_sync.end(res);
+            } catch (Error e) {
+                assert_not_reached();
+            }
+            done = true;
+        }
+    );
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(out_result != null);
+    assert(!out_result.summary_text.contains("Branch:"));
+    assert(out_result.summary_text.contains("Remote test: not run"));
+    assert(out_result.summary_text.contains("Push: not run"));
+    assert(out_result.toast_message == "");
+}
+
+private void test_run_github_cli_auto_sync_flow_created_repo_with_toast() {
+    var service = new FakeGitSyncService();
+    service.repo_create = new HolderLinux.GitRepoCreateResult(true, true, "ok");
+    service.apply_result = new HolderLinux.GitRemoteApplyResult(
+        new HolderLinux.GitTestRemoteResult(
+            "p1",
+            "git@github.com:zeth/demo.git",
+            "",
+            "reachable",
+            true,
+            "",
+            ""
+        ),
+        new HolderLinux.GitPushResult(
+            "p1",
+            "git@github.com:zeth/demo.git",
+            "",
+            "up_to_date",
+            0,
+            0,
+            "",
+            "",
+            ""
+        )
+    );
+    var controller = new HolderLinux.GitSyncController(service);
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var project = new HolderLinux.Project("p1", "Demo", "standard", "/tmp/demo", 1, 1);
+
+    bool done = false;
+    HolderLinux.GitHubCliAutoSyncFlowResult? out_result = null;
+    controller.run_github_cli_auto_sync_flow.begin(api, project, "zeth", (obj, res) => {
+        try {
+            out_result = controller.run_github_cli_auto_sync_flow.end(res);
+        } catch (Error e) {
+            assert_not_reached();
+        }
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(out_result != null);
+    assert(out_result.error_title == "");
+    assert(out_result.status_text.contains("GitHub CLI: created repo `zeth/Demo`."));
+    assert(out_result.status_text.contains("Remote test: reachable"));
+    assert(out_result.status_text.contains("Push: up_to_date."));
+    assert(out_result.toast_message == "GitHub CLI sync setup completed.");
+}
+
+private void test_run_github_cli_auto_sync_flow_uses_existing_repo_without_toast() {
+    var service = new FakeGitSyncService();
+    service.repo_create = new HolderLinux.GitRepoCreateResult(false, true, "already exists");
+    service.apply_result = new HolderLinux.GitRemoteApplyResult(
+        new HolderLinux.GitTestRemoteResult(
+            "p1",
+            "git@github.com:zeth/demo.git",
+            "",
+            "reachable",
+            true,
+            "",
+            ""
+        ),
+        new HolderLinux.GitPushResult(
+            "p1",
+            "git@github.com:zeth/demo.git",
+            "",
+            "non_fast_forward",
+            1,
+            1,
+            "non_fast_forward",
+            "need pull",
+            "pull first"
+        )
+    );
+    var controller = new HolderLinux.GitSyncController(service);
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var project = new HolderLinux.Project("p1", "Demo", "standard", "/tmp/demo", 1, 1);
+
+    bool done = false;
+    HolderLinux.GitHubCliAutoSyncFlowResult? out_result = null;
+    controller.run_github_cli_auto_sync_flow.begin(api, project, "zeth", (obj, res) => {
+        try {
+            out_result = controller.run_github_cli_auto_sync_flow.end(res);
+        } catch (Error e) {
+            assert_not_reached();
+        }
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(out_result != null);
+    assert(out_result.status_text.contains("GitHub CLI: using existing repo `zeth/Demo`."));
+    assert(out_result.status_text.contains("Push: non_fast_forward (need pull)."));
+    assert(out_result.toast_message == "");
+}
+
+private void test_run_github_cli_auto_sync_flow_create_failure_returns_error_result() {
+    var service = new FakeGitSyncService();
+    service.repo_create = new HolderLinux.GitRepoCreateResult(false, false, "create failed");
+    var controller = new HolderLinux.GitSyncController(service);
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var project = new HolderLinux.Project("p1", "Demo", "standard", "/tmp/demo", 1, 1);
+
+    bool done = false;
+    HolderLinux.GitHubCliAutoSyncFlowResult? out_result = null;
+    controller.run_github_cli_auto_sync_flow.begin(api, project, "zeth", (obj, res) => {
+        try {
+            out_result = controller.run_github_cli_auto_sync_flow.end(res);
+        } catch (Error e) {
+            assert_not_reached();
+        }
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(out_result != null);
+    assert(out_result.error_title == "GitHub CLI setup failed");
+    assert(out_result.error_details == "create failed");
+    assert(out_result.status_text == "GitHub CLI setup failed: create failed");
+}
+
+private void test_run_github_cli_auto_sync_flow_invalid_project_name_throws() {
+    var controller = new HolderLinux.GitSyncController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var project = new HolderLinux.Project("p1", "###", "standard", "/tmp/demo", 1, 1);
+
+    bool done = false;
+    bool got_error = false;
+    controller.run_github_cli_auto_sync_flow.begin(api, project, "zeth", (obj, res) => {
+        try {
+            controller.run_github_cli_auto_sync_flow.end(res);
+        } catch (Error e) {
+            got_error = e.message.contains("valid repository name");
+        }
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(got_error);
+}
+
+private void test_run_github_guided_sync_flow_builds_status_and_toast() {
+    var service = new FakeGitSyncService();
+    service.apply_result = new HolderLinux.GitRemoteApplyResult(
+        new HolderLinux.GitTestRemoteResult(
+            "p1",
+            "git@github.com:zeth/demo.git",
+            "",
+            "reachable",
+            true,
+            "",
+            "ok"
+        ),
+        new HolderLinux.GitPushResult(
+            "p1",
+            "git@github.com:zeth/demo.git",
+            "",
+            "pushed",
+            0,
+            0,
+            "",
+            "",
+            ""
+        )
+    );
+    var controller = new HolderLinux.GitSyncController(service);
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var project = new HolderLinux.Project("p1", "Demo", "standard", "/tmp/demo", 1, 1);
+
+    bool done = false;
+    HolderLinux.GitHubGuidedSyncFlowResult? out_result = null;
+    controller.run_github_guided_sync_flow.begin(api, project, "zeth", "demo", (obj, res) => {
+        try {
+            out_result = controller.run_github_guided_sync_flow.end(res);
+        } catch (Error e) {
+            assert_not_reached();
+        }
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(out_result != null);
+    assert(out_result.status_text.contains("Remote test: reachable (ok)"));
+    assert(out_result.status_text.contains("Push: pushed"));
+    assert(out_result.status_text.contains("Sync state: unknown"));
+    assert(out_result.status_text.contains("Last push: never"));
+    assert(out_result.status_text.contains("Push retry count: 0"));
+    assert(out_result.status_text.contains("Pull retry count: 0"));
+    assert(out_result.toast_message == "Git sync setup completed.");
+}
+
+private void test_run_github_guided_sync_flow_list_projects_failure_propagates() {
+    var service = new FakeGitSyncService();
+    var controller = new HolderLinux.GitSyncController(service);
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    api.fail_list_projects = true;
+    var project = new HolderLinux.Project("p1", "Demo", "standard", "/tmp/demo", 1, 1);
+
+    bool done = false;
+    bool got_error = false;
+    controller.run_github_guided_sync_flow.begin(api, project, "zeth", "demo", (obj, res) => {
+        try {
+            controller.run_github_guided_sync_flow.end(res);
+        } catch (Error e) {
+            got_error = e.message.contains("list projects failed");
+        }
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(got_error);
+}
+
+private void test_verify_github_repository_exists_flow_success() {
+    var service = new FakeGitSyncService();
+    service.repo_check = new HolderLinux.GitRepoCheckResult(true, "");
+    var controller = new HolderLinux.GitSyncController(service);
+
+    bool done = false;
+    HolderLinux.GitHubRepoVerifyFlowResult? out_result = null;
+    controller.verify_github_repository_exists_flow.begin("zeth", "demo", (obj, res) => {
+        out_result = controller.verify_github_repository_exists_flow.end(res);
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(out_result != null);
+    assert(out_result.exists);
+    assert(out_result.status_text == "Repository found on GitHub.");
+    assert(out_result.error_title == "");
+    assert(out_result.push_intro_text.contains("git@github.com:zeth/demo.git"));
+}
+
+private void test_verify_github_repository_exists_flow_failure() {
+    var service = new FakeGitSyncService();
+    service.repo_check = new HolderLinux.GitRepoCheckResult(false, "not reachable");
+    var controller = new HolderLinux.GitSyncController(service);
+
+    bool done = false;
+    HolderLinux.GitHubRepoVerifyFlowResult? out_result = null;
+    controller.verify_github_repository_exists_flow.begin("zeth", "demo", (obj, res) => {
+        out_result = controller.verify_github_repository_exists_flow.end(res);
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(out_result != null);
+    assert(!out_result.exists);
+    assert(out_result.status_text == "not reachable");
+    assert(out_result.error_title == "Repository check failed");
+    assert(out_result.error_details.contains("https://github.com/zeth/demo"));
+}
+
+private void test_validate_remote_setup_inputs_missing_project_returns_toast() {
+    var controller = new HolderLinux.GitSyncController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var result = controller.validate_remote_setup_inputs(null, api, "git@github.com:zeth/demo.git");
+    assert(!result.ok);
+    assert(result.is_toast);
+    assert(result.message == "Select a project first.");
+}
+
+private void test_validate_remote_setup_inputs_missing_api_returns_error() {
+    var controller = new HolderLinux.GitSyncController();
+    var project = new HolderLinux.Project("p1", "Demo", "standard", "/tmp/demo", 1, 1);
+    var result = controller.validate_remote_setup_inputs(project, null, "git@github.com:zeth/demo.git");
+    assert(!result.ok);
+    assert(!result.is_toast);
+    assert(result.error_title == "Git sync failed");
+    assert(result.error_details == "Backend API client is not ready.");
+}
+
+private void test_validate_remote_setup_inputs_missing_remote_returns_toast() {
+    var controller = new HolderLinux.GitSyncController();
+    var project = new HolderLinux.Project("p1", "Demo", "standard", "/tmp/demo", 1, 1);
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var result = controller.validate_remote_setup_inputs(project, api, "   ");
+    assert(!result.ok);
+    assert(result.is_toast);
+    assert(result.message == "Remote URL is required.");
+}
+
+private void test_validate_remote_setup_inputs_ok() {
+    var controller = new HolderLinux.GitSyncController();
+    var project = new HolderLinux.Project("p1", "Demo", "standard", "/tmp/demo", 1, 1);
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var result = controller.validate_remote_setup_inputs(project, api, "git@github.com:zeth/demo.git");
+    assert(result.ok);
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -321,6 +689,34 @@ int main(string[] args) {
                   test_set_saved_github_username_without_settings_is_noop);
     Test.add_func("/git_sync_controller/configure_remote_and_sync_failure_propagates",
                   test_configure_remote_and_sync_failure_propagates);
+    Test.add_func("/git_sync_controller/apply_project_git_remote_and_sync_builds_summary_and_toast",
+                  test_apply_project_git_remote_and_sync_builds_summary_and_toast);
+    Test.add_func("/git_sync_controller/apply_project_git_remote_and_sync_handles_missing_results_without_toast",
+                  test_apply_project_git_remote_and_sync_handles_missing_results_without_toast);
+    Test.add_func("/git_sync_controller/run_github_cli_auto_sync_flow_created_repo_with_toast",
+                  test_run_github_cli_auto_sync_flow_created_repo_with_toast);
+    Test.add_func("/git_sync_controller/run_github_cli_auto_sync_flow_uses_existing_repo_without_toast",
+                  test_run_github_cli_auto_sync_flow_uses_existing_repo_without_toast);
+    Test.add_func("/git_sync_controller/run_github_cli_auto_sync_flow_create_failure_returns_error_result",
+                  test_run_github_cli_auto_sync_flow_create_failure_returns_error_result);
+    Test.add_func("/git_sync_controller/run_github_cli_auto_sync_flow_invalid_project_name_throws",
+                  test_run_github_cli_auto_sync_flow_invalid_project_name_throws);
+    Test.add_func("/git_sync_controller/run_github_guided_sync_flow_builds_status_and_toast",
+                  test_run_github_guided_sync_flow_builds_status_and_toast);
+    Test.add_func("/git_sync_controller/run_github_guided_sync_flow_list_projects_failure_propagates",
+                  test_run_github_guided_sync_flow_list_projects_failure_propagates);
+    Test.add_func("/git_sync_controller/verify_github_repository_exists_flow_success",
+                  test_verify_github_repository_exists_flow_success);
+    Test.add_func("/git_sync_controller/verify_github_repository_exists_flow_failure",
+                  test_verify_github_repository_exists_flow_failure);
+    Test.add_func("/git_sync_controller/validate_remote_setup_inputs_missing_project_returns_toast",
+                  test_validate_remote_setup_inputs_missing_project_returns_toast);
+    Test.add_func("/git_sync_controller/validate_remote_setup_inputs_missing_api_returns_error",
+                  test_validate_remote_setup_inputs_missing_api_returns_error);
+    Test.add_func("/git_sync_controller/validate_remote_setup_inputs_missing_remote_returns_toast",
+                  test_validate_remote_setup_inputs_missing_remote_returns_toast);
+    Test.add_func("/git_sync_controller/validate_remote_setup_inputs_ok",
+                  test_validate_remote_setup_inputs_ok);
 
     return Test.run();
 }

@@ -33,6 +33,118 @@ private void test_key_to_color_scheme_unknown_falls_back_default() {
     assert(HolderLinux.AppSettings.key_to_color_scheme("surprise-value") == Adw.ColorScheme.DEFAULT);
 }
 
+private void test_gnome_color_scheme_to_color_scheme_prefer_dark() {
+    assert(HolderLinux.AppSettings.gnome_color_scheme_to_color_scheme("prefer-dark") ==
+           Adw.ColorScheme.FORCE_DARK);
+}
+
+private void test_gnome_color_scheme_to_color_scheme_prefer_light() {
+    assert(HolderLinux.AppSettings.gnome_color_scheme_to_color_scheme("prefer-light") ==
+           Adw.ColorScheme.FORCE_LIGHT);
+}
+
+private void test_gnome_color_scheme_to_color_scheme_unknown_falls_back_default() {
+    assert(HolderLinux.AppSettings.gnome_color_scheme_to_color_scheme("default") ==
+           Adw.ColorScheme.DEFAULT);
+}
+
+private void test_effective_color_scheme_for_key_force_dark() {
+    assert(HolderLinux.AppSettings.effective_color_scheme_for_key("force-dark") ==
+           Adw.ColorScheme.FORCE_DARK);
+}
+
+private void test_effective_color_scheme_for_key_force_light() {
+    assert(HolderLinux.AppSettings.effective_color_scheme_for_key("force-light") ==
+           Adw.ColorScheme.FORCE_LIGHT);
+}
+
+private void test_resolve_default_color_scheme_schema_source_null_returns_default() {
+    HolderLinux.AppSettings.force_schema_source_null_for_tests = true;
+    HolderLinux.AppSettings.force_gnome_schema_missing_for_tests = false;
+    assert(HolderLinux.AppSettings.resolve_default_color_scheme() == Adw.ColorScheme.DEFAULT);
+    HolderLinux.AppSettings.force_schema_source_null_for_tests = false;
+}
+
+private void test_resolve_default_color_scheme_schema_missing_returns_default() {
+    HolderLinux.AppSettings.force_schema_source_null_for_tests = false;
+    HolderLinux.AppSettings.force_gnome_schema_missing_for_tests = true;
+    assert(HolderLinux.AppSettings.resolve_default_color_scheme() == Adw.ColorScheme.DEFAULT);
+    HolderLinux.AppSettings.force_gnome_schema_missing_for_tests = false;
+}
+
+private void test_effective_color_scheme_for_key_default_uses_resolved_default() {
+    HolderLinux.AppSettings.force_schema_source_null_for_tests = true;
+    HolderLinux.AppSettings.force_gnome_schema_missing_for_tests = false;
+    assert(HolderLinux.AppSettings.effective_color_scheme_for_key("default") ==
+           Adw.ColorScheme.DEFAULT);
+    HolderLinux.AppSettings.force_schema_source_null_for_tests = false;
+}
+
+private void test_resolve_default_color_scheme_from_gnome_schema_subprocess() {
+    if (Test.subprocess()) {
+        assert(HolderLinux.AppSettings.resolve_default_color_scheme() == Adw.ColorScheme.FORCE_DARK);
+        return;
+    }
+
+    string tmp_dir = "";
+    try {
+        tmp_dir = DirUtils.make_tmp("holder-linux-app-settings-gnome-schema-XXXXXX");
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+
+    var xml_path = Path.build_filename(tmp_dir, "org.gnome.desktop.interface.gschema.xml");
+    var xml = """
+<schemalist>
+  <schema id='org.gnome.desktop.interface' path='/org/gnome/desktop/interface/'>
+    <key name='color-scheme' type='s'>
+      <default>'prefer-dark'</default>
+    </key>
+  </schema>
+</schemalist>
+""";
+    try {
+        FileUtils.set_contents(xml_path, xml);
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+
+    int status = -1;
+    string stdout_text = "";
+    string stderr_text = "";
+    try {
+        Process.spawn_command_line_sync("glib-compile-schemas \"%s\"".printf(tmp_dir),
+                                        out stdout_text,
+                                        out stderr_text,
+                                        out status);
+    } catch (SpawnError e) {
+        assert_not_reached();
+    }
+    assert(status == 0);
+
+    var old_backend = Environment.get_variable("GSETTINGS_BACKEND");
+    var old_schema_dir = Environment.get_variable("GSETTINGS_SCHEMA_DIR");
+    Environment.set_variable("GSETTINGS_BACKEND", "memory", true);
+    Environment.set_variable("GSETTINGS_SCHEMA_DIR", tmp_dir, true);
+    Test.trap_subprocess("/app_settings/resolve_default_color_scheme_from_gnome_schema_subprocess", 0, 0);
+    Test.trap_assert_passed();
+
+    if (old_backend == null) {
+        Environment.unset_variable("GSETTINGS_BACKEND");
+    } else {
+        Environment.set_variable("GSETTINGS_BACKEND", old_backend, true);
+    }
+    if (old_schema_dir == null) {
+        Environment.unset_variable("GSETTINGS_SCHEMA_DIR");
+    } else {
+        Environment.set_variable("GSETTINGS_SCHEMA_DIR", old_schema_dir, true);
+    }
+
+    FileUtils.remove(Path.build_filename(tmp_dir, "gschemas.compiled"));
+    FileUtils.remove(xml_path);
+    DirUtils.remove(tmp_dir);
+}
+
 private void test_schema_candidate_dir_for_executable_path() {
     var dir = HolderLinux.AppSettings.schema_candidate_dir_for_executable_path("/tmp/holder/bin/holder-desktop");
     assert(dir == "/tmp/holder/bin/data");
@@ -232,6 +344,7 @@ private void test_key_constants_are_non_empty() {
     assert(HolderLinux.AppSettings.KEY_WINDOW_HEIGHT.length > 0);
     assert(HolderLinux.AppSettings.KEY_WINDOW_MAXIMIZED.length > 0);
     assert(HolderLinux.AppSettings.KEY_SIDEBAR_WIDTH.length > 0);
+    assert(HolderLinux.AppSettings.KEY_AI_PANEL_WIDTH.length > 0);
     assert(HolderLinux.AppSettings.KEY_TINY_CLOSE_STREAK.length > 0);
     assert(HolderLinux.AppSettings.KEY_CUSTOM_CARD_LINK_KINDS.length > 0);
     assert(HolderLinux.AppSettings.KEY_GIT_GITHUB_USERNAME.length > 0);
@@ -250,6 +363,24 @@ int main(string[] args) {
     Test.add_func("/app_settings/key_to_color_scheme/force_dark", test_key_to_color_scheme_force_dark);
     Test.add_func("/app_settings/key_to_color_scheme/unknown_falls_back_default",
                   test_key_to_color_scheme_unknown_falls_back_default);
+    Test.add_func("/app_settings/gnome_color_scheme_to_color_scheme/prefer_dark",
+                  test_gnome_color_scheme_to_color_scheme_prefer_dark);
+    Test.add_func("/app_settings/gnome_color_scheme_to_color_scheme/prefer_light",
+                  test_gnome_color_scheme_to_color_scheme_prefer_light);
+    Test.add_func("/app_settings/gnome_color_scheme_to_color_scheme/unknown_falls_back_default",
+                  test_gnome_color_scheme_to_color_scheme_unknown_falls_back_default);
+    Test.add_func("/app_settings/effective_color_scheme_for_key/force_dark",
+                  test_effective_color_scheme_for_key_force_dark);
+    Test.add_func("/app_settings/effective_color_scheme_for_key/force_light",
+                  test_effective_color_scheme_for_key_force_light);
+    Test.add_func("/app_settings/resolve_default_color_scheme/schema_source_null_returns_default",
+                  test_resolve_default_color_scheme_schema_source_null_returns_default);
+    Test.add_func("/app_settings/resolve_default_color_scheme/schema_missing_returns_default",
+                  test_resolve_default_color_scheme_schema_missing_returns_default);
+    Test.add_func("/app_settings/effective_color_scheme_for_key/default_uses_resolved_default",
+                  test_effective_color_scheme_for_key_default_uses_resolved_default);
+    Test.add_func("/app_settings/resolve_default_color_scheme_from_gnome_schema_subprocess",
+                  test_resolve_default_color_scheme_from_gnome_schema_subprocess);
     Test.add_func("/app_settings/schema_candidate_dir_for_executable_path",
                   test_schema_candidate_dir_for_executable_path);
     Test.add_func("/app_settings/has_compiled_schema_in_dir_false_for_missing",

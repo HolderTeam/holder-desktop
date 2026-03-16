@@ -31,6 +31,11 @@ public interface IHolderApi : Object {
     public abstract async Gee.ArrayList<CardLink> list_card_links(string card_id) throws Error;
     public abstract async Gee.ArrayList<CardLink> list_card_backlinks(string card_id) throws Error;
     public abstract async Gee.ArrayList<ProjectResource> list_resources(string project_id) throws Error;
+    public abstract async Gee.ArrayList<TrashItem> list_trash_items(string project_id,
+                                                                     string type = "all") throws Error;
+    public abstract async void empty_trash(string project_id, string type = "all") throws Error;
+    public abstract async void restore_trash_item(string item_type, string item_id) throws Error;
+    public abstract async void hard_delete_trash_item(string item_type, string item_id) throws Error;
     public abstract async string create_resource(string project_id,
                                                  string kind,
                                                  string uri,
@@ -90,6 +95,7 @@ public interface IHolderApi : Object {
                                                     string? parent_card_id,
                                                     double sort_key,
                                                     int64 updated_at) throws Error;
+    public abstract async void delete_card(string card_id) throws Error;
     public abstract async CardMoveResult move_card(string card_id,
                                                    string project_id,
                                                    string intent,
@@ -132,6 +138,12 @@ public interface ITextProvider : Object {
     public abstract string get_text();
 }
 
+public interface IExplorerStateSink : Object {
+    public abstract void replace_projects_snapshot(Gee.ArrayList<Project> projects);
+    public abstract void replace_cards_snapshot(Gee.ArrayList<CardSummary> cards);
+    public abstract void replace_ai_threads_snapshot(Gee.ArrayList<AiThreadSummary> ai_threads);
+}
+
 public class MainLoopScheduler : Object, IScheduler {
     public uint schedule_once(uint delay_ms, owned SourceFunc callback) {
         return Timeout.add(delay_ms, () => {
@@ -162,6 +174,11 @@ public interface IAiRunContext : Object {
     public abstract async string create_ai_thread(string title) throws Error;
     public abstract async void reload_ai_threads_for_project(string project_id);
     public abstract bool select_ai_thread_by_id(string thread_id);
+}
+
+public interface IRecoveryContext : Object {
+    public abstract IHolderApi? get_api_client();
+    public abstract async void reload_everything();
 }
 
 }

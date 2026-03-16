@@ -239,6 +239,25 @@ public class ProjectResource : Object {
     }
 }
 
+public class TrashItem : Object {
+    public string item_type { get; construct; }
+    public string item_id { get; construct; }
+    public string title { get; construct; }
+    public int64 deleted_at { get; construct; }
+
+    public TrashItem(string item_type,
+                     string item_id,
+                     string title,
+                     int64 deleted_at) {
+        Object(
+            item_type: item_type,
+            item_id: item_id,
+            title: title,
+            deleted_at: deleted_at
+        );
+    }
+}
+
 public class FlowboardTile : Object {
     public string node_key { get; construct; }
     public string title { get; construct; }

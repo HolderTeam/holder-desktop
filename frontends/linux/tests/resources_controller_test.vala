@@ -168,6 +168,142 @@ private void test_default_resource_kinds_are_stable() {
     assert(kinds[4] == "image");
 }
 
+private void test_refresh_resources_flow_project_and_api_preconditions() {
+    var controller = new HolderLinux.ResourcesController();
+    bool done1 = false;
+    HolderLinux.ResourcesRefreshResult? res1 = null;
+    controller.refresh_resources_flow.begin(null, null, (obj, res) => {
+        res1 = controller.refresh_resources_flow.end(res);
+        done1 = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done1));
+    assert(res1 != null);
+    assert(!res1.success);
+    assert(res1.empty_text == "Select a project to view resources.");
+
+    bool done2 = false;
+    HolderLinux.ResourcesRefreshResult? res2 = null;
+    var project = new HolderLinux.Project("p1", "Project 1", "plain", "/tmp/p1", 1, 1);
+    controller.refresh_resources_flow.begin(null, project, (obj, res) => {
+        res2 = controller.refresh_resources_flow.end(res);
+        done2 = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done2));
+    assert(res2 != null);
+    assert(!res2.success);
+    assert(res2.empty_text == "API unavailable.");
+}
+
+private void test_refresh_resources_flow_success_and_error() {
+    var controller = new HolderLinux.ResourcesController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    var project = new HolderLinux.Project("p1", "Project 1", "plain", "/tmp/p1", 1, 1);
+
+    bool done1 = false;
+    HolderLinux.ResourcesRefreshResult? res1 = null;
+    controller.refresh_resources_flow.begin(api, project, (obj, res) => {
+        res1 = controller.refresh_resources_flow.end(res);
+        done1 = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done1));
+    assert(res1 != null);
+    assert(res1.success);
+    assert(res1.resources.size == 0);
+    assert(api.list_resources_calls == 1);
+
+    api.fail_list_resources = true;
+    bool done2 = false;
+    HolderLinux.ResourcesRefreshResult? res2 = null;
+    controller.refresh_resources_flow.begin(api, project, (obj, res) => {
+        res2 = controller.refresh_resources_flow.end(res);
+        done2 = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done2));
+    assert(res2 != null);
+    assert(!res2.success);
+    assert(res2.has_error);
+    assert(res2.empty_text == "Failed to load resources.");
+    assert(res2.error_title == "Resources refresh failed");
+}
+
+private void test_apply_resources_filter_flow_empty_texts() {
+    var controller = new HolderLinux.ResourcesController();
+    var all = new Gee.ArrayList<HolderLinux.ProjectResource>();
+    all.add(make_resource("r1", "url", "https://example.com", "Example"));
+
+    var non_empty = controller.apply_resources_filter_flow(all, "example");
+    assert(!non_empty.empty);
+
+    var empty_with_query = controller.apply_resources_filter_flow(all, "missing");
+    assert(empty_with_query.empty);
+    assert(empty_with_query.empty_text == "No resources match this filter.");
+
+    all.clear();
+    var empty_no_query = controller.apply_resources_filter_flow(all, "");
+    assert(empty_no_query.empty);
+    assert(empty_no_query.empty_text == "No resources in this project.");
+}
+
+private void test_create_update_delete_resource_flows() {
+    var controller = new HolderLinux.ResourcesController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+
+    bool cdone = false;
+    HolderLinux.ResourcesMutationResult? cresult = null;
+    controller.create_resource_flow.begin(api, "p1", "url", "https://example.com", "Example", null, (obj, res) => {
+        cresult = controller.create_resource_flow.end(res);
+        cdone = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => cdone));
+    assert(cresult != null && cresult.success && cresult.should_refresh);
+    assert(cresult.toast_message == "Resource added.");
+
+    bool udone = false;
+    HolderLinux.ResourcesMutationResult? uresult = null;
+    controller.update_resource_flow.begin(api, "r1", "file", "file:///tmp/a.txt", "A", null, (obj, res) => {
+        uresult = controller.update_resource_flow.end(res);
+        udone = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => udone));
+    assert(uresult != null && uresult.success && uresult.should_refresh);
+    assert(uresult.toast_message == "Resource updated.");
+
+    bool ddone = false;
+    HolderLinux.ResourcesMutationResult? dresult = null;
+    controller.delete_resource_flow.begin(api, "r1", (obj, res) => {
+        dresult = controller.delete_resource_flow.end(res);
+        ddone = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => ddone));
+    assert(dresult != null && dresult.success && dresult.should_refresh);
+    assert(dresult.toast_message == "Resource deleted.");
+}
+
+private void test_resource_flows_ignore_or_error_paths() {
+    var controller = new HolderLinux.ResourcesController();
+
+    bool done_ignore = false;
+    HolderLinux.ResourcesMutationResult? ignore_result = null;
+    controller.create_resource_flow.begin(null, "p1", "url", "u", "l", null, (obj, res) => {
+        ignore_result = controller.create_resource_flow.end(res);
+        done_ignore = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done_ignore));
+    assert(ignore_result != null && ignore_result.ignored);
+
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    api.fail_update_resource = true;
+    bool done_error = false;
+    HolderLinux.ResourcesMutationResult? error_result = null;
+    controller.update_resource_flow.begin(api, "r1", "file", "u", "l", null, (obj, res) => {
+        error_result = controller.update_resource_flow.end(res);
+        done_error = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done_error));
+    assert(error_result != null && !error_result.success);
+    assert(error_result.error_title == "Failed to update resource");
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -195,6 +331,16 @@ int main(string[] args) {
                   test_ellipsize_title_cutoff_negative_returns_original);
     Test.add_func("/resources_controller/default_resource_kinds_are_stable",
                   test_default_resource_kinds_are_stable);
+    Test.add_func("/resources_controller/refresh_resources_flow_project_and_api_preconditions",
+                  test_refresh_resources_flow_project_and_api_preconditions);
+    Test.add_func("/resources_controller/refresh_resources_flow_success_and_error",
+                  test_refresh_resources_flow_success_and_error);
+    Test.add_func("/resources_controller/apply_resources_filter_flow_empty_texts",
+                  test_apply_resources_filter_flow_empty_texts);
+    Test.add_func("/resources_controller/create_update_delete_resource_flows",
+                  test_create_update_delete_resource_flows);
+    Test.add_func("/resources_controller/resource_flows_ignore_or_error_paths",
+                  test_resource_flows_ignore_or_error_paths);
 
     return Test.run();
 }

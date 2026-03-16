@@ -22,6 +22,8 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public bool emit_chunk_missing_delta = false;
     public bool pull_returns_empty_job_id = false;
     public int64 status_active_pull_jobs = 0;
+    public bool fail_export_recovery_token = false;
+    public string export_recovery_token_payload = "{\"token\":\"fake\"}";
 
     public async void health_check() throws Error {}
     public async HolderLinux.HealthInfo get_health_info() throws Error {
@@ -37,7 +39,10 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
         string project_id,
         string pin
     ) throws Error {
-        return new HolderLinux.ProjectRecoveryTokenExport(project_id, "key-1", "{\"token\":\"fake\"}");
+        if (fail_export_recovery_token) {
+            throw new IOError.FAILED("export failed");
+        }
+        return new HolderLinux.ProjectRecoveryTokenExport(project_id, "key-1", export_recovery_token_payload);
     }
     public async void import_project_recovery_token(
         string project_id,
@@ -85,6 +90,13 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public async Gee.ArrayList<HolderLinux.ProjectResource> list_resources(string project_id) throws Error {
         return new Gee.ArrayList<HolderLinux.ProjectResource>();
     }
+    public async Gee.ArrayList<HolderLinux.TrashItem> list_trash_items(string project_id,
+                                                                        string type = "all") throws Error {
+        return new Gee.ArrayList<HolderLinux.TrashItem>();
+    }
+    public async void empty_trash(string project_id, string type = "all") throws Error {}
+    public async void restore_trash_item(string item_type, string item_id) throws Error {}
+    public async void hard_delete_trash_item(string item_type, string item_id) throws Error {}
     public async string create_resource(string project_id,
                                         string kind,
                                         string uri,
@@ -253,6 +265,7 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                            string? parent_card_id,
                                            double sort_key,
                                            int64 updated_at) throws Error {}
+    public async void delete_card(string card_id) throws Error {}
     public async HolderLinux.CardMoveResult move_card(string card_id,
                                                        string project_id,
                                                        string intent,

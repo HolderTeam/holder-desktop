@@ -11,12 +11,31 @@ public class AppSettings : Object {
     public const string KEY_WINDOW_HEIGHT = "window-height";
     public const string KEY_WINDOW_MAXIMIZED = "window-maximized";
     public const string KEY_SIDEBAR_WIDTH = "sidebar-width";
+    public const string KEY_AI_PANEL_WIDTH = "ai-panel-width";
     public const string KEY_TINY_CLOSE_STREAK = "tiny-close-streak";
     public const string KEY_CUSTOM_CARD_LINK_KINDS = "custom-card-link-kinds";
     public const string KEY_GIT_GITHUB_USERNAME = "git-github-username";
+    private const string GNOME_INTERFACE_SCHEMA_ID = "org.gnome.desktop.interface";
+    private const string GNOME_COLOR_SCHEME_KEY = "color-scheme";
     private static WarningSink? warning_sink = null;
     internal static bool force_read_link_failure_for_tests = false;
     internal static bool skip_default_schema_lookup_for_tests = false;
+    internal static bool force_schema_source_null_for_tests = false;
+    internal static bool force_gnome_schema_missing_for_tests = false;
+
+    private static SettingsSchemaSource? resolve_schema_source() {
+        if (force_schema_source_null_for_tests) {
+            return null;
+        }
+        return SettingsSchemaSource.get_default();
+    }
+
+    private static SettingsSchema? lookup_gnome_interface_schema(SettingsSchemaSource source) {
+        if (force_gnome_schema_missing_for_tests) {
+            return null;
+        }
+        return source.lookup(GNOME_INTERFACE_SCHEMA_ID, true);
+    }
 
     public static void set_warning_sink(owned WarningSink? sink) {
         warning_sink = (owned) sink;
@@ -117,6 +136,40 @@ public class AppSettings : Object {
         default:
             return Adw.ColorScheme.DEFAULT;
         }
+    }
+
+    public static Adw.ColorScheme gnome_color_scheme_to_color_scheme(string value) {
+        switch (value) {
+        case "prefer-dark":
+            return Adw.ColorScheme.FORCE_DARK;
+        case "prefer-light":
+            return Adw.ColorScheme.FORCE_LIGHT;
+        default:
+            return Adw.ColorScheme.DEFAULT;
+        }
+    }
+
+    public static Adw.ColorScheme resolve_default_color_scheme() {
+        var source = resolve_schema_source();
+        if (source == null) {
+            return Adw.ColorScheme.DEFAULT;
+        }
+
+        var schema = lookup_gnome_interface_schema(source);
+        if (schema == null) {
+            return Adw.ColorScheme.DEFAULT;
+        }
+
+        var settings = new Settings.full(schema, null, null);
+        return gnome_color_scheme_to_color_scheme(settings.get_string(GNOME_COLOR_SCHEME_KEY));
+    }
+
+    public static Adw.ColorScheme effective_color_scheme_for_key(string value) {
+        var configured = key_to_color_scheme(value);
+        if (configured != Adw.ColorScheme.DEFAULT) {
+            return configured;
+        }
+        return resolve_default_color_scheme();
     }
 }
 
