@@ -68,7 +68,7 @@ internal class SelectionTransitionController : Object {
             if (!is_current(seq)) {
                 return;
             }
-            flowboard_controller.refresh();
+            flowboard_controller.focus_card(card_id);
         } finally {
             finish_navigation_if_current(seq);
         }
@@ -114,7 +114,7 @@ internal class SelectionTransitionController : Object {
             if (!is_current(seq)) {
                 return;
             }
-            flowboard_controller.refresh();
+            flowboard_controller.focus_card(selected_card_id);
         } finally {
             finish_navigation_if_current(seq);
         }

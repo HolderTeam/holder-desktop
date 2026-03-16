@@ -40,6 +40,19 @@ public class FlowboardController : Object {
         return visible_tiles;
     }
 
+    public void focus_card(string card_id) {
+        var card = find_card(card_id);
+        if (card == null) {
+            return;
+        }
+        showing_projects = false;
+        current_project_id = card.project_id;
+        current_parent_card_id = normalize_parent(card.parent_card_id);
+        rebuild_parent_stack_for_parent(current_parent_card_id);
+        clear_context_cache();
+        refresh();
+    }
+
     public void refresh() {
         var selected_project = project_selection.get_selected_item() as Project;
         if (showing_projects && selected_project != null && selected_project.project_id != current_project_id) {
@@ -505,6 +518,25 @@ public class FlowboardController : Object {
             }
         }
         return false;
+    }
+
+    private void rebuild_parent_stack_for_parent(string? parent_card_id) {
+        parent_stack_ids.clear();
+        var chain = new Gee.ArrayList<string>();
+        var cursor = normalize_parent(parent_card_id);
+        int guard = 0;
+        while (cursor != null && guard < 256) {
+            chain.add(cursor);
+            var parent = find_card(cursor);
+            if (parent == null) {
+                break;
+            }
+            cursor = normalize_parent(parent.parent_card_id);
+            guard++;
+        }
+        for (int i = chain.size - 1; i >= 0; i--) {
+            parent_stack_ids.add(chain[i]);
+        }
     }
 
     private string destination_label_for_parent(string? parent_card_id) {

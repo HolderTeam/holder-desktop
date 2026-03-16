@@ -1135,6 +1135,12 @@ public class MainWindow : Adw.ApplicationWindow {
         if (is_applying_state()) {
             return;
         }
+        var selected = project_selection.get_selected_item() as Project;
+        if (selected != null) {
+            // Optimistically mirror user intent so sidebar highlight does not
+            // bounce back to last committed selection before transition begin.
+            app_state_store.set_selection_snapshot(selected.project_id, null, null);
+        }
         selection_intent_orchestrator.on_project_selection_changed.begin();
     }
 

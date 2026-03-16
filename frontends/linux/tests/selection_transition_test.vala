@@ -32,8 +32,16 @@ public class MainController : Object {
 
 public class FlowboardController : Object {
     public int refresh_calls = 0;
+    public int focus_card_calls = 0;
+    public string? last_focus_card_id = null;
 
     public void refresh() {
+        refresh_calls++;
+    }
+
+    public void focus_card(string card_id) {
+        focus_card_calls++;
+        last_focus_card_id = card_id;
         refresh_calls++;
     }
 }
@@ -138,6 +146,8 @@ private void test_run_methods_cover_transition_paths() {
     }
     assert(selection_controller.card_selected_calls == 1);
     assert(selection_controller.last_card_id == "c1");
+    assert(flowboard_controller.focus_card_calls == 1);
+    assert(flowboard_controller.last_focus_card_id == "c1");
     assert(state.selection.project_id == "p1");
     assert(state.selection.card_id == "c1");
 
@@ -179,6 +189,8 @@ private void test_run_methods_cover_transition_paths() {
     }
     assert(selection_controller.card_selected_calls == 2);
     assert(selection_controller.last_card_id == "c4-selected");
+    assert(flowboard_controller.focus_card_calls == 2);
+    assert(flowboard_controller.last_focus_card_id == "c4-selected");
     assert(flowboard_controller.refresh_calls == 4);
     assert(state.selection.project_id == "p4");
     assert(state.selection.card_id == "c4-selected");
