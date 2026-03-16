@@ -505,6 +505,15 @@ private class WindowStateEventSink : Object, IWindowStateEventSink {
 public class MainWindow : Adw.ApplicationWindow {
     private delegate void StateApplyFunc();
 
+    private class EditorRenderState : Object {
+        public string text = "";
+        public bool editable = false;
+        public bool show_search = false;
+        public string window_title = "Holder";
+        public string search_summary = "";
+        public string? ai_thread_title = null;
+    }
+
     private const int DEFAULT_WINDOW_WIDTH = 1200;
     private const int DEFAULT_WINDOW_HEIGHT = 800;
     private const int DEFAULT_SIDEBAR_WIDTH = 280;
@@ -590,6 +599,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private bool suppress_editor_events = false;
     private uint applying_state_depth = 0;
     private uint rendered_sidebar_data_version = uint.MAX;
+    private EditorRenderState editor_render_state;
 
     public MainWindow(Adw.Application app, int startup_width = 0, int startup_height = 0) {
         var boot_settings = AppSettings.open_or_null();
@@ -645,6 +655,8 @@ public class MainWindow : Adw.ApplicationWindow {
         search_list = workspace.search_list;
         ai_panel = workspace.ai_panel;
         toolbox = workspace.toolbox;
+        editor_render_state = new EditorRenderState();
+        apply_editor_from_state();
         local_info_controller = new LocalInfoController(new WindowLocalInfoLogger(toolbox));
         local_info_presenter = new LocalInfoPresenter();
         app_state_store = new AppStateStore();
@@ -1224,19 +1236,19 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void set_editor_state(string text, bool editable) {
-        suppress_editor_events = true;
-        workspace.set_editor_state(text, editable);
-        suppress_editor_events = false;
-        refresh_connections_internal_links_from_editor();
+        editor_render_state.text = text;
+        editor_render_state.editable = editable;
+        apply_editor_from_state();
     }
 
     internal void update_window_title(string title_text) {
-        workspace.set_window_title_text(title_text);
-        title = title_text;
+        editor_render_state.window_title = title_text;
+        apply_editor_from_state();
     }
 
     internal void set_search_summary_text(string text) {
-        search_summary_label.set_text(text);
+        editor_render_state.search_summary = text;
+        apply_editor_from_state();
     }
 
     internal void refresh_ai_status() {
@@ -1264,7 +1276,8 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void set_ai_thread_title(string? title_text) {
-        ai_panel.set_thread_title(title_text);
+        editor_render_state.ai_thread_title = title_text;
+        apply_editor_from_state();
     }
 
     internal void request_ai_thread_selection(string? thread_id) {
@@ -1303,11 +1316,13 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void show_editor_mode() {
-        workspace.show_editor_mode();
+        editor_render_state.show_search = false;
+        apply_editor_from_state();
     }
 
     internal void show_search_mode() {
-        workspace.show_search_mode();
+        editor_render_state.show_search = true;
+        apply_editor_from_state();
     }
 
     private void apply_persisted_preferences() {
@@ -1352,6 +1367,24 @@ public class MainWindow : Adw.ApplicationWindow {
             if (applying_state_depth > 0) {
                 applying_state_depth--;
             }
+        }
+    }
+
+    private void apply_editor_from_state() {
+        suppress_editor_events = true;
+        workspace.set_editor_state(editor_render_state.text, editor_render_state.editable);
+        suppress_editor_events = false;
+        refresh_connections_internal_links_from_editor();
+
+        workspace.set_window_title_text(editor_render_state.window_title);
+        title = editor_render_state.window_title;
+        search_summary_label.set_text(editor_render_state.search_summary);
+        ai_panel.set_thread_title(editor_render_state.ai_thread_title);
+
+        if (editor_render_state.show_search) {
+            workspace.show_search_mode();
+        } else {
+            workspace.show_editor_mode();
         }
     }
 

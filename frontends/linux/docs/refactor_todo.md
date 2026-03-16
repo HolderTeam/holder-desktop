@@ -28,7 +28,8 @@ It consolidates:
 ## In Progress: State-First Rendering Boundaries
 - [x] Sidebar fully render-from-state (single committed apply path).
   - [x] `MainWindow` now gives `MainController` dedicated internal project/card/thread stores; visible sidebar stores are rendered only through `AppStateStore` -> `SidebarDataRenderer`/`SidebarSelectionRenderer` in `apply_sidebar_from_state()` (`src/views/window.vala`).
-- [ ] Editor fully render-from-state (single committed apply path).
+- [x] Editor fully render-from-state (single committed apply path).
+  - [x] Consolidated editor/title/mode/search-summary/AI-thread-title rendering behind `MainWindow.apply_editor_from_state()` with staged `EditorRenderState`; mutators now update state then commit through that single path (`src/views/window.vala`).
 - [ ] Toolbox fully render-from-state (single committed apply path).
 - [ ] AI panel fully render-from-state (single committed apply path).
 - [ ] Remove remaining mixed ownership where transitions and domain controllers both commit UI-affecting state.
