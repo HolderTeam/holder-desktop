@@ -1,4 +1,7 @@
-# UI State Transition Plan
+# UI State Transition Plan (Historical)
+
+This document is retained as historical context.
+Active refactor tracking now lives in `docs/refactor_todo.md`.
 
 ## Problem
 - Project/card/tool navigation currently propagates through widget signals (`Gtk.SingleSelection` and view callbacks) plus async controller calls.

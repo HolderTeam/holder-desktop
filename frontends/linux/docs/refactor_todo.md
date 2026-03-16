@@ -89,9 +89,11 @@ It consolidates:
   - [x] error/toast emitted without destructive UI reset (`tests/main_controller_test.vala`)
 
 ## Cleanup / Debt
-- [ ] Remove obsolete comments/docs referring to pre-orchestrator paths.
+- [x] Remove obsolete comments/docs referring to pre-orchestrator paths.
+  - [x] Marked `UI_principles.md`, `ui_state_transition_plan.md`, and `toolbox_shell_refactor.md` as historical and pointed to `refactor_todo.md` as active source.
 - [ ] Prune dead compatibility shims and stale helpers introduced during migration.
-- [ ] Update test names to match orchestrator/controller ownership language.
+- [x] Update test names to match orchestrator/controller ownership language.
+  - [x] Renamed stale flowboard fallback breadcrumb test names to reflect transient-selection retention semantics (`tests/flowboard_controller_test.vala`).
 
 ## Acceptance Criteria for This Refactor
 - [ ] All major navigation flows are intent -> transition gate -> commit -> render.

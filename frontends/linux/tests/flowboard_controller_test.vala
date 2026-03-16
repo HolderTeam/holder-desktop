@@ -494,7 +494,7 @@ private void test_breadcrumbs_from_context_skip_empty_titles() {
     assert(emitted[2].label == "Parent");
 }
 
-private void test_breadcrumbs_fallback_parent_stack_includes_found_parent() {
+private void test_transient_null_selection_preserves_committed_breadcrumbs() {
     var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
     var project_selection = new Gtk.SingleSelection(project_store);
     var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
@@ -535,7 +535,7 @@ private void test_breadcrumbs_fallback_parent_stack_includes_found_parent() {
     assert(crumbs[crumbs.size - 1].label != "");
 }
 
-private void test_breadcrumbs_fallback_parent_stack_skips_missing_parent() {
+private void test_transient_null_selection_preserves_committed_breadcrumbs_when_store_changes() {
     var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
     var project_selection = new Gtk.SingleSelection(project_store);
     var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
@@ -1562,10 +1562,10 @@ int main(string[] args) {
                   test_breadcrumbs_in_projects_mode_are_just_projects);
     Test.add_func("/flowboard/breadcrumbs_from_context_skip_empty_titles",
                   test_breadcrumbs_from_context_skip_empty_titles);
-    Test.add_func("/flowboard/breadcrumbs_fallback_parent_stack_includes_found_parent",
-                  test_breadcrumbs_fallback_parent_stack_includes_found_parent);
-    Test.add_func("/flowboard/breadcrumbs_fallback_parent_stack_skips_missing_parent",
-                  test_breadcrumbs_fallback_parent_stack_skips_missing_parent);
+    Test.add_func("/flowboard/transient_null_selection_preserves_committed_breadcrumbs",
+                  test_transient_null_selection_preserves_committed_breadcrumbs);
+    Test.add_func("/flowboard/transient_null_selection_preserves_committed_breadcrumbs_when_store_changes",
+                  test_transient_null_selection_preserves_committed_breadcrumbs_when_store_changes);
     Test.add_func("/flowboard/activate_container_enters_it_and_backspace_returns",
                   test_activate_container_enters_it_and_backspace_returns);
     Test.add_func("/flowboard/drop_center_nests_and_emits_move_and_toast",

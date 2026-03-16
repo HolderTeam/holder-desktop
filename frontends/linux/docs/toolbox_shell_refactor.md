@@ -1,4 +1,7 @@
-# Toolbox Shell Refactor
+# Toolbox Shell Refactor (Historical)
+
+This document is retained as historical context.
+Active refactor tracking now lives in `docs/refactor_todo.md`.
 
 ## Status
 - This refactor is active and near completion.

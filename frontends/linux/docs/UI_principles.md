@@ -1,4 +1,7 @@
-# UI Principles
+# UI Principles (Historical)
+
+This document is retained as historical context.
+Active refactor tracking now lives in `docs/refactor_todo.md`.
 
 ## Core Model
 1. Views emit intents, not business logic.
