@@ -93,6 +93,8 @@ It consolidates:
 - [x] Failed-transition retention tests:
   - [x] previous committed content remains visible on failure (`tests/main_controller_test.vala`)
   - [x] error/toast emitted without destructive UI reset (`tests/main_controller_test.vala`)
+- [x] Intent routing tests:
+  - [x] `SelectionIntentController` routes all major navigation intents to transition-gated paths (project, card, project-overview, AI-thread, search-result open, explicit open-card) (`tests/selection_intent_test.vala`).
 
 ## Cleanup / Debt
 - [x] Remove obsolete comments/docs referring to pre-orchestrator paths.
@@ -106,11 +108,11 @@ It consolidates:
   - [x] Renamed stale flowboard fallback breadcrumb test names to reflect transient-selection retention semantics (`tests/flowboard_controller_test.vala`).
 
 ## Acceptance Criteria for This Refactor
-- [ ] All major navigation flows are intent -> transition gate -> commit -> render.
+- [x] All major navigation flows are intent -> transition gate -> commit -> render.
 - [ ] No visible valid-to-valid flicker in sidebar/editor/toolbox/AI panel.
-- [ ] No stale async overwrite of newer committed selection/scope.
-- [ ] Toolbox shell behavior is consistent across project-scoped tools.
-- [ ] Transition and rendering behavior is locked by focused tests.
+- [x] No stale async overwrite of newer committed selection/scope.
+- [x] Toolbox shell behavior is consistent across project-scoped tools.
+- [x] Transition and rendering behavior is locked by focused tests.
 
 ## Notes
 - This TODO tracks active work only.
