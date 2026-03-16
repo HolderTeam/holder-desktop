@@ -39,9 +39,11 @@ internal class SelectionIntentOrchestrator : Object {
 
     public async void on_project_selection_changed() {
         var selected = project_selection.get_selected_item() as Project;
-        var project_id = selected != null ? selected.project_id : null;
+        if (selected == null) {
+            return;
+        }
         yield selection_intent_controller.on_project_selection(
-            project_id,
+            selected.project_id,
             selection_transition_controller,
             selection_controller,
             flowboard_controller

@@ -258,6 +258,32 @@ private void test_project_selection_changed_delegates_selected_id() {
     assert(intents.last_project_selection_id == "p1");
 }
 
+private void test_project_selection_changed_ignores_null_selection() {
+    HolderLinux.SelectionIntentController intents;
+    HolderLinux.MainController controller;
+    Gtk.SingleSelection project_selection;
+    Gtk.SingleSelection card_selection;
+    Gtk.SingleSelection ai_thread_selection;
+    Gtk.SingleSelection search_selection;
+    GLib.ListStore card_store;
+    HolderLinux.SearchSelectionController search_selection_controller;
+    var orchestrator = make_orchestrator(
+        out intents, out controller, out project_selection, out card_selection,
+        out ai_thread_selection, out search_selection, out card_store,
+        out search_selection_controller
+    );
+
+    bool done = false;
+    orchestrator.on_project_selection_changed.begin((obj, res) => {
+        orchestrator.on_project_selection_changed.end(res);
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(intents.on_project_selection_calls == 0);
+    assert(intents.last_project_selection_id == null);
+}
+
 private void test_card_selection_changed_uses_selected_card_ids() {
     HolderLinux.SelectionIntentController intents;
     HolderLinux.MainController controller;
@@ -457,6 +483,8 @@ public static int main(string[] args) {
 
     Test.add_func("/holder/selection-intent-orchestrator/project-selection-changed",
                   test_project_selection_changed_delegates_selected_id);
+    Test.add_func("/holder/selection-intent-orchestrator/project-selection-changed-null-ignored",
+                  test_project_selection_changed_ignores_null_selection);
     Test.add_func("/holder/selection-intent-orchestrator/card-selection-changed-selected",
                   test_card_selection_changed_uses_selected_card_ids);
     Test.add_func("/holder/selection-intent-orchestrator/card-selection-changed-fallback-project",
