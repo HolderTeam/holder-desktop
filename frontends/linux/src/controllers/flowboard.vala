@@ -89,12 +89,15 @@ public class FlowboardController : Object {
 
         context_load_requested(selected_project.project_id, current_parent_card_id);
         if (!has_matching_context()) {
-            visible_tiles.remove_all();
-            var loading_segments = new Gee.ArrayList<FlowboardBreadcrumbSegment>();
-            loading_segments.add(new FlowboardBreadcrumbSegment("Projects"));
-            loading_segments.add(new FlowboardBreadcrumbSegment(selected_project.name));
-            breadcrumb_segments_changed(loading_segments);
-            empty_message_changed("Loading cards...");
+            // Keep previously committed board content visible while next context is loading.
+            // Only show explicit loading empty-state when nothing has been committed yet.
+            if (visible_tiles.get_n_items() == 0) {
+                var loading_segments = new Gee.ArrayList<FlowboardBreadcrumbSegment>();
+                loading_segments.add(new FlowboardBreadcrumbSegment("Projects"));
+                loading_segments.add(new FlowboardBreadcrumbSegment(selected_project.name));
+                breadcrumb_segments_changed(loading_segments);
+                empty_message_changed("Loading cards...");
+            }
             return;
         }
 

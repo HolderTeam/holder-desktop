@@ -228,6 +228,56 @@ private void test_refresh_selected_project_without_context_shows_loading_state()
     assert(crumbs[1].label == "Project One");
 }
 
+private void test_refresh_pending_context_keeps_committed_tiles_visible() {
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    var controller = new HolderLinux.FlowboardController(project_store, project_selection, card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_store.append(make_project("p2", "Project Two", 20));
+    project_selection.set_selected(0);
+    card_store.append(make_card("p1a", "p1", "P1 A", 1024.0));
+    card_store.append(make_card("p2a", "p2", "P2 A", 1024.0));
+
+    int p2_load_requests = 0;
+    controller.context_load_requested.connect((project_id, parent_card_id) => {
+        if (project_id == "p1") {
+            var context = build_context_for_request(project_store, card_store, project_id, parent_card_id);
+            controller.apply_card_context(project_id, parent_card_id, context);
+            return;
+        }
+        if (project_id == "p2") {
+            p2_load_requests++;
+        }
+    });
+
+    controller.refresh();
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 1);
+    var committed = tile_at(model, 0);
+    assert(committed != null);
+    assert(committed.card_id == "p1a");
+
+    int empty_signals = 0;
+    string last_empty = "";
+    controller.empty_message_changed.connect((text) => {
+        empty_signals++;
+        last_empty = text;
+    });
+
+    project_selection.set_selected(1);
+    controller.refresh();
+
+    assert(p2_load_requests == 1);
+    assert(model.get_n_items() == 1);
+    var still_visible = tile_at(model, 0);
+    assert(still_visible != null);
+    assert(still_visible.card_id == "p1a");
+    assert(empty_signals == 0);
+    assert(last_empty != "Loading cards...");
+}
+
 private void test_apply_card_context_guard_when_showing_projects() {
     GLib.ListStore project_store;
     Gtk.SingleSelection project_selection;
@@ -1455,6 +1505,8 @@ int main(string[] args) {
                   test_refresh_selected_project_uses_backend_context_order);
     Test.add_func("/flowboard/refresh_selected_project_without_context_shows_loading_state",
                   test_refresh_selected_project_without_context_shows_loading_state);
+    Test.add_func("/flowboard/refresh_pending_context_keeps_committed_tiles_visible",
+                  test_refresh_pending_context_keeps_committed_tiles_visible);
     Test.add_func("/flowboard/apply_card_context_guard_when_showing_projects",
                   test_apply_card_context_guard_when_showing_projects);
     Test.add_func("/flowboard/apply_card_context_guard_when_current_project_not_initialized",

@@ -41,6 +41,10 @@ It consolidates:
   - toolbox breadcrumb navigation
   - tool-driven card open
 - [ ] Ensure loading/error states are transition states, not domain-empty states.
+  - [x] Flowboard: pending context refresh keeps previously committed tiles visible (no loading-empty reset) (`src/controllers/flowboard.vala`, `tests/flowboard_controller_test.vala`)
+  - [ ] Sidebar: transition loading/error state ownership audit + tests.
+  - [ ] Toolbox tools: loading/error state ownership audit + tests.
+  - [ ] AI panel: loading/error state ownership audit + tests.
 - [ ] Keep previous committed content visible until next commit is ready (all panes).
 
 ## Transition Ownership: Completed Subtasks
