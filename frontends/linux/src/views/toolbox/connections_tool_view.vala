@@ -181,7 +181,6 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
 
     public async bool navigate_to_projects_root(string? selected_project_id) {
         show_projects_root = true;
-        projects_root_requested();
         refresh_connections_structure();
         queue_connections_graph_refresh();
         return true;
