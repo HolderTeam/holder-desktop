@@ -33,7 +33,7 @@ It consolidates:
 - [ ] Remove remaining mixed ownership where transitions and domain controllers both commit UI-affecting state.
 
 ## In Progress: Transition Ownership Cleanup
-- [ ] Ensure all selection/navigation entry points go through one transition gate:
+- [x] Ensure all selection/navigation entry points go through one transition gate:
   - project select
   - card select
   - AI thread select
@@ -43,30 +43,15 @@ It consolidates:
 - [ ] Ensure loading/error states are transition states, not domain-empty states.
 - [ ] Keep previous committed content visible until next commit is ready (all panes).
 
-Recent progress:
-- `CardsController.move_card_by_intent(...)` no longer triggers direct `load_selected_card.begin()` side effects after requesting selection.
-- `CardsController.move_card_to_trash(...)` now uses centralized `MainController.reload_cards_for_selected_project()` instead of inlined `card_selection_requested(null)` + `show_project_overview()` flow.
-- Card deselection now has a transition-owned project-overview path:
-  - `SelectionIntentController.on_card_selection(...)` now routes `card_id == null` to `SelectionTransitionController.run_project_overview_selection(...)`.
-  - `MainController.reload_everything_with_selection(...)` and `MainController.reload_cards_for_selected_project()` no longer directly call `show_project_overview()` after emitting `card_selection_requested(null)`.
-  - `MainWindow.request_project_selection(...)` and `MainWindow.request_card_selection(...)` now trigger selection intent orchestration so controller-driven requests follow the same transition gate as widget-driven requests.
-- AI-thread selection flows now follow the same ownership rules:
-  - `AiThreadsController.select_ai_thread_by_id(...)` and `AiThreadsController.reload_ai_threads_for_project(...)` no longer directly mutate `current_ai_thread`/title; they emit selection requests and let selection handling apply state.
-  - `SelectionTransitionController.run_ai_thread_selection(...)` now uses the common begin/finish navigation flow (`begin_navigation` + `finish_navigation_if_current`) instead of bespoke transition calls.
-  - Main-controller test harness now models `ai_thread_selection_requested(...)` by applying selection and invoking `on_ai_thread_selected()` through the same signal path.
-- Search selection request handling is now centralized at the window request entrypoint:
-  - `on_workspace_search_focus_results_requested()` now calls `request_search_selection(0)` instead of directly mutating search selection via `selection_request_controller`.
-  - `MainWindow.request_search_selection(...)` now delegates to `SelectionIntentOrchestrator.on_search_selection_requested(...)`.
-  - `SelectionRequestController` now owns only explorer selections (project/card/AI thread), removing split ownership for search selection requests.
-- Toolbox breadcrumb project navigation now uses the selection intent gate:
-  - `ToolboxBreadcrumbController` no longer drives `SelectionTransitionController`/`SelectionController` directly for segment-1 project navigation.
-  - It now delegates project navigation to `SelectionIntentOrchestrator.on_project_selection_requested(...)`, keeping breadcrumb navigation on the same selection-intent path as other navigation entry points.
-- Transition stale-drop behavior is now locked at the transition-owner layer:
-  - Added `tests/app_transition_test.vala` and `holder-linux-app-transition-tests`.
-  - Covers current-vs-stale behavior for `begin(...)`, `commit_selection(...)`, and `finish(...)`.
-- Selection-transition stale/drop + loading-signal behavior is now covered:
-  - Added `tests/selection_transition_test.vala` and `holder-linux-selection-transition-tests`.
-  - Covers `begin_navigation(...)` loading signal, stale-safe `finish_navigation_if_current(...)`, and stale-safe `commit_selection(...)`.
+## Transition Ownership: Completed Subtasks
+- [x] `CardsController.move_card_by_intent(...)` no longer triggers direct `load_selected_card.begin()` side effects.
+- [x] `CardsController.move_card_to_trash(...)` uses centralized `MainController.reload_cards_for_selected_project()`.
+- [x] Card deselection routes through transition-owned project overview selection.
+- [x] Controller-driven project/card selection requests go through `SelectionIntentOrchestrator`.
+- [x] AI-thread selection uses common transition begin/finish flow.
+- [x] Search selection request handling is centralized at `MainWindow.request_search_selection(...)` -> `SelectionIntentOrchestrator`.
+- [x] `SelectionRequestController` now owns only explorer selections (project/card/AI thread).
+- [x] Toolbox breadcrumb project navigation delegates to `SelectionIntentOrchestrator`.
 
 ## Toolbox-Specific Remaining Work
 - [ ] Add final toolbox-focused tests for atomic breadcrumb navigation:
@@ -76,7 +61,9 @@ Recent progress:
 
 ## Hardening Tests (Phase C)
 - [ ] Transition stale-drop tests:
-  - late responses dropped for project/card/tool transitions
+  - [x] `AppTransitionController`: stale-safe `commit_selection(...)` and `finish(...)` covered (`tests/app_transition_test.vala`)
+  - [x] `SelectionTransitionController`: stale-safe `commit_selection(...)` and `finish_navigation_if_current(...)`, plus loading signal coverage (`tests/selection_transition_test.vala`)
+  - [ ] Add explicit late-response drop coverage for full project/card/tool transition flows.
 - [ ] No-intermediate-empty tests:
   - card A -> card B does not render `No card selected`
   - project P1 -> P2 does not clear to placeholder first
