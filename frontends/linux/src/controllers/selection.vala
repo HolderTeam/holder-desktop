@@ -11,8 +11,8 @@ internal class SelectionController : Object {
         yield owner.reload_cards_for_selected_project();
     }
 
-    public async void on_card_selected() {
-        yield owner.load_selected_card();
+    public async void on_card_selected(string card_id) {
+        yield owner.load_card_by_id(card_id);
     }
 }
 

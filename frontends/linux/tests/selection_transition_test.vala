@@ -4,7 +4,7 @@ namespace HolderLinux {
 
 internal class SelectionController : Object {
     public async void on_project_selected() {}
-    public async void on_card_selected() {}
+    public async void on_card_selected(string card_id) {}
 }
 
 public class MainController : Object {

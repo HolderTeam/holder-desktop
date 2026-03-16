@@ -438,19 +438,10 @@ public class MainController : Object, IAiRunContext {
         return dt.format("%Y-%m-%d %H:%M");
     }
 
-    internal async void load_selected_card() {
+    internal async void load_card_by_id(string requested_card_id) {
         if (api == null) {
             return;
         }
-
-        var selected = card_selection.get_selected_item() as CardSummary;
-        if (selected == null) {
-            if (current_card == null) {
-                editor_state_changed("# No Card Selected\n\nSelect a card from the sidebar.", false);
-            }
-            return;
-        }
-        var requested_card_id = selected.card_id;
 
         if (card_loading_status_id != 0) {
             scheduler.cancel(card_loading_status_id);

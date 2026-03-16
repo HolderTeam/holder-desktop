@@ -63,7 +63,7 @@ internal class SelectionTransitionController : Object {
         var seq = begin_navigation("card-selection", project_id, card_id, null);
         try {
             commit_selection(seq, project_id, card_id, null);
-            yield selection_controller.on_card_selected();
+            yield selection_controller.on_card_selected(card_id);
             if (!is_current(seq)) {
                 return;
             }
@@ -107,7 +107,7 @@ internal class SelectionTransitionController : Object {
                 selected_card_id,
                 null
             );
-            yield selection_controller.on_card_selected();
+            yield selection_controller.on_card_selected(selected_card_id);
             if (!is_current(seq)) {
                 return;
             }

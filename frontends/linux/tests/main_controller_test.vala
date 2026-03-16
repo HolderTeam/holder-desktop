@@ -103,6 +103,20 @@ private string? prepare_search_result_card(HolderLinux.MainController controller
     return prepared;
 }
 
+private void load_selected_card_from_store(HolderLinux.MainController controller,
+                                           StoreSelectionState selection,
+                                           GLib.ListStore card_store) {
+    var index = selection.get_selected_index();
+    if (index == uint.MAX || index >= card_store.get_n_items()) {
+        return;
+    }
+    var selected = card_store.get_item(index) as HolderLinux.CardSummary;
+    if (selected == null) {
+        return;
+    }
+    controller.load_card_by_id.begin(selected.card_id);
+}
+
 private void test_reload_everything_loads_project_and_card() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -158,9 +172,10 @@ private void test_autosave_debounce_runs_once() {
     var controller = harness.controller;
     controller.reload_everything.begin();
     assert(wait_for_condition(() => controller.get_current_project() != null));
+    assert(wait_for_condition(() => harness.card_store.get_n_items() > 0));
     assert(controller.selected_card_id() == null);
     harness.card_selection.set_selected_index(0);
-    controller.load_selected_card.begin();
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
     assert(wait_for_condition(() => controller.get_current_card() != null));
 
     harness.editor_text.value = "# Updated Title\n\nNew body";
@@ -463,7 +478,7 @@ private void test_open_search_result_existing_card_skips_reload() {
     var prepared = prepare_search_result_card(controller, 0);
     assert(prepared == "c2");
     controller.card_selection_requested("c2");
-    controller.load_selected_card.begin();
+    controller.load_card_by_id.begin("c2");
     assert(wait_for_condition(() => controller.selected_card_id() == "c2"));
     assert(wait_for_condition(() => controller.get_current_card() != null &&
                           controller.get_current_card().card_id == "c2"));
@@ -493,7 +508,7 @@ private void test_open_search_result_missing_card_triggers_reload() {
     assert(wait_for_condition(() => api.list_cards_calls > before_reload));
     assert(prepared == "c2");
     controller.card_selection_requested("c2");
-    controller.load_selected_card.begin();
+    controller.load_card_by_id.begin("c2");
     assert(wait_for_condition(() => controller.selected_card_id() == "c2"));
     assert(wait_for_condition(() => controller.get_current_card() != null &&
                           controller.get_current_card().card_id == "c2"));
@@ -988,7 +1003,7 @@ private void test_reload_cards_without_selection_keeps_committed_sidebar_state()
     assert(harness.card_store.get_n_items() == card_count_before);
 }
 
-private void test_on_card_selected_without_selection_sets_empty_state() {
+private void test_on_card_selected_without_selection_does_not_emit_empty_state() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
@@ -1005,8 +1020,9 @@ private void test_on_card_selected_without_selection_sets_empty_state() {
     controller.reload_everything.begin();
     assert(wait_for_condition(() => controller.get_current_project() != null));
     harness.card_selection.set_selected_index(uint.MAX);
-    controller.load_selected_card.begin();
-    assert(wait_for_condition(() => saw_no_selection));
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => true));
+    assert(!saw_no_selection);
 }
 
 private void test_on_card_selected_without_selection_keeps_committed_content() {
@@ -1029,13 +1045,13 @@ private void test_on_card_selected_without_selection_keeps_committed_content() {
     assert(wait_for_condition(() => controller.get_current_project() != null));
 
     harness.card_selection.set_selected_index(0);
-    controller.load_selected_card.begin();
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
     assert(wait_for_condition(() => controller.get_current_card() != null));
     var committed = last_editor_text;
     assert(committed.contains("# Card 1"));
 
     harness.card_selection.set_selected_index(uint.MAX);
-    controller.load_selected_card.begin();
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
     assert(wait_for_condition(() => true));
 
     assert(last_editor_text == committed);
@@ -1059,7 +1075,7 @@ private void test_on_card_selected_without_api_is_noop() {
         got_editor_state = true;
     });
 
-    controller.load_selected_card.begin();
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
     assert(wait_for_condition(() => true));
     assert(api.get_card_calls == 0);
     assert(!got_editor_state);
@@ -1132,7 +1148,7 @@ private void test_load_selected_card_failure_emits_error() {
     controller.reload_everything.begin();
     assert(wait_for_condition(() => controller.get_current_project() != null));
     harness.card_selection.set_selected_index(0);
-    controller.load_selected_card.begin();
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
     assert(wait_for_condition(() => got_error));
 }
 
@@ -1161,7 +1177,7 @@ private void test_load_selected_card_stale_success_is_ignored() {
         }
     });
 
-    controller.load_selected_card.begin();
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
     assert(wait_for_condition(() => harness.card_selection.get_selected_index() == 1));
     assert(wait_for_condition(() => api.get_card_calls == 1));
     assert(!loaded_card1_status);
@@ -1192,7 +1208,7 @@ private void test_load_selected_card_stale_failure_is_ignored() {
         got_error = true;
     });
 
-    controller.load_selected_card.begin();
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
     assert(wait_for_condition(() => harness.card_selection.get_selected_index() == 1));
     assert(wait_for_condition(() => api.get_card_calls == 1));
     assert(!got_error);
@@ -1215,7 +1231,7 @@ private void test_load_selected_card_failure_keeps_previous_editor_content() {
     assert(wait_for_condition(() => controller.get_current_project() != null));
 
     harness.card_selection.set_selected_index(0);
-    controller.load_selected_card.begin();
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
     assert(wait_for_condition(() => controller.get_current_card() != null));
     var committed_text = last_editor_text;
     assert(committed_text == "# Card 1\n\nBody");
@@ -1229,7 +1245,7 @@ private void test_load_selected_card_failure_keeps_previous_editor_content() {
 
     api.fail_get_card = true;
     harness.card_selection.set_selected_index(1);
-    controller.load_selected_card.begin();
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
     assert(wait_for_condition(() => got_error));
     assert(last_editor_text == committed_text);
 }
@@ -1251,7 +1267,7 @@ private void test_reload_cards_failure_keeps_previous_committed_state() {
     assert(harness.card_store.get_n_items() > 0);
 
     harness.card_selection.set_selected_index(0);
-    controller.load_selected_card.begin();
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
     assert(wait_for_condition(() => controller.get_current_card() != null));
     var committed_text = last_editor_text;
     var card_count_before = harness.card_store.get_n_items();
@@ -1373,7 +1389,7 @@ private void test_valid_card_to_card_transition_does_not_emit_no_card_selected()
     assert(second != null);
 
     harness.card_selection.set_selected_index(0);
-    controller.load_selected_card.begin();
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
     assert(wait_for_condition(() => controller.get_current_card() != null
                                     && controller.get_current_card().card_id == first.card_id));
 
@@ -1385,7 +1401,7 @@ private void test_valid_card_to_card_transition_does_not_emit_no_card_selected()
     });
 
     harness.card_selection.set_selected_index(1);
-    controller.load_selected_card.begin();
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
     assert(wait_for_condition(() => controller.get_current_card() != null
                                     && controller.get_current_card().card_id == second.card_id));
     assert(!saw_no_card_selected);
@@ -1434,7 +1450,7 @@ private void test_autosave_failure_emits_error() {
     controller.reload_everything.begin();
     assert(wait_for_condition(() => controller.get_current_project() != null));
     harness.card_selection.set_selected_index(0);
-    controller.load_selected_card.begin();
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
     assert(wait_for_condition(() => controller.get_current_card() != null));
 
     bool got_error = false;
@@ -1612,7 +1628,7 @@ private void test_on_card_selected_triggers_load() {
     assert(wait_for_condition(() => controller.get_current_project() != null));
     harness.card_selection.set_selected_index(1);
     var before = api.get_card_calls;
-    controller.load_selected_card.begin();
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
     assert(wait_for_condition(() => api.get_card_calls > before));
 }
 
@@ -1718,7 +1734,7 @@ private void test_move_card_by_intent_success_reloads_and_preserves_selection() 
     assert(wait_for_condition(() => controller.get_current_project() != null));
 
     harness.card_selection.set_selected_index(1);
-    controller.load_selected_card.begin();
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
     assert(wait_for_condition(() => controller.get_current_card() != null &&
                           controller.get_current_card().card_id == "c1"));
 
@@ -2017,8 +2033,8 @@ int main(string[] args) {
         test_reload_cards_without_selection_keeps_committed_sidebar_state
     );
     Test.add_func(
-        "/main_controller/on_card_selected_without_selection_sets_empty_state",
-        test_on_card_selected_without_selection_sets_empty_state
+        "/main_controller/on_card_selected_without_selection_does_not_emit_empty_state",
+        test_on_card_selected_without_selection_does_not_emit_empty_state
     );
     Test.add_func(
         "/main_controller/on_card_selected_without_selection_keeps_committed_content",

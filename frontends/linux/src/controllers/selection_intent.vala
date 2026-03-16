@@ -64,7 +64,6 @@ internal class SelectionIntentController : Object {
         if (selected_card == null) {
             return;
         }
-        controller.card_selection_requested(target_card_id);
         yield selection_transition_controller.run_card_open_transition(
             "search-result-activation",
             controller.selected_project_id(),
@@ -85,7 +84,6 @@ internal class SelectionIntentController : Object {
         if (selected_card == null) {
             return;
         }
-        controller.card_selection_requested(card_id);
         yield selection_transition_controller.run_card_open_transition(
             reason,
             selected_card.project_id,

@@ -34,7 +34,8 @@ It consolidates:
   - [x] Consolidated toolbox shell rendering behind `ToolboxPane.apply_shell_state()` (actions row + header breadcrumbs + loading indicator), replacing scattered direct refresh/set calls across selection/tool-change/navigation-loading paths (`src/views/toolbox.vala`).
 - [x] AI panel fully render-from-state (single committed apply path).
   - [x] Consolidated AI panel status/thread/send-enabled rendering behind staged `AiPanelRenderState` + `AiPanel.apply_render_state()`; panel mutators now update staged state then apply through the single path (`src/views/ai_panel.vala`).
-- [ ] Remove remaining mixed ownership where transitions and domain controllers both commit UI-affecting state.
+- [x] Remove remaining mixed ownership where transitions and domain controllers both commit UI-affecting state.
+  - [x] Card-open flows now commit through transition-owned selection paths (`SelectionIntentController` + `SelectionTransitionController`), removing pre-transition direct card-selection side effects.
 
 ## In Progress: Transition Ownership Cleanup
 - [x] Ensure all selection/navigation entry points go through one transition gate:
