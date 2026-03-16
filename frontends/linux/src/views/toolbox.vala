@@ -19,6 +19,7 @@ public class ToolboxPane : Object {
     private Gtk.SingleSelection? card_selection;
     private IHolderApi? api;
     private Settings? settings;
+    private bool navigation_loading = false;
     public Gtk.Revealer widget { get; private set; }
 
     public signal void error_reported(string title, string details);
@@ -89,18 +90,18 @@ public class ToolboxPane : Object {
 
         project_selection.notify["selected"].connect(() => {
             refresh_sharing_action_state();
-            refresh_header_breadcrumbs();
+            apply_shell_state();
         });
         card_selection.notify["selected"].connect(() => {
             refresh_sharing_action_state();
-            refresh_header_breadcrumbs();
+            apply_shell_state();
         });
         card_store.items_changed.connect((position, removed, added) => {
             refresh_sharing_action_state();
-            refresh_header_breadcrumbs();
+            apply_shell_state();
         });
         refresh_sharing_action_state();
-        refresh_header_breadcrumbs();
+        apply_shell_state();
         if (git_sync_tool != null) {
             git_sync_tool.set_project_selection(project_selection);
         }
@@ -158,7 +159,7 @@ public class ToolboxPane : Object {
             return;
         }
         flowboard_tool.show_projects_root();
-        refresh_header_breadcrumbs();
+        apply_shell_state();
     }
 
     public void show_flowboard_project_root() {
@@ -166,13 +167,12 @@ public class ToolboxPane : Object {
             return;
         }
         flowboard_tool.show_project_root();
-        refresh_header_breadcrumbs();
+        apply_shell_state();
     }
 
     public void set_navigation_loading(bool loading) {
-        if (tool_shell != null) {
-            ((!) tool_shell).set_loading(loading);
-        }
+        navigation_loading = loading;
+        apply_shell_state();
     }
 
     private Gtk.Widget build_ui() {
@@ -318,14 +318,12 @@ public class ToolboxPane : Object {
         stack.notify["visible-child"].connect(() => {
             var visible = stack.get_visible_child();
             var page = visible != null ? stack.get_page(visible) : null;
-            refresh_tool_actions_row();
-            refresh_header_breadcrumbs();
+            apply_shell_state();
             if (page.title == "Trash") {
                 refresh_trash();
             }
         });
-        refresh_tool_actions_row();
-        refresh_header_breadcrumbs();
+        apply_shell_state();
 
         var scroller = new Gtk.ScrolledWindow();
         scroller.set_vexpand(true);
@@ -333,7 +331,7 @@ public class ToolboxPane : Object {
         scroller.set_child(stack);
         ((!) tool_shell).set_content_widget(scroller);
         ((!) tool_shell).set_actions_widget(null);
-        ((!) tool_shell).set_loading(false);
+        ((!) tool_shell).set_loading(navigation_loading);
 
         return frame;
     }
@@ -384,6 +382,14 @@ public class ToolboxPane : Object {
             return;
         }
         ((!) tool_shell).set_actions_widget(null);
+    }
+
+    private void apply_shell_state() {
+        refresh_tool_actions_row();
+        refresh_header_breadcrumbs();
+        if (tool_shell != null) {
+            ((!) tool_shell).set_loading(navigation_loading);
+        }
     }
 
     private void refresh_header_breadcrumbs() {

@@ -30,7 +30,8 @@ It consolidates:
   - [x] `MainWindow` now gives `MainController` dedicated internal project/card/thread stores; visible sidebar stores are rendered only through `AppStateStore` -> `SidebarDataRenderer`/`SidebarSelectionRenderer` in `apply_sidebar_from_state()` (`src/views/window.vala`).
 - [x] Editor fully render-from-state (single committed apply path).
   - [x] Consolidated editor/title/mode/search-summary/AI-thread-title rendering behind `MainWindow.apply_editor_from_state()` with staged `EditorRenderState`; mutators now update state then commit through that single path (`src/views/window.vala`).
-- [ ] Toolbox fully render-from-state (single committed apply path).
+- [x] Toolbox fully render-from-state (single committed apply path).
+  - [x] Consolidated toolbox shell rendering behind `ToolboxPane.apply_shell_state()` (actions row + header breadcrumbs + loading indicator), replacing scattered direct refresh/set calls across selection/tool-change/navigation-loading paths (`src/views/toolbox.vala`).
 - [ ] AI panel fully render-from-state (single committed apply path).
 - [ ] Remove remaining mixed ownership where transitions and domain controllers both commit UI-affecting state.
 
