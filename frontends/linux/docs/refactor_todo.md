@@ -64,9 +64,9 @@ It consolidates:
   - [x] `AppTransitionController`: stale-safe `commit_selection(...)` and `finish(...)` covered (`tests/app_transition_test.vala`)
   - [x] `SelectionTransitionController`: stale-safe `commit_selection(...)` and `finish_navigation_if_current(...)`, plus loading signal coverage (`tests/selection_transition_test.vala`)
   - [ ] Add explicit late-response drop coverage for full project/card/tool transition flows.
-- [ ] No-intermediate-empty tests:
-  - card A -> card B does not render `No card selected`
-  - project P1 -> P2 does not clear to placeholder first
+- [x] No-intermediate-empty tests:
+  - [x] card A -> card B does not render `No card selected` (`tests/main_controller_test.vala`)
+  - [x] project P1 -> P2 does not clear to placeholder first (`tests/main_controller_test.vala`)
 - [ ] Failed-transition retention tests:
   - previous committed content remains visible on failure
   - error/toast emitted without destructive UI reset

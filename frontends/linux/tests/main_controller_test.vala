@@ -1146,6 +1146,75 @@ private void test_load_selected_card_stale_failure_is_ignored() {
     assert(!got_error);
 }
 
+private void test_valid_card_to_card_transition_does_not_emit_no_card_selected() {
+    var api = new MainControllerFakeApi();
+    api.include_card2 = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    assert(harness.card_store.get_n_items() >= 2);
+
+    var first = harness.card_store.get_item(0) as HolderLinux.CardSummary;
+    var second = harness.card_store.get_item(1) as HolderLinux.CardSummary;
+    assert(first != null);
+    assert(second != null);
+
+    harness.card_selection.set_selected_index(0);
+    controller.load_selected_card.begin();
+    assert(wait_for_condition(() => controller.get_current_card() != null
+                                    && controller.get_current_card().card_id == first.card_id));
+
+    bool saw_no_card_selected = false;
+    controller.editor_state_changed.connect((text, editable) => {
+        if (text.contains("No Card Selected")) {
+            saw_no_card_selected = true;
+        }
+    });
+
+    harness.card_selection.set_selected_index(1);
+    controller.load_selected_card.begin();
+    assert(wait_for_condition(() => controller.get_current_card() != null
+                                    && controller.get_current_card().card_id == second.card_id));
+    assert(!saw_no_card_selected);
+}
+
+private void test_valid_project_to_project_transition_does_not_emit_empty_placeholders() {
+    var api = new MainControllerFakeApi();
+    api.include_home_project = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    bool saw_no_project_selected = false;
+    bool saw_no_card_selected = false;
+    controller.editor_state_changed.connect((text, editable) => {
+        if (text.contains("No Project Selected")) {
+            saw_no_project_selected = true;
+        }
+        if (text.contains("No Card Selected")) {
+            saw_no_card_selected = true;
+        }
+    });
+
+    var list_cards_before = api.list_cards_calls;
+    harness.project_selection.set_selected_index(1);
+    controller.reload_cards_for_selected_project.begin();
+
+    assert(wait_for_condition(() => controller.get_current_project() != null
+                                    && controller.get_current_project().project_id == "p1"));
+    assert(wait_for_condition(() => api.list_cards_calls > list_cards_before));
+    assert(!saw_no_project_selected);
+    assert(!saw_no_card_selected);
+}
+
 private void test_autosave_failure_emits_error() {
     var api = new MainControllerFakeApi();
     api.fail_update_card = true;
@@ -1765,6 +1834,14 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/load_selected_card_stale_failure_is_ignored",
         test_load_selected_card_stale_failure_is_ignored
+    );
+    Test.add_func(
+        "/main_controller/valid_card_to_card_transition_does_not_emit_no_card_selected",
+        test_valid_card_to_card_transition_does_not_emit_no_card_selected
+    );
+    Test.add_func(
+        "/main_controller/valid_project_to_project_transition_does_not_emit_empty_placeholders",
+        test_valid_project_to_project_transition_does_not_emit_empty_placeholders
     );
     Test.add_func(
         "/main_controller/autosave_failure_emits_error",
