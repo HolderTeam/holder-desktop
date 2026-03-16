@@ -82,6 +82,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     private bool relations_default_split_applied = false;
     private uint relations_default_split_idle_id = 0;
     private bool show_projects_root = false;
+    private bool has_committed_board = false;
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id {
@@ -404,6 +405,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         clear_fixed_children(connections_board_nodes_layer);
         board_nodes.clear();
         board_edges.clear();
+        has_committed_board = false;
         connections_board_empty_label.set_text(message);
         connections_board_empty_label.set_visible(true);
         set_relations_overview(message);
@@ -683,7 +685,9 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                 return;
             }
             if (!result.success || result.outgoing == null || result.backlinks == null) {
-                set_graph_empty_state(result.outgoing_empty_text);
+                if (!has_committed_board) {
+                    set_graph_empty_state(result.outgoing_empty_text);
+                }
                 if (result.debug_message.strip().length > 0) {
                     debug_log_requested(result.debug_message);
                 }
@@ -724,7 +728,9 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                     }
                 }
             } catch (Error e) {
-                set_graph_empty_state("Failed to load project graph links.");
+                if (!has_committed_board) {
+                    set_graph_empty_state("Failed to load project graph links.");
+                }
                 debug_log_requested("Project graph links refresh failed: %s".printf(e.message));
                 return;
             }
@@ -930,6 +936,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         if (nodes.size == 0) {
             connections_board_empty_label.set_text("No connections to display.");
         }
+        has_committed_board = true;
         connections_board_canvas.queue_draw();
     }
 

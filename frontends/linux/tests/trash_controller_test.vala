@@ -85,6 +85,36 @@ private void test_refresh_failure_emits_error_and_empty_state() {
     assert(!controller.empty_trash_sensitive);
 }
 
+private void test_refresh_failure_after_success_keeps_committed_items() {
+    var api = new MainControllerFakeApi();
+    api.trash_items.add(new HolderLinux.TrashItem("card", "c1", "Card 1", 1700000000));
+
+    var controller = new HolderLinux.TrashController();
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Trash refresh failed") {
+            got_error = true;
+        }
+    });
+
+    controller.set_api_client(api);
+    controller.set_project_selection(project_selection_with_one());
+
+    assert(wait_for_condition(() => controller.items_store.get_n_items() == 1));
+    assert(controller.scope_text == "Projects / Project 1 / Trash");
+    assert(!controller.empty_visible);
+    assert(controller.empty_trash_sensitive);
+
+    api.fail_list_trash = true;
+    controller.queue_refresh();
+
+    assert(wait_for_condition(() => got_error));
+    assert(controller.items_store.get_n_items() == 1);
+    assert(controller.scope_text == "Projects / Project 1 / Trash");
+    assert(!controller.empty_visible);
+    assert(controller.empty_trash_sensitive);
+}
+
 private void test_refresh_with_project_and_no_api_shows_api_unavailable() {
     var controller = new HolderLinux.TrashController();
     controller.set_project_selection(project_selection_with_one());
@@ -304,6 +334,8 @@ public static int main(string[] args) {
     Test.add_func("/holder/trash-controller/refresh-with-items", test_refresh_with_items_updates_scope_and_state);
     Test.add_func("/holder/trash-controller/filter-type-param", test_filter_selection_updates_type_param);
     Test.add_func("/holder/trash-controller/refresh-failure", test_refresh_failure_emits_error_and_empty_state);
+    Test.add_func("/holder/trash-controller/refresh-failure-keeps-committed",
+                  test_refresh_failure_after_success_keeps_committed_items);
     Test.add_func("/holder/trash-controller/refresh-no-api", test_refresh_with_project_and_no_api_shows_api_unavailable);
     Test.add_func("/holder/trash-controller/selection-notify-refresh", test_project_selection_notify_selected_triggers_refresh);
     Test.add_func("/holder/trash-controller/stale-serial-success-and-error", test_refresh_stale_serial_success_and_error_paths_no_state_update);

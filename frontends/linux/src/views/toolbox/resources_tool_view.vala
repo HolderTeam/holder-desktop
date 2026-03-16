@@ -14,6 +14,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
     private Gtk.Button resources_delete_btn;
     private Gee.ArrayList<ProjectResource> all_resources = new Gee.ArrayList<ProjectResource>();
     private uint resources_refresh_serial = 0;
+    private bool has_committed_resources = false;
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id {
@@ -240,10 +241,6 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         if (resources_store == null) {
             return;
         }
-        while (resources_store.get_n_items() > 0) {
-            resources_store.remove(resources_store.get_n_items() - 1);
-        }
-        all_resources.clear();
 
         var project = project_selection != null
             ? project_selection.get_selected_item() as Project
@@ -255,8 +252,18 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         if (result.success) {
             all_resources = result.resources;
             apply_resources_filter();
+            has_committed_resources = true;
             return;
         }
+
+        if (result.has_error && has_committed_resources) {
+            error_reported(result.error_title, result.error_details);
+            return;
+        }
+
+        clear_visible_resources();
+        all_resources.clear();
+        has_committed_resources = false;
         resources_empty_label.set_text(result.empty_text);
         resources_empty_label.set_visible(true);
         if (result.has_error) {
@@ -269,9 +276,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         if (resources_store == null) {
             return;
         }
-        while (resources_store.get_n_items() > 0) {
-            resources_store.remove(resources_store.get_n_items() - 1);
-        }
+        clear_visible_resources();
 
         var query = resources_search_entry != null ? resources_search_entry.get_text() : "";
         var result = controller.apply_resources_filter_flow(all_resources, query);
@@ -284,6 +289,12 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             resources_empty_label.set_text(result.empty_text);
         }
         refresh_resource_action_state();
+    }
+
+    private void clear_visible_resources() {
+        while (resources_store.get_n_items() > 0) {
+            resources_store.remove(resources_store.get_n_items() - 1);
+        }
     }
 
     private ProjectResource? selected_resource() {

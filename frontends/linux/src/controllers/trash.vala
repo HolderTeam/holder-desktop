@@ -30,6 +30,7 @@ public class TrashController : Object {
     private Gtk.SingleSelection? project_selection;
     private uint refresh_serial = 0;
     private uint filter_index = 0;
+    private bool has_committed_project_items = false;
 
     public GLib.ListStore items_store { get; private set; }
     public string scope_text { get; private set; default = "Projects / (none) / Trash"; }
@@ -81,7 +82,6 @@ public class TrashController : Object {
         if (serial != refresh_serial) {
             return;
         }
-        clear_store();
 
         var project = selected_project();
         if (project == null) {
@@ -92,19 +92,20 @@ public class TrashController : Object {
             empty_text = "Select a project to view trash.";
             empty_visible = true;
             empty_trash_sensitive = false;
+            has_committed_project_items = false;
             state_changed();
             return;
         }
-
-        scope_text = "Projects / %s / Trash".printf(project.name);
 
         if (api == null) {
             if (serial != refresh_serial) {
                 return;
             }
+            scope_text = "Projects / %s / Trash".printf(project.name);
             empty_text = "API unavailable.";
             empty_visible = true;
             empty_trash_sensitive = false;
+            has_committed_project_items = false;
             state_changed();
             return;
         }
@@ -114,6 +115,8 @@ public class TrashController : Object {
             if (serial != refresh_serial) {
                 return;
             }
+            scope_text = "Projects / %s / Trash".printf(project.name);
+            clear_store();
             foreach (var item in items) {
                 items_store.append(item);
             }
@@ -122,15 +125,19 @@ public class TrashController : Object {
                 empty_text = "No deleted items in this project.";
             }
             empty_trash_sensitive = items_store.get_n_items() > 0;
+            has_committed_project_items = true;
             state_changed();
         } catch (Error e) {
             if (serial != refresh_serial) {
                 return;
             }
-            empty_text = "Failed to load trash.";
-            empty_visible = true;
-            empty_trash_sensitive = false;
-            state_changed();
+            if (!has_committed_project_items) {
+                scope_text = "Projects / %s / Trash".printf(project.name);
+                empty_text = "Failed to load trash.";
+                empty_visible = true;
+                empty_trash_sensitive = false;
+                state_changed();
+            }
             error_reported("Trash refresh failed", e.message);
         }
     }
