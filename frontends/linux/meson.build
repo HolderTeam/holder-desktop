@@ -394,6 +394,25 @@ flowboard_controller_test_exe = executable(
 
 test('holder-linux-flowboard-controller-tests', flowboard_controller_test_exe)
 
+sidebar_data_renderer_test_exe = executable(
+  'holder-linux-sidebar-data-renderer-tests',
+  [
+    'src/models/models.vala',
+    'src/controllers/sidebar_data_renderer.vala',
+    'tests/sidebar_data_renderer_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-sidebar-data-renderer-tests', sidebar_data_renderer_test_exe)
+
 local_info_controller_test_exe = executable(
   'holder-linux-local-info-controller-tests',
   [
