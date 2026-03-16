@@ -692,11 +692,6 @@ public class MainWindow : Adw.ApplicationWindow {
         selection_controller = new SelectionController(controller);
         share_controller = new ShareController();
         card_append_controller = new CardAppendController();
-        toolbox_breadcrumb_controller = new ToolboxBreadcrumbController(
-            selection_transition_controller,
-            selection_controller,
-            toolbox
-        );
         local_info_flow_controller = new LocalInfoFlowController(
             new WindowLocalInfoFlowContext(controller),
             local_info_controller
@@ -736,6 +731,10 @@ public class MainWindow : Adw.ApplicationWindow {
             search_selection,
             card_store,
             search_selection_controller
+        );
+        toolbox_breadcrumb_controller = new ToolboxBreadcrumbController(
+            selection_intent_orchestrator,
+            toolbox
         );
         ai_panel_event_orchestrator = new AiPanelEventOrchestrator(
             ai_panel,

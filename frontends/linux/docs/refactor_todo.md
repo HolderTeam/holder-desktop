@@ -58,6 +58,9 @@ Recent progress:
   - `on_workspace_search_focus_results_requested()` now calls `request_search_selection(0)` instead of directly mutating search selection via `selection_request_controller`.
   - `MainWindow.request_search_selection(...)` now delegates to `SelectionIntentOrchestrator.on_search_selection_requested(...)`.
   - `SelectionRequestController` now owns only explorer selections (project/card/AI thread), removing split ownership for search selection requests.
+- Toolbox breadcrumb project navigation now uses the selection intent gate:
+  - `ToolboxBreadcrumbController` no longer drives `SelectionTransitionController`/`SelectionController` directly for segment-1 project navigation.
+  - It now delegates project navigation to `SelectionIntentOrchestrator.on_project_selection_requested(...)`, keeping breadcrumb navigation on the same selection-intent path as other navigation entry points.
 
 ## Toolbox-Specific Remaining Work
 - [ ] Add final toolbox-focused tests for atomic breadcrumb navigation:

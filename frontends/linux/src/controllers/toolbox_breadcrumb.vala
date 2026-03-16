@@ -4,15 +4,12 @@ internal class ToolboxBreadcrumbController : Object {
     public delegate void OpenCardFunc(string card_id);
     public delegate void ShowToolHelpFunc(string tool_id);
 
-    private SelectionTransitionController selection_transitions;
-    private SelectionController selection_controller;
+    private SelectionIntentOrchestrator selection_intent_orchestrator;
     private ToolboxPane toolbox;
 
-    public ToolboxBreadcrumbController(SelectionTransitionController selection_transitions,
-                                       SelectionController selection_controller,
+    public ToolboxBreadcrumbController(SelectionIntentOrchestrator selection_intent_orchestrator,
                                        ToolboxPane toolbox) {
-        this.selection_transitions = selection_transitions;
-        this.selection_controller = selection_controller;
+        this.selection_intent_orchestrator = selection_intent_orchestrator;
         this.toolbox = toolbox;
     }
 
@@ -32,40 +29,23 @@ internal class ToolboxBreadcrumbController : Object {
             return;
         }
 
-        var seq = selection_transitions.begin_navigation(
-            "toolbox-breadcrumb",
-            project_id,
-            card_id
-        );
-        try {
-            if (segment_index == 0) {
-                if (!selection_transitions.is_current(seq)) {
-                    return;
-                }
-                if (tool_id == "flowboard") {
-                    toolbox.show_flowboard_projects_root();
-                } else {
-                    show_tool_help(tool_id);
-                }
-                return;
+        if (segment_index == 0) {
+            if (tool_id == "flowboard") {
+                toolbox.show_flowboard_projects_root();
+            } else {
+                show_tool_help(tool_id);
             }
+            return;
+        }
 
-            if (segment_index == 1) {
-                if (project_id == null || project_id.strip().length == 0) {
-                    return;
-                }
-                selection_transitions.commit_selection(seq, project_id, null, null);
-                yield selection_controller.on_project_selected();
-                if (!selection_transitions.is_current(seq)) {
-                    return;
-                }
-                if (tool_id == "flowboard") {
-                    toolbox.show_flowboard_project_root();
-                }
+        if (segment_index == 1) {
+            if (project_id == null || project_id.strip().length == 0) {
                 return;
             }
-        } finally {
-            selection_transitions.finish_navigation_if_current(seq);
+            yield selection_intent_orchestrator.on_project_selection_requested(project_id);
+            if (tool_id == "flowboard") {
+                toolbox.show_flowboard_project_root();
+            }
         }
     }
 }

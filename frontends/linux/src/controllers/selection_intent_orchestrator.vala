@@ -98,6 +98,15 @@ internal class SelectionIntentOrchestrator : Object {
         );
     }
 
+    public async void on_project_selection_requested(string project_id) {
+        yield selection_intent_controller.on_project_selection(
+            project_id,
+            selection_transition_controller,
+            selection_controller,
+            flowboard_controller
+        );
+    }
+
     public async void open_card_with_transition(string card_id, string reason) {
         yield selection_intent_controller.open_card_with_transition(
             card_id,
