@@ -40,17 +40,21 @@ It consolidates:
   - search result open
   - toolbox breadcrumb navigation
   - tool-driven card open
-- [ ] Ensure loading/error states are transition states, not domain-empty states.
+- [x] Ensure loading/error states are transition states, not domain-empty states.
   - [x] Flowboard: pending context refresh keeps previously committed tiles visible (no loading-empty reset) (`src/controllers/flowboard.vala`, `tests/flowboard_controller_test.vala`)
   - [x] Sidebar: stale/failed project card reload paths keep previously committed sidebar-backed data/selection snapshots (no destructive reset on stale/failure) (`src/controllers/main.vala`, `tests/main_controller_test.vala`)
-  - [ ] Toolbox tools: loading/error state ownership audit + tests.
+  - [x] Toolbox tools: loading/error state ownership audit + tests.
     - [x] Trash: refresh is atomic; committed rows/scope remain visible on refresh failure after a prior success (`src/controllers/trash.vala`, `tests/trash_controller_test.vala`)
     - [x] Resources: refresh no longer clears visible rows before fetch; failed refresh with prior committed content keeps current list visible and only reports error (`src/views/toolbox/resources_tool_view.vala`)
     - [x] Connections: graph refresh failure paths keep committed board/relations visible once a board has already been rendered (`src/views/toolbox/connections_tool_view.vala`)
     - [x] Git Sync: audited; no destructive clear/refill transition path found in current flows (status labels mutate in place, wizard panes remain committed) (`src/views/toolbox/git_sync_tool_view.vala`)
     - [x] Terminal / Debug: audited; no async clear/refill transition ownership issue applicable (log/terminal panes are append/mutate-in-place) (`src/views/toolbox/terminal_tool_view.vala`, `src/views/toolbox/debug_tool_view.vala`)
   - [x] AI panel: refresh failure preserves last rendered status and reports via status/error channel instead of destructive status reset (`src/controllers/ai_run.vala`, `tests/ai_run_controller_test.vala`)
-- [ ] Keep previous committed content visible until next commit is ready (all panes).
+- [x] Keep previous committed content visible until next commit is ready (all panes).
+  - [x] Main editor: null card selection no longer destructively swaps to placeholder when committed card content exists (`src/controllers/main.vala`, `tests/main_controller_test.vala`)
+  - [x] Sidebar card list: transient null project selection no longer clears committed cards/threads (`src/controllers/main.vala`, `tests/main_controller_test.vala`)
+  - [x] Toolbox content: trash/resources/connections refresh flows retain committed content on refresh failures.
+  - [x] AI panel status: refresh failure preserves committed status render and reports via status/error channel.
 
 ## Transition Ownership: Completed Subtasks
 - [x] `CardsController.move_card_by_intent(...)` no longer triggers direct `load_selected_card.begin()` side effects.

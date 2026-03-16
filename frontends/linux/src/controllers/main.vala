@@ -361,8 +361,8 @@ public class MainController : Object, IAiRunContext {
 
         var selected = project_selection.get_selected_item() as Project;
         if (selected == null) {
-            current_project = null;
-            clear_cards();
+            // Keep committed sidebar/editor state during transient deselection
+            // while a newer selection is resolving.
             return false;
         }
 
@@ -449,8 +449,9 @@ public class MainController : Object, IAiRunContext {
 
         var selected = card_selection.get_selected_item() as CardSummary;
         if (selected == null) {
-            current_card = null;
-            editor_state_changed("# No Card Selected\n\nSelect a card from the sidebar.", false);
+            if (current_card == null) {
+                editor_state_changed("# No Card Selected\n\nSelect a card from the sidebar.", false);
+            }
             return;
         }
         var requested_card_id = selected.card_id;

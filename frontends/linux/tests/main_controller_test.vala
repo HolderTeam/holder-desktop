@@ -969,6 +969,25 @@ private void test_on_project_selected_without_api_is_noop() {
     assert(api.list_cards_calls == 0);
 }
 
+private void test_reload_cards_without_selection_keeps_committed_sidebar_state() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    assert(harness.card_store.get_n_items() > 0);
+    var card_count_before = harness.card_store.get_n_items();
+
+    harness.project_selection.set_selected_index(uint.MAX);
+    controller.reload_cards_for_selected_project.begin();
+    assert(wait_for_condition(() => true));
+
+    assert(harness.card_store.get_n_items() == card_count_before);
+}
+
 private void test_on_card_selected_without_selection_sets_empty_state() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -988,6 +1007,39 @@ private void test_on_card_selected_without_selection_sets_empty_state() {
     harness.card_selection.set_selected_index(uint.MAX);
     controller.load_selected_card.begin();
     assert(wait_for_condition(() => saw_no_selection));
+}
+
+private void test_on_card_selected_without_selection_keeps_committed_content() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    string last_editor_text = "";
+    bool saw_no_selection = false;
+    controller.editor_state_changed.connect((text, editable) => {
+        last_editor_text = text;
+        if (text.contains("No Card Selected")) {
+            saw_no_selection = true;
+        }
+    });
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    harness.card_selection.set_selected_index(0);
+    controller.load_selected_card.begin();
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+    var committed = last_editor_text;
+    assert(committed.contains("# Card 1"));
+
+    harness.card_selection.set_selected_index(uint.MAX);
+    controller.load_selected_card.begin();
+    assert(wait_for_condition(() => true));
+
+    assert(last_editor_text == committed);
+    assert(!saw_no_selection);
 }
 
 private void test_on_card_selected_without_api_is_noop() {
@@ -1961,8 +2013,16 @@ int main(string[] args) {
         test_on_project_selected_without_api_is_noop
     );
     Test.add_func(
+        "/main_controller/reload_cards_without_selection_keeps_committed_sidebar_state",
+        test_reload_cards_without_selection_keeps_committed_sidebar_state
+    );
+    Test.add_func(
         "/main_controller/on_card_selected_without_selection_sets_empty_state",
         test_on_card_selected_without_selection_sets_empty_state
+    );
+    Test.add_func(
+        "/main_controller/on_card_selected_without_selection_keeps_committed_content",
+        test_on_card_selected_without_selection_keeps_committed_content
     );
     Test.add_func(
         "/main_controller/on_card_selected_without_api_is_noop",
