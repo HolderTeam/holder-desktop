@@ -650,12 +650,15 @@ public class MainWindow : Adw.ApplicationWindow {
         app_state_store = new AppStateStore();
         app_transition_controller = new AppTransitionController(app_state_store);
         selection_transition_controller = new SelectionTransitionController(app_transition_controller);
+        var controller_project_store = new GLib.ListStore(typeof(Project));
+        var controller_card_store = new GLib.ListStore(typeof(CardSummary));
+        var controller_ai_thread_store = new GLib.ListStore(typeof(AiThreadSummary));
         controller = new MainController(
-            project_store,
+            controller_project_store,
             new GtkSingleSelectionState(project_selection),
-            card_store,
+            controller_card_store,
             new GtkSingleSelectionState(card_selection),
-            ai_thread_store,
+            controller_ai_thread_store,
             new GtkSingleSelectionState(ai_thread_selection),
             search_store,
             new SearchEntryTextProvider(search_entry),

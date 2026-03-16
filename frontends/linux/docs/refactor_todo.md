@@ -26,7 +26,8 @@ It consolidates:
 - [x] Legacy in-tool shell header scaffolding removed.
 
 ## In Progress: State-First Rendering Boundaries
-- [ ] Sidebar fully render-from-state (single committed apply path).
+- [x] Sidebar fully render-from-state (single committed apply path).
+  - [x] `MainWindow` now gives `MainController` dedicated internal project/card/thread stores; visible sidebar stores are rendered only through `AppStateStore` -> `SidebarDataRenderer`/`SidebarSelectionRenderer` in `apply_sidebar_from_state()` (`src/views/window.vala`).
 - [ ] Editor fully render-from-state (single committed apply path).
 - [ ] Toolbox fully render-from-state (single committed apply path).
 - [ ] AI panel fully render-from-state (single committed apply path).
