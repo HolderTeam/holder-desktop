@@ -158,7 +158,7 @@ private void test_refresh_status_emits_render_status() {
     assert(wait_for_condition(() => rendered));
 }
 
-private void test_refresh_status_error_emits_render_status_error() {
+private void test_refresh_status_error_preserves_rendered_state_and_emits_status_error() {
     var api = new AiRunFakeApi();
     api.fail_capabilities = true;
     var ctx = new AiRunFakeContext();
@@ -166,15 +166,26 @@ private void test_refresh_status_error_emits_render_status_error() {
     ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
     var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
 
+    bool got_status = false;
     bool got_error = false;
-    controller.render_status_error_requested.connect((message) => {
-        if (message.contains("capabilities failed")) {
+    bool got_render_reset = false;
+    controller.status_changed.connect((text) => {
+        if (text == "AI status refresh failed") {
+            got_status = true;
+        }
+    });
+    controller.error_reported.connect((title, details) => {
+        if (title == "AI status refresh failed" && details.contains("capabilities failed")) {
             got_error = true;
         }
     });
+    controller.render_status_error_requested.connect((message) => {
+        got_render_reset = true;
+    });
 
     controller.refresh_status.begin();
-    assert(wait_for_condition(() => got_error));
+    assert(wait_for_condition(() => got_status && got_error));
+    assert(!got_render_reset);
 }
 
 private void test_start_model_pull_error_emits_error() {
@@ -641,8 +652,8 @@ int main(string[] args) {
         test_refresh_status_emits_render_status
     );
     Test.add_func(
-        "/ai_run/refresh_status_error_emits_render_status_error",
-        test_refresh_status_error_emits_render_status_error
+        "/ai_run/refresh_status_error_preserves_rendered_state_and_emits_status_error",
+        test_refresh_status_error_preserves_rendered_state_and_emits_status_error
     );
     Test.add_func(
         "/ai_run/start_model_pull_error_emits_error",

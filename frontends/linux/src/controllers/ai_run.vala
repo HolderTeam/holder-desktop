@@ -45,7 +45,8 @@ public class AiRunController : Object {
             render_status_requested(capabilities, status);
             update_ai_polling(status.active_pull_jobs > 0);
         } catch (Error e) {
-            render_status_error_requested(e.message);
+            status_changed("AI status refresh failed");
+            error_reported("AI status refresh failed", e.message);
             stop_ai_polling();
         }
     }

@@ -42,9 +42,9 @@ It consolidates:
   - tool-driven card open
 - [ ] Ensure loading/error states are transition states, not domain-empty states.
   - [x] Flowboard: pending context refresh keeps previously committed tiles visible (no loading-empty reset) (`src/controllers/flowboard.vala`, `tests/flowboard_controller_test.vala`)
-  - [ ] Sidebar: transition loading/error state ownership audit + tests.
+  - [x] Sidebar: stale/failed project card reload paths keep previously committed sidebar-backed data/selection snapshots (no destructive reset on stale/failure) (`src/controllers/main.vala`, `tests/main_controller_test.vala`)
   - [ ] Toolbox tools: loading/error state ownership audit + tests.
-  - [ ] AI panel: loading/error state ownership audit + tests.
+  - [x] AI panel: refresh failure preserves last rendered status and reports via status/error channel instead of destructive status reset (`src/controllers/ai_run.vala`, `tests/ai_run_controller_test.vala`)
 - [ ] Keep previous committed content visible until next commit is ready (all panes).
 
 ## Transition Ownership: Completed Subtasks
