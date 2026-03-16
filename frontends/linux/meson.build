@@ -1117,6 +1117,24 @@ selection_transition_test_exe = executable(
 
 test('holder-linux-selection-transition-tests', selection_transition_test_exe)
 
+selection_intent_orchestrator_test_exe = executable(
+  'holder-linux-selection-intent-orchestrator-tests',
+  [
+    'src/controllers/selection_intent_orchestrator.vala',
+    'tests/selection_intent_orchestrator_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-selection-intent-orchestrator-tests', selection_intent_orchestrator_test_exe)
+
 app_test_exe = executable(
   'holder-linux-app-tests',
   [

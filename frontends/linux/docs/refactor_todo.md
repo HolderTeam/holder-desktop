@@ -65,16 +65,17 @@ It consolidates:
 - [x] Search selection request handling is centralized at `MainWindow.request_search_selection(...)` -> `SelectionIntentOrchestrator`.
 - [x] `SelectionRequestController` now owns only explorer selections (project/card/AI thread).
 - [x] Toolbox breadcrumb project navigation delegates to `SelectionIntentOrchestrator`.
+- [x] `SelectionIntentOrchestrator` delegation behavior is locked by unit tests for project/card/thread/search/open-card request paths (`tests/selection_intent_orchestrator_test.vala`).
 
 ## Toolbox-Specific Remaining Work
-- [ ] Add final toolbox-focused tests for atomic breadcrumb navigation:
+- [x] Add final toolbox-focused tests for atomic breadcrumb navigation:
   - [x] breadcrumb segment routing semantics covered (`tests/toolbox_breadcrumb_controller_test.vala`)
   - [x] no intermediate blank/placeholder states on valid-to-valid transitions (`src/controllers/flowboard.vala`, `tests/flowboard_controller_test.vala`)
   - [x] stale navigation responses cannot overwrite latest scope (`src/controllers/toolbox_breadcrumb.vala`, `tests/toolbox_breadcrumb_controller_test.vala`)
   - [x] fixed action row remains stable while content updates (`tests/tool_shell_test.vala`)
 
 ## Hardening Tests (Phase C)
-- [ ] Transition stale-drop tests:
+- [x] Transition stale-drop tests:
   - [x] `AppTransitionController`: stale-safe `commit_selection(...)` and `finish(...)` covered (`tests/app_transition_test.vala`)
   - [x] `SelectionTransitionController`: stale-safe `commit_selection(...)` and `finish_navigation_if_current(...)`, plus loading signal coverage (`tests/selection_transition_test.vala`)
   - [x] Add explicit late-response drop coverage for full project/card/tool transition flows.
