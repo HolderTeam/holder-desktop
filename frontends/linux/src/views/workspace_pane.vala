@@ -291,8 +291,8 @@ public class WorkspacePane : Object {
         editor_toggle_btn.set_tooltip_text("Toggle card editor");
         editor_toggle_btn.set_active(true);
         editor_toggle_btn.toggled.connect(() => {
-            if (ai_split != null) {
-                ai_split.set_visible(editor_toggle_btn.get_active());
+            if (content_stack != null) {
+                content_stack.set_visible(editor_toggle_btn.get_active());
             }
         });
 
@@ -428,9 +428,23 @@ public class WorkspacePane : Object {
         content_stack.add_named(search_page, "search");
         content_stack.set_visible_child_name("editor");
 
+        toolbox = new ToolboxPane();
+
+        content_paned = new Gtk.Paned(Gtk.Orientation.VERTICAL);
+        content_paned.set_start_child(content_stack);
+        content_paned.set_end_child(toolbox.widget);
+        content_paned.set_resize_start_child(true);
+        content_paned.set_resize_end_child(false);
+        content_paned.set_shrink_start_child(false);
+        content_paned.set_shrink_end_child(true);
+        content_paned.set_wide_handle(true);
+        content_paned.set_vexpand(true);
+        content_paned.set_hexpand(true);
+        toolbox.widget.set_visible(false);
+
         ai_panel = new AiPanel();
         ai_split = new Gtk.Paned(Gtk.Orientation.HORIZONTAL);
-        ai_split.set_start_child(content_stack);
+        ai_split.set_start_child(content_paned);
         ai_split.set_end_child(ai_panel.widget);
         ai_split.set_resize_start_child(true);
         ai_split.set_resize_end_child(false);
@@ -439,6 +453,7 @@ public class WorkspacePane : Object {
         ai_split.set_wide_handle(true);
         ai_panel.widget.set_visible(false);
         ai_split.set_vexpand(true);
+        ai_split.set_hexpand(true);
         ai_split.notify["position"].connect(() => {
             if (suppress_ai_position_persist || !ai_panel.widget.get_visible()) {
                 return;
@@ -455,21 +470,7 @@ public class WorkspacePane : Object {
             ai_panel_width_user_set = true;
         });
 
-        toolbox = new ToolboxPane();
-
-        content_paned = new Gtk.Paned(Gtk.Orientation.VERTICAL);
-        content_paned.set_start_child(ai_split);
-        content_paned.set_end_child(toolbox.widget);
-        content_paned.set_resize_start_child(true);
-        content_paned.set_resize_end_child(false);
-        content_paned.set_shrink_start_child(false);
-        content_paned.set_shrink_end_child(true);
-        content_paned.set_wide_handle(true);
-        content_paned.set_vexpand(true);
-        content_paned.set_hexpand(true);
-        toolbox.widget.set_visible(false);
-
-        outer.append(content_paned);
+        outer.append(ai_split);
         return outer;
     }
 
