@@ -655,6 +655,7 @@ public class MainWindow : Adw.ApplicationWindow {
         search_list = workspace.search_list;
         ai_panel = workspace.ai_panel;
         toolbox = workspace.toolbox;
+        internal_link_controller = new InternalLinkController();
         editor_render_state = new EditorRenderState();
         apply_editor_from_state();
         local_info_controller = new LocalInfoController(new WindowLocalInfoLogger(toolbox));
@@ -727,7 +728,6 @@ public class MainWindow : Adw.ApplicationWindow {
         recovery_controller = new RecoveryController(new WindowRecoveryContext(controller));
         recovery_ui_controller = new RecoveryUiController(recovery_controller);
         recovery_dialog_adapter = new RecoveryDialogAdapter(this, recovery_ui_controller);
-        internal_link_controller = new InternalLinkController();
         ai_run_controller = new AiRunController(controller);
         find_replace_controller = new FindReplaceController(
             new WindowFindReplaceOps(editor_buffer, editor_view)
@@ -1585,6 +1585,9 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void refresh_connections_internal_links_from_editor() {
+        if (internal_link_controller == null || toolbox == null) {
+            return;
+        }
         Gtk.TextIter start;
         Gtk.TextIter end;
         editor_buffer.get_bounds(out start, out end);
