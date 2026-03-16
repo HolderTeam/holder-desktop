@@ -170,6 +170,14 @@ public class ToolboxPane : Object {
         apply_shell_state();
     }
 
+    public void show_connections_projects_root() {
+        if (connections_tool == null) {
+            return;
+        }
+        connections_tool.navigate_to_projects_root.begin(null);
+        apply_shell_state();
+    }
+
     public void set_navigation_loading(bool loading) {
         navigation_loading = loading;
         apply_shell_state();

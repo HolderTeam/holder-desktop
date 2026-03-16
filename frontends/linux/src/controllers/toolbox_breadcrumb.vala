@@ -34,9 +34,10 @@ internal class ToolboxBreadcrumbController : Object {
         if (segment_index == 0) {
             if (tool_id == "flowboard") {
                 toolbox.show_flowboard_projects_root();
-            } else {
-                show_tool_help(tool_id);
+            } else if (tool_id == "connections") {
+                toolbox.show_connections_projects_root();
             }
+            show_tool_help(tool_id);
             return;
         }
 

@@ -25,6 +25,7 @@ internal class SelectionIntentOrchestrator : Object {
 public class ToolboxPane : Object {
     public int show_flowboard_projects_root_calls = 0;
     public int show_flowboard_project_root_calls = 0;
+    public int show_connections_projects_root_calls = 0;
 
     public void show_flowboard_projects_root() {
         show_flowboard_projects_root_calls++;
@@ -32,6 +33,10 @@ public class ToolboxPane : Object {
 
     public void show_flowboard_project_root() {
         show_flowboard_project_root_calls++;
+    }
+
+    public void show_connections_projects_root() {
+        show_connections_projects_root_calls++;
     }
 }
 
@@ -88,7 +93,7 @@ private void run_navigate(HolderLinux.ToolboxBreadcrumbController controller,
     assert(wait_for_condition(() => done));
 }
 
-private void test_segment_zero_flowboard_shows_projects_root() {
+private void test_segment_zero_flowboard_shows_projects_root_and_help() {
     var intents = new HolderLinux.SelectionIntentOrchestrator();
     var toolbox = new HolderLinux.ToolboxPane();
     var controller = new HolderLinux.ToolboxBreadcrumbController(intents, toolbox);
@@ -104,7 +109,7 @@ private void test_segment_zero_flowboard_shows_projects_root() {
 
     assert(toolbox.show_flowboard_projects_root_calls == 1);
     assert(toolbox.show_flowboard_project_root_calls == 0);
-    assert(help_calls == 0);
+    assert(help_calls == 1);
     assert(open_calls == 0);
 }
 
@@ -125,6 +130,7 @@ private void test_segment_zero_non_flowboard_shows_help() {
     });
 
     assert(toolbox.show_flowboard_projects_root_calls == 0);
+    assert(toolbox.show_connections_projects_root_calls == 1);
     assert(help_calls == 1);
     assert(last_help_tool == "connections");
     assert(open_calls == 0);
@@ -225,9 +231,13 @@ private void test_stale_segment_one_response_is_ignored() {
             slow_done = true;
         });
 
-    run_navigate(controller, "flowboard", 0, "p1", null, (card_id) => {}, (tool_id) => {});
+    int help_calls = 0;
+    run_navigate(controller, "flowboard", 0, "p1", null, (card_id) => {}, (tool_id) => {
+        help_calls++;
+    });
 
     assert(wait_for_condition(() => slow_done));
+    assert(help_calls == 1);
     assert(toolbox.show_flowboard_projects_root_calls == 1);
     assert(toolbox.show_flowboard_project_root_calls == 0);
 }
@@ -235,8 +245,8 @@ private void test_stale_segment_one_response_is_ignored() {
 public static int main(string[] args) {
     Test.init(ref args);
 
-    Test.add_func("/holder/toolbox-breadcrumb/segment-zero-flowboard-projects-root",
-                  test_segment_zero_flowboard_shows_projects_root);
+    Test.add_func("/holder/toolbox-breadcrumb/segment-zero-flowboard-projects-root-and-help",
+                  test_segment_zero_flowboard_shows_projects_root_and_help);
     Test.add_func("/holder/toolbox-breadcrumb/segment-zero-non-flowboard-help",
                   test_segment_zero_non_flowboard_shows_help);
     Test.add_func("/holder/toolbox-breadcrumb/segment-one-requires-project",
