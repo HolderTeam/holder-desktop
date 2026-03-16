@@ -1474,7 +1474,7 @@ private void test_update_selected_card_summary_without_current_card_is_noop() {
     harness.card_selection.set_selected_index(0);
     assert(controller.get_current_card() == null);
 
-    controller.update_selected_card_summary_for_tests("Renamed", 999);
+    controller.update_selected_card_summary("Renamed", 999);
 
     assert(harness.card_store.get_n_items() == 1);
     var card = harness.card_store.get_item(0) as HolderLinux.CardSummary;
@@ -1835,8 +1835,8 @@ private void test_ensure_first_project_without_api_is_noop() {
     var controller = harness.controller;
 
     bool done = false;
-    controller.ensure_first_project_for_tests.begin((obj, res) => {
-        controller.ensure_first_project_for_tests.end(res);
+    controller.ensure_first_project.begin((obj, res) => {
+        controller.ensure_first_project.end(res);
         done = true;
     });
 

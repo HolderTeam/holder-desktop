@@ -292,10 +292,6 @@ public class MainController : Object, IAiRunContext {
         yield projects_controller.ensure_first_project();
     }
 
-    public async void ensure_first_project_for_tests() {
-        yield ensure_first_project();
-    }
-
     internal async void reload_everything_with_selection(string? preferred_project_id,
                                                          string? preferred_card_id) {
         if (api == null) {
@@ -588,10 +584,6 @@ public class MainController : Object, IAiRunContext {
         if (selected_card_id != null) {
             card_selection_requested(selected_card_id);
         }
-    }
-
-    public void update_selected_card_summary_for_tests(string title, int64 updated_at) {
-        update_selected_card_summary(title, updated_at);
     }
 
     public static Gee.ArrayList<CardSummary> rebuild_card_summaries(

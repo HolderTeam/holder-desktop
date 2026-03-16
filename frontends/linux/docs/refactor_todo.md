@@ -91,7 +91,11 @@ It consolidates:
 ## Cleanup / Debt
 - [x] Remove obsolete comments/docs referring to pre-orchestrator paths.
   - [x] Marked `UI_principles.md`, `ui_state_transition_plan.md`, and `toolbox_shell_refactor.md` as historical and pointed to `refactor_todo.md` as active source.
-- [ ] Prune dead compatibility shims and stale helpers introduced during migration.
+- [x] Prune dead compatibility shims and stale helpers introduced during migration.
+  - [x] Removed `MainController` migration-era test wrappers and switched tests to call real internal methods directly:
+    - removed `ensure_first_project_for_tests(...)`
+    - removed `update_selected_card_summary_for_tests(...)`
+    - updated `tests/main_controller_test.vala` call sites
 - [x] Update test names to match orchestrator/controller ownership language.
   - [x] Renamed stale flowboard fallback breadcrumb test names to reflect transient-selection retention semantics (`tests/flowboard_controller_test.vala`).
 
