@@ -454,7 +454,7 @@ private void test_open_card_with_transition_delegates() {
     assert(intents.last_open_card_reason == "toolbox-breadcrumb");
 }
 
-private void test_project_selection_requested_delegates() {
+private void test_select_project_with_transition_delegates() {
     HolderLinux.SelectionIntentController intents;
     HolderLinux.MainController controller;
     Gtk.SingleSelection project_selection;
@@ -470,8 +470,8 @@ private void test_project_selection_requested_delegates() {
     );
 
     bool done = false;
-    orchestrator.on_project_selection_requested.begin("project-requested", (obj, res) => {
-        orchestrator.on_project_selection_requested.end(res);
+    orchestrator.select_project_with_transition.begin("project-requested", (obj, res) => {
+        orchestrator.select_project_with_transition.end(res);
         done = true;
     });
 
@@ -499,8 +499,8 @@ public static int main(string[] args) {
                   test_search_result_activation_uses_card_resolver);
     Test.add_func("/holder/selection-intent-orchestrator/open-card-with-transition",
                   test_open_card_with_transition_delegates);
-    Test.add_func("/holder/selection-intent-orchestrator/project-selection-requested",
-                  test_project_selection_requested_delegates);
+    Test.add_func("/holder/selection-intent-orchestrator/select-project-with-transition",
+                  test_select_project_with_transition_delegates);
 
     return Test.run();
 }

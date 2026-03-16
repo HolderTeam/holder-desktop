@@ -19,12 +19,7 @@ internal class FlowboardController : Object {
 }
 
 internal class MainController : Object {
-    public string? selected_project_id_value = null;
     public string? prepared_search_card_id = null;
-
-    public string? selected_project_id() {
-        return selected_project_id_value;
-    }
 
     public async string? prepare_search_result_card_at(uint position) {
         return prepared_search_card_id;
@@ -37,10 +32,6 @@ internal class SelectionTransitionController : Object {
 
     public int run_project_overview_selection_calls = 0;
     public string? last_project_overview_project_id = null;
-
-    public int run_card_selection_calls = 0;
-    public string? last_card_selection_project_id = null;
-    public string? last_card_selection_card_id = null;
 
     public int run_ai_thread_selection_calls = 0;
     public string? last_ai_thread_project_id = null;
@@ -66,15 +57,6 @@ internal class SelectionTransitionController : Object {
                                                      FlowboardController flowboard_controller) {
         run_project_overview_selection_calls++;
         last_project_overview_project_id = project_id;
-    }
-
-    public async void run_card_selection(string project_id,
-                                         string card_id,
-                                         SelectionController selection_controller,
-                                         FlowboardController flowboard_controller) {
-        run_card_selection_calls++;
-        last_card_selection_project_id = project_id;
-        last_card_selection_card_id = card_id;
     }
 
     public void run_ai_thread_selection(string? project_id,
@@ -177,7 +159,6 @@ private void test_card_selection_ignores_missing_project() {
 
     assert(wait_for_condition(() => done));
     assert(transitions.run_project_overview_selection_calls == 0);
-    assert(transitions.run_card_selection_calls == 0);
 }
 
 private void test_card_selection_without_card_routes_to_project_overview() {
@@ -200,7 +181,6 @@ private void test_card_selection_without_card_routes_to_project_overview() {
     assert(wait_for_condition(() => done));
     assert(transitions.run_project_overview_selection_calls == 1);
     assert(transitions.last_project_overview_project_id == "p1");
-    assert(transitions.run_card_selection_calls == 0);
 }
 
 private void test_card_selection_with_card_routes_to_card_transition() {
@@ -221,7 +201,6 @@ private void test_card_selection_with_card_routes_to_card_transition() {
     });
 
     assert(wait_for_condition(() => done));
-    assert(transitions.run_card_selection_calls == 0);
     assert(transitions.run_card_open_transition_calls == 1);
     assert(transitions.last_open_reason == "sidebar-card-selection");
     assert(transitions.last_open_requested_project_id == "p1");
@@ -250,7 +229,6 @@ private void test_search_activation_routes_through_card_open_transition() {
     var selection = new HolderLinux.SelectionController();
     var flowboard = new HolderLinux.FlowboardController();
     var controller = new HolderLinux.MainController();
-    controller.selected_project_id_value = "p-current";
     controller.prepared_search_card_id = "c2";
 
     bool done = false;

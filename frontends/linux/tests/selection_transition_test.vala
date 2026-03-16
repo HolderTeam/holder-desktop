@@ -138,21 +138,6 @@ private void test_run_methods_cover_transition_paths() {
 
     {
         var loop = new MainLoop();
-        transitions.run_card_selection.begin("p1", "c1", selection_controller, flowboard_controller, (obj, res) => {
-            transitions.run_card_selection.end(res);
-            loop.quit();
-        });
-        loop.run();
-    }
-    assert(selection_controller.card_selected_calls == 1);
-    assert(selection_controller.last_card_id == "c1");
-    assert(flowboard_controller.focus_card_calls == 1);
-    assert(flowboard_controller.last_focus_card_id == "c1");
-    assert(state.selection.project_id == "p1");
-    assert(state.selection.card_id == "c1");
-
-    {
-        var loop = new MainLoop();
         transitions.run_project_overview_selection.begin("p2", main_controller, flowboard_controller, (obj, res) => {
             transitions.run_project_overview_selection.end(res);
             loop.quit();
@@ -160,7 +145,7 @@ private void test_run_methods_cover_transition_paths() {
         loop.run();
     }
     assert(main_controller.project_overview_calls == 1);
-    assert(flowboard_controller.refresh_calls == 3);
+    assert(flowboard_controller.refresh_calls == 2);
     assert(state.selection.project_id == "p2");
     assert(state.selection.card_id == null);
 
@@ -187,11 +172,11 @@ private void test_run_methods_cover_transition_paths() {
         );
         loop.run();
     }
-    assert(selection_controller.card_selected_calls == 2);
+    assert(selection_controller.card_selected_calls == 1);
     assert(selection_controller.last_card_id == "c4-selected");
-    assert(flowboard_controller.focus_card_calls == 2);
+    assert(flowboard_controller.focus_card_calls == 1);
     assert(flowboard_controller.last_focus_card_id == "c4-selected");
-    assert(flowboard_controller.refresh_calls == 4);
+    assert(flowboard_controller.refresh_calls == 3);
     assert(state.selection.project_id == "p4");
     assert(state.selection.card_id == "c4-selected");
     assert(state.selection.ai_thread_id == null);

@@ -8,11 +8,11 @@ internal class SelectionIntentOrchestrator : Object {
     public string delayed_project_id = "";
     public uint delay_ms = 0;
 
-    public async void on_project_selection_requested(string project_id) {
+    public async void select_project_with_transition(string project_id) {
         project_selection_requested_calls++;
         last_project_id = project_id;
         if (delay_ms > 0 && project_id == delayed_project_id) {
-            SourceFunc resume = on_project_selection_requested.callback;
+            SourceFunc resume = select_project_with_transition.callback;
             Timeout.add(delay_ms, () => {
                 resume();
                 return Source.REMOVE;

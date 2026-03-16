@@ -45,7 +45,7 @@ internal class ToolboxBreadcrumbController : Object {
             if (project_id == null || project_id.strip().length == 0) {
                 return;
             }
-            yield selection_intent_orchestrator.on_project_selection_requested(project_id);
+            yield selection_intent_orchestrator.select_project_with_transition(project_id);
             if (seq != navigation_sequence) {
                 return;
             }

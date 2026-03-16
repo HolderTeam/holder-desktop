@@ -58,23 +58,6 @@ internal class SelectionTransitionController : Object {
         }
     }
 
-    public async void run_card_selection(string project_id,
-                                         string card_id,
-                                         SelectionController selection_controller,
-                                         FlowboardController flowboard_controller) {
-        var seq = begin_navigation("card-selection", project_id, card_id, null);
-        try {
-            commit_selection(seq, project_id, card_id, null);
-            yield selection_controller.on_card_selected(card_id);
-            if (!is_current(seq)) {
-                return;
-            }
-            flowboard_controller.focus_card(card_id);
-        } finally {
-            finish_navigation_if_current(seq);
-        }
-    }
-
     public async void run_project_overview_selection(string project_id,
                                                      MainController main_controller,
                                                      FlowboardController flowboard_controller) {

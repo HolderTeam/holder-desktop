@@ -43,12 +43,7 @@ internal class SelectionIntentOrchestrator : Object {
         if (selected == null) {
             return;
         }
-        yield selection_intent_controller.on_project_selection(
-            selected.project_id,
-            selection_transition_controller,
-            selection_controller,
-            flowboard_controller
-        );
+        yield select_project_with_transition(selected.project_id);
     }
 
     public async void on_card_selection_changed() {
@@ -98,7 +93,10 @@ internal class SelectionIntentOrchestrator : Object {
         search_selection.set_selected(target);
     }
 
-    public async void on_project_selection_requested(string project_id) {
+    public async void select_project_with_transition(string project_id) {
+        if (project_id.strip().length == 0) {
+            return;
+        }
         yield selection_intent_controller.on_project_selection(
             project_id,
             selection_transition_controller,
