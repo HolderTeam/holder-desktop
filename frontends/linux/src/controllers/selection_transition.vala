@@ -2,6 +2,7 @@ namespace HolderLinux {
 
 internal class SelectionTransitionController : Object {
     private AppTransitionController transitions;
+    private const string FLOWBOARD_CARD_OPEN_REASON = "toolbox-flowboard-card-open";
 
     public signal void navigation_loading_changed(bool loading);
 
@@ -114,7 +115,9 @@ internal class SelectionTransitionController : Object {
             if (!is_current(seq)) {
                 return;
             }
-            flowboard_controller.focus_card(selected_card_id);
+            if (reason != FLOWBOARD_CARD_OPEN_REASON) {
+                flowboard_controller.focus_card(selected_card_id);
+            }
         } finally {
             finish_navigation_if_current(seq);
         }

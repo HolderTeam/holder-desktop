@@ -197,6 +197,36 @@ private void test_run_methods_cover_transition_paths() {
     assert(state.selection.ai_thread_id == null);
 }
 
+private void test_flowboard_open_transition_does_not_reset_flowboard_level() {
+    var state = new HolderLinux.AppStateStore();
+    var app_transitions = new HolderLinux.AppTransitionController(state);
+    var transitions = new HolderLinux.SelectionTransitionController(app_transitions);
+    var selection_controller = new HolderLinux.SelectionController();
+    var flowboard_controller = new HolderLinux.FlowboardController();
+
+    var loop = new MainLoop();
+    transitions.run_card_open_transition.begin(
+        "toolbox-flowboard-card-open",
+        "p1",
+        "c1",
+        "p1",
+        "c1",
+        selection_controller,
+        flowboard_controller,
+        (obj, res) => {
+            transitions.run_card_open_transition.end(res);
+            loop.quit();
+        }
+    );
+    loop.run();
+
+    assert(selection_controller.card_selected_calls == 1);
+    assert(selection_controller.last_card_id == "c1");
+    assert(flowboard_controller.focus_card_calls == 0);
+    assert(state.selection.project_id == "p1");
+    assert(state.selection.card_id == "c1");
+}
+
 public int main(string[] args) {
     Test.init(ref args);
 
@@ -208,6 +238,8 @@ public int main(string[] args) {
                   test_commit_selection_ignored_for_stale_sequence);
     Test.add_func("/selection_transition/run_methods_cover_transition_paths",
                   test_run_methods_cover_transition_paths);
+    Test.add_func("/selection_transition/flowboard_open_transition_does_not_reset_flowboard_level",
+                  test_flowboard_open_transition_does_not_reset_flowboard_level);
 
     return Test.run();
 }
