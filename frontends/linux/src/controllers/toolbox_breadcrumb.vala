@@ -6,6 +6,7 @@ internal class ToolboxBreadcrumbController : Object {
 
     private SelectionIntentOrchestrator selection_intent_orchestrator;
     private ToolboxPane toolbox;
+    private uint navigation_sequence = 0;
 
     public ToolboxBreadcrumbController(SelectionIntentOrchestrator selection_intent_orchestrator,
                                        ToolboxPane toolbox) {
@@ -19,6 +20,7 @@ internal class ToolboxBreadcrumbController : Object {
                                string? card_id,
                                OpenCardFunc open_card,
                                ShowToolHelpFunc show_tool_help) {
+        uint seq = ++navigation_sequence;
         if (segment_index == 2) {
             if (card_id == null || card_id.strip().length == 0) {
                 return;
@@ -43,6 +45,9 @@ internal class ToolboxBreadcrumbController : Object {
                 return;
             }
             yield selection_intent_orchestrator.on_project_selection_requested(project_id);
+            if (seq != navigation_sequence) {
+                return;
+            }
             if (tool_id == "flowboard") {
                 toolbox.show_flowboard_project_root();
             }

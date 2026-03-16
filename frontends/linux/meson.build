@@ -1450,3 +1450,46 @@ parsers_resources_test_exe = executable(
 )
 
 test('holder-linux-parsers-resources-tests', parsers_resources_test_exe)
+
+toolbox_breadcrumb_controller_test_exe = executable(
+  'holder-linux-toolbox-breadcrumb-controller-tests',
+  [
+    'src/controllers/toolbox_breadcrumb.vala',
+    'tests/toolbox_breadcrumb_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-toolbox-breadcrumb-controller-tests', toolbox_breadcrumb_controller_test_exe)
+
+tool_shell_test_exe = executable(
+  'holder-linux-tool-shell-tests',
+  [
+    'src/models/models.vala',
+    'src/models/toolbox_nav_models.vala',
+    'src/views/components/navigation_breadcrumbs.vala',
+    'src/views/components/tool_action_bar.vala',
+    'src/views/toolbox/tool_shell.vala',
+    'tests/tool_shell_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-tool-shell-tests', tool_shell_test_exe)
