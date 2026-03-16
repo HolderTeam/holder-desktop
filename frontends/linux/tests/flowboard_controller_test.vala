@@ -1535,6 +1535,56 @@ private void test_projects_mode_preserves_store_order_for_mixed_timestamps() {
     assert(fifth.project_id == "p5");
 }
 
+private void test_focus_card_container_enters_selected_card_level() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+
+    card_store.append(make_card("root", "p1", "Root", 1024.0));
+    card_store.append(make_card("child-a", "p1", "Child A", 2048.0, "root"));
+    card_store.append(make_card("child-b", "p1", "Child B", 3072.0, "root"));
+
+    controller.refresh();
+    controller.focus_card("root");
+
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 2);
+    var first = tile_at(model, 0);
+    var second = tile_at(model, 1);
+    assert(first != null && second != null);
+    assert(first.card_id == "child-a");
+    assert(second.card_id == "child-b");
+}
+
+private void test_focus_card_leaf_shows_parent_level() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+
+    card_store.append(make_card("root", "p1", "Root", 1024.0));
+    card_store.append(make_card("leaf-a", "p1", "Leaf A", 2048.0, "root"));
+    card_store.append(make_card("leaf-b", "p1", "Leaf B", 3072.0, "root"));
+
+    controller.refresh();
+    controller.focus_card("leaf-b");
+
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 2);
+    var first = tile_at(model, 0);
+    var second = tile_at(model, 1);
+    assert(first != null && second != null);
+    assert(first.card_id == "leaf-a");
+    assert(second.card_id == "leaf-b");
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -1640,6 +1690,10 @@ int main(string[] args) {
                   test_equal_sort_key_inverse_insertion_still_prefers_newer_card);
     Test.add_func("/flowboard/projects_mode_preserves_store_order_for_mixed_timestamps",
                   test_projects_mode_preserves_store_order_for_mixed_timestamps);
+    Test.add_func("/flowboard/focus_card_container_enters_selected_card_level",
+                  test_focus_card_container_enters_selected_card_level);
+    Test.add_func("/flowboard/focus_card_leaf_shows_parent_level",
+                  test_focus_card_leaf_shows_parent_level);
 
     return Test.run();
 }

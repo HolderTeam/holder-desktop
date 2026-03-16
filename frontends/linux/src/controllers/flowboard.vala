@@ -45,9 +45,12 @@ public class FlowboardController : Object {
         if (card == null) {
             return;
         }
+        bool is_container = has_children(card_id);
         showing_projects = false;
         current_project_id = card.project_id;
-        current_parent_card_id = normalize_parent(card.parent_card_id);
+        current_parent_card_id = is_container
+            ? card.card_id
+            : normalize_parent(card.parent_card_id);
         rebuild_parent_stack_for_parent(current_parent_card_id);
         clear_context_cache();
         refresh();
@@ -391,6 +394,19 @@ public class FlowboardController : Object {
             }
         }
         return null;
+    }
+
+    private bool has_children(string card_id) {
+        for (uint i = 0; i < card_store.get_n_items(); i++) {
+            var card = card_store.get_item(i) as CardSummary;
+            if (card == null) {
+                continue;
+            }
+            if (normalize_parent(card.parent_card_id) == card_id) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private bool is_descendant(string? candidate_parent_card_id, string card_id) {
