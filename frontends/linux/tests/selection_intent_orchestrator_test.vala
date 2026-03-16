@@ -101,6 +101,7 @@ internal class SelectionIntentController : Object {
                                         SelectionTransitionController transition,
                                         SelectionController selection,
                                         MainController controller,
+                                        owned CardSummaryResolver resolve_card_summary_by_id,
                                         FlowboardController flowboard) {
         on_card_selection_calls++;
         last_card_selection_project_id = project_id;
@@ -309,9 +310,10 @@ private void test_card_selection_changed_uses_selected_card_ids() {
     });
 
     assert(wait_for_condition(() => done));
-    assert(intents.on_card_selection_calls == 1);
-    assert(intents.last_card_selection_project_id == "p1");
-    assert(intents.last_card_selection_card_id == "c1");
+    assert(intents.on_card_selection_calls == 0);
+    assert(intents.open_card_with_transition_calls == 1);
+    assert(intents.last_open_card_id == "c1");
+    assert(intents.last_open_card_reason == "sidebar-card-selection");
 }
 
 private void test_card_selection_changed_uses_controller_project_fallback() {

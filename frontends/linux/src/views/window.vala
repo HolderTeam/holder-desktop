@@ -1028,9 +1028,10 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void on_sidebar_card_context_selection_requested(string card_id) {
-        with_state_apply(() => {
-            selection_request_controller.request_card(card_selection, card_id);
-        });
+        selection_intent_orchestrator.open_card_with_transition.begin(
+            card_id,
+            "sidebar-context-card-open"
+        );
     }
 
     internal void on_workspace_refresh_requested() {

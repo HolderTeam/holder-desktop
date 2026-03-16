@@ -166,7 +166,11 @@ private void test_card_selection_ignores_missing_project() {
     var controller = new HolderLinux.MainController();
 
     bool done = false;
-    intents.on_card_selection.begin(null, "c1", transitions, selection, controller, flowboard, (obj, res) => {
+    intents.on_card_selection.begin(
+        null, "c1", transitions, selection, controller,
+        (card_id) => { return new HolderLinux.CardSummary(card_id, "p1"); },
+        flowboard,
+        (obj, res) => {
         intents.on_card_selection.end(res);
         done = true;
     });
@@ -184,7 +188,11 @@ private void test_card_selection_without_card_routes_to_project_overview() {
     var controller = new HolderLinux.MainController();
 
     bool done = false;
-    intents.on_card_selection.begin("p1", null, transitions, selection, controller, flowboard, (obj, res) => {
+    intents.on_card_selection.begin(
+        "p1", null, transitions, selection, controller,
+        (card_id) => { return new HolderLinux.CardSummary(card_id, "p1"); },
+        flowboard,
+        (obj, res) => {
         intents.on_card_selection.end(res);
         done = true;
     });
@@ -203,15 +211,23 @@ private void test_card_selection_with_card_routes_to_card_transition() {
     var controller = new HolderLinux.MainController();
 
     bool done = false;
-    intents.on_card_selection.begin("p1", "c1", transitions, selection, controller, flowboard, (obj, res) => {
+    intents.on_card_selection.begin(
+        "p1", "c1", transitions, selection, controller,
+        (card_id) => { return new HolderLinux.CardSummary(card_id, "p1"); },
+        flowboard,
+        (obj, res) => {
         intents.on_card_selection.end(res);
         done = true;
     });
 
     assert(wait_for_condition(() => done));
-    assert(transitions.run_card_selection_calls == 1);
-    assert(transitions.last_card_selection_project_id == "p1");
-    assert(transitions.last_card_selection_card_id == "c1");
+    assert(transitions.run_card_selection_calls == 0);
+    assert(transitions.run_card_open_transition_calls == 1);
+    assert(transitions.last_open_reason == "sidebar-card-selection");
+    assert(transitions.last_open_requested_project_id == "p1");
+    assert(transitions.last_open_requested_card_id == "c1");
+    assert(transitions.last_open_selected_project_id == "p1");
+    assert(transitions.last_open_selected_card_id == "c1");
     assert(transitions.run_project_overview_selection_calls == 0);
 }
 
@@ -256,7 +272,7 @@ private void test_search_activation_routes_through_card_open_transition() {
     assert(wait_for_condition(() => done));
     assert(transitions.run_card_open_transition_calls == 1);
     assert(transitions.last_open_reason == "search-result-activation");
-    assert(transitions.last_open_requested_project_id == "p-current");
+    assert(transitions.last_open_requested_project_id == "p2");
     assert(transitions.last_open_requested_card_id == "c2");
     assert(transitions.last_open_selected_project_id == "p2");
     assert(transitions.last_open_selected_card_id == "c2");

@@ -3,6 +3,8 @@ namespace HolderLinux {
 public delegate CardSummary? CardSummaryResolver(string card_id);
 
 internal class SelectionIntentController : Object {
+    private const string SIDEBAR_CARD_SELECTION_REASON = "sidebar-card-selection";
+    private const string SEARCH_RESULT_ACTIVATION_REASON = "search-result-activation";
     public async void on_project_selection(string? project_id,
                                            SelectionTransitionController selection_transition_controller,
                                            SelectionController selection_controller,
@@ -19,6 +21,7 @@ internal class SelectionIntentController : Object {
                                         SelectionTransitionController selection_transition_controller,
                                         SelectionController selection_controller,
                                         MainController main_controller,
+                                        CardSummaryResolver resolve_card_summary,
                                         FlowboardController flowboard_controller) {
         if (project_id == null || project_id.strip().length == 0) {
             return;
@@ -31,9 +34,12 @@ internal class SelectionIntentController : Object {
             );
             return;
         }
-        yield selection_transition_controller.run_card_selection(
-            project_id,
+        yield open_card_with_transition(
             card_id,
+            SIDEBAR_CARD_SELECTION_REASON,
+            main_controller,
+            resolve_card_summary,
+            selection_transition_controller,
             selection_controller,
             flowboard_controller
         );
@@ -62,16 +68,12 @@ internal class SelectionIntentController : Object {
         if (target_card_id == null || target_card_id.strip().length == 0) {
             return;
         }
-        var selected_card = resolve_card_summary(target_card_id);
-        if (selected_card == null) {
-            return;
-        }
-        yield selection_transition_controller.run_card_open_transition(
-            "search-result-activation",
-            controller.selected_project_id(),
+        yield open_card_with_transition(
             target_card_id,
-            selected_card.project_id,
-            selected_card.card_id,
+            SEARCH_RESULT_ACTIVATION_REASON,
+            controller,
+            resolve_card_summary,
+            selection_transition_controller,
             selection_controller,
             flowboard_controller
         );

@@ -1,6 +1,7 @@
 namespace HolderLinux {
 
 internal class SelectionIntentOrchestrator : Object {
+    private const string SIDEBAR_CARD_SELECTION_REASON = "sidebar-card-selection";
     private SelectionIntentController selection_intent_controller; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private SelectionTransitionController selection_transition_controller; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private SelectionController selection_controller; // LCOV_EXCL_LINE: field declaration-only coverage artifact
@@ -52,12 +53,17 @@ internal class SelectionIntentOrchestrator : Object {
 
     public async void on_card_selection_changed() {
         var selected = card_selection.get_selected_item() as CardSummary;
+        if (selected != null) {
+            yield open_card_with_transition(selected.card_id, SIDEBAR_CARD_SELECTION_REASON);
+            return;
+        }
         yield selection_intent_controller.on_card_selection(
-            selected != null ? selected.project_id : controller.selected_project_id(),
-            selected != null ? selected.card_id : null,
+            controller.selected_project_id(),
+            null,
             selection_transition_controller,
             selection_controller,
             controller,
+            resolve_card_summary_by_id,
             flowboard_controller
         );
     }
