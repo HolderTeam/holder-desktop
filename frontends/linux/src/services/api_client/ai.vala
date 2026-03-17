@@ -80,6 +80,58 @@ public class ApiClientAiEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration b
         var root = yield client.request_json("GET", "/ai/router/config", null, query); // LCOV_EXCL_BR_LINE: yield resume edge artifact
         return ApiParsersAi.parse_ai_router_config(root); // LCOV_EXCL_BR_LINE: return edge artifact
     }
+
+    public static async Gee.ArrayList<AiProviderCredentialState> list_ai_provider_credentials(ApiClient client) // LCOV_EXCL_BR_LINE: async declaration branch artifact
+        throws Error { // LCOV_EXCL_BR_LINE: async declaration branch artifact
+        var root = yield client.request_json("GET", "/ai/providers/credentials", null, null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
+        return ApiParsersAi.parse_ai_provider_credentials(root); // LCOV_EXCL_BR_LINE: return edge artifact
+    }
+
+    public static async Gee.ArrayList<AiProviderSettingState> list_ai_provider_settings(ApiClient client) // LCOV_EXCL_BR_LINE: async declaration branch artifact
+        throws Error { // LCOV_EXCL_BR_LINE: async declaration branch artifact
+        var root = yield client.request_json("GET", "/ai/providers/settings", null, null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
+        return ApiParsersAi.parse_ai_provider_settings(root); // LCOV_EXCL_BR_LINE: return edge artifact
+    }
+
+    public static async void upsert_ai_provider_credential(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                                           string provider,
+                                                           string api_key) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("provider");
+        body.add_string_value(provider);
+        body.set_member_name("api_key");
+        body.add_string_value(api_key);
+        body.end_object();
+        yield client.request_json("PUT",
+                                  "/ai/providers/credentials",
+                                  client.json_string_from_builder(body),
+                                  null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
+    }
+
+    public static async void delete_ai_provider_credential(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                                           string provider) throws Error {
+        yield client.request_json("DELETE",
+                                  "/ai/providers/credentials/" + provider,
+                                  null,
+                                  null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
+    }
+
+    public static async void set_ai_provider_enabled(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                                     string provider,
+                                                     bool enabled) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("provider");
+        body.add_string_value(provider);
+        body.set_member_name("enabled");
+        body.add_boolean_value(enabled);
+        body.end_object();
+        yield client.request_json("PUT",
+                                  "/ai/providers/settings",
+                                  client.json_string_from_builder(body),
+                                  null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
+    }
 }
 
 }

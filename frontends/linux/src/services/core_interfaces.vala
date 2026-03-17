@@ -68,6 +68,11 @@ public interface IHolderApi : Object {
     public abstract async Gee.ArrayList<AiCatalogProvider> list_ai_provider_catalog() throws Error;
     public abstract async Gee.ArrayList<AiRuntimeProvider> list_ai_runtime_providers() throws Error;
     public abstract async AiRouterConfigInfo get_ai_router_config(string? project_id = null) throws Error;
+    public abstract async Gee.ArrayList<AiProviderCredentialState> list_ai_provider_credentials() throws Error;
+    public abstract async Gee.ArrayList<AiProviderSettingState> list_ai_provider_settings() throws Error;
+    public abstract async void upsert_ai_provider_credential(string provider, string api_key) throws Error;
+    public abstract async void delete_ai_provider_credential(string provider) throws Error;
+    public abstract async void set_ai_provider_enabled(string provider, bool enabled) throws Error;
     public abstract async Gee.ArrayList<GitProviderCatalogEntry> list_git_provider_catalog() throws Error;
     public abstract async void set_project_git_remote(string project_id,
                                                       string? git_remote_url,

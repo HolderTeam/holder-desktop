@@ -502,6 +502,20 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         return new HolderLinux.AiRouterConfigInfo("auto", "", "", 0, project_id ?? "", "", 0);
     }
 
+    public async Gee.ArrayList<HolderLinux.AiProviderCredentialState> list_ai_provider_credentials() throws Error {
+        return new Gee.ArrayList<HolderLinux.AiProviderCredentialState>();
+    }
+
+    public async Gee.ArrayList<HolderLinux.AiProviderSettingState> list_ai_provider_settings() throws Error {
+        return new Gee.ArrayList<HolderLinux.AiProviderSettingState>();
+    }
+
+    public async void upsert_ai_provider_credential(string provider, string api_key) throws Error {}
+
+    public async void delete_ai_provider_credential(string provider) throws Error {}
+
+    public async void set_ai_provider_enabled(string provider, bool enabled) throws Error {}
+
     public async Gee.ArrayList<HolderLinux.GitProviderCatalogEntry> list_git_provider_catalog() throws Error {
         return new Gee.ArrayList<HolderLinux.GitProviderCatalogEntry>();
     }

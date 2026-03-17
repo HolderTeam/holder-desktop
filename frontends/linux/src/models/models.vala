@@ -478,6 +478,41 @@ public class AiRuntimeProvider : Object {
     }
 }
 
+public class AiProviderCredentialState : Object {
+    public string provider { get; construct; }
+    public bool configured { get; construct; }
+    public string api_key_preview { get; construct; }
+    public int64 updated_at { get; construct; }
+
+    public AiProviderCredentialState(string provider,
+                                     bool configured,
+                                     string api_key_preview,
+                                     int64 updated_at) {
+        Object(
+            provider: provider,
+            configured: configured,
+            api_key_preview: api_key_preview,
+            updated_at: updated_at
+        );
+    }
+}
+
+public class AiProviderSettingState : Object {
+    public string provider { get; construct; }
+    public bool enabled { get; construct; }
+    public int64 updated_at { get; construct; }
+
+    public AiProviderSettingState(string provider,
+                                  bool enabled,
+                                  int64 updated_at) {
+        Object(
+            provider: provider,
+            enabled: enabled,
+            updated_at: updated_at
+        );
+    }
+}
+
 public class AiRouterConfigInfo : Object {
     public string effective_scope { get; construct; }
     public string effective_router_model { get; construct; }

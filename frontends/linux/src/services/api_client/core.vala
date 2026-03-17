@@ -217,6 +217,26 @@ public class ApiClient : Object, IHolderApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR
         return yield ApiClientAiEndpoints.get_ai_router_config(this, project_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
+    public async Gee.ArrayList<AiProviderCredentialState> list_ai_provider_credentials() throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        return yield ApiClientAiEndpoints.list_ai_provider_credentials(this); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async Gee.ArrayList<AiProviderSettingState> list_ai_provider_settings() throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        return yield ApiClientAiEndpoints.list_ai_provider_settings(this); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async void upsert_ai_provider_credential(string provider, string api_key) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        yield ApiClientAiEndpoints.upsert_ai_provider_credential(this, provider, api_key); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async void delete_ai_provider_credential(string provider) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        yield ApiClientAiEndpoints.delete_ai_provider_credential(this, provider); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async void set_ai_provider_enabled(string provider, bool enabled) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        yield ApiClientAiEndpoints.set_ai_provider_enabled(this, provider, enabled); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
     public async void run_ai_stream(string prompt, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
                                     string? project_id,
                                     string? thread_id,

@@ -182,6 +182,49 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
             project != null ? (ApiParsersCommon.nullable_int_member_or_null(project, "updated_at") ?? 0) : 0
         );
     }
+
+    public static Gee.ArrayList<AiProviderCredentialState> parse_ai_provider_credentials(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai provider credentials response");
+        }
+        var data = root.get_object_member("data");
+        if (!data.has_member("providers")) {
+            throw new ApiError.PROTOCOL("Missing data.providers for ai provider credentials response");
+        }
+        var providers = new Gee.ArrayList<AiProviderCredentialState>();
+        var items = data.get_array_member("providers");
+        for (uint i = 0; i < items.get_length(); i++) { // LCOV_EXCL_BR_LINE: loop overflow branch artifact
+            var item = items.get_object_element(i);
+            providers.add(new AiProviderCredentialState( // LCOV_EXCL_BR_LINE: allocator/ctor edge branch artifact
+                ApiParsersCommon.string_member_or_empty(item, "provider"),
+                item.has_member("configured") ? item.get_boolean_member("configured") : false,
+                ApiParsersCommon.string_member_or_empty(item, "api_key_preview"),
+                item.has_member("updated_at") ? item.get_int_member("updated_at") : 0
+            ));
+        }
+        return providers; // LCOV_EXCL_BR_LINE: return edge branch artifact
+    }
+
+    public static Gee.ArrayList<AiProviderSettingState> parse_ai_provider_settings(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai provider settings response");
+        }
+        var data = root.get_object_member("data");
+        if (!data.has_member("providers")) {
+            throw new ApiError.PROTOCOL("Missing data.providers for ai provider settings response");
+        }
+        var providers = new Gee.ArrayList<AiProviderSettingState>();
+        var items = data.get_array_member("providers");
+        for (uint i = 0; i < items.get_length(); i++) { // LCOV_EXCL_BR_LINE: loop overflow branch artifact
+            var item = items.get_object_element(i);
+            providers.add(new AiProviderSettingState( // LCOV_EXCL_BR_LINE: allocator/ctor edge branch artifact
+                ApiParsersCommon.string_member_or_empty(item, "provider"),
+                item.has_member("enabled") ? item.get_boolean_member("enabled") : false,
+                item.has_member("updated_at") ? item.get_int_member("updated_at") : 0
+            ));
+        }
+        return providers; // LCOV_EXCL_BR_LINE: return edge branch artifact
+    }
 }
 
 }
