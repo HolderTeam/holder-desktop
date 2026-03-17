@@ -182,13 +182,43 @@ internal class CardsController : Object {
         if (parent_card_id == null || parent_card_id.strip().length == 0) {
             return "Untitled";
         }
+        string? parent_title = null;
         for (uint i = 0; i < owner.card_store.get_n_items(); i++) {
             var card = owner.card_store.get_item(i) as CardSummary;
             if (card != null && card.card_id == parent_card_id) {
-                return "Untitled child of %s".printf(card.title);
+                parent_title = card.title;
+                break;
             }
         }
-        return "Untitled";
+        if (parent_title == null || parent_title.strip().length == 0) {
+            return "Untitled";
+        }
+
+        var base_title = "Untitled child of %s".printf(parent_title);
+        int next_suffix = 1;
+        for (uint i = 0; i < owner.card_store.get_n_items(); i++) {
+            var card = owner.card_store.get_item(i) as CardSummary;
+            if (card == null || card.parent_card_id != parent_card_id) {
+                continue;
+            }
+            if (card.title == base_title) {
+                next_suffix = int.max(next_suffix, 2);
+                continue;
+            }
+            if (!card.title.has_prefix(base_title + " ")) {
+                continue;
+            }
+            var suffix_text = card.title.substring((base_title + " ").length).strip();
+            int parsed_suffix = 0;
+            if (int.try_parse(suffix_text, out parsed_suffix) && parsed_suffix >= 2) {
+                next_suffix = int.max(next_suffix, parsed_suffix + 1);
+            }
+        }
+
+        if (next_suffix == 1) {
+            return base_title;
+        }
+        return "%s %d".printf(base_title, next_suffix);
     }
 
     public async void move_card_by_intent(string card_id,
