@@ -235,6 +235,13 @@ private class WindowAiPanelEventSink : Object, IAiPanelEventSink {
     public void log_debug(string message) {
         owner.log_debug_line(message);
     }
+
+    public void log_activity(string kind,
+                             string message,
+                             string? project_id,
+                             string? card_id) {
+        owner.log_activity(kind, message, project_id, card_id);
+    }
 }
 
 private class WindowToolboxEventSink : Object, IToolboxEventSink {
@@ -278,6 +285,13 @@ private class WindowToolboxEventSink : Object, IToolboxEventSink {
 
     public void append_text_to_current_card(string text) {
         owner.append_text_to_current_card(text);
+    }
+
+    public void log_activity(string kind,
+                             string message,
+                             string? project_id,
+                             string? card_id) {
+        owner.log_activity(kind, message, project_id, card_id);
     }
 }
 
@@ -759,7 +773,10 @@ public class MainWindow : Adw.ApplicationWindow {
             ai_thread_selection,
             search_selection,
             card_store,
-            search_selection_controller
+            search_selection_controller,
+            (kind, message, project_id, card_id) => {
+                log_activity(kind, message, project_id, card_id);
+            }
         );
         toolbox_breadcrumb_controller = new ToolboxBreadcrumbController(
             selection_intent_orchestrator,
@@ -1095,7 +1112,6 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void on_workspace_search_activated() {
-        activity_log_controller.log_search_activated(search_entry.get_text().strip());
         controller.cancel_pending_search();
         controller.run_search.begin();
     }
@@ -1129,7 +1145,6 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void on_workspace_search_result_activated(uint position) {
-        activity_log_controller.log_search_result_open_requested();
         selection_intent_orchestrator.on_search_result_activation.begin(position);
     }
 
@@ -1161,7 +1176,6 @@ public class MainWindow : Adw.ApplicationWindow {
             // are being rebuilt during state/data updates.
             return;
         }
-        activity_log_controller.log_project_selected(selected);
         // Optimistically mirror user intent so sidebar highlight does not
         // bounce back to last committed selection before transition begin.
         app_state_store.set_selection_snapshot(selected.project_id, null, null);
@@ -1172,20 +1186,12 @@ public class MainWindow : Adw.ApplicationWindow {
         if (is_applying_state()) {
             return;
         }
-        var selected = card_selection.get_selected_item() as CardSummary;
-        if (selected != null) {
-            activity_log_controller.log_card_selected(selected);
-        }
         selection_intent_orchestrator.on_card_selection_changed.begin();
     }
 
     internal void on_ai_thread_selection_changed() {
         if (is_applying_state()) {
             return;
-        }
-        var selected = ai_thread_selection.get_selected_item() as AiThreadSummary;
-        if (selected != null) {
-            activity_log_controller.log_ai_thread_selected(selected, controller.selected_card_id());
         }
         selection_intent_orchestrator.on_ai_thread_selection_changed();
     }
@@ -1369,18 +1375,46 @@ public class MainWindow : Adw.ApplicationWindow {
                                string? project_id = null,
                                string? card_id = null) {
         activity_log_controller.log(kind, message, project_id, card_id);
+        if (toolbox != null) {
+            var parts = new Gee.ArrayList<string>();
+            if (project_id != null && project_id.strip().length > 0) {
+                parts.add("project=%s".printf(project_id));
+            }
+            if (card_id != null && card_id.strip().length > 0) {
+                parts.add("card=%s".printf(card_id));
+            }
+            var scope = parts.size > 0
+                ? " [%s]".printf(string.joinv(", ", parts.to_array()))
+                : "";
+            toolbox.log_debug("ACTIVITY %s %s%s".printf(kind, message, scope));
+        }
     }
 
     internal void log_status_activity(string text) {
-        activity_log_controller.log_status(text);
+        log_activity(
+            "feedback.status",
+            text,
+            controller.selected_project_id(),
+            controller.selected_card_id()
+        );
     }
 
     internal void log_toast_activity(string message) {
-        activity_log_controller.log_toast(message);
+        log_activity(
+            "feedback.toast",
+            message,
+            controller.selected_project_id(),
+            controller.selected_card_id()
+        );
     }
 
     internal void log_error_activity(string title_text, string details) {
-        activity_log_controller.log_error(title_text, details);
+        log_activity(
+            "feedback.error",
+            "%s: %s".printf(title_text, details),
+            controller.selected_project_id(),
+            controller.selected_card_id()
+        );
     }
 
     internal void add_toast(string msg) {

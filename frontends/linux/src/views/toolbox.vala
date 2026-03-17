@@ -39,6 +39,10 @@ public class ToolboxPane : Object {
     public signal void save_recovery_key_to_usb_requested();
     public signal void import_recovery_key_requested();
     public signal void terminal_copy_to_card_requested(string text);
+    public signal void activity_requested(string kind,
+                                          string message,
+                                          string? project_id,
+                                          string? card_id);
     public signal void breadcrumb_navigation_requested(string tool_id,
                                                        int segment_index,
                                                        string? project_id,
@@ -257,6 +261,9 @@ public class ToolboxPane : Object {
         resources_tool.toast_requested.connect((message) => {
             toast_requested(message);
         });
+        resources_tool.activity_requested.connect((kind, message, project_id, resource_id) => {
+            activity_requested(kind, message, project_id, resource_id);
+        });
         resources_tool.set_api_client(api);
         resources_tool.set_project_selection(project_selection);
         var resources_page = stack.add_titled(resources_tool.widget, "resources", "Resources");
@@ -319,6 +326,9 @@ public class ToolboxPane : Object {
         });
         trash_tool.toast_requested.connect((message) => {
             toast_requested(message);
+        });
+        trash_tool.activity_requested.connect((kind, message, project_id, card_id) => {
+            activity_requested(kind, message, project_id, card_id);
         });
         trash_tool.set_api_client(api);
         trash_tool.set_project_selection(project_selection);

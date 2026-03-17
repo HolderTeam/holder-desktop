@@ -26,9 +26,16 @@ public class ResourcesToolView : Object, IToolShellAdapter {
 
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
+    public signal void activity_requested(string kind,
+                                          string message,
+                                          string? project_id,
+                                          string? resource_id);
 
     public ResourcesToolView() {
         controller = new ResourcesController();
+        controller.activity_requested.connect((kind, message, project_id, resource_id) => {
+            activity_requested(kind, message, project_id, resource_id);
+        });
         widget = build_resources_tab();
     }
 
@@ -475,7 +482,11 @@ public class ResourcesToolView : Object, IToolShellAdapter {
                                        string uri,
                                        string label,
                                        string? desc) {
-        var result = yield controller.update_resource_flow(api, resource_id, kind, uri, label, desc);
+        var project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        var project_id = project != null ? project.project_id : null;
+        var result = yield controller.update_resource_flow_scoped(api, resource_id, project_id, kind, uri, label, desc);
         if (result.ignored) {
             return;
         }
@@ -529,7 +540,13 @@ public class ResourcesToolView : Object, IToolShellAdapter {
     }
 
     private async void delete_resource(string resource_id) {
-        var result = yield controller.delete_resource_flow(api, resource_id);
+        var project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        var project_id = project != null ? project.project_id : "";
+        var selected = selected_resource();
+        var resource_label = selected != null ? selected.label : "resource";
+        var result = yield controller.delete_resource_flow_scoped(api, resource_id, project_id, resource_label);
         if (result.ignored) {
             return;
         }

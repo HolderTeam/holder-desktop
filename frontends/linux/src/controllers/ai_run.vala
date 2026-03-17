@@ -11,6 +11,10 @@ public class AiRunController : Object {
     public signal void status_changed(string text);
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
+    public signal void activity_requested(string kind,
+                                          string message,
+                                          string? project_id,
+                                          string? card_id);
     public signal void render_status_requested(AiCapabilitiesInfo capabilities, AiStatusInfo status);
     public signal void render_status_error_requested(string message);
     public signal void append_output_requested(string role, string text);
@@ -92,6 +96,12 @@ public class AiRunController : Object {
         status_changed("Starting pull for %s...".printf(model_tag));
         try {
             var job_id = yield api.start_ai_runner_pull(model_tag);
+            activity_requested(
+                "action.ai.model_pull.start",
+                "Started model pull: %s".printf(model_tag),
+                main_controller.selected_project_id(),
+                main_controller.get_current_card() != null ? main_controller.get_current_card().card_id : null
+            );
             toast_requested("Started pull: %s".printf(model_tag));
             if (job_id.length > 0) {
                 status_changed("Pull job started: %s".printf(job_id));
@@ -100,6 +110,12 @@ public class AiRunController : Object {
             }
             refresh_status.begin();
         } catch (Error e) {
+            activity_requested(
+                "result.ai.model_pull_failed",
+                "Failed to start model pull %s: %s".printf(model_tag, e.message),
+                main_controller.selected_project_id(),
+                main_controller.get_current_card() != null ? main_controller.get_current_card().card_id : null
+            );
             error_reported("Failed to start model pull", e.message);
         }
     }
@@ -120,11 +136,23 @@ public class AiRunController : Object {
             if (thread_id.length > 0) {
                 main_controller.select_ai_thread_by_id(thread_id);
             }
+            activity_requested(
+                "result.ai_thread.create",
+                "Created AI thread: %s".printf(title),
+                current_project.project_id,
+                main_controller.get_current_card() != null ? main_controller.get_current_card().card_id : null
+            );
             toast_requested("Created AI thread");
             if (continue_prompt != null && continue_prompt.strip().length > 0) {
                 send_prompt_to_ai.begin(continue_prompt, thread_id);
             }
         } catch (Error e) {
+            activity_requested(
+                "result.ai_thread.create_failed",
+                "Failed to create AI thread: %s".printf(e.message),
+                current_project.project_id,
+                main_controller.get_current_card() != null ? main_controller.get_current_card().card_id : null
+            );
             error_reported("Failed to create AI thread", e.message);
         }
     }
@@ -146,6 +174,12 @@ public class AiRunController : Object {
         append_output_requested("You", prompt);
         clear_prompt_requested();
         append_output_requested("Assistant", "");
+        activity_requested(
+            "action.ai.run.start",
+            "Started AI run",
+            current_project.project_id,
+            current_card != null ? current_card.card_id : null
+        );
 
         ai_run_in_flight = true;
         set_send_enabled_requested(false);
@@ -166,9 +200,21 @@ public class AiRunController : Object {
                 }
             );
             append_output_chunk_requested("\n");
+            activity_requested(
+                "result.ai.run_complete",
+                "AI run complete",
+                current_project.project_id,
+                current_card != null ? current_card.card_id : null
+            );
             status_changed("AI run complete");
         } catch (Error e) {
             append_output_requested("System", "AI run failed: %s".printf(e.message));
+            activity_requested(
+                "result.ai.run_failed",
+                "AI run failed: %s".printf(e.message),
+                current_project.project_id,
+                current_card != null ? current_card.card_id : null
+            );
             error_reported("AI run failed", e.message);
         } finally {
             ai_run_in_flight = false;
