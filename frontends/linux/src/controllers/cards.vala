@@ -107,17 +107,28 @@ internal class CardsController : Object {
             return;
         }
 
+        var previous_content = owner.current_card.content;
         var text = owner.editor_text.get_text();
         var previous_title = owner.current_card.title;
         var title = TextUtils.title_from_content(text);
         var updated_at = owner.now_epoch_seconds();
+        var doc_chars = text.char_count();
+        var previous_doc_chars = previous_content.char_count();
+        var delta_chars = doc_chars - previous_doc_chars;
+        var body_text = body_text_from_content(text);
+        var body_chars = body_text.char_count();
+        var body_empty = body_text.strip().length == 0;
 
         try {
             yield owner.api.update_card(owner.current_card.card_id, title, text, updated_at);
             if (previous_title != title) {
                 owner.emit_activity(
                     "result.card.rename",
-                    "Renamed card: %s -> %s".printf(previous_title, title),
+                    "Renamed card: %s -> %s [body_empty=%s]".printf(
+                        previous_title,
+                        title,
+                        body_empty ? "true" : "false"
+                    ),
                     owner.current_project != null ? owner.current_project.project_id : null,
                     owner.current_card.card_id
                 );
@@ -127,7 +138,13 @@ internal class CardsController : Object {
             owner.current_card.updated_at = updated_at;
             owner.emit_activity(
                 "result.card.autosave",
-                "Autosaved card: %s".printf(title),
+                "Autosaved card: %s [doc_chars=%d, body_chars=%d, delta_chars=%+d, body_empty=%s]".printf(
+                    title,
+                    doc_chars,
+                    body_chars,
+                    delta_chars,
+                    body_empty ? "true" : "false"
+                ),
                 owner.current_project != null ? owner.current_project.project_id : null,
                 owner.current_card.card_id
             );
@@ -143,6 +160,14 @@ internal class CardsController : Object {
             );
             owner.error_reported("Autosave failed", e.message);
         }
+    }
+
+    private static string body_text_from_content(string content) {
+        var newline_index = content.index_of_char('\n');
+        if (newline_index < 0 || newline_index + 1 >= content.length) {
+            return "";
+        }
+        return content.substring(newline_index + 1);
     }
 
     public async void move_card_by_intent(string card_id,
