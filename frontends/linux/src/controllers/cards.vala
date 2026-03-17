@@ -108,11 +108,20 @@ internal class CardsController : Object {
         }
 
         var text = owner.editor_text.get_text();
+        var previous_title = owner.current_card.title;
         var title = TextUtils.title_from_content(text);
         var updated_at = owner.now_epoch_seconds();
 
         try {
             yield owner.api.update_card(owner.current_card.card_id, title, text, updated_at);
+            if (previous_title != title) {
+                owner.emit_activity(
+                    "result.card.rename",
+                    "Renamed card: %s -> %s".printf(previous_title, title),
+                    owner.current_project != null ? owner.current_project.project_id : null,
+                    owner.current_card.card_id
+                );
+            }
             owner.current_card.title = title;
             owner.current_card.content = text;
             owner.current_card.updated_at = updated_at;
