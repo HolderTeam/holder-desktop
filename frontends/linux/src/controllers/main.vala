@@ -53,6 +53,10 @@ public class MainController : Object, IAiRunContext {
     public signal void ai_thread_selection_requested(string? thread_id);
     public signal void api_client_ready(IHolderApi api);
     public signal void card_trashed(string card_id);
+    public signal void activity_requested(string kind,
+                                          string message,
+                                          string? project_id,
+                                          string? card_id);
 
     public MainController(GLib.ListStore project_store,
                           ISelectionState project_selection,
@@ -108,6 +112,13 @@ public class MainController : Object, IAiRunContext {
 
     public int64 now_epoch_seconds() {
         return clock.now_epoch_seconds();
+    }
+
+    internal void emit_activity(string kind,
+                                string message,
+                                string? project_id = null,
+                                string? card_id = null) {
+        activity_requested(kind, message, project_id, card_id);
     }
 
     public string? selected_project_id() {

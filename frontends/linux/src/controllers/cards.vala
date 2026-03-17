@@ -69,9 +69,21 @@ internal class CardsController : Object {
                 owner.card_selection_requested(new_id);
             }
 
+            owner.emit_activity(
+                "result.card.create",
+                "Created card: %s".printf(title),
+                owner.current_project.project_id,
+                new_id
+            );
             owner.toast_requested(success_toast);
             owner.status_changed("Created new card");
         } catch (Error e) {
+            owner.emit_activity(
+                "result.card.create_failed",
+                "Failed to create card: %s".printf(e.message),
+                owner.current_project.project_id,
+                null
+            );
             owner.error_reported("Failed to create card", e.message);
         } finally {
             owner.create_card_in_flight = false;
@@ -104,10 +116,22 @@ internal class CardsController : Object {
             owner.current_card.title = title;
             owner.current_card.content = text;
             owner.current_card.updated_at = updated_at;
+            owner.emit_activity(
+                "result.card.autosave",
+                "Autosaved card: %s".printf(title),
+                owner.current_project != null ? owner.current_project.project_id : null,
+                owner.current_card.card_id
+            );
             owner.update_selected_card_summary(title, updated_at);
             owner.window_title_changed(title);
             owner.status_changed("Saved %s".printf(TextUtils.format_relative_time(owner.now_epoch_seconds(), updated_at)));
         } catch (Error e) {
+            owner.emit_activity(
+                "result.card.autosave_failed",
+                "Autosave failed: %s".printf(e.message),
+                owner.current_project != null ? owner.current_project.project_id : null,
+                owner.current_card.card_id
+            );
             owner.error_reported("Autosave failed", e.message);
         }
     }
@@ -136,6 +160,12 @@ internal class CardsController : Object {
             if (intent == "into" && moved.moved_into_title.length > 0) {
                 owner.toast_requested("Moved card into %s".printf(moved.moved_into_title));
             }
+            owner.emit_activity(
+                "result.card.move",
+                "Moved card (%s)".printf(intent),
+                selected.project_id,
+                card_id
+            );
             owner.status_changed("Moved card");
             if (!(yield owner.reload_selected_project_cards_data())) {
                 return;
@@ -144,6 +174,12 @@ internal class CardsController : Object {
                 owner.card_selection_requested(card_id);
             }
         } catch (Error e) {
+            owner.emit_activity(
+                "result.card.move_failed",
+                "Move card failed: %s".printf(e.message),
+                selected.project_id,
+                card_id
+            );
             owner.error_reported("Move card failed", e.message);
             owner.reload_selected_project_cards_data.begin();
         }
@@ -166,11 +202,23 @@ internal class CardsController : Object {
 
         try {
             yield owner.api.delete_card(card_id);
+            owner.emit_activity(
+                "result.card.trash",
+                "Moved \"%s\" to Trash".printf(card_title),
+                owner.current_project != null ? owner.current_project.project_id : null,
+                card_id
+            );
             owner.status_changed("Moved card to trash");
             owner.toast_requested("Moved \"%s\" to Trash".printf(card_title));
             yield owner.reload_cards_for_selected_project();
             owner.card_trashed(card_id);
         } catch (Error e) {
+            owner.emit_activity(
+                "result.card.trash_failed",
+                "Move to trash failed: %s".printf(e.message),
+                owner.current_project != null ? owner.current_project.project_id : null,
+                card_id
+            );
             owner.error_reported("Move to trash failed", e.message);
         }
     }

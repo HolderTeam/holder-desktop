@@ -64,6 +64,7 @@ sources = [
   'src/controllers/share.vala',
   'src/controllers/card_append.vala',
   'src/controllers/search_selection.vala',
+  'src/controllers/activity_log.vala',
   'src/controllers/selection_request.vala',
   'src/controllers/selection_intent.vala',
   'src/controllers/selection_intent_orchestrator.vala',

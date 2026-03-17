@@ -15,10 +15,22 @@ internal class ProjectsController : Object {
         owner.status_changed("Creating project...");
         try {
             var project_id = yield owner.api.create_project(name, privacy_mode);
+            owner.emit_activity(
+                "result.project.create",
+                "Created project: %s".printf(name),
+                project_id,
+                null
+            );
             owner.toast_requested("Created project: %s".printf(name));
             owner.status_changed("Project created");
             yield owner.reload_everything_with_selection(project_id, null);
         } catch (Error e) {
+            owner.emit_activity(
+                "result.project.create_failed",
+                "Failed to create project: %s".printf(e.message),
+                null,
+                null
+            );
             owner.error_reported("Failed to create project", e.message);
         }
     }
@@ -32,6 +44,12 @@ internal class ProjectsController : Object {
             var projects = yield owner.api.list_projects();
             if (projects.size == 0) {
                 var project_id = yield owner.api.create_project("My Project");
+                owner.emit_activity(
+                    "result.project.bootstrap",
+                    "Created first project: My Project",
+                    project_id,
+                    null
+                );
                 owner.toast_requested("Created first project (%s)".printf(project_id));
             }
         } catch (Error e) {
