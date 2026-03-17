@@ -8,9 +8,10 @@ internal class CardsController : Object {
     }
 
     public async void create_card(string? parent_card_id = null) {
+        var default_title = default_title_for_parent(parent_card_id);
         yield create_card_with_content(
-            "Untitled",
-            "# Untitled\n\n",
+            default_title,
+            "# %s\n\n".printf(default_title),
             parent_card_id,
             "New card created"
         );
@@ -175,6 +176,19 @@ internal class CardsController : Object {
     private static string short_content_fingerprint(string content) {
         var digest = Checksum.compute_for_string(ChecksumType.SHA256, content);
         return digest.substring(0, 12);
+    }
+
+    private string default_title_for_parent(string? parent_card_id) {
+        if (parent_card_id == null || parent_card_id.strip().length == 0) {
+            return "Untitled";
+        }
+        for (uint i = 0; i < owner.card_store.get_n_items(); i++) {
+            var card = owner.card_store.get_item(i) as CardSummary;
+            if (card != null && card.card_id == parent_card_id) {
+                return "Untitled child of %s".printf(card.title);
+            }
+        }
+        return "Untitled";
     }
 
     public async void move_card_by_intent(string card_id,
