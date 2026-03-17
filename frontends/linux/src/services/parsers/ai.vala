@@ -136,6 +136,52 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
         }
         return providers; // LCOV_EXCL_BR_LINE: return edge branch artifact
     }
+
+    public static Gee.ArrayList<AiRuntimeProvider> parse_ai_runtime_providers(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai runtime providers response");
+        }
+        var data = root.get_object_member("data");
+        if (!data.has_member("providers")) {
+            throw new ApiError.PROTOCOL("Missing data.providers for ai runtime providers response");
+        }
+
+        var providers = new Gee.ArrayList<AiRuntimeProvider>();
+        var items = data.get_array_member("providers");
+        for (uint i = 0; i < items.get_length(); i++) { // LCOV_EXCL_BR_LINE: loop overflow branch artifact
+            var item = items.get_object_element(i);
+            providers.add(new AiRuntimeProvider( // LCOV_EXCL_BR_LINE: allocator/ctor edge branch artifact
+                ApiParsersCommon.string_member_or_empty(item, "id"),
+                ApiParsersCommon.string_member_or_empty(item, "display_name"),
+                item.has_member("enabled") ? item.get_boolean_member("enabled") : false,
+                item.has_member("configured") ? item.get_boolean_member("configured") : false,
+                ApiParsersCommon.string_member_or_empty(item, "setup_url"),
+                ApiParsersCommon.string_member_or_empty(item, "docs_url")
+            ));
+        }
+
+        return providers; // LCOV_EXCL_BR_LINE: return edge branch artifact
+    }
+
+    public static AiRouterConfigInfo parse_ai_router_config(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai router config response");
+        }
+        var data = root.get_object_member("data");
+        var effective = ApiParsersCommon.object_member_or_null(data, "effective");
+        var global = ApiParsersCommon.object_member_or_null(data, "global");
+        var project = ApiParsersCommon.object_member_or_null(data, "project");
+
+        return new AiRouterConfigInfo( // LCOV_EXCL_BR_LINE: allocator/ctor edge branch artifact
+            effective != null ? ApiParsersCommon.string_member_or_empty(effective, "scope") : "auto",
+            effective != null ? ApiParsersCommon.string_member_or_empty(effective, "router_model") : "",
+            global != null ? ApiParsersCommon.string_member_or_empty(global, "router_model") : "",
+            global != null ? (ApiParsersCommon.nullable_int_member_or_null(global, "updated_at") ?? 0) : 0,
+            project != null ? ApiParsersCommon.string_member_or_empty(project, "project_id") : "",
+            project != null ? ApiParsersCommon.string_member_or_empty(project, "router_model") : "",
+            project != null ? (ApiParsersCommon.nullable_int_member_or_null(project, "updated_at") ?? 0) : 0
+        );
+    }
 }
 
 }

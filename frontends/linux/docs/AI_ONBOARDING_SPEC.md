@@ -1,124 +1,207 @@
-# AI Onboarding and Settings Specification
+# AI Onboarding and Configuration Spec (Codebase-Aligned)
 
-This document outlines the implementation plan for a guided AI onboarding experience and a refactored AI settings/status interface in the Holder Linux frontend.
+This document is the frontend-facing spec for AI onboarding/config in the Linux client, based on the current `holder-desktop/frontends/linux` and `holder-daemon` code.
 
-## Goals
+It replaces earlier aspirational notes that did not match implementation.
 
-*   **Zero-Config to Hero:** Guide users from an empty state to a working AI setup in under a minute.
-*   **Local-First, Cloud-Enhanced:** Prioritize private local models while making cloud integration (especially Gemini) seamless.
-*   **Human-Friendly Language:** Replace technical jargon (backend, router, provider) with intent-based language (Fast, Private, Stronger).
-*   **Visual Progress:** Provide clear, animated feedback during model downloads and connection tests.
+## 1) Current Baseline (What Exists Today)
 
----
+### 1.1 Panel and tabs
 
-## 1. Guided Onboarding Flow
+- AI UI is in `src/views/ai_panel.vala`.
+- It has 3 tabs:
+  - `Assistant`
+  - `Status`
+  - `Catalog`
+- Catalog view implementation is `src/views/ai_panel/catalog.vala`.
+- Panel wiring/orchestration is `src/controllers/ai_panel_event_orchestrator.vala`.
 
-Onboarding will be a stateful 5-step flow displayed in the **Assistant** tab when AI is not yet configured.
+### 1.2 Controller behavior
 
-### Step 1: Device Detection & Recommendation
-*   **Action:** Query `/ai/capabilities` and `/ai/status`.
-*   **UI:** Show a "Computer Class" summary (from Caste) and two primary recommendation cards:
-    *   **Card A (Local):** "Use AI on this computer" (Recommended if hardware allows).
-    *   **Card B (Cloud):** "Connect a cloud provider" (Gemini highlighted).
-*   **Logic:** If local runner is unavailable, disable Card A and explain why.
+- Main runtime controller: `src/controllers/ai_run.vala`.
+- `AiRunController` currently handles:
+  - status refresh (`/ai/capabilities`, `/ai/status`)
+  - local model pull start (`POST /ai/runner/pull`)
+  - AI run streaming (`POST /ai/runs` SSE)
+  - thread creation and selection integration
+- When AI panel is visible, status polling runs every 2s while pull jobs are active.
+- Pull progress detail is not consumed from pull SSE endpoint; status polling is used instead.
 
-### Step 2: Local Model Selection
-*   **Action:** Fetch models from `/ai/providers/catalog` filtered by the `recommended_install` list from capabilities.
-*   **UI:** 
-    *   Top: One "Recommended" model card (e.g., Llama 3.2 3B).
-    *   Below: 3-5 other suitable models with speed/quality tags.
-*   **Interaction:** Clicking "Install" initiates `POST /ai/runner/pull`.
+### 1.3 API client surface currently used by AI panel
 
-### Step 3: Cloud Provider Setup (Gemini Focus)
-*   **UI:** 
-    *   "Connect Gemini" card with "Get API Key" link to [Google AI Studio](https://aistudio.google.com/app/apikey).
-    *   Input field for API Key.
-    *   "Test Connection" button.
-*   **Test Connection Logic:** Perform a minimal request to verify the key before saving.
+Defined in `src/services/api_client/ai.vala` and `src/services/api_client/ai_stream.vala`:
 
-### Step 4: Default Behavior (Routing)
-*   **Options (Humanized):**
-    *   **Prefer Local:** "Use private models on this computer when possible."
-    *   **Prefer Cloud:** "Use connected cloud APIs for better reasoning."
-    *   **Automatic:** "Let Holder choose based on task and availability."
-    *   **Ask Each Time:** Show a picker before sending.
-*   **Backend Map:** Maps to global `router_model` and `provider_settings`.
+- `GET /ai/capabilities` (`project_id` optional query)
+- `GET /ai/status`
+- `POST /ai/runner/pull`
+- `GET /ai/threads`
+- `POST /ai/threads`
+- `POST /ai/runs` (SSE stream)
+- `GET /ai_catalog.json` (static, unwrapped JSON)
 
-### Step 5: Ready State
-*   **UI:** Summary of setup: "Local: Llama 3.2 | Cloud: Gemini | Mode: Prefer Local".
-*   **CTA:** "Start Chatting".
+### 1.4 Data models currently in frontend
 
----
+`src/models/models.vala`:
 
-## 2. Refactored AI Panel (Tabs)
+- `AiCapabilitiesInfo`
+  - runner availability/error/version
+  - machine caste name
+  - installed model names
+  - `recommended_install` (list of tags)
+- `AiStatusInfo`
+  - active runs
+  - active pull jobs
+  - cloud configured provider count
+  - pull jobs summarized as display strings
+- `AiCatalogProvider`
+  - id, display name, enabled/configured, setup/docs URLs
 
-The existing three tabs will be enhanced with modern `libadwaita` components.
+### 1.5 Catalog data source in frontend
 
-### Tab A: Assistant (Everyday Use)
-*   **Route Badge:** A clickable chip above the composer (e.g., `Local · Llama 3.2`).
-*   **Route Picker:** Popover to override the model/provider for the current thread.
-*   **Empty State:** Helpful prompts like "Summarize this card" or "Plan a project" instead of a blank screen.
-*   **Run Metadata:** Small text above responses indicating which model was used and if a fallback occurred.
+Current catalog tab reads from static catalog:
 
-### Tab B: Status (Operational View)
-Use `Adw.PreferencesGroup` and `Adw.ActionRow` for:
-1.  **System Health:** Local runner status, active runs, active pulls.
-2.  **Local Models:** List of installed models with "Remove" buttons.
-3.  **Cloud Providers:** List of configured providers with Enable/Disable toggles and Edit (Key) actions.
-4.  **Recent Activity:** Mini log of the last 5 runs (Status, Model, Time).
+- `GET /ai_catalog.json` (not `/ai/providers/catalog`)
 
-### Tab C: Catalog (Management & Discovery)
-*   **Recommended Section:** Large cards for the best matches for this machine.
-*   **Model List:** Categorized by Quality (Basic, Good, Strong) and Speed (Fast, Balanced).
-*   **Provider List:** All supported cloud providers (OpenAI, Anthropic, etc.) with setup links.
+Parser (`ApiParsersAi.parse_ai_provider_catalog`) currently reads from:
 
----
+- `models.provider_defaults`
 
-## 3. Visual Perception: The "App Install" Pattern
+This means catalog UI currently shows provider-default metadata, not runtime DB-resolved provider state.
 
-Model pulls should not be simple progress bars. They must follow the "App Install" stages:
-1.  **Preparing:** Initializing pull job.
-2.  **Downloading:** Showing `X.X GB / Y.Y GB` and estimated time.
-3.  **Verifying:** Checksum validation (even if fast).
-4.  **Ready:** Finalizing configuration.
+## 2) Backend Capability Surface Relevant to Onboarding
 
----
+The daemon supports more than frontend currently uses:
 
-## 4. Implementation Checklist
+- Runtime/capabilities:
+  - `GET /ai/capabilities`
+  - `GET /ai/status`
+  - `POST /ai/runner/retry`
+- Local pull jobs:
+  - `POST /ai/runner/pull`
+  - `GET /ai/runner/pull/{job_id}`
+  - `GET /ai/runner/pull/{job_id}/events` (SSE)
+- Provider runtime config:
+  - `GET /ai/providers/catalog`
+  - `GET/PUT/DELETE /ai/providers/settings...`
+  - `GET/PUT/DELETE /ai/providers/credentials...`
+- Router config:
+  - `GET /ai/router/config`
+  - `PUT /ai/router/config`
+- Runs/history:
+  - `POST /ai/runs` (SSE)
+  - `GET /ai/runs`, `GET /ai/runs/{id}`, `GET /ai/runs/{id}/events`
 
-### Phase 1: Models & State
-- [ ] Define `AiOnboardingState` in `app_state.vala`.
-- [ ] Add `CloudProviderStatus` enum to `models.vala` (Not Configured, Configured, Enabled, Error).
-- [ ] Update `AiStatusInfo` to include more granular provider state if possible.
+Frontend currently uses only a subset of this.
 
-### Phase 2: Components (Views)
-- [ ] Create `AiModelCard` widget (Adw.Bin or Gtk.Box).
-- [ ] Create `AiProviderRow` widget (Adw.ActionRow).
-- [ ] Create `AiRouteBadge` widget (Gtk.Button with custom styling).
-- [ ] Create `AiPullProgressWidget` using the "App Install" pattern.
+## 3) Gaps (Current Frontend vs Backend Support)
 
-### Phase 3: Controllers
-- [ ] Refactor `AiRunController` to handle connection testing.
-- [ ] Implement `AiOnboardingController` to manage the 5-step state machine.
-- [ ] Implement SSE listener for detailed pull events (Downloaded bytes, etc.).
+### 3.1 Not implemented in frontend yet
 
-### Phase 4: Integration
-- [ ] Update `AiPanel` to switch between `AiOnboardingView` and the standard 3-tab view.
-- [ ] Connect "Test Connection" to the backend.
-- [ ] Ensure "Prefer Local" actually sets the correct router config in the backend.
+- No UI for provider credentials (`/ai/providers/credentials`).
+- No UI for provider enable/disable (`/ai/providers/settings`).
+- No UI for router preference (`/ai/router/config`).
+- No explicit connection test workflow for cloud provider keys.
+- No use of pull-job SSE detail; no staged install UX from backend events.
+- No run history UI (`/ai/runs` query endpoints).
 
----
+### 3.2 Data limitations in current frontend models
 
-## 5. API Mapping
+- `AiCapabilitiesInfo` does not retain full router config payload.
+- `AiStatusInfo` does not retain cloud provider list details (only count + pull summary text).
+- Catalog parser is tied to static `provider_defaults`, not runtime provider state.
 
-| UI Action | Backend Endpoint |
-| :--- | :--- |
-| Check Capabilities | `GET /ai/capabilities` |
-| Check Status | `GET /ai/status` |
-| Get Catalog | `GET /ai/providers/catalog` |
-| Start Pull | `POST /ai/runner/pull` |
-| Pull Progress | `GET /ai/runner/pull/{id}/events` (SSE) |
-| Save Credentials | `PUT /ai/providers/credentials` |
-| Toggle Provider | `PUT /ai/providers/settings` |
-| Set Routing | `PUT /ai/router/config` |
-| Run Chat | `POST /ai/runs` (SSE) |
+## 4) Onboarding Rewrite Target
+
+### 4.1 Product intent
+
+- Fast first-time setup for local and/or cloud.
+- Explicit, understandable configuration state.
+- Keep local-first behavior clear, but expose cloud path as first-class option.
+
+### 4.2 Technical intent
+
+- Move onboarding/config logic into controllers/services (testable), keep views mostly rendering.
+- Use backend runtime endpoints for mutable state (`/ai/providers/*`, `/ai/router/config`), not static-only catalog.
+- Keep static `/ai_catalog.json` as descriptive source (labels/docs/examples), not source of runtime truth.
+
+## 5) Implementation Plan (Concrete)
+
+### Phase A: API client + parser expansion
+
+- Add API methods for:
+  - `GET /ai/providers/catalog`
+  - `GET/PUT/DELETE /ai/providers/settings...`
+  - `GET/PUT/DELETE /ai/providers/credentials...`
+  - `GET/PUT /ai/router/config`
+  - `POST /ai/runner/retry`
+- Add parser models for:
+  - provider catalog runtime shape (`data.providers[]`)
+  - provider credentials/settings payloads
+  - router config payload (`global/project/effective`)
+- Keep existing static `list_ai_provider_catalog()` path for read-only catalog text where useful.
+
+### Phase B: onboarding state model + controller
+
+- Add `AiOnboardingState` to represent:
+  - runner status snapshot
+  - local recommendations/install state
+  - cloud provider credential/config state
+  - router preference state
+- Add `AiOnboardingController` to orchestrate:
+  - load initial state
+  - update provider key
+  - toggle provider enabled
+  - set router preference
+  - start/retry local pull
+
+### Phase C: panel integration
+
+- Keep 3 tabs, but redefine responsibilities:
+  - `Assistant`: prompt/run thread use
+  - `Status`: runtime + pulls + quick actions
+  - `Catalog`: model/provider discovery/help
+- Add onboarding entry UI when AI is unconfigured:
+  - shown inside AI panel (not project toolbox)
+  - action-driven by `AiOnboardingController`
+
+### Phase D: richer pull/install UX
+
+- Integrate pull events stream (`/ai/runner/pull/{id}/events`) in controller.
+- Render stage/progress in status/onboarding UI.
+- Retain polling fallback if SSE stream disconnects.
+
+### Phase E: run metadata/history
+
+- Expose selected model/provider and fallback events in Assistant output more clearly.
+- Optional: add recent run history using `/ai/runs` list/get routes.
+
+## 6) Endpoint Mapping for Rewrite
+
+| Frontend concern | Endpoint(s) |
+| --- | --- |
+| Capabilities snapshot | `GET /ai/capabilities` |
+| Runtime snapshot | `GET /ai/status` |
+| Retry local runner probe | `POST /ai/runner/retry` |
+| Start local model pull | `POST /ai/runner/pull` |
+| Pull progress | `GET /ai/runner/pull/{job_id}` + `/events` |
+| Runtime provider catalog | `GET /ai/providers/catalog` |
+| Save/remove provider key | `PUT/DELETE /ai/providers/credentials...` |
+| Enable/disable provider | `PUT/DELETE /ai/providers/settings...` |
+| Read/write router preference | `GET/PUT /ai/router/config` |
+| Run AI stream | `POST /ai/runs` (SSE) |
+| Static descriptive catalog | `GET /ai_catalog.json` |
+
+## 7) Non-Goals for This Rewrite
+
+- Reworking backend AI routing logic.
+- Replacing thread/message storage model.
+- Moving AI into project toolbox (AI panel remains global UI region).
+
+## 8) Acceptance Criteria
+
+- User can configure at least one cloud provider key fully from frontend.
+- User can enable/disable providers from frontend.
+- User can set router preference from frontend.
+- User can install local model and see meaningful pull progress.
+- Assistant tab still supports current prompt/thread flow with no regression.
+- New controller-level logic has unit tests (views remain thinner).

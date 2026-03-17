@@ -453,6 +453,59 @@ public class AiCatalogProvider : Object {
     }
 }
 
+public class AiRuntimeProvider : Object {
+    public string id { get; construct; }
+    public string display_name { get; construct; }
+    public bool enabled { get; construct; }
+    public bool configured { get; construct; }
+    public string setup_url { get; construct; }
+    public string docs_url { get; construct; }
+
+    public AiRuntimeProvider(string id,
+                             string display_name,
+                             bool enabled,
+                             bool configured,
+                             string setup_url,
+                             string docs_url) {
+        Object(
+            id: id,
+            display_name: display_name,
+            enabled: enabled,
+            configured: configured,
+            setup_url: setup_url,
+            docs_url: docs_url
+        );
+    }
+}
+
+public class AiRouterConfigInfo : Object {
+    public string effective_scope { get; construct; }
+    public string effective_router_model { get; construct; }
+    public string global_router_model { get; construct; }
+    public int64 global_updated_at { get; construct; }
+    public string project_id { get; construct; }
+    public string project_router_model { get; construct; }
+    public int64 project_updated_at { get; construct; }
+
+    public AiRouterConfigInfo(string effective_scope,
+                              string effective_router_model,
+                              string global_router_model,
+                              int64 global_updated_at,
+                              string project_id,
+                              string project_router_model,
+                              int64 project_updated_at) {
+        Object(
+            effective_scope: effective_scope,
+            effective_router_model: effective_router_model,
+            global_router_model: global_router_model,
+            global_updated_at: global_updated_at,
+            project_id: project_id,
+            project_router_model: project_router_model,
+            project_updated_at: project_updated_at
+        );
+    }
+}
+
 public class GitProviderCatalogEntry : Object {
     public string id { get; construct; }
     public string name { get; construct; }

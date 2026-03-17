@@ -63,6 +63,23 @@ public class ApiClientAiEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration b
         var root = yield client.request_json_unwrapped("GET", "/ai_catalog.json", null, null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
         return ApiParsersAi.parse_ai_provider_catalog(root); // LCOV_EXCL_BR_LINE: return edge artifact
     }
+
+    public static async Gee.ArrayList<AiRuntimeProvider> list_ai_runtime_providers(ApiClient client) // LCOV_EXCL_BR_LINE: async declaration branch artifact
+        throws Error { // LCOV_EXCL_BR_LINE: async declaration branch artifact
+        var root = yield client.request_json("GET", "/ai/providers/catalog", null, null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
+        return ApiParsersAi.parse_ai_runtime_providers(root); // LCOV_EXCL_BR_LINE: return edge artifact
+    }
+
+    public static async AiRouterConfigInfo get_ai_router_config(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
+                                                                string? project_id = null) throws Error {
+        HashTable<string, string>? query = null;
+        if (project_id != null && project_id.length > 0) {
+            query = new HashTable<string, string>(str_hash, str_equal); // LCOV_EXCL_BR_LINE: allocator edge artifact
+            query.insert("project_id", project_id);
+        }
+        var root = yield client.request_json("GET", "/ai/router/config", null, query); // LCOV_EXCL_BR_LINE: yield resume edge artifact
+        return ApiParsersAi.parse_ai_router_config(root); // LCOV_EXCL_BR_LINE: return edge artifact
+    }
 }
 
 }

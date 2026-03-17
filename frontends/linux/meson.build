@@ -45,6 +45,7 @@ sources = [
   'src/views/toolbox/tool_adapter.vala',
   'src/views/toolbox/connections_tool_view.vala',
   'src/views/ai_panel/catalog.vala',
+  'src/views/ai_panel/config.vala',
   'src/views/toolbox/debug_tool_view.vala',
   'src/views/toolbox/flowboard_tool_view.vala',
   'src/views/toolbox/git_sync_tool_view.vala',

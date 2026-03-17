@@ -1064,6 +1064,7 @@ public class MainWindow : Adw.ApplicationWindow {
         ai_run_controller.set_panel_visible(visible);
         if (visible) {
             ai_panel.refresh_catalog();
+            ai_panel.refresh_config(controller.selected_project_id());
         }
     }
 
@@ -1322,6 +1323,7 @@ public class MainWindow : Adw.ApplicationWindow {
     internal void on_api_client_connected(IHolderApi api_client) {
         ai_panel.set_api_client(api_client);
         ai_panel.refresh_catalog();
+        ai_panel.refresh_config(controller.selected_project_id());
         toolbox.set_api_client(api_client);
     }
 

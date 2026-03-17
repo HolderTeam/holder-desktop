@@ -66,6 +66,8 @@ public interface IHolderApi : Object {
     public abstract async Gee.ArrayList<AiThreadSummary> list_ai_threads(string project_id) throws Error;
     public abstract async string create_ai_thread(string project_id, string title) throws Error;
     public abstract async Gee.ArrayList<AiCatalogProvider> list_ai_provider_catalog() throws Error;
+    public abstract async Gee.ArrayList<AiRuntimeProvider> list_ai_runtime_providers() throws Error;
+    public abstract async AiRouterConfigInfo get_ai_router_config(string? project_id = null) throws Error;
     public abstract async Gee.ArrayList<GitProviderCatalogEntry> list_git_provider_catalog() throws Error;
     public abstract async void set_project_git_remote(string project_id,
                                                       string? git_remote_url,

@@ -161,6 +161,12 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public async Gee.ArrayList<HolderLinux.AiCatalogProvider> list_ai_provider_catalog() throws Error {
         return new Gee.ArrayList<HolderLinux.AiCatalogProvider>();
     }
+    public async Gee.ArrayList<HolderLinux.AiRuntimeProvider> list_ai_runtime_providers() throws Error {
+        return new Gee.ArrayList<HolderLinux.AiRuntimeProvider>();
+    }
+    public async HolderLinux.AiRouterConfigInfo get_ai_router_config(string? project_id = null) throws Error {
+        return new HolderLinux.AiRouterConfigInfo("auto", "", "", 0, project_id ?? "", "", 0);
+    }
     public async Gee.ArrayList<HolderLinux.GitProviderCatalogEntry> list_git_provider_catalog() throws Error {
         return new Gee.ArrayList<HolderLinux.GitProviderCatalogEntry>();
     }
