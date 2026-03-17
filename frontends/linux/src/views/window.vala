@@ -1270,17 +1270,18 @@ public class MainWindow : Adw.ApplicationWindow {
     internal void set_editor_state(string text, bool editable) {
         editor_render_state.text = text;
         editor_render_state.editable = editable;
-        apply_editor_from_state();
+        apply_editor_content_state();
+        apply_editor_chrome_state();
     }
 
     internal void update_window_title(string title_text) {
         editor_render_state.window_title = title_text;
-        apply_editor_from_state();
+        apply_editor_chrome_state();
     }
 
     internal void set_search_summary_text(string text) {
         editor_render_state.search_summary = text;
-        apply_editor_from_state();
+        apply_editor_chrome_state();
     }
 
     internal void refresh_ai_status() {
@@ -1309,7 +1310,7 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void set_ai_thread_title(string? title_text) {
         editor_render_state.ai_thread_title = title_text;
-        apply_editor_from_state();
+        apply_editor_chrome_state();
     }
 
     internal void request_ai_thread_selection(string? thread_id) {
@@ -1349,12 +1350,12 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void show_editor_mode() {
         editor_render_state.show_search = false;
-        apply_editor_from_state();
+        apply_editor_chrome_state();
     }
 
     internal void show_search_mode() {
         editor_render_state.show_search = true;
-        apply_editor_from_state();
+        apply_editor_chrome_state();
     }
 
     private void apply_persisted_preferences() {
@@ -1403,11 +1404,18 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void apply_editor_from_state() {
+        apply_editor_content_state();
+        apply_editor_chrome_state();
+    }
+
+    private void apply_editor_content_state() {
         suppress_editor_events = true;
         workspace.set_editor_state(editor_render_state.text, editor_render_state.editable);
         suppress_editor_events = false;
         refresh_connections_internal_links_from_editor();
+    }
 
+    private void apply_editor_chrome_state() {
         workspace.set_window_title_text(editor_render_state.window_title);
         title = editor_render_state.window_title;
         search_summary_label.set_text(editor_render_state.search_summary);

@@ -618,13 +618,11 @@ public class MainController : Object, IAiRunContext {
             return;
         }
         var target_card_id = current_card.card_id;
-        var selected_card_id = selected_card_id();
         var source_cards = new Gee.ArrayList<CardSummary?>();
         for (uint i = 0; i < card_store.get_n_items(); i++) {
             source_cards.add(card_store.get_item(i) as CardSummary);
         }
         var updated_cards = rebuild_card_summaries(source_cards, target_card_id, title, updated_at);
-        updated_cards.sort((a, b) => compare_cards_for_sidebar(a, b));
         card_store.remove_all();
         foreach (var card in updated_cards) {
             card_store.append(card);
@@ -632,9 +630,9 @@ public class MainController : Object, IAiRunContext {
         if (explorer_state_sink != null) {
             ((!) explorer_state_sink).replace_cards_snapshot(updated_cards);
         }
-        if (selected_card_id != null) {
-            card_selection_requested(selected_card_id);
-        }
+        // Keep the current editor draft in place after autosave. The refreshed
+        // card snapshot will fan out through app state to sidebar/flowboard/
+        // connections without re-entering the card-open navigation path.
     }
 
     public static Gee.ArrayList<CardSummary> rebuild_card_summaries(
