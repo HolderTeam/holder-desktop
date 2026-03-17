@@ -19,6 +19,7 @@ public class ToolboxPane : Object {
     private Gtk.SingleSelection? card_selection;
     private IHolderApi? api;
     private Settings? settings;
+    private ActivityLogStore? activity_log_store;
     private bool navigation_loading = false;
     public Gtk.Revealer widget { get; private set; }
 
@@ -74,6 +75,13 @@ public class ToolboxPane : Object {
         }
         if (git_sync_tool != null) {
             git_sync_tool.set_settings(settings);
+        }
+    }
+
+    public void set_activity_log_store(ActivityLogStore store) {
+        activity_log_store = store;
+        if (debug_tool != null) {
+            debug_tool.bind_activity_log(store);
         }
     }
 
@@ -318,6 +326,9 @@ public class ToolboxPane : Object {
         trash_page.set_icon_name("user-trash-symbolic");
 
         debug_tool = new DebugToolView();
+        if (activity_log_store != null) {
+            debug_tool.bind_activity_log((!) activity_log_store);
+        }
         tool_adapters.set("debug", debug_tool);
         var debug_page = stack.add_titled(debug_tool.widget, "debug", "Debug");
         debug_page.set_icon_name("view-reveal-symbolic");

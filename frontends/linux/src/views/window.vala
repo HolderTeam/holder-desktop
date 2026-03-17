@@ -140,6 +140,7 @@ private class WindowMainControllerSignalSink : Object, IMainControllerSignalSink
 
     public void on_status_changed(string text) {
         owner.set_status(text);
+        owner.record_activity_from_current_selection("status", text);
     }
 
     public void on_editor_state_changed(string text, bool editable) {
@@ -152,10 +153,15 @@ private class WindowMainControllerSignalSink : Object, IMainControllerSignalSink
 
     public void on_toast_requested(string message) {
         owner.add_toast(message);
+        owner.record_activity_from_current_selection("toast", message);
     }
 
     public void on_error_reported(string title_text, string details) {
         owner.show_error(title_text, details);
+        owner.record_activity_from_current_selection(
+            "error",
+            "%s: %s".printf(title_text, details)
+        );
     }
 
     public void on_show_editor_requested() {
@@ -589,6 +595,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private FlowboardContextController flowboard_context_controller;
     private ToolHelpController tool_help_controller;
     private AppStateStore app_state_store;
+    private ActivityLogStore activity_log_store;
     private AppTransitionController app_transition_controller;
     private MainControllerSignalBinder main_controller_signal_binder;
     private Settings? settings;
@@ -661,6 +668,7 @@ public class MainWindow : Adw.ApplicationWindow {
         local_info_controller = new LocalInfoController(new WindowLocalInfoLogger(toolbox));
         local_info_presenter = new LocalInfoPresenter();
         app_state_store = new AppStateStore();
+        activity_log_store = new ActivityLogStore();
         app_transition_controller = new AppTransitionController(app_state_store);
         selection_transition_controller = new SelectionTransitionController(app_transition_controller);
         var controller_project_store = new GLib.ListStore(typeof(Project));
@@ -828,6 +836,7 @@ public class MainWindow : Adw.ApplicationWindow {
         window_selection_editor_event_binder.bind();
 
         toolbox.set_settings(settings);
+        toolbox.set_activity_log_store(activity_log_store);
         toolbox.bind_connections_context(project_selection, card_store, card_selection);
         toolbox.bind_flowboard_controller(flowboard_controller);
         window_flowboard_event_binder.bind();
@@ -1039,10 +1048,12 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void on_workspace_new_project_requested() {
+        record_activity_from_current_selection("intent.new_project", "New project requested");
         show_new_project_dialog();
     }
 
     internal void on_workspace_new_card_requested() {
+        record_activity_from_current_selection("intent.new_card", "New card requested");
         controller.create_card.begin();
     }
 
@@ -1078,6 +1089,10 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void on_workspace_search_activated() {
+        record_activity_from_current_selection(
+            "intent.search",
+            "Search activated: %s".printf(search_entry.get_text().strip())
+        );
         controller.cancel_pending_search();
         controller.run_search.begin();
     }
@@ -1111,6 +1126,10 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void on_workspace_search_result_activated(uint position) {
+        record_activity_from_current_selection(
+            "intent.open_search_result",
+            "Search result activated"
+        );
         selection_intent_orchestrator.on_search_result_activation.begin(position);
     }
 
@@ -1142,6 +1161,12 @@ public class MainWindow : Adw.ApplicationWindow {
             // are being rebuilt during state/data updates.
             return;
         }
+        record_activity(
+            "intent.select_project",
+            "Project selected: %s".printf(selected.name),
+            selected.project_id,
+            null
+        );
         // Optimistically mirror user intent so sidebar highlight does not
         // bounce back to last committed selection before transition begin.
         app_state_store.set_selection_snapshot(selected.project_id, null, null);
@@ -1152,12 +1177,30 @@ public class MainWindow : Adw.ApplicationWindow {
         if (is_applying_state()) {
             return;
         }
+        var selected = card_selection.get_selected_item() as CardSummary;
+        if (selected != null) {
+            record_activity(
+                "intent.select_card",
+                "Card selected: %s".printf(selected.title),
+                selected.project_id,
+                selected.card_id
+            );
+        }
         selection_intent_orchestrator.on_card_selection_changed.begin();
     }
 
     internal void on_ai_thread_selection_changed() {
         if (is_applying_state()) {
             return;
+        }
+        var selected = ai_thread_selection.get_selected_item() as AiThreadSummary;
+        if (selected != null) {
+            record_activity(
+                "intent.select_ai_thread",
+                "AI thread selected: %s".printf(selected.title),
+                selected.project_id,
+                controller.selected_card_id()
+            );
         }
         selection_intent_orchestrator.on_ai_thread_selection_changed();
     }
@@ -1334,6 +1377,17 @@ public class MainWindow : Adw.ApplicationWindow {
         if (toolbox != null) {
             toolbox.log_debug(message);
         }
+    }
+
+    internal void record_activity(string kind,
+                                  string message,
+                                  string? project_id = null,
+                                  string? card_id = null) {
+        activity_log_store.append(kind, message, project_id, card_id);
+    }
+
+    internal void record_activity_from_current_selection(string kind, string message) {
+        record_activity(kind, message, controller.selected_project_id(), controller.selected_card_id());
     }
 
     internal void add_toast(string msg) {

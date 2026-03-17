@@ -22,6 +22,7 @@ sources = [
   'src/models/models.vala',
   'src/models/toolbox_nav_models.vala',
   'src/state/app_state.vala',
+  'src/state/activity_log.vala',
   'src/services/core_interfaces.vala',
   'src/services/app_settings.vala',
   'src/services/print_service.vala',

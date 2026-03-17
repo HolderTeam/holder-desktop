@@ -5,6 +5,7 @@ public class DebugToolView : Object, IToolShellAdapter {
     private Gtk.Button clear_btn;
     private Gtk.TextBuffer debug_buffer;
     private Gtk.TextView debug_view;
+    private ActivityLogStore? activity_log_store;
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id {
@@ -82,6 +83,42 @@ public class DebugToolView : Object, IToolShellAdapter {
         }
     }
 
+    public void bind_activity_log(ActivityLogStore store) {
+        activity_log_store = store;
+        foreach (var entry in store.snapshot()) {
+            append_activity_entry(entry);
+        }
+        store.entry_added.connect((entry) => {
+            append_activity_entry(entry);
+        });
+        store.cleared.connect(() => {
+            debug_buffer.set_text("", -1);
+        });
+    }
+
+    private void append_activity_entry(ActivityLogEntry entry) {
+        var scope = build_scope_suffix(entry);
+        append_log_line("ACTIVITY %s %s%s".printf(
+            entry.kind,
+            entry.message,
+            scope
+        ));
+    }
+
+    private static string build_scope_suffix(ActivityLogEntry entry) {
+        var parts = new Gee.ArrayList<string>();
+        if (entry.project_id != null && entry.project_id.strip().length > 0) {
+            parts.add("project=%s".printf((!) entry.project_id));
+        }
+        if (entry.card_id != null && entry.card_id.strip().length > 0) {
+            parts.add("card=%s".printf((!) entry.card_id));
+        }
+        if (parts.size == 0) {
+            return "";
+        }
+        return " [%s]".printf(string.joinv(", ", parts.to_array()));
+    }
+
     private Gtk.Widget build_ui() {
         var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
         debug_actions_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
@@ -95,6 +132,10 @@ public class DebugToolView : Object, IToolShellAdapter {
 
         clear_btn = new Gtk.Button.with_label("Clear");
         clear_btn.clicked.connect(() => {
+            if (activity_log_store != null) {
+                ((!) activity_log_store).clear();
+                return;
+            }
             debug_buffer.set_text("", -1);
         });
         debug_actions_bar.append(clear_btn);
