@@ -4,25 +4,12 @@ public class AiPanel : Object {
     private class AiPanelRenderState : Object {
         public string thread_title = "Thread: none selected";
         public bool send_enabled = true;
-        public string summary = "Not loaded";
-        public string models = "";
-        public string recommended = "";
-        public Gee.ArrayList<string> recommended_models = new Gee.ArrayList<string>();
-        public string runtime = "";
-        public string pulls = "";
     }
 
-    private Gtk.Label ai_summary_label;
-    private Gtk.Label ai_models_label;
-    private Gtk.Label ai_recommended_label;
-    private Gtk.Box ai_recommended_buttons_box;
-    private Gtk.Label ai_runtime_label;
-    private Gtk.Label ai_pulls_label;
     private Gtk.TextBuffer ai_output_buffer;
     private Gtk.TextView ai_prompt_view;
     private Gtk.Label ai_assistant_thread_label;
     private Gtk.Button send_btn;
-    private AiCatalogPanelView ai_catalog_panel;
     private AiConfigPanelView ai_config_panel;
     private AiPanelRenderState render_state;
 
@@ -37,31 +24,22 @@ public class AiPanel : Object {
 
     public AiPanel() {
         render_state = new AiPanelRenderState();
-        ai_catalog_panel = new AiCatalogPanelView();
         ai_config_panel = new AiConfigPanelView();
-        ai_catalog_panel.error_reported.connect((title, details) => {
-            error_reported(title, details);
-        });
-        ai_catalog_panel.debug_log_requested.connect((line) => {
-            debug_log_requested(line);
-        });
         ai_config_panel.error_reported.connect((title, details) => {
             error_reported(title, details);
         });
         ai_config_panel.debug_log_requested.connect((line) => {
             debug_log_requested(line);
         });
+        ai_config_panel.pull_model_requested.connect((model_tag) => {
+            pull_model_requested(model_tag);
+        });
         widget = build_ui();
         apply_render_state();
     }
 
     public void set_api_client(IHolderApi? api) {
-        ai_catalog_panel.set_api_client(api);
         ai_config_panel.set_api_client(api);
-    }
-
-    public void refresh_catalog() {
-        ai_catalog_panel.refresh.begin();
     }
 
     public void refresh_config(string? project_id = null) {
@@ -111,41 +89,11 @@ public class AiPanel : Object {
     }
 
     public void render_status(AiCapabilitiesInfo capabilities, AiStatusInfo status) {
-        render_state.summary = "Runner: %s | Caste: %s | Version: %s".printf(
-            capabilities.runner_available ? "available" : "unavailable",
-            capabilities.caste_name.length > 0 ? capabilities.caste_name : "unknown",
-            capabilities.runner_version.length > 0 ? capabilities.runner_version : "unknown"
-        );
-        if (capabilities.runner_error.length > 0) {
-            render_state.summary += "\nError: " + capabilities.runner_error;
-        }
-
-        render_state.models = "Installed models (%d): %s".printf(
-            capabilities.models.size,
-            join_list(capabilities.models)
-        );
-        render_state.recommended = "Recommended install: %s".printf(join_list(capabilities.recommended_install));
-        render_state.recommended_models = new Gee.ArrayList<string>();
-        foreach (var model in capabilities.recommended_install) {
-            render_state.recommended_models.add(model);
-        }
-        render_state.runtime = "Active runs: %lld | Active pulls: %lld | Cloud providers configured: %lld".printf(
-            status.active_runs,
-            status.active_pull_jobs,
-            status.cloud_configured_providers
-        );
-        render_state.pulls = "Pull jobs: %s".printf(join_list(status.pull_jobs));
-        apply_render_state();
+        ai_config_panel.render_local_models(capabilities, status);
     }
 
     public void render_status_error(string message) {
-        render_state.summary = "AI status unavailable";
-        render_state.models = "";
-        render_state.recommended = "";
-        render_state.recommended_models = new Gee.ArrayList<string>();
-        render_state.runtime = message;
-        render_state.pulls = "";
-        apply_render_state();
+        ai_config_panel.render_local_models_error(message);
     }
 
     private Gtk.Widget build_ui() {
@@ -216,29 +164,7 @@ public class AiPanel : Object {
         actions.append(new_thread_btn);
         assistant.append(actions);
 
-        var status_page = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
-        ai_summary_label = new Gtk.Label("Not loaded") { xalign = 0.0f };
-        ai_summary_label.set_wrap(true);
-        ai_models_label = new Gtk.Label("") { xalign = 0.0f };
-        ai_models_label.set_wrap(true);
-        ai_recommended_label = new Gtk.Label("") { xalign = 0.0f };
-        ai_recommended_label.set_wrap(true);
-        ai_recommended_buttons_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
-        ai_runtime_label = new Gtk.Label("") { xalign = 0.0f };
-        ai_runtime_label.set_wrap(true);
-        ai_pulls_label = new Gtk.Label("") { xalign = 0.0f };
-        ai_pulls_label.set_wrap(true);
-
-        status_page.append(ai_summary_label);
-        status_page.append(ai_models_label);
-        status_page.append(ai_recommended_label);
-        status_page.append(ai_recommended_buttons_box);
-        status_page.append(ai_runtime_label);
-        status_page.append(ai_pulls_label);
-
         stack.add_titled(assistant, "assistant", "Assistant");
-        stack.add_titled(status_page, "status", "Status");
-        stack.add_titled(ai_catalog_panel.widget, "catalog", "Catalog");
         stack.add_titled(ai_config_panel.widget, "config", "Config");
         stack.set_visible_child_name("assistant");
 
@@ -249,55 +175,9 @@ public class AiPanel : Object {
         return box;
     }
 
-    private void rebuild_recommended_pull_buttons(Gee.ArrayList<string> recommended_models) {
-        Gtk.Widget? child = ai_recommended_buttons_box.get_first_child();
-        while (child != null) {
-            var next = child.get_next_sibling();
-            ai_recommended_buttons_box.remove(child);
-            child = next;
-        }
-
-        if (recommended_models.size == 0) {
-            var label = new Gtk.Label("No recommended model pulls right now.") { xalign = 0.0f };
-            label.add_css_class("dim-label");
-            ai_recommended_buttons_box.append(label);
-            return;
-        }
-
-        for (int i = 0; i < recommended_models.size; i++) {
-            var model_tag = recommended_models[i];
-            var btn = new Gtk.Button.with_label("Pull %s".printf(model_tag));
-            btn.set_halign(Gtk.Align.START);
-            btn.clicked.connect(() => {
-                pull_model_requested(model_tag);
-            });
-            ai_recommended_buttons_box.append(btn);
-        }
-    }
-
     private void apply_render_state() {
         ai_assistant_thread_label.set_text(render_state.thread_title);
         send_btn.set_sensitive(render_state.send_enabled);
-        ai_summary_label.set_text(render_state.summary);
-        ai_models_label.set_text(render_state.models);
-        ai_recommended_label.set_text(render_state.recommended);
-        ai_runtime_label.set_text(render_state.runtime);
-        ai_pulls_label.set_text(render_state.pulls);
-        rebuild_recommended_pull_buttons(render_state.recommended_models);
-    }
-
-    private string join_list(Gee.ArrayList<string> values) {
-        if (values.size == 0) {
-            return "none";
-        }
-        var builder = new StringBuilder();
-        for (int i = 0; i < values.size; i++) {
-            if (i > 0) {
-                builder.append(", ");
-            }
-            builder.append(values[i]);
-        }
-        return builder.str;
     }
 }
 

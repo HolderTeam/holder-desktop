@@ -4,6 +4,12 @@ public class AiConfigPanelView : Object {
     private IHolderApi? api_client = null;
 
     private Gtk.Label status_label;
+    private Gtk.Label local_runtime_label;
+    private Gtk.Label local_installed_label;
+    private Gtk.Label local_recommended_label;
+    private Gtk.Box local_recommended_buttons_box;
+    private Gtk.Label local_activity_label;
+    private Gtk.Label local_pulls_label;
     private Gtk.ListBox providers_list;
     private Gtk.Label router_summary_label;
 
@@ -19,6 +25,7 @@ public class AiConfigPanelView : Object {
 
     public signal void error_reported(string title, string details);
     public signal void debug_log_requested(string line);
+    public signal void pull_model_requested(string model_tag);
 
     public AiConfigPanelView() {
         widget = build_ui();
@@ -64,6 +71,40 @@ public class AiConfigPanelView : Object {
         status_label.set_wrap(true);
         root.append(status_label);
 
+        var local_heading = new Gtk.Label("Local Models");
+        local_heading.set_halign(Gtk.Align.START);
+        local_heading.add_css_class("heading");
+        root.append(local_heading);
+
+        local_runtime_label = new Gtk.Label("");
+        local_runtime_label.set_halign(Gtk.Align.START);
+        local_runtime_label.set_wrap(true);
+        root.append(local_runtime_label);
+
+        local_installed_label = new Gtk.Label("");
+        local_installed_label.set_halign(Gtk.Align.START);
+        local_installed_label.set_wrap(true);
+        root.append(local_installed_label);
+
+        local_recommended_label = new Gtk.Label("");
+        local_recommended_label.set_halign(Gtk.Align.START);
+        local_recommended_label.set_wrap(true);
+        root.append(local_recommended_label);
+
+        local_recommended_buttons_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        root.append(local_recommended_buttons_box);
+
+        local_activity_label = new Gtk.Label("");
+        local_activity_label.set_halign(Gtk.Align.START);
+        local_activity_label.set_wrap(true);
+        root.append(local_activity_label);
+
+        local_pulls_label = new Gtk.Label("");
+        local_pulls_label.set_halign(Gtk.Align.START);
+        local_pulls_label.set_wrap(true);
+        local_pulls_label.add_css_class("dim-label");
+        root.append(local_pulls_label);
+
         var providers_heading = new Gtk.Label("Cloud Providers");
         providers_heading.set_halign(Gtk.Align.START);
         providers_heading.add_css_class("heading");
@@ -88,8 +129,62 @@ public class AiConfigPanelView : Object {
 
     private void set_idle_state(string message) {
         status_label.set_text(message);
+        local_runtime_label.set_text("");
+        local_installed_label.set_text("");
+        local_recommended_label.set_text("");
+        local_activity_label.set_text("");
+        local_pulls_label.set_text("");
+        clear_recommended_buttons();
         router_summary_label.set_text("");
         clear_provider_rows();
+    }
+
+    public void render_local_models(AiCapabilitiesInfo capabilities, AiStatusInfo status) {
+        var runtime_parts = new Gee.ArrayList<string>();
+        runtime_parts.add("Runtime: %s".printf(capabilities.runner_available ? "available" : "unavailable"));
+        if (capabilities.caste_name.strip().length > 0) {
+            runtime_parts.add("Engine: %s".printf(capabilities.caste_name));
+        }
+        if (capabilities.runner_version.strip().length > 0) {
+            runtime_parts.add("Version: %s".printf(capabilities.runner_version));
+        }
+        local_runtime_label.set_text(string.joinv(" | ", runtime_parts.to_array()));
+
+        if (capabilities.runner_error.strip().length > 0) {
+            local_runtime_label.set_text("%s\n%s".printf(
+                local_runtime_label.get_text(),
+                capabilities.runner_error
+            ));
+        }
+
+        local_installed_label.set_text("Installed models: %s".printf(join_list(capabilities.models)));
+
+        if (capabilities.recommended_install.size == 0) {
+            local_recommended_label.set_text("Recommended installs: none");
+        } else {
+            local_recommended_label.set_text(
+                "Recommended installs: %s".printf(join_list(capabilities.recommended_install))
+            );
+        }
+        rebuild_recommended_pull_buttons(capabilities.recommended_install);
+
+        local_activity_label.set_text(
+            "Active runs: %lld | Active pulls: %lld | Cloud providers configured: %lld".printf(
+                status.active_runs,
+                status.active_pull_jobs,
+                status.cloud_configured_providers
+            )
+        );
+        local_pulls_label.set_text("Pull jobs: %s".printf(join_list(status.pull_jobs)));
+    }
+
+    public void render_local_models_error(string message) {
+        local_runtime_label.set_text("Local runtime unavailable");
+        local_installed_label.set_text("");
+        local_recommended_label.set_text("");
+        local_activity_label.set_text(message);
+        local_pulls_label.set_text("");
+        clear_recommended_buttons();
     }
 
     private void clear_provider_rows() {
@@ -97,6 +192,15 @@ public class AiConfigPanelView : Object {
         while (child != null) {
             var next = child.get_next_sibling();
             providers_list.remove(child);
+            child = next;
+        }
+    }
+
+    private void clear_recommended_buttons() {
+        Gtk.Widget? child = local_recommended_buttons_box.get_first_child();
+        while (child != null) {
+            var next = child.get_next_sibling();
+            local_recommended_buttons_box.remove(child);
             child = next;
         }
     }
@@ -126,6 +230,27 @@ public class AiConfigPanelView : Object {
         router_summary_label.set_text(
             "Router: %s (%s)".printf(router.effective_scope, effective_model)
         );
+    }
+
+    private void rebuild_recommended_pull_buttons(Gee.ArrayList<string> recommended_models) {
+        clear_recommended_buttons();
+
+        if (recommended_models.size == 0) {
+            var label = new Gtk.Label("No local model installs recommended right now.") { xalign = 0.0f };
+            label.add_css_class("dim-label");
+            local_recommended_buttons_box.append(label);
+            return;
+        }
+
+        for (int i = 0; i < recommended_models.size; i++) {
+            var model_tag = recommended_models[i];
+            var btn = new Gtk.Button.with_label("Install %s".printf(model_tag));
+            btn.set_halign(Gtk.Align.START);
+            btn.clicked.connect(() => {
+                pull_model_requested(model_tag);
+            });
+            local_recommended_buttons_box.append(btn);
+        }
     }
 
     private void append_provider_row(AiRuntimeProvider provider) {
@@ -258,6 +383,20 @@ public class AiConfigPanelView : Object {
         } catch (Error e) {
             error_reported("AI Config", e.message);
         }
+    }
+
+    private string join_list(Gee.ArrayList<string> values) {
+        if (values.size == 0) {
+            return "none";
+        }
+        var builder = new StringBuilder();
+        for (int i = 0; i < values.size; i++) {
+            if (i > 0) {
+                builder.append(", ");
+            }
+            builder.append(values[i]);
+        }
+        return builder.str;
     }
 }
 
