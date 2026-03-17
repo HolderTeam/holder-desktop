@@ -27,6 +27,7 @@ public class ToolboxPane : Object {
     public signal void toast_requested(string message);
     public signal void flowboard_card_open_requested(string card_id);
     public signal void connections_card_open_requested(string card_id);
+    public signal void connections_card_create_child_requested(string card_id);
     public signal void flowboard_card_move_to_trash_requested(string card_id);
     public signal void flowboard_move_intent_requested(string card_id,
                                                        string project_id,
@@ -244,6 +245,9 @@ public class ToolboxPane : Object {
         connections_tool.card_open_requested.connect((card_id) => {
             connections_card_open_requested(card_id);
         });
+        connections_tool.card_create_child_requested.connect((card_id) => {
+            connections_card_create_child_requested(card_id);
+        });
         connections_tool.set_api_client(api);
         connections_tool.set_settings(settings);
         if (project_selection != null && card_store != null && card_selection != null) {
@@ -297,6 +301,9 @@ public class ToolboxPane : Object {
         });
         git_sync_tool.toast_requested.connect((message) => {
             toast_requested(message);
+        });
+        git_sync_tool.activity_requested.connect((kind, message, project_id, card_id) => {
+            activity_requested(kind, message, project_id, card_id);
         });
         git_sync_tool.set_api_client(api);
         git_sync_tool.set_settings(settings);

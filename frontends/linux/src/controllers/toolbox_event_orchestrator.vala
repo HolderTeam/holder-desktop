@@ -71,6 +71,9 @@ internal class ToolboxEventOrchestrator : Object {
                 "toolbox-connections-card-open"
             );
         });
+        toolbox.connections_card_create_child_requested.connect((card_id) => {
+            controller.create_card.begin(card_id);
+        });
         toolbox.flowboard_card_move_to_trash_requested.connect((card_id) => {
             sink.confirm_move_card_to_trash(card_id);
         });

@@ -369,6 +369,10 @@ private class WindowSidebarEventSink : Object, ISidebarEventSink {
     public void on_sidebar_card_context_selection_requested(string card_id) {
         owner.on_sidebar_card_context_selection_requested(card_id);
     }
+
+    public void on_sidebar_card_create_child_requested(string card_id) {
+        owner.on_sidebar_card_create_child_requested(card_id);
+    }
 }
 
 private class WindowWorkspaceEventSink : Object, IWorkspaceEventSink {
@@ -1064,6 +1068,16 @@ public class MainWindow : Adw.ApplicationWindow {
             card_id,
             "sidebar-context-card-open"
         );
+    }
+
+    internal void on_sidebar_card_create_child_requested(string card_id) {
+        log_activity(
+            "intent.card.create_child",
+            "Create child card requested",
+            controller.selected_project_id(),
+            card_id
+        );
+        controller.create_card.begin(card_id);
     }
 
     internal void on_workspace_refresh_requested() {

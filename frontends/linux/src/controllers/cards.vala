@@ -118,6 +118,7 @@ internal class CardsController : Object {
         var body_text = body_text_from_content(text);
         var body_chars = body_text.char_count();
         var body_empty = body_text.strip().length == 0;
+        var content_fingerprint = short_content_fingerprint(text);
 
         try {
             yield owner.api.update_card(owner.current_card.card_id, title, text, updated_at);
@@ -138,12 +139,13 @@ internal class CardsController : Object {
             owner.current_card.updated_at = updated_at;
             owner.emit_activity(
                 "result.card.autosave",
-                "Autosaved card: %s [doc_chars=%d, body_chars=%d, delta_chars=%+d, body_empty=%s]".printf(
+                "Autosaved card: %s [doc_chars=%d, body_chars=%d, delta_chars=%+d, body_empty=%s, fingerprint=%s]".printf(
                     title,
                     doc_chars,
                     body_chars,
                     delta_chars,
-                    body_empty ? "true" : "false"
+                    body_empty ? "true" : "false",
+                    content_fingerprint
                 ),
                 owner.current_project != null ? owner.current_project.project_id : null,
                 owner.current_card.card_id
@@ -168,6 +170,11 @@ internal class CardsController : Object {
             return "";
         }
         return content.substring(newline_index + 1);
+    }
+
+    private static string short_content_fingerprint(string content) {
+        var digest = Checksum.compute_for_string(ChecksumType.SHA256, content);
+        return digest.substring(0, 12);
     }
 
     public async void move_card_by_intent(string card_id,

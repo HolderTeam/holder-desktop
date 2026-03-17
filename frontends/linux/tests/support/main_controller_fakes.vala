@@ -569,6 +569,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                              0,
                                              "",
                                              "",
+                                             "",
                                              "");
     }
 

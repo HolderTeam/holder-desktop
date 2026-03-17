@@ -104,6 +104,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     public signal void project_overview_requested(string project_id);
     public signal void projects_root_requested();
     public signal void card_open_requested(string card_id);
+    public signal void card_create_child_requested(string card_id);
 
     public ConnectionsToolView() {
         controller = new ConnectionsController();
@@ -1064,7 +1065,53 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             }
             card_open_requested(node.card_id);
         });
+        var context_click = new Gtk.GestureClick();
+        context_click.set_button(Gdk.BUTTON_SECONDARY);
+        context_click.pressed.connect((n_press, x, y) => {
+            if (n_press != 1 || node.card_id.has_prefix("project:")) {
+                return;
+            }
+            show_board_node_menu_at(button, node, x, y);
+        });
+        button.add_controller(context_click);
         return button;
+    }
+
+    private void show_board_node_menu_at(Gtk.Widget node_widget,
+                                         ConnectionsBoardNode node,
+                                         double x,
+                                         double y) {
+        var popover = new Gtk.Popover();
+        popover.set_autohide(true);
+        popover.set_parent(node_widget);
+
+        var menu_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+
+        var open_btn = new Gtk.Button.with_label("Open");
+        open_btn.add_css_class("flat");
+        open_btn.clicked.connect(() => {
+            popover.popdown();
+            card_open_requested(node.card_id);
+        });
+        menu_box.append(open_btn);
+
+        var create_child_btn = new Gtk.Button.with_label("Create Child Card");
+        create_child_btn.add_css_class("flat");
+        create_child_btn.clicked.connect(() => {
+            popover.popdown();
+            card_create_child_requested(node.card_id);
+        });
+        menu_box.append(create_child_btn);
+
+        popover.set_child(menu_box);
+
+        var rect = Gdk.Rectangle();
+        rect.x = (int) x;
+        rect.y = (int) y;
+        rect.width = 1;
+        rect.height = 1;
+        popover.set_pointing_to(rect);
+        popover.popup();
     }
 
     private void draw_connections_board(Cairo.Context cr) {

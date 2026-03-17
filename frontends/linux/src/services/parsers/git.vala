@@ -21,6 +21,7 @@ public class ApiParsersGit { // LCOV_EXCL_LINE: declaration-only coverage artifa
             ApiParsersCommon.string_member_or_empty(data, "status"),
             data.has_member("ahead_count") ? (int) data.get_int_member("ahead_count") : 0,
             data.has_member("behind_count") ? (int) data.get_int_member("behind_count") : 0,
+            ApiParsersCommon.string_member_or_empty(data, "local_head_commit"),
             ApiParsersCommon.string_member_or_empty(data, "error_code"),
             ApiParsersCommon.string_member_or_empty(data, "error_message"),
             ApiParsersCommon.string_member_or_empty(data, "next_action")

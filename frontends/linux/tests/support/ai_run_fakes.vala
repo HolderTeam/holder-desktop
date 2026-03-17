@@ -204,6 +204,7 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                              0,
                                              "",
                                              "",
+                                             "",
                                              "");
     }
     public async void run_ai_stream(string prompt,
