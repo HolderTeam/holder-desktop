@@ -153,6 +153,7 @@ internal class CardsController : Object {
                 owner.current_project != null ? owner.current_project.project_id : null,
                 owner.current_card.card_id,
                 new CardAutosavedDetails(
+                    title,
                     doc_chars,
                     body_chars,
                     delta_chars,

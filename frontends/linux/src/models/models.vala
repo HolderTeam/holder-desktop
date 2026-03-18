@@ -798,18 +798,21 @@ public class CardRenamedDetails : ActivityDetails {
 }
 
 public class CardAutosavedDetails : ActivityDetails {
+    public string title { get; construct; }
     public int doc_chars { get; construct; }
     public int body_chars { get; construct; }
     public int delta_chars { get; construct; }
     public bool body_empty { get; construct; }
     public string fingerprint { get; construct; }
 
-    public CardAutosavedDetails(int doc_chars,
+    public CardAutosavedDetails(string title,
+                                int doc_chars,
                                 int body_chars,
                                 int delta_chars,
                                 bool body_empty,
                                 string fingerprint) {
         Object(
+            title: title,
             doc_chars: doc_chars,
             body_chars: body_chars,
             delta_chars: delta_chars,

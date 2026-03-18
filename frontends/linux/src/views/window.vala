@@ -622,6 +622,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private AppStateStore app_state_store;
     private ActivityLogStore activity_log_store;
     private ActivityLogController activity_log_controller;
+    private IActivityReducer activity_reducer;
     private AppTransitionController app_transition_controller;
     private MainControllerSignalBinder main_controller_signal_binder;
     private Settings? settings;
@@ -695,7 +696,7 @@ public class MainWindow : Adw.ApplicationWindow {
         local_info_presenter = new LocalInfoPresenter();
         app_state_store = new AppStateStore();
         activity_log_store = new ActivityLogStore();
-        activity_log_controller = new ActivityLogController(activity_log_store, controller);
+        activity_reducer = new SessionActivityReducer();
         app_transition_controller = new AppTransitionController(app_state_store);
         selection_transition_controller = new SelectionTransitionController(app_transition_controller);
         var controller_project_store = new GLib.ListStore(typeof(Project));
@@ -718,6 +719,7 @@ public class MainWindow : Adw.ApplicationWindow {
             null,
             app_state_store
         );
+        activity_log_controller = new ActivityLogController(activity_log_store, controller);
         project_create_controller = new ProjectCreateController();
         explorer_selection_controller = new ExplorerSelectionController(
             project_store,
@@ -869,6 +871,11 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.set_activity_log_store(activity_log_store);
         toolbox.bind_connections_context(project_selection, card_store, card_selection);
         toolbox.bind_flowboard_controller(flowboard_controller);
+        activity_log_store.entry_added.connect((entry) => {
+            foreach (var candidate in activity_reducer.reduce(activity_log_store.snapshot())) {
+                log_nudge_candidate(candidate);
+            }
+        });
         window_flowboard_event_binder.bind();
         window_lifecycle_event_binder.bind();
         window_state_event_binder.bind();
@@ -1406,6 +1413,35 @@ public class MainWindow : Adw.ApplicationWindow {
                 : "";
             toolbox.log_debug("ACTIVITY %s %s%s".printf(kind, message, scope));
         }
+    }
+
+    internal void log_nudge_candidate(NudgeCandidate candidate) {
+        if (toolbox == null) {
+            return;
+        }
+        var parts = new Gee.ArrayList<string>();
+        parts.add("project=%s".printf(candidate.project_id));
+        if (candidate.card_id != null && candidate.card_id.strip().length > 0) {
+            parts.add("card=%s".printf(candidate.card_id));
+        }
+        if (candidate.basis_fingerprint != null && candidate.basis_fingerprint.strip().length > 0) {
+            parts.add("fingerprint=%s".printf(candidate.basis_fingerprint));
+        }
+        if (candidate.basis_commit != null && candidate.basis_commit.strip().length > 0) {
+            parts.add("commit=%s".printf(candidate.basis_commit));
+        }
+        var facts_node = new Json.Node(Json.NodeType.OBJECT);
+        facts_node.set_object(candidate.facts);
+        var generator = new Json.Generator();
+        generator.set_root(facts_node);
+        var facts_json = generator.to_data(null);
+        toolbox.log_debug(
+            "CANDIDATE %s [%s] facts=%s".printf(
+                candidate.kind,
+                string.joinv(", ", parts.to_array()),
+                facts_json
+            )
+        );
     }
 
     internal void log_status_activity(string text) {
