@@ -74,7 +74,8 @@ internal class CardsController : Object {
                 "result.card.create",
                 "Created card: %s".printf(title),
                 owner.current_project.project_id,
-                new_id
+                new_id,
+                new CardCreatedDetails(title, parent_card_id)
             );
             owner.toast_requested(success_toast);
             owner.status_changed("Created new card");
@@ -132,7 +133,8 @@ internal class CardsController : Object {
                         body_empty ? "true" : "false"
                     ),
                     owner.current_project != null ? owner.current_project.project_id : null,
-                    owner.current_card.card_id
+                    owner.current_card.card_id,
+                    new CardRenamedDetails(previous_title, title, body_empty)
                 );
             }
             owner.current_card.title = title;
@@ -149,7 +151,14 @@ internal class CardsController : Object {
                     content_fingerprint
                 ),
                 owner.current_project != null ? owner.current_project.project_id : null,
-                owner.current_card.card_id
+                owner.current_card.card_id,
+                new CardAutosavedDetails(
+                    doc_chars,
+                    body_chars,
+                    delta_chars,
+                    body_empty,
+                    content_fingerprint
+                )
             );
             owner.update_selected_card_summary(title, updated_at);
             owner.window_title_changed(title);
@@ -291,7 +300,8 @@ internal class CardsController : Object {
                 "result.card.trash",
                 "Moved \"%s\" to Trash".printf(card_title),
                 owner.current_project != null ? owner.current_project.project_id : null,
-                card_id
+                card_id,
+                new CardTrashedDetails(card_title)
             );
             owner.status_changed("Moved card to trash");
             owner.toast_requested("Moved \"%s\" to Trash".printf(card_title));

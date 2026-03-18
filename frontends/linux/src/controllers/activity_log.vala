@@ -16,16 +16,20 @@ public class ActivityLogController : Object {
     public void log(string kind,
                     string message,
                     string? project_id = null,
-                    string? card_id = null) {
-        store.append(kind, message, project_id, card_id);
+                    string? card_id = null,
+                    ActivityDetails? details = null) {
+        store.append(kind, message, project_id, card_id, details);
     }
 
-    public void log_from_current_selection(string kind, string message) {
+    public void log_from_current_selection(string kind,
+                                           string message,
+                                           ActivityDetails? details = null) {
         log(
             kind,
             message,
             main_controller.selected_project_id(),
-            main_controller.selected_card_id()
+            main_controller.selected_card_id(),
+            details
         );
     }
 

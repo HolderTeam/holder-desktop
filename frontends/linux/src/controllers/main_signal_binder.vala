@@ -20,7 +20,8 @@ internal interface IMainControllerSignalSink : Object {
     public abstract void on_activity_requested(string kind,
                                               string message,
                                               string? project_id,
-                                              string? card_id);
+                                              string? card_id,
+                                              ActivityDetails? details);
 }
 
 internal class MainControllerSignalBinder : Object {
@@ -82,8 +83,8 @@ internal class MainControllerSignalBinder : Object {
         controller.card_trashed.connect((card_id) => {
             sink.on_card_trashed(card_id);
         });
-        controller.activity_requested.connect((kind, message, project_id, card_id) => {
-            sink.on_activity_requested(kind, message, project_id, card_id);
+        controller.activity_requested.connect((kind, message, project_id, card_id, details) => {
+            sink.on_activity_requested(kind, message, project_id, card_id, details);
         });
     }
 }

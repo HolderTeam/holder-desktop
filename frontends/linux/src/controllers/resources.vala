@@ -69,7 +69,8 @@ public class ResourcesController : Object {
     public signal void activity_requested(string kind,
                                           string message,
                                           string? project_id,
-                                          string? resource_id);
+                                          string? resource_id,
+                                          ActivityDetails? details);
 
     public ResourcesController(ResourcesService? service = null) {
         this.service = service ?? new ResourcesService();
@@ -203,7 +204,8 @@ public class ResourcesController : Object {
                 "result.resource.create",
                 "Created resource: %s".printf(label),
                 project_id,
-                null
+                null,
+                new ResourceChangedDetails("create", label)
             );
             return new ResourcesMutationResult(true, false, true, "Resource added.");
         } catch (Error e) {
@@ -211,6 +213,7 @@ public class ResourcesController : Object {
                 "result.resource.create_failed",
                 "Failed to create resource: %s".printf(e.message),
                 project_id,
+                null,
                 null
             );
             return new ResourcesMutationResult(
@@ -249,7 +252,8 @@ public class ResourcesController : Object {
                 "result.resource.update",
                 "Updated resource: %s".printf(label),
                 project_id,
-                resource_id
+                resource_id,
+                new ResourceChangedDetails("update", label)
             );
             return new ResourcesMutationResult(true, false, true, "Resource updated.");
         } catch (Error e) {
@@ -257,7 +261,8 @@ public class ResourcesController : Object {
                 "result.resource.update_failed",
                 "Failed to update resource: %s".printf(e.message),
                 project_id,
-                resource_id
+                resource_id,
+                null
             );
             return new ResourcesMutationResult(
                 false,
@@ -288,7 +293,8 @@ public class ResourcesController : Object {
                 "result.resource.delete",
                 "Deleted resource: %s".printf(resource_label),
                 project_id,
-                resource_id
+                resource_id,
+                new ResourceChangedDetails("delete", resource_label)
             );
             return new ResourcesMutationResult(true, false, true, "Resource deleted.");
         } catch (Error e) {
@@ -296,7 +302,8 @@ public class ResourcesController : Object {
                 "result.resource.delete_failed",
                 "Failed to delete resource: %s".printf(e.message),
                 project_id,
-                resource_id
+                resource_id,
+                null
             );
             return new ResourcesMutationResult(
                 false,

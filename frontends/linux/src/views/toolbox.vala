@@ -43,7 +43,8 @@ public class ToolboxPane : Object {
     public signal void activity_requested(string kind,
                                           string message,
                                           string? project_id,
-                                          string? card_id);
+                                          string? card_id,
+                                          ActivityDetails? details);
     public signal void breadcrumb_navigation_requested(string tool_id,
                                                        int segment_index,
                                                        string? project_id,
@@ -265,8 +266,8 @@ public class ToolboxPane : Object {
         resources_tool.toast_requested.connect((message) => {
             toast_requested(message);
         });
-        resources_tool.activity_requested.connect((kind, message, project_id, resource_id) => {
-            activity_requested(kind, message, project_id, resource_id);
+        resources_tool.activity_requested.connect((kind, message, project_id, resource_id, details) => {
+            activity_requested(kind, message, project_id, resource_id, details);
         });
         resources_tool.set_api_client(api);
         resources_tool.set_project_selection(project_selection);
@@ -302,8 +303,8 @@ public class ToolboxPane : Object {
         git_sync_tool.toast_requested.connect((message) => {
             toast_requested(message);
         });
-        git_sync_tool.activity_requested.connect((kind, message, project_id, card_id) => {
-            activity_requested(kind, message, project_id, card_id);
+        git_sync_tool.activity_requested.connect((kind, message, project_id, card_id, details) => {
+            activity_requested(kind, message, project_id, card_id, details);
         });
         git_sync_tool.set_api_client(api);
         git_sync_tool.set_settings(settings);
@@ -334,8 +335,8 @@ public class ToolboxPane : Object {
         trash_tool.toast_requested.connect((message) => {
             toast_requested(message);
         });
-        trash_tool.activity_requested.connect((kind, message, project_id, card_id) => {
-            activity_requested(kind, message, project_id, card_id);
+        trash_tool.activity_requested.connect((kind, message, project_id, card_id, details) => {
+            activity_requested(kind, message, project_id, card_id, details);
         });
         trash_tool.set_api_client(api);
         trash_tool.set_project_selection(project_selection);

@@ -44,7 +44,8 @@ public class TrashController : Object {
     public signal void activity_requested(string kind,
                                           string message,
                                           string? project_id,
-                                          string? card_id);
+                                          string? card_id,
+                                          ActivityDetails? details);
 
     public TrashController() {
         items_store = new GLib.ListStore(typeof(TrashItem));
@@ -158,7 +159,8 @@ public class TrashController : Object {
                 "result.trash.restore",
                 "Restored %s: %s".printf(item.item_type, item.title),
                 project_id,
-                item.item_id
+                item.item_id,
+                new TrashActionDetails(item.item_type, item.title)
             );
             toast_requested("Item restored.");
             queue_refresh();
@@ -167,7 +169,8 @@ public class TrashController : Object {
                 "result.trash.restore_failed",
                 "Failed to restore %s: %s".printf(item.item_type, e.message),
                 project_id,
-                item.item_id
+                item.item_id,
+                null
             );
             error_reported("Failed to restore item", e.message);
         }
@@ -185,7 +188,8 @@ public class TrashController : Object {
                 "result.trash.delete",
                 "Permanently deleted %s: %s".printf(item.item_type, item.title),
                 project_id,
-                item.item_id
+                item.item_id,
+                new TrashActionDetails(item.item_type, item.title)
             );
             toast_requested("Item permanently deleted.");
             queue_refresh();
@@ -194,7 +198,8 @@ public class TrashController : Object {
                 "result.trash.delete_failed",
                 "Failed to permanently delete %s: %s".printf(item.item_type, e.message),
                 project_id,
-                item.item_id
+                item.item_id,
+                null
             );
             error_reported("Failed to permanently delete item", e.message);
         }
@@ -210,7 +215,8 @@ public class TrashController : Object {
                 "result.trash.empty",
                 "Emptied trash",
                 project_id,
-                null
+                null,
+                new TrashActionDetails("all", "all")
             );
             toast_requested("Trash emptied.");
             queue_refresh();
@@ -219,6 +225,7 @@ public class TrashController : Object {
                 "result.trash.empty_failed",
                 "Failed to empty trash: %s".printf(e.message),
                 project_id,
+                null,
                 null
             );
             error_reported("Failed to empty trash", e.message);

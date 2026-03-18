@@ -29,12 +29,13 @@ public class ResourcesToolView : Object, IToolShellAdapter {
     public signal void activity_requested(string kind,
                                           string message,
                                           string? project_id,
-                                          string? resource_id);
+                                          string? resource_id,
+                                          ActivityDetails? details);
 
     public ResourcesToolView() {
         controller = new ResourcesController();
-        controller.activity_requested.connect((kind, message, project_id, resource_id) => {
-            activity_requested(kind, message, project_id, resource_id);
+        controller.activity_requested.connect((kind, message, project_id, resource_id, details) => {
+            activity_requested(kind, message, project_id, resource_id, details);
         });
         widget = build_resources_tab();
     }

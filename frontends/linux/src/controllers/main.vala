@@ -56,7 +56,8 @@ public class MainController : Object, IAiRunContext {
     public signal void activity_requested(string kind,
                                           string message,
                                           string? project_id,
-                                          string? card_id);
+                                          string? card_id,
+                                          ActivityDetails? details);
 
     public MainController(GLib.ListStore project_store,
                           ISelectionState project_selection,
@@ -117,8 +118,9 @@ public class MainController : Object, IAiRunContext {
     internal void emit_activity(string kind,
                                 string message,
                                 string? project_id = null,
-                                string? card_id = null) {
-        activity_requested(kind, message, project_id, card_id);
+                                string? card_id = null,
+                                ActivityDetails? details = null) {
+        activity_requested(kind, message, project_id, card_id, details);
     }
 
     public string? selected_project_id() {

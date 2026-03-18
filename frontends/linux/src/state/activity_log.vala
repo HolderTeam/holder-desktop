@@ -6,18 +6,21 @@ public class ActivityLogEntry : Object {
     public string message { get; construct; }
     public string? project_id { get; construct; }
     public string? card_id { get; construct; }
+    public ActivityDetails? details { get; construct; }
 
     public ActivityLogEntry(int64 timestamp,
                             string kind,
                             string message,
                             string? project_id = null,
-                            string? card_id = null) {
+                            string? card_id = null,
+                            ActivityDetails? details = null) {
         Object(
             timestamp: timestamp,
             kind: kind,
             message: message,
             project_id: project_id,
-            card_id: card_id
+            card_id: card_id,
+            details: details
         );
     }
 }
@@ -36,13 +39,15 @@ public class ActivityLogStore : Object {
     public void append(string kind,
                        string message,
                        string? project_id = null,
-                       string? card_id = null) {
+                       string? card_id = null,
+                       ActivityDetails? details = null) {
         var entry = new ActivityLogEntry(
             new DateTime.now_utc().to_unix(),
             kind,
             message,
             project_id,
-            card_id
+            card_id,
+            details
         );
         entries.add(entry);
         while (entries.size > MAX_ENTRIES) {

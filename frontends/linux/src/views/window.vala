@@ -208,8 +208,9 @@ private class WindowMainControllerSignalSink : Object, IMainControllerSignalSink
     public void on_activity_requested(string kind,
                                       string message,
                                       string? project_id,
-                                      string? card_id) {
-        owner.log_activity(kind, message, project_id, card_id);
+                                      string? card_id,
+                                      ActivityDetails? details) {
+        owner.log_activity(kind, message, project_id, card_id, details);
     }
 }
 
@@ -239,8 +240,9 @@ private class WindowAiPanelEventSink : Object, IAiPanelEventSink {
     public void log_activity(string kind,
                              string message,
                              string? project_id,
-                             string? card_id) {
-        owner.log_activity(kind, message, project_id, card_id);
+                             string? card_id,
+                             ActivityDetails? details) {
+        owner.log_activity(kind, message, project_id, card_id, details);
     }
 }
 
@@ -290,8 +292,9 @@ private class WindowToolboxEventSink : Object, IToolboxEventSink {
     public void log_activity(string kind,
                              string message,
                              string? project_id,
-                             string? card_id) {
-        owner.log_activity(kind, message, project_id, card_id);
+                             string? card_id,
+                             ActivityDetails? details) {
+        owner.log_activity(kind, message, project_id, card_id, details);
     }
 }
 
@@ -779,7 +782,7 @@ public class MainWindow : Adw.ApplicationWindow {
             card_store,
             search_selection_controller,
             (kind, message, project_id, card_id) => {
-                log_activity(kind, message, project_id, card_id);
+                log_activity(kind, message, project_id, card_id, null);
             }
         );
         toolbox_breadcrumb_controller = new ToolboxBreadcrumbController(
@@ -1387,8 +1390,9 @@ public class MainWindow : Adw.ApplicationWindow {
     internal void log_activity(string kind,
                                string message,
                                string? project_id = null,
-                               string? card_id = null) {
-        activity_log_controller.log(kind, message, project_id, card_id);
+                               string? card_id = null,
+                               ActivityDetails? details = null) {
+        activity_log_controller.log(kind, message, project_id, card_id, details);
         if (toolbox != null) {
             var parts = new Gee.ArrayList<string>();
             if (project_id != null && project_id.strip().length > 0) {

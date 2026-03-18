@@ -14,7 +14,8 @@ public class AiRunController : Object {
     public signal void activity_requested(string kind,
                                           string message,
                                           string? project_id,
-                                          string? card_id);
+                                          string? card_id,
+                                          ActivityDetails? details);
     public signal void render_status_requested(AiCapabilitiesInfo capabilities, AiStatusInfo status);
     public signal void render_status_error_requested(string message);
     public signal void append_output_requested(string role, string text);
@@ -100,7 +101,8 @@ public class AiRunController : Object {
                 "action.ai.model_pull.start",
                 "Started model pull: %s".printf(model_tag),
                 main_controller.selected_project_id(),
-                main_controller.get_current_card() != null ? main_controller.get_current_card().card_id : null
+                main_controller.get_current_card() != null ? main_controller.get_current_card().card_id : null,
+                null
             );
             toast_requested("Started pull: %s".printf(model_tag));
             if (job_id.length > 0) {
@@ -114,7 +116,8 @@ public class AiRunController : Object {
                 "result.ai.model_pull_failed",
                 "Failed to start model pull %s: %s".printf(model_tag, e.message),
                 main_controller.selected_project_id(),
-                main_controller.get_current_card() != null ? main_controller.get_current_card().card_id : null
+                main_controller.get_current_card() != null ? main_controller.get_current_card().card_id : null,
+                null
             );
             error_reported("Failed to start model pull", e.message);
         }
@@ -140,7 +143,8 @@ public class AiRunController : Object {
                 "result.ai_thread.create",
                 "Created AI thread: %s".printf(title),
                 current_project.project_id,
-                main_controller.get_current_card() != null ? main_controller.get_current_card().card_id : null
+                main_controller.get_current_card() != null ? main_controller.get_current_card().card_id : null,
+                null
             );
             toast_requested("Created AI thread");
             if (continue_prompt != null && continue_prompt.strip().length > 0) {
@@ -151,7 +155,8 @@ public class AiRunController : Object {
                 "result.ai_thread.create_failed",
                 "Failed to create AI thread: %s".printf(e.message),
                 current_project.project_id,
-                main_controller.get_current_card() != null ? main_controller.get_current_card().card_id : null
+                main_controller.get_current_card() != null ? main_controller.get_current_card().card_id : null,
+                null
             );
             error_reported("Failed to create AI thread", e.message);
         }
@@ -178,7 +183,8 @@ public class AiRunController : Object {
             "action.ai.run.start",
             "Started AI run",
             current_project.project_id,
-            current_card != null ? current_card.card_id : null
+            current_card != null ? current_card.card_id : null,
+            new AiRunDetails("", "", false)
         );
 
         ai_run_in_flight = true;
@@ -204,7 +210,8 @@ public class AiRunController : Object {
                 "result.ai.run_complete",
                 "AI run complete",
                 current_project.project_id,
-                current_card != null ? current_card.card_id : null
+                current_card != null ? current_card.card_id : null,
+                new AiRunDetails("", "", true)
             );
             status_changed("AI run complete");
         } catch (Error e) {
@@ -213,7 +220,8 @@ public class AiRunController : Object {
                 "result.ai.run_failed",
                 "AI run failed: %s".printf(e.message),
                 current_project.project_id,
-                current_card != null ? current_card.card_id : null
+                current_card != null ? current_card.card_id : null,
+                new AiRunDetails("", "", false)
             );
             error_reported("AI run failed", e.message);
         } finally {

@@ -88,7 +88,8 @@ public class GitSyncController : Object {
     public signal void activity_requested(string kind,
                                           string message,
                                           string? project_id,
-                                          string? card_id);
+                                          string? card_id,
+                                          ActivityDetails? details);
 
     public GitSyncController(GitSyncService? service = null) {
         this.service = service ?? new GitSyncService();
@@ -238,7 +239,12 @@ public class GitSyncController : Object {
                     format_push_commit_suffix(push_result)
                 ),
                 selected_project.project_id,
-                null
+                null,
+                new GitPushDetails(
+                    push_result.status,
+                    push_result.local_head_commit,
+                    push_result.branch
+                )
             );
         } else {
             lines.append("Push: not run");
@@ -312,7 +318,12 @@ public class GitSyncController : Object {
                     format_push_commit_suffix(push_result)
                 ),
                 selected_project.project_id,
-                null
+                null,
+                new GitPushDetails(
+                    push_result.status,
+                    push_result.local_head_commit,
+                    push_result.branch
+                )
             );
         } else {
             status.append("Push not run.");
@@ -375,7 +386,12 @@ public class GitSyncController : Object {
                     format_push_commit_suffix(push_result)
                 ),
                 selected_project.project_id,
-                null
+                null,
+                new GitPushDetails(
+                    push_result.status,
+                    push_result.local_head_commit,
+                    push_result.branch
+                )
             );
         } else {
             lines.append("Push: not run\n");

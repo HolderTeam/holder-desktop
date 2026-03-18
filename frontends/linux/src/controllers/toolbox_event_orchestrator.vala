@@ -13,7 +13,8 @@ internal interface IToolboxEventSink : Object {
     public abstract void log_activity(string kind,
                                       string message,
                                       string? project_id,
-                                      string? card_id);
+                                      string? card_id,
+                                      ActivityDetails? details);
 }
 
 internal class ToolboxEventOrchestrator : Object {
@@ -98,8 +99,8 @@ internal class ToolboxEventOrchestrator : Object {
         toolbox.terminal_copy_to_card_requested.connect((text) => {
             sink.append_text_to_current_card(text);
         });
-        toolbox.activity_requested.connect((kind, message, project_id, card_id) => {
-            sink.log_activity(kind, message, project_id, card_id);
+        toolbox.activity_requested.connect((kind, message, project_id, card_id, details) => {
+            sink.log_activity(kind, message, project_id, card_id, details);
         });
     }
 }

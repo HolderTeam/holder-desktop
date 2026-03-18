@@ -8,7 +8,8 @@ internal interface IAiPanelEventSink : Object {
     public abstract void log_activity(string kind,
                                       string message,
                                       string? project_id,
-                                      string? card_id);
+                                      string? card_id,
+                                      ActivityDetails? details);
 }
 
 internal class AiPanelEventOrchestrator : Object {
@@ -53,8 +54,8 @@ internal class AiPanelEventOrchestrator : Object {
         ai_run_controller.toast_requested.connect((message) => {
             sink.add_toast(message);
         });
-        ai_run_controller.activity_requested.connect((kind, message, project_id, card_id) => {
-            sink.log_activity(kind, message, project_id, card_id);
+        ai_run_controller.activity_requested.connect((kind, message, project_id, card_id, details) => {
+            sink.log_activity(kind, message, project_id, card_id, details);
         });
         ai_run_controller.render_status_requested.connect((capabilities, status) => {
             ai_panel.render_status(capabilities, status);
