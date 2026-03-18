@@ -73,6 +73,13 @@ public interface IHolderApi : Object {
     public abstract async void upsert_ai_provider_credential(string provider, string api_key) throws Error;
     public abstract async void delete_ai_provider_credential(string provider) throws Error;
     public abstract async void set_ai_provider_enabled(string provider, bool enabled) throws Error;
+    public abstract async NudgeEvaluationResult evaluate_nudge_candidate(string kind,
+                                                                         string project_id,
+                                                                         string? card_id,
+                                                                         int64 created_at,
+                                                                         Json.Object facts,
+                                                                         string? basis_fingerprint = null,
+                                                                         string? basis_commit = null) throws Error;
     public abstract async Gee.ArrayList<GitProviderCatalogEntry> list_git_provider_catalog() throws Error;
     public abstract async void set_project_git_remote(string project_id,
                                                       string? git_remote_url,

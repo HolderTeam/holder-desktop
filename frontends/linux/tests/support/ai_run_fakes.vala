@@ -176,6 +176,15 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public async void upsert_ai_provider_credential(string provider, string api_key) throws Error {}
     public async void delete_ai_provider_credential(string provider) throws Error {}
     public async void set_ai_provider_enabled(string provider, bool enabled) throws Error {}
+    public async HolderLinux.NudgeEvaluationResult evaluate_nudge_candidate(string kind,
+                                                                            string project_id,
+                                                                            string? card_id,
+                                                                            int64 created_at,
+                                                                            Json.Object facts,
+                                                                            string? basis_fingerprint = null,
+                                                                            string? basis_commit = null) throws Error {
+        return new HolderLinux.NudgeEvaluationResult(kind, false, false, "fake_not_implemented");
+    }
     public async Gee.ArrayList<HolderLinux.GitProviderCatalogEntry> list_git_provider_catalog() throws Error {
         return new Gee.ArrayList<HolderLinux.GitProviderCatalogEntry>();
     }

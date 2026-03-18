@@ -225,6 +225,19 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
         }
         return providers; // LCOV_EXCL_BR_LINE: return edge branch artifact
     }
+
+    public static NudgeEvaluationResult parse_nudge_evaluation(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for nudge evaluation response");
+        }
+        var data = root.get_object_member("data");
+        return new NudgeEvaluationResult(
+            ApiParsersCommon.string_member_or_empty(data, "kind"),
+            data.has_member("accepted") ? data.get_boolean_member("accepted") : false,
+            data.has_member("should_nudge") ? data.get_boolean_member("should_nudge") : false,
+            ApiParsersCommon.string_member_or_empty(data, "reason")
+        );
+    }
 }
 
 }

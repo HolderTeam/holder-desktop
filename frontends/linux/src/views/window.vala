@@ -874,6 +874,7 @@ public class MainWindow : Adw.ApplicationWindow {
         activity_log_store.entry_added.connect((entry) => {
             foreach (var candidate in activity_reducer.reduce(activity_log_store.snapshot())) {
                 log_nudge_candidate(candidate);
+                evaluate_nudge_candidate.begin(candidate);
             }
         });
         window_flowboard_event_binder.bind();
@@ -1442,6 +1443,40 @@ public class MainWindow : Adw.ApplicationWindow {
                 facts_json
             )
         );
+    }
+
+    internal async void evaluate_nudge_candidate(NudgeCandidate candidate) {
+        var api = controller.get_api_client();
+        if (api == null) {
+            return;
+        }
+        try {
+            var result = yield api.evaluate_nudge_candidate(
+                candidate.kind,
+                candidate.project_id,
+                candidate.card_id,
+                candidate.created_at,
+                candidate.facts,
+                candidate.basis_fingerprint,
+                candidate.basis_commit
+            );
+            if (toolbox != null) {
+                toolbox.log_debug(
+                    "NUDGE_EVAL %s accepted=%s should_nudge=%s reason=%s".printf(
+                        result.kind,
+                        result.accepted ? "true" : "false",
+                        result.should_nudge ? "true" : "false",
+                        result.reason
+                    )
+                );
+            }
+        } catch (Error e) {
+            if (toolbox != null) {
+                toolbox.log_debug(
+                    "NUDGE_EVAL_ERROR %s %s".printf(candidate.kind, e.message)
+                );
+            }
+        }
     }
 
     internal void log_status_activity(string text) {

@@ -132,6 +132,47 @@ public class ApiClientAiEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration b
                                   client.json_string_from_builder(body),
                                   null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
     }
+
+    public static async NudgeEvaluationResult evaluate_nudge_candidate(ApiClient client,
+                                                                       string kind,
+                                                                       string project_id,
+                                                                       string? card_id,
+                                                                       int64 created_at,
+                                                                       Json.Object facts,
+                                                                       string? basis_fingerprint = null,
+                                                                       string? basis_commit = null) throws Error {
+        var body = new Json.Builder();
+        var facts_node = new Json.Node(Json.NodeType.OBJECT);
+        facts_node.set_object(facts);
+        body.begin_object();
+        body.set_member_name("kind");
+        body.add_string_value(kind);
+        body.set_member_name("project_id");
+        body.add_string_value(project_id);
+        if (card_id != null && card_id.length > 0) {
+            body.set_member_name("card_id");
+            body.add_string_value(card_id);
+        }
+        body.set_member_name("created_at");
+        body.add_int_value(created_at);
+        if (basis_fingerprint != null && basis_fingerprint.length > 0) {
+            body.set_member_name("basis_fingerprint");
+            body.add_string_value(basis_fingerprint);
+        }
+        if (basis_commit != null && basis_commit.length > 0) {
+            body.set_member_name("basis_commit");
+            body.add_string_value(basis_commit);
+        }
+        body.set_member_name("facts");
+        body.add_value(facts_node);
+        body.end_object();
+
+        var root = yield client.request_json("POST",
+                                             "/ai/nudges/evaluate",
+                                             client.json_string_from_builder(body),
+                                             null);
+        return ApiParsersAi.parse_nudge_evaluation(root);
+    }
 }
 
 }

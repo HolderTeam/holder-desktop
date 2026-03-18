@@ -877,4 +877,23 @@ public class GitPushDetails : ActivityDetails {
     }
 }
 
+public class NudgeEvaluationResult : Object {
+    public string kind { get; construct; }
+    public bool accepted { get; construct; }
+    public bool should_nudge { get; construct; }
+    public string reason { get; construct; }
+
+    public NudgeEvaluationResult(string kind,
+                                 bool accepted,
+                                 bool should_nudge,
+                                 string reason) {
+        Object(
+            kind: kind,
+            accepted: accepted,
+            should_nudge: should_nudge,
+            reason: reason
+        );
+    }
+}
+
 }
