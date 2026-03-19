@@ -1219,6 +1219,7 @@ public class MainWindow : Adw.ApplicationWindow {
             return;
         }
         selection_intent_orchestrator.on_ai_thread_selection_changed();
+        ai_run_controller.refresh_selected_thread_output.begin();
     }
 
     internal void on_editor_buffer_changed() {

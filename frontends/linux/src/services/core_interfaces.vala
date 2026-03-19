@@ -64,6 +64,7 @@ public interface IHolderApi : Object {
     public abstract async AiStatusInfo get_ai_status() throws Error;
     public abstract async string start_ai_runner_pull(string model_tag) throws Error;
     public abstract async Gee.ArrayList<AiThreadSummary> list_ai_threads(string project_id) throws Error;
+    public abstract async Gee.ArrayList<AiMessage> list_ai_messages(string thread_id) throws Error;
     public abstract async string create_ai_thread(string project_id, string title) throws Error;
     public abstract async Gee.ArrayList<AiCatalogProvider> list_ai_provider_catalog() throws Error;
     public abstract async Gee.ArrayList<AiRuntimeProvider> list_ai_runtime_providers() throws Error;
@@ -187,6 +188,7 @@ public interface IAiRunContext : Object {
     public abstract Project? get_current_project();
     public abstract CardDetail? get_current_card();
     public abstract AiThreadSummary? get_current_ai_thread();
+    public abstract async Gee.ArrayList<AiMessage> list_ai_messages(string thread_id) throws Error;
     public abstract int64 now_epoch_seconds();
     public abstract async string create_ai_thread(string title) throws Error;
     public abstract async void reload_ai_threads_for_project(string project_id);

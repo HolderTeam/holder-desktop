@@ -40,6 +40,14 @@ public class ApiClientAiEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration b
         return ApiParsersAi.parse_ai_threads(root); // LCOV_EXCL_BR_LINE: return edge artifact
     }
 
+    public static async Gee.ArrayList<AiMessage> list_ai_messages(ApiClient client,
+                                                                  string thread_id) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("thread_id", thread_id);
+        var root = yield client.request_json("GET", "/ai/messages", null, query);
+        return ApiParsersAi.parse_ai_messages(root);
+    }
+
     public static async string create_ai_thread(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
                                                 string project_id,
                                                 string title) throws Error {

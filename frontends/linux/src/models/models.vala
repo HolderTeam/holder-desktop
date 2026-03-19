@@ -428,6 +428,37 @@ public class AiThreadSummary : Object {
     }
 }
 
+public class AiMessage : Object {
+    public string message_id { get; construct; }
+    public string thread_id { get; construct; }
+    public string role { get; construct; }
+    public string source { get; construct; }
+    public string? provider { get; construct; }
+    public string? model { get; construct; }
+    public string content { get; construct; }
+    public int64 created_at { get; construct; }
+
+    public AiMessage(string message_id,
+                     string thread_id,
+                     string role,
+                     string source,
+                     string? provider,
+                     string? model,
+                     string content,
+                     int64 created_at) {
+        Object(
+            message_id: message_id,
+            thread_id: thread_id,
+            role: role,
+            source: source,
+            provider: provider,
+            model: model,
+            content: content,
+            created_at: created_at
+        );
+    }
+}
+
 public class AiCatalogProvider : Object {
     public string id { get; construct; }
     public string display_name { get; construct; }

@@ -102,6 +102,10 @@ public class AiPanel : Object {
         ai_output_buffer.insert(ref end, text, -1);
     }
 
+    public void set_output_text(string text) {
+        ai_output_buffer.set_text(text, -1);
+    }
+
     public void render_status(AiCapabilitiesInfo capabilities, AiStatusInfo status) {
         ai_config_panel.render_local_models(capabilities, status);
     }

@@ -55,6 +55,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int create_card_calls = 0;
     public int create_project_calls = 0;
     public int list_threads_calls = 0;
+    public int list_ai_messages_calls = 0;
     public int factory_create_calls = 0;
     public int list_resources_calls = 0;
     public int create_resource_calls = 0;
@@ -484,6 +485,11 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         }
         threads.add(new HolderLinux.AiThreadSummary("t1", project_id, "Thread 1", 30, 30));
         return threads;
+    }
+
+    public async Gee.ArrayList<HolderLinux.AiMessage> list_ai_messages(string thread_id) throws Error {
+        list_ai_messages_calls++;
+        return new Gee.ArrayList<HolderLinux.AiMessage>();
     }
 
     public async string create_ai_thread(string project_id, string title) throws Error {

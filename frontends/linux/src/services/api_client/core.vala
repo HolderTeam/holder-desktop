@@ -201,6 +201,10 @@ public class ApiClient : Object, IHolderApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR
         return yield ApiClientAiEndpoints.list_ai_threads(this, project_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
+    public async Gee.ArrayList<AiMessage> list_ai_messages(string thread_id) throws Error {
+        return yield ApiClientAiEndpoints.list_ai_messages(this, thread_id);
+    }
+
     public async string create_ai_thread(string project_id, string title) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
         return yield ApiClientAiEndpoints.create_ai_thread(this, project_id, title); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }

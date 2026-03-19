@@ -6,6 +6,7 @@ public class AiRunController : Object {
     private bool ai_run_in_flight = false;
     private bool panel_visible = false;
     private uint ai_poll_id = 0;
+    private uint transcript_request_serial = 0;
     private const uint AI_POLL_INTERVAL_MS = 2000;
 
     public signal void status_changed(string text);
@@ -20,6 +21,7 @@ public class AiRunController : Object {
     public signal void render_status_error_requested(string message);
     public signal void append_output_requested(string role, string text);
     public signal void append_output_chunk_requested(string text);
+    public signal void replace_output_requested(string text);
     public signal void clear_prompt_requested();
     public signal void set_send_enabled_requested(bool enabled);
 
@@ -53,6 +55,28 @@ public class AiRunController : Object {
             status_changed("AI status refresh failed");
             error_reported("AI status refresh failed", e.message);
             stop_ai_polling();
+        }
+    }
+
+    public async void refresh_selected_thread_output() {
+        var current_thread = main_controller.get_current_ai_thread();
+        var request_serial = ++transcript_request_serial;
+        if (current_thread == null) {
+            replace_output_requested("");
+            return;
+        }
+        try {
+            var messages = yield main_controller.list_ai_messages(current_thread.thread_id);
+            if (request_serial != transcript_request_serial) {
+                return;
+            }
+            replace_output_requested(render_transcript(messages));
+        } catch (Error e) {
+            if (request_serial != transcript_request_serial) {
+                return;
+            }
+            replace_output_requested("");
+            error_reported("Failed to load AI thread", e.message);
         }
     }
 
@@ -213,6 +237,7 @@ public class AiRunController : Object {
                 current_card != null ? current_card.card_id : null,
                 new AiRunDetails("", "", true)
             );
+            refresh_selected_thread_output.begin();
             status_changed("AI run complete");
         } catch (Error e) {
             append_output_requested("System", "AI run failed: %s".printf(e.message));
@@ -311,6 +336,32 @@ public class AiRunController : Object {
             return "";
         }
         return obj.get_string_member(key);
+    }
+
+    private string render_transcript(Gee.List<AiMessage> messages) {
+        var builder = new StringBuilder();
+        foreach (var message in messages) {
+            if (builder.len > 0) {
+                builder.append("\n\n");
+            }
+            builder.append(message_role_label(message.role));
+            builder.append(":\n");
+            builder.append(message.content);
+        }
+        return builder.str;
+    }
+
+    private string message_role_label(string role) {
+        switch (role) {
+            case "user":
+                return "You";
+            case "assistant":
+                return "Assistant";
+            case "system":
+                return "System";
+            default:
+                return role;
+        }
     }
 }
 

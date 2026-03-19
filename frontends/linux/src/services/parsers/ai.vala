@@ -101,6 +101,43 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
         return out_list; // LCOV_EXCL_BR_LINE: return edge branch artifact
     }
 
+    public static Gee.ArrayList<AiMessage> parse_ai_messages(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai messages response");
+        }
+
+        var out_list = new Gee.ArrayList<AiMessage>();
+        var data = root.get_array_member("data");
+        for (uint i = 0; i < data.get_length(); i++) {
+            var item = data.get_object_element(i);
+            string? provider = null;
+            if (item.has_member("provider")) {
+                var provider_node = item.get_member("provider");
+                if (provider_node != null && provider_node.get_node_type() != Json.NodeType.NULL) {
+                    provider = item.get_string_member("provider");
+                }
+            }
+            string? model = null;
+            if (item.has_member("model")) {
+                var model_node = item.get_member("model");
+                if (model_node != null && model_node.get_node_type() != Json.NodeType.NULL) {
+                    model = item.get_string_member("model");
+                }
+            }
+            out_list.add(new AiMessage(
+                ApiParsersCommon.string_member_or_empty(item, "message_id"),
+                ApiParsersCommon.string_member_or_empty(item, "thread_id"),
+                ApiParsersCommon.string_member_or_empty(item, "role"),
+                ApiParsersCommon.string_member_or_empty(item, "source"),
+                provider,
+                model,
+                ApiParsersCommon.string_member_or_empty(item, "content"),
+                item.has_member("created_at") ? item.get_int_member("created_at") : 0
+            ));
+        }
+        return out_list;
+    }
+
     public static Gee.ArrayList<AiCatalogProvider> parse_ai_provider_catalog(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
         var providers = new Gee.ArrayList<AiCatalogProvider>();
         var models_node = ApiParsersCommon.object_member_or_null(root, "models");

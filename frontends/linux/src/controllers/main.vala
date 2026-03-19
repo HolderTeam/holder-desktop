@@ -147,6 +147,13 @@ public class MainController : Object, IAiRunContext {
         return yield ai_threads_controller.create_ai_thread(title);
     }
 
+    public async Gee.ArrayList<AiMessage> list_ai_messages(string thread_id) throws Error {
+        if (api == null) {
+            throw new IOError.FAILED("No API context.");
+        }
+        return yield api.list_ai_messages(thread_id);
+    }
+
     public async void bootstrap() {
         status_changed("Discovering local server...");
         editor_state_changed("# Loading\n\nDiscovering local server...", false);

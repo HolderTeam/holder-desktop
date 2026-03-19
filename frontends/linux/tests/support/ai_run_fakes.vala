@@ -155,6 +155,9 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public async Gee.ArrayList<HolderLinux.AiThreadSummary> list_ai_threads(string project_id) throws Error {
         return new Gee.ArrayList<HolderLinux.AiThreadSummary>();
     }
+    public async Gee.ArrayList<HolderLinux.AiMessage> list_ai_messages(string thread_id) throws Error {
+        return new Gee.ArrayList<HolderLinux.AiMessage>();
+    }
     public async string create_ai_thread(string project_id, string title) throws Error {
         return "t-created";
     }
@@ -334,6 +337,10 @@ public class AiRunFakeContext : Object, HolderLinux.IAiRunContext {
 
     public HolderLinux.AiThreadSummary? get_current_ai_thread() {
         return thread;
+    }
+
+    public async Gee.ArrayList<HolderLinux.AiMessage> list_ai_messages(string thread_id) throws Error {
+        return new Gee.ArrayList<HolderLinux.AiMessage>();
     }
 
     public int64 now_epoch_seconds() {
