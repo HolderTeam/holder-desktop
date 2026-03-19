@@ -10,8 +10,8 @@ public class AiPanel : Object {
     private Gtk.TextBuffer ai_output_buffer;
     private Gtk.TextView ai_prompt_view;
     private Gtk.Label ai_assistant_thread_label;
+    private Gtk.Box ai_nudges_section;
     private Gtk.Box ai_nudges_box;
-    private Gtk.Label ai_nudges_empty_label;
     private Gtk.Button send_btn;
     private AiConfigPanelView ai_config_panel;
     private AiPanelRenderState render_state;
@@ -144,15 +144,11 @@ public class AiPanel : Object {
         ai_assistant_thread_label.add_css_class("dim-label");
         assistant.append(ai_assistant_thread_label);
 
-        var nudges_header = new Gtk.Label("Nudges") { xalign = 0.0f };
-        nudges_header.add_css_class("heading");
-        assistant.append(nudges_header);
-
+        ai_nudges_section = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
         ai_nudges_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
-        ai_nudges_empty_label = new Gtk.Label("No nudges right now.") { xalign = 0.0f };
-        ai_nudges_empty_label.add_css_class("dim-label");
-        ai_nudges_box.append(ai_nudges_empty_label);
-        assistant.append(ai_nudges_box);
+        ai_nudges_section.append(ai_nudges_box);
+        ai_nudges_section.set_visible(false);
+        assistant.append(ai_nudges_section);
 
         ai_output_buffer = new Gtk.TextBuffer(null);
         var ai_output_view = new Gtk.TextView.with_buffer(ai_output_buffer);
@@ -237,10 +233,11 @@ public class AiPanel : Object {
         }
 
         if (nudges.size == 0) {
-            ai_nudges_box.append(ai_nudges_empty_label);
+            ai_nudges_section.set_visible(false);
             return;
         }
 
+        ai_nudges_section.set_visible(true);
         foreach (var nudge in nudges) {
             ai_nudges_box.append(build_nudge_widget(nudge));
         }
