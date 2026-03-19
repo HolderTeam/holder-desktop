@@ -133,6 +133,26 @@ public class ApiClientAiEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration b
                                   null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
     }
 
+    public static async Gee.ArrayList<AiNudge> list_ai_nudges(ApiClient client,
+                                                              string project_id,
+                                                              string? card_id = null) throws Error {
+        var path = "/ai/nudges?project_id=%s".printf(Uri.escape_string(project_id, null, false));
+        if (card_id != null && card_id.length > 0) {
+            path += "&card_id=%s".printf(Uri.escape_string(card_id, null, false));
+        }
+        var root = yield client.request_json("GET", path, null, null);
+        return ApiParsersAi.parse_ai_nudge_list(root);
+    }
+
+    public static async void dismiss_ai_nudge(ApiClient client, string nudge_id) throws Error {
+        yield client.request_json(
+            "POST",
+            "/ai/nudges/%s/dismiss".printf(Uri.escape_string(nudge_id, null, false)),
+            "",
+            null
+        );
+    }
+
     public static async NudgeEvaluationResult evaluate_nudge_candidate(ApiClient client,
                                                                        string kind,
                                                                        string project_id,

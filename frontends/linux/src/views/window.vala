@@ -1311,6 +1311,7 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void on_app_state_changed() {
         apply_sidebar_from_state();
+        ai_panel.refresh_nudges(app_state_store.selection.project_id, app_state_store.selection.card_id);
     }
 
     internal void on_navigation_loading_changed(bool loading) {
@@ -1382,6 +1383,7 @@ public class MainWindow : Adw.ApplicationWindow {
     internal void on_api_client_connected(IHolderApi api_client) {
         ai_panel.set_api_client(api_client);
         ai_panel.refresh_config(controller.selected_project_id());
+        ai_panel.refresh_nudges(controller.selected_project_id(), controller.selected_card_id());
         toolbox.set_api_client(api_client);
     }
 
@@ -1469,6 +1471,9 @@ public class MainWindow : Adw.ApplicationWindow {
                         result.reason
                     )
                 );
+            }
+            if (result.nudge != null) {
+                ai_panel.refresh_nudges(candidate.project_id, candidate.card_id);
             }
         } catch (Error e) {
             if (toolbox != null) {

@@ -176,6 +176,11 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public async void upsert_ai_provider_credential(string provider, string api_key) throws Error {}
     public async void delete_ai_provider_credential(string provider) throws Error {}
     public async void set_ai_provider_enabled(string provider, bool enabled) throws Error {}
+    public async Gee.ArrayList<HolderLinux.AiNudge> list_ai_nudges(string project_id,
+                                                                   string? card_id = null) throws Error {
+        return new Gee.ArrayList<HolderLinux.AiNudge>();
+    }
+    public async void dismiss_ai_nudge(string nudge_id) throws Error {}
     public async HolderLinux.NudgeEvaluationResult evaluate_nudge_candidate(string kind,
                                                                             string project_id,
                                                                             string? card_id,

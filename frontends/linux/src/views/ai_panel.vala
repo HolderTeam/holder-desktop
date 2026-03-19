@@ -6,12 +6,18 @@ public class AiPanel : Object {
         public bool send_enabled = true;
     }
 
+    private IHolderApi? api_client;
     private Gtk.TextBuffer ai_output_buffer;
     private Gtk.TextView ai_prompt_view;
     private Gtk.Label ai_assistant_thread_label;
+    private Gtk.Box ai_nudges_box;
+    private Gtk.Label ai_nudges_empty_label;
     private Gtk.Button send_btn;
     private AiConfigPanelView ai_config_panel;
     private AiPanelRenderState render_state;
+    private string? nudges_project_id;
+    private string? nudges_card_id;
+    private uint nudges_request_serial = 0;
 
     public Gtk.Widget widget { get; private set; }
 
@@ -39,11 +45,19 @@ public class AiPanel : Object {
     }
 
     public void set_api_client(IHolderApi? api) {
+        api_client = api;
         ai_config_panel.set_api_client(api);
     }
 
     public void refresh_config(string? project_id = null) {
         ai_config_panel.refresh.begin(project_id);
+    }
+
+    public void refresh_nudges(string? project_id = null, string? card_id = null) {
+        nudges_project_id = project_id;
+        nudges_card_id = card_id;
+        var request_serial = ++nudges_request_serial;
+        refresh_nudges_async.begin(request_serial, project_id, card_id);
     }
 
     public void set_thread_title(string? title) {
@@ -130,6 +144,16 @@ public class AiPanel : Object {
         ai_assistant_thread_label.add_css_class("dim-label");
         assistant.append(ai_assistant_thread_label);
 
+        var nudges_header = new Gtk.Label("Nudges") { xalign = 0.0f };
+        nudges_header.add_css_class("heading");
+        assistant.append(nudges_header);
+
+        ai_nudges_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        ai_nudges_empty_label = new Gtk.Label("No nudges right now.") { xalign = 0.0f };
+        ai_nudges_empty_label.add_css_class("dim-label");
+        ai_nudges_box.append(ai_nudges_empty_label);
+        assistant.append(ai_nudges_box);
+
         ai_output_buffer = new Gtk.TextBuffer(null);
         var ai_output_view = new Gtk.TextView.with_buffer(ai_output_buffer);
         ai_output_view.set_editable(false);
@@ -178,6 +202,88 @@ public class AiPanel : Object {
     private void apply_render_state() {
         ai_assistant_thread_label.set_text(render_state.thread_title);
         send_btn.set_sensitive(render_state.send_enabled);
+    }
+
+    private async void refresh_nudges_async(uint request_serial,
+                                            string? project_id,
+                                            string? card_id) {
+        if (api_client == null || project_id == null || project_id.strip().length == 0) {
+            if (request_serial == nudges_request_serial) {
+                render_nudges(new Gee.ArrayList<AiNudge>());
+            }
+            return;
+        }
+        try {
+            var nudges = yield api_client.list_ai_nudges(project_id, card_id);
+            if (request_serial != nudges_request_serial) {
+                return;
+            }
+            render_nudges(nudges);
+        } catch (Error e) {
+            if (request_serial != nudges_request_serial) {
+                return;
+            }
+            render_nudges(new Gee.ArrayList<AiNudge>());
+            debug_log_requested("NUDGE_LIST_ERROR %s".printf(e.message));
+        }
+    }
+
+    private void render_nudges(Gee.List<AiNudge> nudges) {
+        Gtk.Widget? child = ai_nudges_box.get_first_child();
+        while (child != null) {
+            var next = child.get_next_sibling();
+            ai_nudges_box.remove(child);
+            child = next;
+        }
+
+        if (nudges.size == 0) {
+            ai_nudges_box.append(ai_nudges_empty_label);
+            return;
+        }
+
+        foreach (var nudge in nudges) {
+            ai_nudges_box.append(build_nudge_widget(nudge));
+        }
+    }
+
+    private Gtk.Widget build_nudge_widget(AiNudge nudge) {
+        var frame = new Gtk.Frame(null);
+        var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        box.set_margin_top(8);
+        box.set_margin_bottom(8);
+        box.set_margin_start(8);
+        box.set_margin_end(8);
+
+        var header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var title = new Gtk.Label(nudge.title) { xalign = 0.0f };
+        title.add_css_class("heading");
+        title.set_hexpand(true);
+        var dismiss_btn = new Gtk.Button.with_label("Dismiss");
+        dismiss_btn.clicked.connect(() => {
+            dismiss_nudge.begin(nudge.nudge_id);
+        });
+        header.append(title);
+        header.append(dismiss_btn);
+
+        var body = new Gtk.Label(nudge.body) { xalign = 0.0f };
+        body.set_wrap(true);
+
+        box.append(header);
+        box.append(body);
+        frame.set_child(box);
+        return frame;
+    }
+
+    private async void dismiss_nudge(string nudge_id) {
+        if (api_client == null) {
+            return;
+        }
+        try {
+            yield api_client.dismiss_ai_nudge(nudge_id);
+            refresh_nudges(nudges_project_id, nudges_card_id);
+        } catch (Error e) {
+            debug_log_requested("NUDGE_DISMISS_ERROR %s".printf(e.message));
+        }
     }
 }
 

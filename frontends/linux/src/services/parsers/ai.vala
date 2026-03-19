@@ -231,12 +231,50 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
             throw new ApiError.PROTOCOL("Missing data for nudge evaluation response");
         }
         var data = root.get_object_member("data");
+        AiNudge? nudge = null;
+        if (data.has_member("nudge")) {
+            var node = data.get_member("nudge");
+            if (node != null && node.get_node_type() == Json.NodeType.OBJECT) {
+                nudge = parse_ai_nudge(node.get_object());
+            }
+        }
         return new NudgeEvaluationResult(
             ApiParsersCommon.string_member_or_empty(data, "kind"),
             data.has_member("accepted") ? data.get_boolean_member("accepted") : false,
             data.has_member("should_nudge") ? data.get_boolean_member("should_nudge") : false,
-            ApiParsersCommon.string_member_or_empty(data, "reason")
+            ApiParsersCommon.string_member_or_empty(data, "reason"),
+            nudge
         );
+    }
+
+    public static AiNudge parse_ai_nudge(Json.Object data) throws Error {
+        return new AiNudge(
+            ApiParsersCommon.string_member_or_empty(data, "nudge_id"),
+            ApiParsersCommon.string_member_or_empty(data, "kind"),
+            ApiParsersCommon.string_member_or_empty(data, "project_id"),
+            ApiParsersCommon.string_member_or_empty(data, "card_id"),
+            ApiParsersCommon.string_member_or_empty(data, "title"),
+            ApiParsersCommon.string_member_or_empty(data, "body"),
+            ApiParsersCommon.string_member_or_empty(data, "basis_fingerprint"),
+            ApiParsersCommon.string_member_or_empty(data, "basis_commit"),
+            data.has_member("created_at") ? data.get_int_member("created_at") : 0
+        );
+    }
+
+    public static Gee.ArrayList<AiNudge> parse_ai_nudge_list(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai nudge list response");
+        }
+        var data = root.get_object_member("data");
+        if (!data.has_member("nudges")) {
+            throw new ApiError.PROTOCOL("Missing data.nudges for ai nudge list response");
+        }
+        var nudges = new Gee.ArrayList<AiNudge>();
+        var items = data.get_array_member("nudges");
+        for (uint i = 0; i < items.get_length(); i++) {
+            nudges.add(parse_ai_nudge(items.get_object_element(i)));
+        }
+        return nudges;
     }
 }
 

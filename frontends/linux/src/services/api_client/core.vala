@@ -237,6 +237,15 @@ public class ApiClient : Object, IHolderApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR
         yield ApiClientAiEndpoints.set_ai_provider_enabled(this, provider, enabled); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
+    public async Gee.ArrayList<AiNudge> list_ai_nudges(string project_id,
+                                                       string? card_id = null) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        return yield ApiClientAiEndpoints.list_ai_nudges(this, project_id, card_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async void dismiss_ai_nudge(string nudge_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        yield ApiClientAiEndpoints.dismiss_ai_nudge(this, nudge_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
     public async NudgeEvaluationResult evaluate_nudge_candidate(string kind,
                                                                 string project_id,
                                                                 string? card_id,
