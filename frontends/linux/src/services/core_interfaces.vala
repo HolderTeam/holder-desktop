@@ -191,7 +191,8 @@ public interface IAiRunContext : Object {
     public abstract async Gee.ArrayList<AiMessage> list_ai_messages(string thread_id) throws Error;
     public abstract int64 now_epoch_seconds();
     public abstract async string create_ai_thread(string title) throws Error;
-    public abstract async void reload_ai_threads_for_project(string project_id);
+    public abstract async void reload_ai_threads_for_project(string project_id,
+                                                             string? preferred_thread_id = null);
     public abstract bool select_ai_thread_by_id(string thread_id);
 }
 

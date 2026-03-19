@@ -159,10 +159,7 @@ public class AiRunController : Object {
         }
         try {
             var thread_id = yield main_controller.create_ai_thread(title);
-            yield main_controller.reload_ai_threads_for_project(current_project.project_id);
-            if (thread_id.length > 0) {
-                main_controller.select_ai_thread_by_id(thread_id);
-            }
+            yield main_controller.reload_ai_threads_for_project(current_project.project_id, thread_id);
             activity_requested(
                 "result.ai_thread.create",
                 "Created AI thread: %s".printf(title),
@@ -237,6 +234,7 @@ public class AiRunController : Object {
                 current_card != null ? current_card.card_id : null,
                 new AiRunDetails("", "", true)
             );
+            yield main_controller.reload_ai_threads_for_project(current_project.project_id, thread_id);
             refresh_selected_thread_output.begin();
             status_changed("AI run complete");
         } catch (Error e) {

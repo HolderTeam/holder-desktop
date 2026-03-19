@@ -305,8 +305,9 @@ public class MainController : Object, IAiRunContext {
         yield projects_controller.create_project_named(name, privacy_mode);
     }
 
-    public async void reload_ai_threads_for_project(string project_id) {
-        yield ai_threads_controller.reload_ai_threads_for_project(project_id);
+    public async void reload_ai_threads_for_project(string project_id,
+                                                    string? preferred_thread_id = null) {
+        yield ai_threads_controller.reload_ai_threads_for_project(project_id, preferred_thread_id);
     }
 
     internal async void ensure_first_project() {

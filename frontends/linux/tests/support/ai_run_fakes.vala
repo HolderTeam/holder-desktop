@@ -355,7 +355,8 @@ public class AiRunFakeContext : Object, HolderLinux.IAiRunContext {
         return create_thread_id;
     }
 
-    public async void reload_ai_threads_for_project(string project_id) {
+    public async void reload_ai_threads_for_project(string project_id,
+                                                    string? preferred_thread_id = null) {
         reload_threads_calls++;
     }
 
