@@ -85,6 +85,12 @@ public class GitSyncController : Object {
     private GitSyncService service;
     private Settings? settings;
 
+    public signal void activity_requested(string kind,
+                                          string message,
+                                          string? project_id,
+                                          string? card_id,
+                                          ActivityDetails? details);
+
     public GitSyncController(GitSyncService? service = null) {
         this.service = service ?? new GitSyncService();
     }
@@ -176,6 +182,14 @@ public class GitSyncController : Object {
         return yield service.configure_remote_and_sync(api, project_id, remote_url, branch);
     }
 
+    private static string format_push_commit_suffix(GitPushResult push_result) {
+        var commit = push_result.local_head_commit.strip();
+        if (commit.length == 0) {
+            return "";
+        }
+        return " [local_head_commit=%s]".printf(commit);
+    }
+
     public async GitSyncApplyFlowResult apply_project_git_remote_and_sync(IHolderApi api,
                                                                            Project selected_project,
                                                                            string remote_url,
@@ -218,6 +232,20 @@ public class GitSyncController : Object {
             if (push_result.status == "pushed" || push_result.status == "up_to_date") {
                 toast_message = "Git remote configured and synced.";
             }
+            activity_requested(
+                "result.git.push",
+                "Git push result: %s%s".printf(
+                    push_result.status,
+                    format_push_commit_suffix(push_result)
+                ),
+                selected_project.project_id,
+                null,
+                new GitPushDetails(
+                    push_result.status,
+                    push_result.local_head_commit,
+                    push_result.branch
+                )
+            );
         } else {
             lines.append("Push: not run");
         }
@@ -283,6 +311,20 @@ public class GitSyncController : Object {
             if (push_result.status == "pushed" || push_result.status == "up_to_date") {
                 toast_message = "GitHub CLI sync setup completed.";
             }
+            activity_requested(
+                "result.git.push",
+                "Git push result: %s%s".printf(
+                    push_result.status,
+                    format_push_commit_suffix(push_result)
+                ),
+                selected_project.project_id,
+                null,
+                new GitPushDetails(
+                    push_result.status,
+                    push_result.local_head_commit,
+                    push_result.branch
+                )
+            );
         } else {
             status.append("Push not run.");
         }
@@ -337,6 +379,20 @@ public class GitSyncController : Object {
             if (push_result.status == "pushed" || push_result.status == "up_to_date") {
                 toast_message = "Git sync setup completed.";
             }
+            activity_requested(
+                "result.git.push",
+                "Git push result: %s%s".printf(
+                    push_result.status,
+                    format_push_commit_suffix(push_result)
+                ),
+                selected_project.project_id,
+                null,
+                new GitPushDetails(
+                    push_result.status,
+                    push_result.local_head_commit,
+                    push_result.branch
+                )
+            );
         } else {
             lines.append("Push: not run\n");
         }

@@ -201,12 +201,72 @@ public class ApiClient : Object, IHolderApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR
         return yield ApiClientAiEndpoints.list_ai_threads(this, project_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
+    public async Gee.ArrayList<AiMessage> list_ai_messages(string thread_id) throws Error {
+        return yield ApiClientAiEndpoints.list_ai_messages(this, thread_id);
+    }
+
     public async string create_ai_thread(string project_id, string title) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
         return yield ApiClientAiEndpoints.create_ai_thread(this, project_id, title); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
     public async Gee.ArrayList<AiCatalogProvider> list_ai_provider_catalog() throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
         return yield ApiClientAiEndpoints.list_ai_provider_catalog(this); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async Gee.ArrayList<AiRuntimeProvider> list_ai_runtime_providers() throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        return yield ApiClientAiEndpoints.list_ai_runtime_providers(this); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async AiRouterConfigInfo get_ai_router_config(string? project_id = null) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        return yield ApiClientAiEndpoints.get_ai_router_config(this, project_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async Gee.ArrayList<AiProviderCredentialState> list_ai_provider_credentials() throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        return yield ApiClientAiEndpoints.list_ai_provider_credentials(this); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async Gee.ArrayList<AiProviderSettingState> list_ai_provider_settings() throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        return yield ApiClientAiEndpoints.list_ai_provider_settings(this); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async void upsert_ai_provider_credential(string provider, string api_key) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        yield ApiClientAiEndpoints.upsert_ai_provider_credential(this, provider, api_key); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async void delete_ai_provider_credential(string provider) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        yield ApiClientAiEndpoints.delete_ai_provider_credential(this, provider); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async void set_ai_provider_enabled(string provider, bool enabled) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        yield ApiClientAiEndpoints.set_ai_provider_enabled(this, provider, enabled); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async Gee.ArrayList<AiNudge> list_ai_nudges(string project_id,
+                                                       string? card_id = null) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        return yield ApiClientAiEndpoints.list_ai_nudges(this, project_id, card_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async void dismiss_ai_nudge(string nudge_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        yield ApiClientAiEndpoints.dismiss_ai_nudge(this, nudge_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async NudgeEvaluationResult evaluate_nudge_candidate(string kind,
+                                                                string project_id,
+                                                                string? card_id,
+                                                                int64 created_at,
+                                                                Json.Object facts,
+                                                                string? basis_fingerprint = null,
+                                                                string? basis_commit = null) throws Error {
+        return yield ApiClientAiEndpoints.evaluate_nudge_candidate(
+            this,
+            kind,
+            project_id,
+            card_id,
+            created_at,
+            facts,
+            basis_fingerprint,
+            basis_commit
+        );
     }
 
     public async void run_ai_stream(string prompt, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact

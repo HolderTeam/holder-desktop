@@ -56,8 +56,16 @@ public class WorkspacePane : Object {
     }
 
     public void set_editor_state(string text, bool editable) {
-        editor_buffer.set_text(text, -1);
-        editor_view.set_editable(editable);
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        editor_buffer.get_bounds(out start, out end);
+        var current_text = editor_buffer.get_text(start, end, false);
+        if (current_text != text) {
+            editor_buffer.set_text(text, -1);
+        }
+        if (editor_view.get_editable() != editable) {
+            editor_view.set_editable(editable);
+        }
     }
 
     public void show_editor_mode() {

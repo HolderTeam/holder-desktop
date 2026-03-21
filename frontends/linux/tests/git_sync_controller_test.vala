@@ -13,7 +13,7 @@ private class FakeGitSyncService : HolderLinux.GitSyncService {
     public HolderLinux.GitRemoteApplyResult apply_result =
         new HolderLinux.GitRemoteApplyResult(
             new HolderLinux.GitTestRemoteResult("p1", "r", "cards", "reachable", true, "", ""),
-            new HolderLinux.GitPushResult("p1", "r", "cards", "pushed", 0, 0, "", "", "")
+            new HolderLinux.GitPushResult("p1", "r", "cards", "pushed", 0, 0, "", "", "", "")
         );
 
     public int detect_calls = 0;
@@ -308,6 +308,7 @@ private void test_apply_project_git_remote_and_sync_builds_summary_and_toast() {
             0,
             "",
             "",
+            "",
             "none"
         )
     );
@@ -395,6 +396,7 @@ private void test_run_github_cli_auto_sync_flow_created_repo_with_toast() {
             0,
             "",
             "",
+            "",
             ""
         )
     );
@@ -441,6 +443,7 @@ private void test_run_github_cli_auto_sync_flow_uses_existing_repo_without_toast
             "non_fast_forward",
             1,
             1,
+            "",
             "non_fast_forward",
             "need pull",
             "pull first"
@@ -529,6 +532,7 @@ private void test_run_github_guided_sync_flow_builds_status_and_toast() {
             "pushed",
             0,
             0,
+            "",
             "",
             "",
             ""

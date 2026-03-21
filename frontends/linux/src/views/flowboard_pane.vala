@@ -27,6 +27,7 @@ public class FlowboardPane : Object {
     public signal void background_drop_requested(string source_card_id);
     public signal void background_new_card_requested();
     public signal void card_open_requested(string card_id);
+    public signal void card_create_child_requested(string card_id);
     public signal void card_move_to_trash_requested(string card_id);
     public signal void card_move_up_level_requested(string card_id);
     public signal void card_move_left_requested(string card_id);
@@ -479,6 +480,14 @@ public class FlowboardPane : Object {
             card_open_requested(card_id);
         });
         menu_box.append(open_btn);
+
+        var create_child_btn = new Gtk.Button.with_label("Create Child Card");
+        create_child_btn.add_css_class("flat");
+        create_child_btn.clicked.connect(() => {
+            popover.popdown();
+            card_create_child_requested(card_id);
+        });
+        menu_box.append(create_child_btn);
 
         var move_up_btn = new Gtk.Button.with_label("Move Up a Level");
         move_up_btn.add_css_class("flat");

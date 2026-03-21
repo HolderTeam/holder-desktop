@@ -101,6 +101,43 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
         return out_list; // LCOV_EXCL_BR_LINE: return edge branch artifact
     }
 
+    public static Gee.ArrayList<AiMessage> parse_ai_messages(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai messages response");
+        }
+
+        var out_list = new Gee.ArrayList<AiMessage>();
+        var data = root.get_array_member("data");
+        for (uint i = 0; i < data.get_length(); i++) {
+            var item = data.get_object_element(i);
+            string? provider = null;
+            if (item.has_member("provider")) {
+                var provider_node = item.get_member("provider");
+                if (provider_node != null && provider_node.get_node_type() != Json.NodeType.NULL) {
+                    provider = item.get_string_member("provider");
+                }
+            }
+            string? model = null;
+            if (item.has_member("model")) {
+                var model_node = item.get_member("model");
+                if (model_node != null && model_node.get_node_type() != Json.NodeType.NULL) {
+                    model = item.get_string_member("model");
+                }
+            }
+            out_list.add(new AiMessage(
+                ApiParsersCommon.string_member_or_empty(item, "message_id"),
+                ApiParsersCommon.string_member_or_empty(item, "thread_id"),
+                ApiParsersCommon.string_member_or_empty(item, "role"),
+                ApiParsersCommon.string_member_or_empty(item, "source"),
+                provider,
+                model,
+                ApiParsersCommon.string_member_or_empty(item, "content"),
+                item.has_member("created_at") ? item.get_int_member("created_at") : 0
+            ));
+        }
+        return out_list;
+    }
+
     public static Gee.ArrayList<AiCatalogProvider> parse_ai_provider_catalog(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
         var providers = new Gee.ArrayList<AiCatalogProvider>();
         var models_node = ApiParsersCommon.object_member_or_null(root, "models");
@@ -135,6 +172,146 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
             }
         }
         return providers; // LCOV_EXCL_BR_LINE: return edge branch artifact
+    }
+
+    public static Gee.ArrayList<AiRuntimeProvider> parse_ai_runtime_providers(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai runtime providers response");
+        }
+        var data = root.get_object_member("data");
+        if (!data.has_member("providers")) {
+            throw new ApiError.PROTOCOL("Missing data.providers for ai runtime providers response");
+        }
+
+        var providers = new Gee.ArrayList<AiRuntimeProvider>();
+        var items = data.get_array_member("providers");
+        for (uint i = 0; i < items.get_length(); i++) { // LCOV_EXCL_BR_LINE: loop overflow branch artifact
+            var item = items.get_object_element(i);
+            providers.add(new AiRuntimeProvider( // LCOV_EXCL_BR_LINE: allocator/ctor edge branch artifact
+                ApiParsersCommon.string_member_or_empty(item, "id"),
+                ApiParsersCommon.string_member_or_empty(item, "display_name"),
+                item.has_member("enabled") ? item.get_boolean_member("enabled") : false,
+                item.has_member("configured") ? item.get_boolean_member("configured") : false,
+                ApiParsersCommon.string_member_or_empty(item, "setup_url"),
+                ApiParsersCommon.string_member_or_empty(item, "docs_url")
+            ));
+        }
+
+        return providers; // LCOV_EXCL_BR_LINE: return edge branch artifact
+    }
+
+    public static AiRouterConfigInfo parse_ai_router_config(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai router config response");
+        }
+        var data = root.get_object_member("data");
+        var effective = ApiParsersCommon.object_member_or_null(data, "effective");
+        var global = ApiParsersCommon.object_member_or_null(data, "global");
+        var project = ApiParsersCommon.object_member_or_null(data, "project");
+
+        return new AiRouterConfigInfo( // LCOV_EXCL_BR_LINE: allocator/ctor edge branch artifact
+            effective != null ? ApiParsersCommon.string_member_or_empty(effective, "scope") : "auto",
+            effective != null ? ApiParsersCommon.string_member_or_empty(effective, "router_model") : "",
+            global != null ? ApiParsersCommon.string_member_or_empty(global, "router_model") : "",
+            global != null ? (ApiParsersCommon.nullable_int_member_or_null(global, "updated_at") ?? 0) : 0,
+            project != null ? ApiParsersCommon.string_member_or_empty(project, "project_id") : "",
+            project != null ? ApiParsersCommon.string_member_or_empty(project, "router_model") : "",
+            project != null ? (ApiParsersCommon.nullable_int_member_or_null(project, "updated_at") ?? 0) : 0
+        );
+    }
+
+    public static Gee.ArrayList<AiProviderCredentialState> parse_ai_provider_credentials(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai provider credentials response");
+        }
+        var data = root.get_object_member("data");
+        if (!data.has_member("providers")) {
+            throw new ApiError.PROTOCOL("Missing data.providers for ai provider credentials response");
+        }
+        var providers = new Gee.ArrayList<AiProviderCredentialState>();
+        var items = data.get_array_member("providers");
+        for (uint i = 0; i < items.get_length(); i++) { // LCOV_EXCL_BR_LINE: loop overflow branch artifact
+            var item = items.get_object_element(i);
+            providers.add(new AiProviderCredentialState( // LCOV_EXCL_BR_LINE: allocator/ctor edge branch artifact
+                ApiParsersCommon.string_member_or_empty(item, "provider"),
+                item.has_member("configured") ? item.get_boolean_member("configured") : false,
+                ApiParsersCommon.string_member_or_empty(item, "api_key_preview"),
+                item.has_member("updated_at") ? item.get_int_member("updated_at") : 0
+            ));
+        }
+        return providers; // LCOV_EXCL_BR_LINE: return edge branch artifact
+    }
+
+    public static Gee.ArrayList<AiProviderSettingState> parse_ai_provider_settings(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai provider settings response");
+        }
+        var data = root.get_object_member("data");
+        if (!data.has_member("providers")) {
+            throw new ApiError.PROTOCOL("Missing data.providers for ai provider settings response");
+        }
+        var providers = new Gee.ArrayList<AiProviderSettingState>();
+        var items = data.get_array_member("providers");
+        for (uint i = 0; i < items.get_length(); i++) { // LCOV_EXCL_BR_LINE: loop overflow branch artifact
+            var item = items.get_object_element(i);
+            providers.add(new AiProviderSettingState( // LCOV_EXCL_BR_LINE: allocator/ctor edge branch artifact
+                ApiParsersCommon.string_member_or_empty(item, "provider"),
+                item.has_member("enabled") ? item.get_boolean_member("enabled") : false,
+                item.has_member("updated_at") ? item.get_int_member("updated_at") : 0
+            ));
+        }
+        return providers; // LCOV_EXCL_BR_LINE: return edge branch artifact
+    }
+
+    public static NudgeEvaluationResult parse_nudge_evaluation(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for nudge evaluation response");
+        }
+        var data = root.get_object_member("data");
+        AiNudge? nudge = null;
+        if (data.has_member("nudge")) {
+            var node = data.get_member("nudge");
+            if (node != null && node.get_node_type() == Json.NodeType.OBJECT) {
+                nudge = parse_ai_nudge(node.get_object());
+            }
+        }
+        return new NudgeEvaluationResult(
+            ApiParsersCommon.string_member_or_empty(data, "kind"),
+            data.has_member("accepted") ? data.get_boolean_member("accepted") : false,
+            data.has_member("should_nudge") ? data.get_boolean_member("should_nudge") : false,
+            ApiParsersCommon.string_member_or_empty(data, "reason"),
+            nudge
+        );
+    }
+
+    public static AiNudge parse_ai_nudge(Json.Object data) throws Error {
+        return new AiNudge(
+            ApiParsersCommon.string_member_or_empty(data, "nudge_id"),
+            ApiParsersCommon.string_member_or_empty(data, "kind"),
+            ApiParsersCommon.string_member_or_empty(data, "project_id"),
+            ApiParsersCommon.string_member_or_empty(data, "card_id"),
+            ApiParsersCommon.string_member_or_empty(data, "title"),
+            ApiParsersCommon.string_member_or_empty(data, "body"),
+            ApiParsersCommon.string_member_or_empty(data, "basis_fingerprint"),
+            ApiParsersCommon.string_member_or_empty(data, "basis_commit"),
+            data.has_member("created_at") ? data.get_int_member("created_at") : 0
+        );
+    }
+
+    public static Gee.ArrayList<AiNudge> parse_ai_nudge_list(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai nudge list response");
+        }
+        var data = root.get_object_member("data");
+        if (!data.has_member("nudges")) {
+            throw new ApiError.PROTOCOL("Missing data.nudges for ai nudge list response");
+        }
+        var nudges = new Gee.ArrayList<AiNudge>();
+        var items = data.get_array_member("nudges");
+        for (uint i = 0; i < items.get_length(); i++) {
+            nudges.add(parse_ai_nudge(items.get_object_element(i)));
+        }
+        return nudges;
     }
 }
 

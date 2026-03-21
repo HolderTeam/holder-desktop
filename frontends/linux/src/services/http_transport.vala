@@ -32,9 +32,15 @@ public class ApiHttpStreamResponse : Object {
 
 public class SoupApiHttpTransport : Object, IApiHttpTransport {
     private Soup.Session session;
+    private Soup.Session streaming_session;
 
     public SoupApiHttpTransport(Soup.Session? session = null) {
         this.session = session ?? new Soup.Session();
+        this.streaming_session = session ?? new Soup.Session();
+        if (session == null) {
+            this.streaming_session.timeout = 0;
+            this.streaming_session.idle_timeout = 0;
+        }
     }
 
     public async ApiHttpBytesResponse send_and_read(Soup.Message message) throws Error {
@@ -43,7 +49,7 @@ public class SoupApiHttpTransport : Object, IApiHttpTransport {
     }
 
     public async ApiHttpStreamResponse send(Soup.Message message) throws Error {
-        var stream = yield session.send_async(message, Priority.DEFAULT, null);
+        var stream = yield streaming_session.send_async(message, Priority.DEFAULT, null);
         return new ApiHttpStreamResponse(message.get_status(), stream);
     }
 }

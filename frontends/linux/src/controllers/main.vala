@@ -53,6 +53,11 @@ public class MainController : Object, IAiRunContext {
     public signal void ai_thread_selection_requested(string? thread_id);
     public signal void api_client_ready(IHolderApi api);
     public signal void card_trashed(string card_id);
+    public signal void activity_requested(string kind,
+                                          string message,
+                                          string? project_id,
+                                          string? card_id,
+                                          ActivityDetails? details);
 
     public MainController(GLib.ListStore project_store,
                           ISelectionState project_selection,
@@ -110,6 +115,14 @@ public class MainController : Object, IAiRunContext {
         return clock.now_epoch_seconds();
     }
 
+    internal void emit_activity(string kind,
+                                string message,
+                                string? project_id = null,
+                                string? card_id = null,
+                                ActivityDetails? details = null) {
+        activity_requested(kind, message, project_id, card_id, details);
+    }
+
     public string? selected_project_id() {
         var selected = project_selection.get_selected_item() as Project;
         if (selected == null) {
@@ -132,6 +145,13 @@ public class MainController : Object, IAiRunContext {
 
     public async string create_ai_thread(string title) throws Error {
         return yield ai_threads_controller.create_ai_thread(title);
+    }
+
+    public async Gee.ArrayList<AiMessage> list_ai_messages(string thread_id) throws Error {
+        if (api == null) {
+            throw new IOError.FAILED("No API context.");
+        }
+        return yield api.list_ai_messages(thread_id);
     }
 
     public async void bootstrap() {
@@ -285,8 +305,9 @@ public class MainController : Object, IAiRunContext {
         yield projects_controller.create_project_named(name, privacy_mode);
     }
 
-    public async void reload_ai_threads_for_project(string project_id) {
-        yield ai_threads_controller.reload_ai_threads_for_project(project_id);
+    public async void reload_ai_threads_for_project(string project_id,
+                                                    string? preferred_thread_id = null) {
+        yield ai_threads_controller.reload_ai_threads_for_project(project_id, preferred_thread_id);
     }
 
     internal async void ensure_first_project() {
@@ -618,13 +639,11 @@ public class MainController : Object, IAiRunContext {
             return;
         }
         var target_card_id = current_card.card_id;
-        var selected_card_id = selected_card_id();
         var source_cards = new Gee.ArrayList<CardSummary?>();
         for (uint i = 0; i < card_store.get_n_items(); i++) {
             source_cards.add(card_store.get_item(i) as CardSummary);
         }
         var updated_cards = rebuild_card_summaries(source_cards, target_card_id, title, updated_at);
-        updated_cards.sort((a, b) => compare_cards_for_sidebar(a, b));
         card_store.remove_all();
         foreach (var card in updated_cards) {
             card_store.append(card);
@@ -632,9 +651,9 @@ public class MainController : Object, IAiRunContext {
         if (explorer_state_sink != null) {
             ((!) explorer_state_sink).replace_cards_snapshot(updated_cards);
         }
-        if (selected_card_id != null) {
-            card_selection_requested(selected_card_id);
-        }
+        // Keep the current editor draft in place after autosave. The refreshed
+        // card snapshot will fan out through app state to sidebar/flowboard/
+        // connections without re-entering the card-open navigation path.
     }
 
     public static Gee.ArrayList<CardSummary> rebuild_card_summaries(

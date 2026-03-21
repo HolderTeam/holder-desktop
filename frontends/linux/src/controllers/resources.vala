@@ -66,6 +66,12 @@ public class ResourcesController : Object {
     private ResourcesService service;
     internal int ellipsize_cutoff_override_for_tests = -1;
 
+    public signal void activity_requested(string kind,
+                                          string message,
+                                          string? project_id,
+                                          string? resource_id,
+                                          ActivityDetails? details);
+
     public ResourcesController(ResourcesService? service = null) {
         this.service = service ?? new ResourcesService();
     }
@@ -194,8 +200,22 @@ public class ResourcesController : Object {
         }
         try {
             yield create_resource(api, project_id, kind, uri, label, desc);
+            activity_requested(
+                "result.resource.create",
+                "Created resource: %s".printf(label),
+                project_id,
+                null,
+                new ResourceChangedDetails("create", label)
+            );
             return new ResourcesMutationResult(true, false, true, "Resource added.");
         } catch (Error e) {
+            activity_requested(
+                "result.resource.create_failed",
+                "Failed to create resource: %s".printf(e.message),
+                project_id,
+                null,
+                null
+            );
             return new ResourcesMutationResult(
                 false,
                 false,
@@ -213,13 +233,37 @@ public class ResourcesController : Object {
                                                               string uri,
                                                               string label,
                                                               string? desc) {
+        return yield update_resource_flow_scoped(api, resource_id, null, kind, uri, label, desc);
+    }
+
+    public async ResourcesMutationResult update_resource_flow_scoped(IHolderApi? api,
+                                                                     string resource_id,
+                                                                     string? project_id,
+                                                                     string kind,
+                                                                     string uri,
+                                                                     string label,
+                                                                     string? desc) {
         if (api == null) {
             return new ResourcesMutationResult(false, true);
         }
         try {
             yield update_resource(api, resource_id, kind, uri, label, desc);
+            activity_requested(
+                "result.resource.update",
+                "Updated resource: %s".printf(label),
+                project_id,
+                resource_id,
+                new ResourceChangedDetails("update", label)
+            );
             return new ResourcesMutationResult(true, false, true, "Resource updated.");
         } catch (Error e) {
+            activity_requested(
+                "result.resource.update_failed",
+                "Failed to update resource: %s".printf(e.message),
+                project_id,
+                resource_id,
+                null
+            );
             return new ResourcesMutationResult(
                 false,
                 false,
@@ -231,14 +275,36 @@ public class ResourcesController : Object {
         }
     }
 
-    public async ResourcesMutationResult delete_resource_flow(IHolderApi? api, string resource_id) {
+    public async ResourcesMutationResult delete_resource_flow(IHolderApi? api,
+                                                              string resource_id) {
+        return yield delete_resource_flow_scoped(api, resource_id, null, "resource");
+    }
+
+    public async ResourcesMutationResult delete_resource_flow_scoped(IHolderApi? api,
+                                                                     string resource_id,
+                                                                     string? project_id,
+                                                                     string resource_label = "resource") {
         if (api == null) {
             return new ResourcesMutationResult(false, true);
         }
         try {
             yield delete_resource(api, resource_id);
+            activity_requested(
+                "result.resource.delete",
+                "Deleted resource: %s".printf(resource_label),
+                project_id,
+                resource_id,
+                new ResourceChangedDetails("delete", resource_label)
+            );
             return new ResourcesMutationResult(true, false, true, "Resource deleted.");
         } catch (Error e) {
+            activity_requested(
+                "result.resource.delete_failed",
+                "Failed to delete resource: %s".printf(e.message),
+                project_id,
+                resource_id,
+                null
+            );
             return new ResourcesMutationResult(
                 false,
                 false,

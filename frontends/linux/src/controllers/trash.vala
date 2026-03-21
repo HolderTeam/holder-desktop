@@ -41,6 +41,11 @@ public class TrashController : Object {
     public signal void state_changed();
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
+    public signal void activity_requested(string kind,
+                                          string message,
+                                          string? project_id,
+                                          string? card_id,
+                                          ActivityDetails? details);
 
     public TrashController() {
         items_store = new GLib.ListStore(typeof(TrashItem));
@@ -146,11 +151,27 @@ public class TrashController : Object {
         if (api == null) {
             return;
         }
+        var project = selected_project();
+        var project_id = project != null ? project.project_id : null;
         try {
             yield api.restore_trash_item(item.item_type, item.item_id);
+            activity_requested(
+                "result.trash.restore",
+                "Restored %s: %s".printf(item.item_type, item.title),
+                project_id,
+                item.item_id,
+                new TrashActionDetails(item.item_type, item.title)
+            );
             toast_requested("Item restored.");
             queue_refresh();
         } catch (Error e) {
+            activity_requested(
+                "result.trash.restore_failed",
+                "Failed to restore %s: %s".printf(item.item_type, e.message),
+                project_id,
+                item.item_id,
+                null
+            );
             error_reported("Failed to restore item", e.message);
         }
     }
@@ -159,11 +180,27 @@ public class TrashController : Object {
         if (api == null) {
             return;
         }
+        var project = selected_project();
+        var project_id = project != null ? project.project_id : null;
         try {
             yield api.hard_delete_trash_item(item.item_type, item.item_id);
+            activity_requested(
+                "result.trash.delete",
+                "Permanently deleted %s: %s".printf(item.item_type, item.title),
+                project_id,
+                item.item_id,
+                new TrashActionDetails(item.item_type, item.title)
+            );
             toast_requested("Item permanently deleted.");
             queue_refresh();
         } catch (Error e) {
+            activity_requested(
+                "result.trash.delete_failed",
+                "Failed to permanently delete %s: %s".printf(item.item_type, e.message),
+                project_id,
+                item.item_id,
+                null
+            );
             error_reported("Failed to permanently delete item", e.message);
         }
     }
@@ -174,9 +211,23 @@ public class TrashController : Object {
         }
         try {
             yield api.empty_trash(project_id, "all");
+            activity_requested(
+                "result.trash.empty",
+                "Emptied trash",
+                project_id,
+                null,
+                new TrashActionDetails("all", "all")
+            );
             toast_requested("Trash emptied.");
             queue_refresh();
         } catch (Error e) {
+            activity_requested(
+                "result.trash.empty_failed",
+                "Failed to empty trash: %s".printf(e.message),
+                project_id,
+                null,
+                null
+            );
             error_reported("Failed to empty trash", e.message);
         }
     }

@@ -18,6 +18,11 @@ public class TrashToolView : Object, IToolShellAdapter {
 
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
+    public signal void activity_requested(string kind,
+                                          string message,
+                                          string? project_id,
+                                          string? card_id,
+                                          ActivityDetails? details);
 
     public TrashToolView() {
         controller = new TrashController();
@@ -29,6 +34,9 @@ public class TrashToolView : Object, IToolShellAdapter {
         });
         controller.toast_requested.connect((message) => {
             toast_requested(message);
+        });
+        controller.activity_requested.connect((kind, message, project_id, card_id, details) => {
+            activity_requested(kind, message, project_id, card_id, details);
         });
         widget = build_ui();
     }

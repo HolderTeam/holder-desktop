@@ -5,6 +5,7 @@ public class DebugToolView : Object, IToolShellAdapter {
     private Gtk.Button clear_btn;
     private Gtk.TextBuffer debug_buffer;
     private Gtk.TextView debug_view;
+    private ActivityLogStore? activity_log_store;
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id {
@@ -82,6 +83,13 @@ public class DebugToolView : Object, IToolShellAdapter {
         }
     }
 
+    public void bind_activity_log(ActivityLogStore store) {
+        activity_log_store = store;
+        store.cleared.connect(() => {
+            debug_buffer.set_text("", -1);
+        });
+    }
+
     private Gtk.Widget build_ui() {
         var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
         debug_actions_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
@@ -95,6 +103,10 @@ public class DebugToolView : Object, IToolShellAdapter {
 
         clear_btn = new Gtk.Button.with_label("Clear");
         clear_btn.clicked.connect(() => {
+            if (activity_log_store != null) {
+                ((!) activity_log_store).clear();
+                return;
+            }
             debug_buffer.set_text("", -1);
         });
         debug_actions_bar.append(clear_btn);

@@ -19,6 +19,7 @@ public class ToolboxPane : Object {
     private Gtk.SingleSelection? card_selection;
     private IHolderApi? api;
     private Settings? settings;
+    private ActivityLogStore? activity_log_store;
     private bool navigation_loading = false;
     public Gtk.Revealer widget { get; private set; }
 
@@ -26,6 +27,7 @@ public class ToolboxPane : Object {
     public signal void toast_requested(string message);
     public signal void flowboard_card_open_requested(string card_id);
     public signal void connections_card_open_requested(string card_id);
+    public signal void connections_card_create_child_requested(string card_id);
     public signal void flowboard_card_move_to_trash_requested(string card_id);
     public signal void flowboard_move_intent_requested(string card_id,
                                                        string project_id,
@@ -38,6 +40,11 @@ public class ToolboxPane : Object {
     public signal void save_recovery_key_to_usb_requested();
     public signal void import_recovery_key_requested();
     public signal void terminal_copy_to_card_requested(string text);
+    public signal void activity_requested(string kind,
+                                          string message,
+                                          string? project_id,
+                                          string? card_id,
+                                          ActivityDetails? details);
     public signal void breadcrumb_navigation_requested(string tool_id,
                                                        int segment_index,
                                                        string? project_id,
@@ -74,6 +81,13 @@ public class ToolboxPane : Object {
         }
         if (git_sync_tool != null) {
             git_sync_tool.set_settings(settings);
+        }
+    }
+
+    public void set_activity_log_store(ActivityLogStore store) {
+        activity_log_store = store;
+        if (debug_tool != null) {
+            debug_tool.bind_activity_log(store);
         }
     }
 
@@ -232,6 +246,9 @@ public class ToolboxPane : Object {
         connections_tool.card_open_requested.connect((card_id) => {
             connections_card_open_requested(card_id);
         });
+        connections_tool.card_create_child_requested.connect((card_id) => {
+            connections_card_create_child_requested(card_id);
+        });
         connections_tool.set_api_client(api);
         connections_tool.set_settings(settings);
         if (project_selection != null && card_store != null && card_selection != null) {
@@ -248,6 +265,9 @@ public class ToolboxPane : Object {
         });
         resources_tool.toast_requested.connect((message) => {
             toast_requested(message);
+        });
+        resources_tool.activity_requested.connect((kind, message, project_id, resource_id, details) => {
+            activity_requested(kind, message, project_id, resource_id, details);
         });
         resources_tool.set_api_client(api);
         resources_tool.set_project_selection(project_selection);
@@ -283,6 +303,9 @@ public class ToolboxPane : Object {
         git_sync_tool.toast_requested.connect((message) => {
             toast_requested(message);
         });
+        git_sync_tool.activity_requested.connect((kind, message, project_id, card_id, details) => {
+            activity_requested(kind, message, project_id, card_id, details);
+        });
         git_sync_tool.set_api_client(api);
         git_sync_tool.set_settings(settings);
         git_sync_tool.set_project_selection(project_selection);
@@ -312,12 +335,18 @@ public class ToolboxPane : Object {
         trash_tool.toast_requested.connect((message) => {
             toast_requested(message);
         });
+        trash_tool.activity_requested.connect((kind, message, project_id, card_id, details) => {
+            activity_requested(kind, message, project_id, card_id, details);
+        });
         trash_tool.set_api_client(api);
         trash_tool.set_project_selection(project_selection);
         var trash_page = stack.add_titled(trash_tool.widget, "trash", "Trash");
         trash_page.set_icon_name("user-trash-symbolic");
 
         debug_tool = new DebugToolView();
+        if (activity_log_store != null) {
+            debug_tool.bind_activity_log((!) activity_log_store);
+        }
         tool_adapters.set("debug", debug_tool);
         var debug_page = stack.add_titled(debug_tool.widget, "debug", "Debug");
         debug_page.set_icon_name("view-reveal-symbolic");

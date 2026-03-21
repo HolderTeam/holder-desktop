@@ -155,11 +155,43 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public async Gee.ArrayList<HolderLinux.AiThreadSummary> list_ai_threads(string project_id) throws Error {
         return new Gee.ArrayList<HolderLinux.AiThreadSummary>();
     }
+    public async Gee.ArrayList<HolderLinux.AiMessage> list_ai_messages(string thread_id) throws Error {
+        return new Gee.ArrayList<HolderLinux.AiMessage>();
+    }
     public async string create_ai_thread(string project_id, string title) throws Error {
         return "t-created";
     }
     public async Gee.ArrayList<HolderLinux.AiCatalogProvider> list_ai_provider_catalog() throws Error {
         return new Gee.ArrayList<HolderLinux.AiCatalogProvider>();
+    }
+    public async Gee.ArrayList<HolderLinux.AiRuntimeProvider> list_ai_runtime_providers() throws Error {
+        return new Gee.ArrayList<HolderLinux.AiRuntimeProvider>();
+    }
+    public async HolderLinux.AiRouterConfigInfo get_ai_router_config(string? project_id = null) throws Error {
+        return new HolderLinux.AiRouterConfigInfo("auto", "", "", 0, project_id ?? "", "", 0);
+    }
+    public async Gee.ArrayList<HolderLinux.AiProviderCredentialState> list_ai_provider_credentials() throws Error {
+        return new Gee.ArrayList<HolderLinux.AiProviderCredentialState>();
+    }
+    public async Gee.ArrayList<HolderLinux.AiProviderSettingState> list_ai_provider_settings() throws Error {
+        return new Gee.ArrayList<HolderLinux.AiProviderSettingState>();
+    }
+    public async void upsert_ai_provider_credential(string provider, string api_key) throws Error {}
+    public async void delete_ai_provider_credential(string provider) throws Error {}
+    public async void set_ai_provider_enabled(string provider, bool enabled) throws Error {}
+    public async Gee.ArrayList<HolderLinux.AiNudge> list_ai_nudges(string project_id,
+                                                                   string? card_id = null) throws Error {
+        return new Gee.ArrayList<HolderLinux.AiNudge>();
+    }
+    public async void dismiss_ai_nudge(string nudge_id) throws Error {}
+    public async HolderLinux.NudgeEvaluationResult evaluate_nudge_candidate(string kind,
+                                                                            string project_id,
+                                                                            string? card_id,
+                                                                            int64 created_at,
+                                                                            Json.Object facts,
+                                                                            string? basis_fingerprint = null,
+                                                                            string? basis_commit = null) throws Error {
+        return new HolderLinux.NudgeEvaluationResult(kind, false, false, "fake_not_implemented");
     }
     public async Gee.ArrayList<HolderLinux.GitProviderCatalogEntry> list_git_provider_catalog() throws Error {
         return new Gee.ArrayList<HolderLinux.GitProviderCatalogEntry>();
@@ -187,6 +219,7 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                              "pushed",
                                              0,
                                              0,
+                                             "",
                                              "",
                                              "",
                                              "");
@@ -306,6 +339,10 @@ public class AiRunFakeContext : Object, HolderLinux.IAiRunContext {
         return thread;
     }
 
+    public async Gee.ArrayList<HolderLinux.AiMessage> list_ai_messages(string thread_id) throws Error {
+        return new Gee.ArrayList<HolderLinux.AiMessage>();
+    }
+
     public int64 now_epoch_seconds() {
         return 1234;
     }
@@ -318,8 +355,12 @@ public class AiRunFakeContext : Object, HolderLinux.IAiRunContext {
         return create_thread_id;
     }
 
-    public async void reload_ai_threads_for_project(string project_id) {
+    public async void reload_ai_threads_for_project(string project_id,
+                                                    string? preferred_thread_id = null) {
         reload_threads_calls++;
+        if (preferred_thread_id != null && preferred_thread_id.length > 0) {
+            select_ai_thread_by_id(preferred_thread_id);
+        }
     }
 
     public bool select_ai_thread_by_id(string thread_id) {

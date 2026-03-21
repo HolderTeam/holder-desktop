@@ -35,13 +35,23 @@ internal class AiThreadsController : Object {
         owner.ai_thread_title_changed(selected.title);
     }
 
-    public async void reload_ai_threads_for_project(string project_id) {
+    public async void reload_ai_threads_for_project(string project_id,
+                                                    string? preferred_thread_id = null) {
         if (owner.api == null) {
             return;
         }
         try {
             var threads = yield owner.api.list_ai_threads(project_id);
             owner.replace_ai_threads(threads);
+            string? target_thread_id = preferred_thread_id;
+            if ((target_thread_id == null || target_thread_id.strip().length == 0)
+                && owner.current_ai_thread != null
+                && owner.current_ai_thread.project_id == project_id) {
+                target_thread_id = owner.current_ai_thread.thread_id;
+            }
+            if (target_thread_id != null && select_ai_thread_by_id(target_thread_id)) {
+                return;
+            }
             if (owner.ai_thread_store.get_n_items() > 0) {
                 var first_thread = owner.ai_thread_store.get_item(0) as AiThreadSummary;
                 owner.ai_thread_selection_requested(first_thread != null ? first_thread.thread_id : null);

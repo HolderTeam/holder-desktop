@@ -5,6 +5,7 @@ public class SidebarPane : Object {
     private Gtk.Label status_label;
     public signal void card_move_to_trash_requested(string card_id);
     public signal void card_context_selection_requested(string card_id);
+    public signal void card_create_child_requested(string card_id);
 
     public SidebarPane(Gtk.SelectionModel project_selection,
                        Gtk.SelectionModel card_selection,
@@ -199,6 +200,14 @@ public class SidebarPane : Object {
         popover.set_parent(row_widget);
 
         var menu_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+        var child_btn = new Gtk.Button.with_label("Create Child Card");
+        child_btn.add_css_class("flat");
+        child_btn.clicked.connect(() => {
+            popover.popdown();
+            card_create_child_requested(card_id);
+        });
+        menu_box.append(child_btn);
+
         var trash_btn = new Gtk.Button.with_label("Move to Trash");
         trash_btn.add_css_class("flat");
         trash_btn.clicked.connect(() => {

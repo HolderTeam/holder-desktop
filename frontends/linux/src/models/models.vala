@@ -428,6 +428,37 @@ public class AiThreadSummary : Object {
     }
 }
 
+public class AiMessage : Object {
+    public string message_id { get; construct; }
+    public string thread_id { get; construct; }
+    public string role { get; construct; }
+    public string source { get; construct; }
+    public string? provider { get; construct; }
+    public string? model { get; construct; }
+    public string content { get; construct; }
+    public int64 created_at { get; construct; }
+
+    public AiMessage(string message_id,
+                     string thread_id,
+                     string role,
+                     string source,
+                     string? provider,
+                     string? model,
+                     string content,
+                     int64 created_at) {
+        Object(
+            message_id: message_id,
+            thread_id: thread_id,
+            role: role,
+            source: source,
+            provider: provider,
+            model: model,
+            content: content,
+            created_at: created_at
+        );
+    }
+}
+
 public class AiCatalogProvider : Object {
     public string id { get; construct; }
     public string display_name { get; construct; }
@@ -449,6 +480,94 @@ public class AiCatalogProvider : Object {
             configured: configured,
             setup_url: setup_url,
             docs_url: docs_url
+        );
+    }
+}
+
+public class AiRuntimeProvider : Object {
+    public string id { get; construct; }
+    public string display_name { get; construct; }
+    public bool enabled { get; construct; }
+    public bool configured { get; construct; }
+    public string setup_url { get; construct; }
+    public string docs_url { get; construct; }
+
+    public AiRuntimeProvider(string id,
+                             string display_name,
+                             bool enabled,
+                             bool configured,
+                             string setup_url,
+                             string docs_url) {
+        Object(
+            id: id,
+            display_name: display_name,
+            enabled: enabled,
+            configured: configured,
+            setup_url: setup_url,
+            docs_url: docs_url
+        );
+    }
+}
+
+public class AiProviderCredentialState : Object {
+    public string provider { get; construct; }
+    public bool configured { get; construct; }
+    public string api_key_preview { get; construct; }
+    public int64 updated_at { get; construct; }
+
+    public AiProviderCredentialState(string provider,
+                                     bool configured,
+                                     string api_key_preview,
+                                     int64 updated_at) {
+        Object(
+            provider: provider,
+            configured: configured,
+            api_key_preview: api_key_preview,
+            updated_at: updated_at
+        );
+    }
+}
+
+public class AiProviderSettingState : Object {
+    public string provider { get; construct; }
+    public bool enabled { get; construct; }
+    public int64 updated_at { get; construct; }
+
+    public AiProviderSettingState(string provider,
+                                  bool enabled,
+                                  int64 updated_at) {
+        Object(
+            provider: provider,
+            enabled: enabled,
+            updated_at: updated_at
+        );
+    }
+}
+
+public class AiRouterConfigInfo : Object {
+    public string effective_scope { get; construct; }
+    public string effective_router_model { get; construct; }
+    public string global_router_model { get; construct; }
+    public int64 global_updated_at { get; construct; }
+    public string project_id { get; construct; }
+    public string project_router_model { get; construct; }
+    public int64 project_updated_at { get; construct; }
+
+    public AiRouterConfigInfo(string effective_scope,
+                              string effective_router_model,
+                              string global_router_model,
+                              int64 global_updated_at,
+                              string project_id,
+                              string project_router_model,
+                              int64 project_updated_at) {
+        Object(
+            effective_scope: effective_scope,
+            effective_router_model: effective_router_model,
+            global_router_model: global_router_model,
+            global_updated_at: global_updated_at,
+            project_id: project_id,
+            project_router_model: project_router_model,
+            project_updated_at: project_updated_at
         );
     }
 }
@@ -560,6 +679,7 @@ public class GitPushResult : Object {
     public string status { get; construct; }
     public int ahead_count { get; construct; }
     public int behind_count { get; construct; }
+    public string local_head_commit { get; construct; }
     public string error_code { get; construct; }
     public string error_message { get; construct; }
     public string next_action { get; construct; }
@@ -570,6 +690,7 @@ public class GitPushResult : Object {
                          string status,
                          int ahead_count,
                          int behind_count,
+                         string local_head_commit,
                          string error_code,
                          string error_message,
                          string next_action) {
@@ -580,6 +701,7 @@ public class GitPushResult : Object {
             status: status,
             ahead_count: ahead_count,
             behind_count: behind_count,
+            local_head_commit: local_head_commit,
             error_code: error_code,
             error_message: error_message,
             next_action: next_action
@@ -689,6 +811,155 @@ public class CardContextData : Object {
             current_parent_card_id: current_parent_card_id,
             breadcrumbs: breadcrumbs,
             cards: cards
+        );
+    }
+}
+
+public abstract class ActivityDetails : Object {
+}
+
+public class CardRenamedDetails : ActivityDetails {
+    public string old_title { get; construct; }
+    public string new_title { get; construct; }
+    public bool body_empty { get; construct; }
+
+    public CardRenamedDetails(string old_title, string new_title, bool body_empty) {
+        Object(old_title: old_title, new_title: new_title, body_empty: body_empty);
+    }
+}
+
+public class CardAutosavedDetails : ActivityDetails {
+    public string title { get; construct; }
+    public int doc_chars { get; construct; }
+    public int body_chars { get; construct; }
+    public int delta_chars { get; construct; }
+    public bool body_empty { get; construct; }
+    public string fingerprint { get; construct; }
+
+    public CardAutosavedDetails(string title,
+                                int doc_chars,
+                                int body_chars,
+                                int delta_chars,
+                                bool body_empty,
+                                string fingerprint) {
+        Object(
+            title: title,
+            doc_chars: doc_chars,
+            body_chars: body_chars,
+            delta_chars: delta_chars,
+            body_empty: body_empty,
+            fingerprint: fingerprint
+        );
+    }
+}
+
+public class CardCreatedDetails : ActivityDetails {
+    public string title { get; construct; }
+    public string? parent_card_id { get; construct; }
+
+    public CardCreatedDetails(string title, string? parent_card_id = null) {
+        Object(title: title, parent_card_id: parent_card_id);
+    }
+}
+
+public class CardTrashedDetails : ActivityDetails {
+    public string title { get; construct; }
+
+    public CardTrashedDetails(string title) {
+        Object(title: title);
+    }
+}
+
+public class TrashActionDetails : ActivityDetails {
+    public string item_type { get; construct; }
+    public string title { get; construct; }
+
+    public TrashActionDetails(string item_type, string title) {
+        Object(item_type: item_type, title: title);
+    }
+}
+
+public class ResourceChangedDetails : ActivityDetails {
+    public string operation { get; construct; }
+    public string name { get; construct; }
+
+    public ResourceChangedDetails(string operation, string name) {
+        Object(operation: operation, name: name);
+    }
+}
+
+public class AiRunDetails : ActivityDetails {
+    public string provider { get; construct; }
+    public string model { get; construct; }
+    public bool success { get; construct; }
+
+    public AiRunDetails(string provider, string model, bool success) {
+        Object(provider: provider, model: model, success: success);
+    }
+}
+
+public class GitPushDetails : ActivityDetails {
+    public string status { get; construct; }
+    public string local_head_commit { get; construct; }
+    public string branch { get; construct; }
+
+    public GitPushDetails(string status, string local_head_commit, string branch) {
+        Object(status: status, local_head_commit: local_head_commit, branch: branch);
+    }
+}
+
+public class AiNudge : Object {
+    public string nudge_id { get; construct; }
+    public string kind { get; construct; }
+    public string project_id { get; construct; }
+    public string card_id { get; construct; }
+    public string title { get; construct; }
+    public string body { get; construct; }
+    public string basis_fingerprint { get; construct; }
+    public string basis_commit { get; construct; }
+    public int64 created_at { get; construct; }
+
+    public AiNudge(string nudge_id,
+                   string kind,
+                   string project_id,
+                   string card_id,
+                   string title,
+                   string body,
+                   string basis_fingerprint,
+                   string basis_commit,
+                   int64 created_at) {
+        Object(
+            nudge_id: nudge_id,
+            kind: kind,
+            project_id: project_id,
+            card_id: card_id,
+            title: title,
+            body: body,
+            basis_fingerprint: basis_fingerprint,
+            basis_commit: basis_commit,
+            created_at: created_at
+        );
+    }
+}
+
+public class NudgeEvaluationResult : Object {
+    public string kind { get; construct; }
+    public bool accepted { get; construct; }
+    public bool should_nudge { get; construct; }
+    public string reason { get; construct; }
+    public AiNudge? nudge { get; construct; }
+
+    public NudgeEvaluationResult(string kind,
+                                 bool accepted,
+                                 bool should_nudge,
+                                 string reason,
+                                 AiNudge? nudge = null) {
+        Object(
+            kind: kind,
+            accepted: accepted,
+            should_nudge: should_nudge,
+            reason: reason,
+            nudge: nudge
         );
     }
 }

@@ -64,8 +64,26 @@ public interface IHolderApi : Object {
     public abstract async AiStatusInfo get_ai_status() throws Error;
     public abstract async string start_ai_runner_pull(string model_tag) throws Error;
     public abstract async Gee.ArrayList<AiThreadSummary> list_ai_threads(string project_id) throws Error;
+    public abstract async Gee.ArrayList<AiMessage> list_ai_messages(string thread_id) throws Error;
     public abstract async string create_ai_thread(string project_id, string title) throws Error;
     public abstract async Gee.ArrayList<AiCatalogProvider> list_ai_provider_catalog() throws Error;
+    public abstract async Gee.ArrayList<AiRuntimeProvider> list_ai_runtime_providers() throws Error;
+    public abstract async AiRouterConfigInfo get_ai_router_config(string? project_id = null) throws Error;
+    public abstract async Gee.ArrayList<AiProviderCredentialState> list_ai_provider_credentials() throws Error;
+    public abstract async Gee.ArrayList<AiProviderSettingState> list_ai_provider_settings() throws Error;
+    public abstract async void upsert_ai_provider_credential(string provider, string api_key) throws Error;
+    public abstract async void delete_ai_provider_credential(string provider) throws Error;
+    public abstract async void set_ai_provider_enabled(string provider, bool enabled) throws Error;
+    public abstract async Gee.ArrayList<AiNudge> list_ai_nudges(string project_id,
+                                                                string? card_id = null) throws Error;
+    public abstract async void dismiss_ai_nudge(string nudge_id) throws Error;
+    public abstract async NudgeEvaluationResult evaluate_nudge_candidate(string kind,
+                                                                         string project_id,
+                                                                         string? card_id,
+                                                                         int64 created_at,
+                                                                         Json.Object facts,
+                                                                         string? basis_fingerprint = null,
+                                                                         string? basis_commit = null) throws Error;
     public abstract async Gee.ArrayList<GitProviderCatalogEntry> list_git_provider_catalog() throws Error;
     public abstract async void set_project_git_remote(string project_id,
                                                       string? git_remote_url,
@@ -170,9 +188,11 @@ public interface IAiRunContext : Object {
     public abstract Project? get_current_project();
     public abstract CardDetail? get_current_card();
     public abstract AiThreadSummary? get_current_ai_thread();
+    public abstract async Gee.ArrayList<AiMessage> list_ai_messages(string thread_id) throws Error;
     public abstract int64 now_epoch_seconds();
     public abstract async string create_ai_thread(string title) throws Error;
-    public abstract async void reload_ai_threads_for_project(string project_id);
+    public abstract async void reload_ai_threads_for_project(string project_id,
+                                                             string? preferred_thread_id = null);
     public abstract bool select_ai_thread_by_id(string thread_id);
 }
 

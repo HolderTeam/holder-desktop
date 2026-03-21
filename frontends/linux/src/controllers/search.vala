@@ -23,6 +23,12 @@ internal class SearchController : Object {
             return;
         }
 
+        owner.emit_activity(
+            "intent.search.activate",
+            "Search activated: %s".printf(query_text),
+            owner.selected_project_id(),
+            owner.selected_card_id()
+        );
         owner.status_changed("Searching for \"%s\"...".printf(query_text));
         try {
             var results = yield owner.api.search_cards(owner.current_project.project_id, query_text);

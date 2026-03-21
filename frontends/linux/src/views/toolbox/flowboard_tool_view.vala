@@ -54,6 +54,9 @@ public class FlowboardToolView : Object, IToolShellAdapter {
         flowboard.card_open_requested.connect((card_id) => {
             controller.open_card_from_context_menu(card_id);
         });
+        flowboard.card_create_child_requested.connect((card_id) => {
+            new_card_requested(card_id);
+        });
         flowboard.card_move_to_trash_requested.connect((card_id) => {
             card_move_to_trash_requested(card_id);
         });

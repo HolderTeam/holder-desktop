@@ -55,6 +55,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int create_card_calls = 0;
     public int create_project_calls = 0;
     public int list_threads_calls = 0;
+    public int list_ai_messages_calls = 0;
     public int factory_create_calls = 0;
     public int list_resources_calls = 0;
     public int create_resource_calls = 0;
@@ -486,12 +487,56 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         return threads;
     }
 
+    public async Gee.ArrayList<HolderLinux.AiMessage> list_ai_messages(string thread_id) throws Error {
+        list_ai_messages_calls++;
+        return new Gee.ArrayList<HolderLinux.AiMessage>();
+    }
+
     public async string create_ai_thread(string project_id, string title) throws Error {
         return "t-created";
     }
 
     public async Gee.ArrayList<HolderLinux.AiCatalogProvider> list_ai_provider_catalog() throws Error {
         return new Gee.ArrayList<HolderLinux.AiCatalogProvider>();
+    }
+
+    public async Gee.ArrayList<HolderLinux.AiRuntimeProvider> list_ai_runtime_providers() throws Error {
+        return new Gee.ArrayList<HolderLinux.AiRuntimeProvider>();
+    }
+
+    public async HolderLinux.AiRouterConfigInfo get_ai_router_config(string? project_id = null) throws Error {
+        return new HolderLinux.AiRouterConfigInfo("auto", "", "", 0, project_id ?? "", "", 0);
+    }
+
+    public async Gee.ArrayList<HolderLinux.AiProviderCredentialState> list_ai_provider_credentials() throws Error {
+        return new Gee.ArrayList<HolderLinux.AiProviderCredentialState>();
+    }
+
+    public async Gee.ArrayList<HolderLinux.AiProviderSettingState> list_ai_provider_settings() throws Error {
+        return new Gee.ArrayList<HolderLinux.AiProviderSettingState>();
+    }
+
+    public async void upsert_ai_provider_credential(string provider, string api_key) throws Error {}
+
+    public async void delete_ai_provider_credential(string provider) throws Error {}
+
+    public async void set_ai_provider_enabled(string provider, bool enabled) throws Error {}
+
+    public async Gee.ArrayList<HolderLinux.AiNudge> list_ai_nudges(string project_id,
+                                                                   string? card_id = null) throws Error {
+        return new Gee.ArrayList<HolderLinux.AiNudge>();
+    }
+
+    public async void dismiss_ai_nudge(string nudge_id) throws Error {}
+
+    public async HolderLinux.NudgeEvaluationResult evaluate_nudge_candidate(string kind,
+                                                                            string project_id,
+                                                                            string? card_id,
+                                                                            int64 created_at,
+                                                                            Json.Object facts,
+                                                                            string? basis_fingerprint = null,
+                                                                            string? basis_commit = null) throws Error {
+        return new HolderLinux.NudgeEvaluationResult(kind, false, false, "fake_not_implemented");
     }
 
     public async Gee.ArrayList<HolderLinux.GitProviderCatalogEntry> list_git_provider_catalog() throws Error {
@@ -545,6 +590,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                              "pushed",
                                              0,
                                              0,
+                                             "",
                                              "",
                                              "",
                                              "");
