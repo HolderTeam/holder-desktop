@@ -52,7 +52,7 @@ private void test_send_without_thread_creates_thread_then_runs() {
     controller.on_send_clicked("prompt");
     assert(wait_for_condition(() => done));
     assert(ctx.create_thread_calls == 1);
-    assert(ctx.reload_threads_calls == 1);
+    assert(ctx.reload_threads_calls == 2);
     assert(ctx.selected_thread_id == "t-created");
     assert(api.run_calls == 1);
     assert(api.last_thread_id == "t-created");
