@@ -78,15 +78,42 @@ public class ApiClientAiEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration b
         return ApiParsersAi.parse_ai_runtime_providers(root); // LCOV_EXCL_BR_LINE: return edge artifact
     }
 
-    public static async AiRouterConfigInfo get_ai_router_config(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
-                                                                string? project_id = null) throws Error {
-        HashTable<string, string>? query = null;
-        if (project_id != null && project_id.length > 0) {
-            query = new HashTable<string, string>(str_hash, str_equal); // LCOV_EXCL_BR_LINE: allocator edge artifact
-            query.insert("project_id", project_id);
+    public static async AiLocalModelConfigInfo get_ai_local_model_config(ApiClient client) throws Error {
+        var root = yield client.request_json("GET", "/ai/local-models/config", null, null);
+        return ApiParsersAi.parse_ai_local_model_config(root);
+    }
+
+    public static async AiLocalModelConfigInfo set_ai_local_model_config(ApiClient client,
+                                                                         string? fast_model,
+                                                                         string? strong_model,
+                                                                         string? deep_model) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("fast_model");
+        if (fast_model != null && fast_model.length > 0) {
+            body.add_string_value(fast_model);
+        } else {
+            body.add_null_value();
         }
-        var root = yield client.request_json("GET", "/ai/router/config", null, query); // LCOV_EXCL_BR_LINE: yield resume edge artifact
-        return ApiParsersAi.parse_ai_router_config(root); // LCOV_EXCL_BR_LINE: return edge artifact
+        body.set_member_name("strong_model");
+        if (strong_model != null && strong_model.length > 0) {
+            body.add_string_value(strong_model);
+        } else {
+            body.add_null_value();
+        }
+        body.set_member_name("deep_model");
+        if (deep_model != null && deep_model.length > 0) {
+            body.add_string_value(deep_model);
+        } else {
+            body.add_null_value();
+        }
+        body.end_object();
+
+        var root = yield client.request_json("PUT",
+                                             "/ai/local-models/config",
+                                             client.json_string_from_builder(body),
+                                             null);
+        return ApiParsersAi.parse_ai_local_model_config(root);
     }
 
     public static async Gee.ArrayList<AiProviderCredentialState> list_ai_provider_credentials(ApiClient client) // LCOV_EXCL_BR_LINE: async declaration branch artifact

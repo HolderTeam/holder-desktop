@@ -200,23 +200,17 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
         return providers; // LCOV_EXCL_BR_LINE: return edge branch artifact
     }
 
-    public static AiRouterConfigInfo parse_ai_router_config(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
+    public static AiLocalModelConfigInfo parse_ai_local_model_config(Json.Object root) throws Error {
         if (!root.has_member("data")) {
-            throw new ApiError.PROTOCOL("Missing data for ai router config response");
+            throw new ApiError.PROTOCOL("Missing data for ai local model config response");
         }
         var data = root.get_object_member("data");
-        var effective = ApiParsersCommon.object_member_or_null(data, "effective");
-        var global = ApiParsersCommon.object_member_or_null(data, "global");
-        var project = ApiParsersCommon.object_member_or_null(data, "project");
 
-        return new AiRouterConfigInfo( // LCOV_EXCL_BR_LINE: allocator/ctor edge branch artifact
-            effective != null ? ApiParsersCommon.string_member_or_empty(effective, "scope") : "auto",
-            effective != null ? ApiParsersCommon.string_member_or_empty(effective, "router_model") : "",
-            global != null ? ApiParsersCommon.string_member_or_empty(global, "router_model") : "",
-            global != null ? (ApiParsersCommon.nullable_int_member_or_null(global, "updated_at") ?? 0) : 0,
-            project != null ? ApiParsersCommon.string_member_or_empty(project, "project_id") : "",
-            project != null ? ApiParsersCommon.string_member_or_empty(project, "router_model") : "",
-            project != null ? (ApiParsersCommon.nullable_int_member_or_null(project, "updated_at") ?? 0) : 0
+        return new AiLocalModelConfigInfo(
+            ApiParsersCommon.nullable_string_member_or_null(data, "fast_model"),
+            ApiParsersCommon.nullable_string_member_or_null(data, "strong_model"),
+            ApiParsersCommon.nullable_string_member_or_null(data, "deep_model"),
+            ApiParsersCommon.nullable_int_member_or_null(data, "updated_at") ?? 0
         );
     }
 

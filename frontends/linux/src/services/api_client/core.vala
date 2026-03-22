@@ -217,8 +217,19 @@ public class ApiClient : Object, IHolderApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR
         return yield ApiClientAiEndpoints.list_ai_runtime_providers(this); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
-    public async AiRouterConfigInfo get_ai_router_config(string? project_id = null) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-        return yield ApiClientAiEndpoints.get_ai_router_config(this, project_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    public async AiLocalModelConfigInfo get_ai_local_model_config() throws Error {
+        return yield ApiClientAiEndpoints.get_ai_local_model_config(this);
+    }
+
+    public async AiLocalModelConfigInfo set_ai_local_model_config(string? fast_model,
+                                                                  string? strong_model,
+                                                                  string? deep_model) throws Error {
+        return yield ApiClientAiEndpoints.set_ai_local_model_config(
+            this,
+            fast_model,
+            strong_model,
+            deep_model
+        );
     }
 
     public async Gee.ArrayList<AiProviderCredentialState> list_ai_provider_credentials() throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
