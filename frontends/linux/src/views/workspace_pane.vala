@@ -12,6 +12,7 @@ public class WorkspacePane : Object {
     private Gtk.ToggleButton toolbox_toggle_btn;
     private Gtk.Revealer message_revealer;
     private Gtk.Label message_label;
+    private Gtk.Button message_debug_button;
     private Gtk.Box search_row;
     private Gtk.Revealer find_revealer;
     private Gtk.Box replace_row;
@@ -40,6 +41,7 @@ public class WorkspacePane : Object {
     public signal void explorer_panel_toggled(bool visible);
     public signal void ai_panel_toggled(bool visible);
     public signal void toolbox_toggled(bool visible);
+    public signal void open_debug_panel_requested();
     public signal void search_activated();
     public signal void search_changed();
     public signal void search_cleared();
@@ -60,10 +62,12 @@ public class WorkspacePane : Object {
     public void set_app_message(string? text) {
         if (text == null || text.strip().length == 0) {
             message_label.set_text("");
+            message_debug_button.set_visible(false);
             message_revealer.set_reveal_child(false);
             return;
         }
         message_label.set_text(text);
+        message_debug_button.set_visible(true);
         message_revealer.set_reveal_child(true);
     }
 
@@ -379,6 +383,18 @@ public class WorkspacePane : Object {
         message_label.set_margin_start(12);
         message_label.set_margin_end(12);
         message_box.append(message_label);
+
+        message_debug_button = new Gtk.Button.with_label("Open Debug Panel");
+        message_debug_button.set_halign(Gtk.Align.END);
+        message_debug_button.set_valign(Gtk.Align.CENTER);
+        message_debug_button.set_margin_top(8);
+        message_debug_button.set_margin_bottom(8);
+        message_debug_button.set_margin_end(8);
+        message_debug_button.set_visible(false);
+        message_debug_button.clicked.connect(() => {
+            open_debug_panel_requested();
+        });
+        message_box.append(message_debug_button);
 
         message_revealer.set_child(message_box);
         outer.append(message_revealer);

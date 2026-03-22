@@ -409,6 +409,10 @@ private class WindowWorkspaceEventSink : Object, IWorkspaceEventSink {
         owner.on_workspace_toolbox_toggled(visible);
     }
 
+    public void on_workspace_open_debug_panel_requested() {
+        owner.on_workspace_open_debug_panel_requested();
+    }
+
     public void on_workspace_search_activated() {
         owner.on_workspace_search_activated();
     }
@@ -1134,6 +1138,12 @@ public class MainWindow : Adw.ApplicationWindow {
             return;
         }
         toolbox.log_debug("Toolbox closed");
+    }
+
+    internal void on_workspace_open_debug_panel_requested() {
+        workspace.set_toolbox_visible(true);
+        toolbox.show_tool("debug");
+        toolbox.log_debug("Toolbox opened");
     }
 
     internal void on_workspace_search_activated() {

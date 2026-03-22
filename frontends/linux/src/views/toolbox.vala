@@ -379,6 +379,14 @@ public class ToolboxPane : Object {
         }
     }
 
+    public void show_tool(string tool_id) {
+        if (toolbox_stack == null || tool_id.strip().length == 0) {
+            return;
+        }
+        ((!) toolbox_stack).set_visible_child_name(tool_id);
+        apply_shell_state();
+    }
+
     private Gtk.Widget build_sharing_tab() {
         sharing_tool = new SharingToolView();
         tool_adapters.set("sharing", sharing_tool);

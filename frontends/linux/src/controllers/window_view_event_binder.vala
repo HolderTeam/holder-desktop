@@ -35,6 +35,7 @@ internal interface IWorkspaceEventSink : Object {
     public abstract void on_workspace_explorer_panel_toggled(bool visible);
     public abstract void on_workspace_ai_panel_toggled(bool visible);
     public abstract void on_workspace_toolbox_toggled(bool visible);
+    public abstract void on_workspace_open_debug_panel_requested();
     public abstract void on_workspace_search_activated();
     public abstract void on_workspace_search_changed();
     public abstract void on_workspace_search_cleared();
@@ -72,6 +73,9 @@ internal class WindowWorkspaceEventBinder : Object {
         });
         workspace.toolbox_toggled.connect((visible) => {
             sink.on_workspace_toolbox_toggled(visible);
+        });
+        workspace.open_debug_panel_requested.connect(() => {
+            sink.on_workspace_open_debug_panel_requested();
         });
         workspace.search_activated.connect(() => {
             sink.on_workspace_search_activated();
