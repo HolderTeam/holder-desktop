@@ -16,13 +16,13 @@ public class LocalInfoController : Object {
         var uptime_seconds = health.uptime_ms / 1000;
         var projects = yield api.list_projects();
         var ordered_projects = order_projects_home_first(projects);
-        string local_models_section = "- Installed models: `none`\n";
+        string local_models_section = "- `none`\n";
 
         try {
             var capabilities = yield api.get_ai_capabilities();
-            local_models_section = "- Installed models: `%s`\n".printf(join_list(capabilities.models));
+            local_models_section = build_local_models_section(capabilities.models);
         } catch (Error e) {
-            local_models_section = "- Installed models: `unavailable`\n";
+            local_models_section = "- `unavailable`\n";
             if (logger != null) {
                 logger.log_debug("Local info: failed to load AI capabilities: %s".printf(e.message));
             }
@@ -145,16 +145,14 @@ public class LocalInfoController : Object {
         return TextUtils.format_relative_time(now, timestamp);
     }
 
-    private string join_list(Gee.ArrayList<string> values) {
+    private string build_local_models_section(Gee.ArrayList<string> values) {
         if (values.size == 0) {
-            return "none";
+            return "- `none`\n";
         }
+
         var builder = new StringBuilder();
-        for (int i = 0; i < values.size; i++) {
-            if (i > 0) {
-                builder.append(", ");
-            }
-            builder.append(values[i]);
+        foreach (var value in values) {
+            builder.append("- `%s`\n".printf(value));
         }
         return builder.str;
     }
