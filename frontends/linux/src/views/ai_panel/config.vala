@@ -10,14 +10,23 @@ public class AiConfigPanelView : Object {
     private Gtk.Box local_recommended_buttons_box;
     private Gtk.Label local_activity_label;
     private Gtk.Label local_pulls_label;
+    private Gtk.DropDown fast_model_dropdown;
+    private Gtk.DropDown strong_model_dropdown;
+    private Gtk.DropDown deep_model_dropdown;
+    private Gtk.StringList fast_model_options;
+    private Gtk.StringList strong_model_options;
+    private Gtk.StringList deep_model_options;
+    private Gtk.Button save_local_models_button;
     private Gtk.ListBox providers_list;
-    private Gtk.Label router_summary_label;
 
     private Gee.ArrayList<AiRuntimeProvider> providers_cache = new Gee.ArrayList<AiRuntimeProvider>();
+    private Gee.ArrayList<string> installed_model_names = new Gee.ArrayList<string>();
     private HashTable<string, AiProviderCredentialState> credential_by_provider =
         new HashTable<string, AiProviderCredentialState>(str_hash, str_equal);
     private HashTable<string, AiProviderSettingState> setting_by_provider =
         new HashTable<string, AiProviderSettingState>(str_hash, str_equal);
+    private AiLocalModelConfigInfo local_model_config =
+        new AiLocalModelConfigInfo(null, null, null, 0);
 
     private bool suppress_enable_signal = false;
 
@@ -50,8 +59,8 @@ public class AiConfigPanelView : Object {
             var providers = yield api_client.list_ai_runtime_providers();
             var credentials = yield api_client.list_ai_provider_credentials();
             var settings = yield api_client.list_ai_provider_settings();
-            var router = yield api_client.get_ai_router_config(project_id);
-            render(providers, credentials, settings, router);
+            var local_models = yield api_client.get_ai_local_model_config();
+            render(providers, credentials, settings, local_models);
         } catch (Error e) {
             set_idle_state("Failed to load AI config.");
             error_reported("AI Config", e.message);
@@ -86,6 +95,37 @@ public class AiConfigPanelView : Object {
         local_installed_label.set_wrap(true);
         root.append(local_installed_label);
 
+        fast_model_options = new Gtk.StringList(null);
+        fast_model_dropdown = new Gtk.DropDown(fast_model_options, null);
+        root.append(build_local_model_row(
+            "Fast local model",
+            "Used for quick background AI tasks.",
+            fast_model_dropdown
+        ));
+
+        strong_model_options = new Gtk.StringList(null);
+        strong_model_dropdown = new Gtk.DropDown(strong_model_options, null);
+        root.append(build_local_model_row(
+            "Strong local model",
+            "Used for normal AI replies.",
+            strong_model_dropdown
+        ));
+
+        deep_model_options = new Gtk.StringList(null);
+        deep_model_dropdown = new Gtk.DropDown(deep_model_options, null);
+        root.append(build_local_model_row(
+            "Deep local model",
+            "Reserved for slower, higher-effort local reasoning.",
+            deep_model_dropdown
+        ));
+
+        save_local_models_button = new Gtk.Button.with_label("Save Local Models");
+        save_local_models_button.set_halign(Gtk.Align.START);
+        save_local_models_button.clicked.connect(() => {
+            save_local_model_config.begin();
+        });
+        root.append(save_local_models_button);
+
         local_recommended_label = new Gtk.Label("");
         local_recommended_label.set_halign(Gtk.Align.START);
         local_recommended_label.set_wrap(true);
@@ -115,16 +155,24 @@ public class AiConfigPanelView : Object {
         providers_list.add_css_class("boxed-list");
         root.append(providers_list);
 
-        router_summary_label = new Gtk.Label("");
-        router_summary_label.set_halign(Gtk.Align.START);
-        router_summary_label.set_wrap(true);
-        router_summary_label.add_css_class("dim-label");
-        root.append(router_summary_label);
-
         var scroller = new Gtk.ScrolledWindow();
         scroller.set_vexpand(true);
         scroller.set_child(root);
         return scroller;
+    }
+
+    private Gtk.Widget build_local_model_row(string title_text,
+                                             string subtitle_text,
+                                             Gtk.DropDown dropdown) {
+        var row = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
+        var title = new Gtk.Label(title_text) { xalign = 0.0f };
+        var subtitle = new Gtk.Label(subtitle_text) { xalign = 0.0f };
+        subtitle.add_css_class("dim-label");
+        dropdown.set_hexpand(true);
+        row.append(title);
+        row.append(subtitle);
+        row.append(dropdown);
+        return row;
     }
 
     private void set_idle_state(string message) {
@@ -134,8 +182,10 @@ public class AiConfigPanelView : Object {
         local_recommended_label.set_text("");
         local_activity_label.set_text("");
         local_pulls_label.set_text("");
+        installed_model_names.clear();
+        local_model_config = new AiLocalModelConfigInfo(null, null, null, 0);
         clear_recommended_buttons();
-        router_summary_label.set_text("");
+        update_local_model_dropdowns();
         clear_provider_rows();
     }
 
@@ -156,6 +206,12 @@ public class AiConfigPanelView : Object {
                 capabilities.runner_error
             ));
         }
+
+        installed_model_names.clear();
+        for (int i = 0; i < capabilities.models.size; i++) {
+            installed_model_names.add(capabilities.models[i]);
+        }
+        update_local_model_dropdowns();
 
         local_installed_label.set_text("Installed models: %s".printf(join_list(capabilities.models)));
 
@@ -184,6 +240,8 @@ public class AiConfigPanelView : Object {
         local_recommended_label.set_text("");
         local_activity_label.set_text(message);
         local_pulls_label.set_text("");
+        installed_model_names.clear();
+        update_local_model_dropdowns();
         clear_recommended_buttons();
     }
 
@@ -208,8 +266,9 @@ public class AiConfigPanelView : Object {
     private void render(Gee.ArrayList<AiRuntimeProvider> providers,
                         Gee.ArrayList<AiProviderCredentialState> credentials,
                         Gee.ArrayList<AiProviderSettingState> settings,
-                        AiRouterConfigInfo router) {
+                        AiLocalModelConfigInfo local_models) {
         providers_cache = providers;
+        local_model_config = local_models;
         credential_by_provider.remove_all();
         setting_by_provider.remove_all();
         foreach (var cred in credentials) {
@@ -219,17 +278,71 @@ public class AiConfigPanelView : Object {
             setting_by_provider.insert(setting.provider, setting);
         }
 
+        update_local_model_dropdowns();
         clear_provider_rows();
 
         foreach (var provider in providers_cache) {
             append_provider_row(provider);
         }
-        status_label.set_text("Configure provider credentials and enablement.");
-        var effective_model = router.effective_router_model.strip().length > 0
-            ? router.effective_router_model : "(none)";
-        router_summary_label.set_text(
-            "Router: %s (%s)".printf(router.effective_scope, effective_model)
-        );
+        status_label.set_text("Configure local model preferences and cloud providers.");
+    }
+
+    private void update_local_model_dropdowns() {
+        populate_local_model_dropdown(fast_model_options, fast_model_dropdown, local_model_config.fast_model);
+        populate_local_model_dropdown(strong_model_options, strong_model_dropdown, local_model_config.strong_model);
+        populate_local_model_dropdown(deep_model_options, deep_model_dropdown, local_model_config.deep_model);
+        save_local_models_button.set_sensitive(installed_model_names.size > 0);
+    }
+
+    private void populate_local_model_dropdown(Gtk.StringList options,
+                                               Gtk.DropDown dropdown,
+                                               string? selected_model) {
+        while (options.get_n_items() > 0) {
+            options.remove(options.get_n_items() - 1);
+        }
+
+        options.append("(auto)");
+        uint selected_index = 0;
+        for (int i = 0; i < installed_model_names.size; i++) {
+            var name = installed_model_names[i];
+            options.append(name);
+            if (selected_model != null && selected_model == name) {
+                selected_index = (uint) i + 1;
+            }
+        }
+
+        dropdown.set_selected(selected_index);
+        dropdown.set_sensitive(installed_model_names.size > 0);
+    }
+
+    private string? selected_model_from_dropdown(Gtk.StringList options, Gtk.DropDown dropdown) {
+        var selected = dropdown.get_selected();
+        if (selected == 0 || selected >= options.get_n_items()) {
+            return null;
+        }
+        return options.get_string(selected);
+    }
+
+    private async void save_local_model_config() {
+        if (api_client == null) {
+            return;
+        }
+
+        var fast_model = selected_model_from_dropdown(fast_model_options, fast_model_dropdown);
+        var strong_model = selected_model_from_dropdown(strong_model_options, strong_model_dropdown);
+        var deep_model = selected_model_from_dropdown(deep_model_options, deep_model_dropdown);
+        try {
+            local_model_config = yield api_client.set_ai_local_model_config(
+                fast_model,
+                strong_model,
+                deep_model
+            );
+            update_local_model_dropdowns();
+            status_label.set_text("Saved local model preferences.");
+        } catch (Error e) {
+            error_reported("AI Config", e.message);
+            debug_log_requested("Save local model config failed: %s".printf(e.message));
+        }
     }
 
     private void rebuild_recommended_pull_buttons(Gee.ArrayList<string> recommended_models) {

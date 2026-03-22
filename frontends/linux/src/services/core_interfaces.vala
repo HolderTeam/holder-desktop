@@ -68,7 +68,10 @@ public interface IHolderApi : Object {
     public abstract async string create_ai_thread(string project_id, string title) throws Error;
     public abstract async Gee.ArrayList<AiCatalogProvider> list_ai_provider_catalog() throws Error;
     public abstract async Gee.ArrayList<AiRuntimeProvider> list_ai_runtime_providers() throws Error;
-    public abstract async AiRouterConfigInfo get_ai_router_config(string? project_id = null) throws Error;
+    public abstract async AiLocalModelConfigInfo get_ai_local_model_config() throws Error;
+    public abstract async AiLocalModelConfigInfo set_ai_local_model_config(string? fast_model,
+                                                                           string? strong_model,
+                                                                           string? deep_model) throws Error;
     public abstract async Gee.ArrayList<AiProviderCredentialState> list_ai_provider_credentials() throws Error;
     public abstract async Gee.ArrayList<AiProviderSettingState> list_ai_provider_settings() throws Error;
     public abstract async void upsert_ai_provider_credential(string provider, string api_key) throws Error;

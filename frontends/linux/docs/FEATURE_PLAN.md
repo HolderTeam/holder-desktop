@@ -163,7 +163,7 @@ Endpoints:
 - `GET /ai/runner/pull/{job_id}`
 - `GET /ai/runner/pull/{job_id}/events` (optional for richer progress)
 - `POST /ai/runner/retry`
-- `GET/PUT /ai/router/config` (future advanced controls)
+- `GET/PUT /ai/local-models/config` (global Fast/Strong/Deep controls)
 
 UI elements:
 
@@ -354,7 +354,7 @@ Remaining in phase:
 
 ## Phase 4 (Advanced)
 
-- router config UI (`/ai/router/config`)
+- local model config UI (`/ai/local-models/config`)
 - policy trace visualization for cloud runs
 - compact/quality reason visualization from run metadata
 

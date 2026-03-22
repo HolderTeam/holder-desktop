@@ -167,8 +167,14 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public async Gee.ArrayList<HolderLinux.AiRuntimeProvider> list_ai_runtime_providers() throws Error {
         return new Gee.ArrayList<HolderLinux.AiRuntimeProvider>();
     }
-    public async HolderLinux.AiRouterConfigInfo get_ai_router_config(string? project_id = null) throws Error {
-        return new HolderLinux.AiRouterConfigInfo("auto", "", "", 0, project_id ?? "", "", 0);
+    public async HolderLinux.AiLocalModelConfigInfo get_ai_local_model_config() throws Error {
+        return new HolderLinux.AiLocalModelConfigInfo(null, null, null, 0);
+    }
+
+    public async HolderLinux.AiLocalModelConfigInfo set_ai_local_model_config(string? fast_model,
+                                                                              string? strong_model,
+                                                                              string? deep_model) throws Error {
+        return new HolderLinux.AiLocalModelConfigInfo(fast_model, strong_model, deep_model, 0);
     }
     public async Gee.ArrayList<HolderLinux.AiProviderCredentialState> list_ai_provider_credentials() throws Error {
         return new Gee.ArrayList<HolderLinux.AiProviderCredentialState>();

@@ -544,30 +544,21 @@ public class AiProviderSettingState : Object {
     }
 }
 
-public class AiRouterConfigInfo : Object {
-    public string effective_scope { get; construct; }
-    public string effective_router_model { get; construct; }
-    public string global_router_model { get; construct; }
-    public int64 global_updated_at { get; construct; }
-    public string project_id { get; construct; }
-    public string project_router_model { get; construct; }
-    public int64 project_updated_at { get; construct; }
+public class AiLocalModelConfigInfo : Object {
+    public string? fast_model { get; construct; }
+    public string? strong_model { get; construct; }
+    public string? deep_model { get; construct; }
+    public int64 updated_at { get; construct; }
 
-    public AiRouterConfigInfo(string effective_scope,
-                              string effective_router_model,
-                              string global_router_model,
-                              int64 global_updated_at,
-                              string project_id,
-                              string project_router_model,
-                              int64 project_updated_at) {
+    public AiLocalModelConfigInfo(string? fast_model,
+                                  string? strong_model,
+                                  string? deep_model,
+                                  int64 updated_at) {
         Object(
-            effective_scope: effective_scope,
-            effective_router_model: effective_router_model,
-            global_router_model: global_router_model,
-            global_updated_at: global_updated_at,
-            project_id: project_id,
-            project_router_model: project_router_model,
-            project_updated_at: project_updated_at
+            fast_model: fast_model,
+            strong_model: strong_model,
+            deep_model: deep_model,
+            updated_at: updated_at
         );
     }
 }
