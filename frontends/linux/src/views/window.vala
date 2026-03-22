@@ -1320,12 +1320,22 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void set_status(string text) {
-        if (sidebar != null) {
-            sidebar.set_status_text(text);
+        if (workspace != null) {
+            workspace.set_app_message(is_serious_status(text) ? text : null);
         }
         if (toolbox != null) {
             toolbox.log_debug("STATUS: %s".printf(text));
         }
+    }
+
+    private bool is_serious_status(string text) {
+        var lower = text.down();
+        return lower.contains("connecting") ||
+               lower.contains("disconnected") ||
+               lower.contains("failed") ||
+               lower.contains("error") ||
+               lower.contains("unavailable") ||
+               lower.contains("timeout");
     }
 
     internal void set_editor_state(string text, bool editable) {

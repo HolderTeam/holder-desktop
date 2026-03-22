@@ -2,7 +2,6 @@ namespace HolderLinux {
 
 public class SidebarPane : Object {
     public Gtk.Widget widget { get; private set; }
-    private Gtk.Label status_label;
     public signal void card_move_to_trash_requested(string card_id);
     public signal void card_context_selection_requested(string card_id);
     public signal void card_create_child_requested(string card_id);
@@ -11,11 +10,6 @@ public class SidebarPane : Object {
                        Gtk.SelectionModel card_selection,
                        Gtk.SelectionModel ai_thread_selection) {
         widget = build_ui(project_selection, card_selection, ai_thread_selection);
-        set_status_text("Connecting to Holder...");
-    }
-
-    public void set_status_text(string text) {
-        status_label.set_text(text);
     }
 
     private Gtk.Widget build_ui(Gtk.SelectionModel project_selection,
@@ -33,15 +27,6 @@ public class SidebarPane : Object {
         sidebar_header.set_show_end_title_buttons(false);
         sidebar_header.set_title_widget(new Gtk.Label("Holder"));
         box.append(sidebar_header);
-
-        status_label = new Gtk.Label("") { xalign = 0.0f };
-        status_label.add_css_class("caption");
-        status_label.add_css_class("dim-label");
-        status_label.set_wrap(true);
-        status_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
-        status_label.set_ellipsize(Pango.EllipsizeMode.NONE);
-        status_label.set_max_width_chars(30);
-        box.append(status_label);
 
         var projects_title = new Gtk.Label("Projects") { xalign = 0.0f };
         projects_title.add_css_class("heading");
