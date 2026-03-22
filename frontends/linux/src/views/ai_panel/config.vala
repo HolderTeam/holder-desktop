@@ -29,6 +29,10 @@ public class AiConfigPanelView : Object {
     private bool suppress_enable_signal = false;
     private bool suppress_local_model_signal = false;
     private uint local_model_save_timeout_id = 0;
+    private bool local_model_save_in_flight = false;
+    private string? pending_fast_model = null;
+    private string? pending_strong_model = null;
+    private string? pending_deep_model = null;
 
     public Gtk.Widget widget { get; private set; }
 
@@ -281,9 +285,16 @@ public class AiConfigPanelView : Object {
     }
 
     private void update_local_model_dropdowns() {
+        if (local_model_save_timeout_id != 0) {
+            Source.remove(local_model_save_timeout_id);
+            local_model_save_timeout_id = 0;
+        }
+
+        suppress_local_model_signal = true;
         populate_local_model_dropdown(fast_model_options, fast_model_dropdown, local_model_config.fast_model);
         populate_local_model_dropdown(strong_model_options, strong_model_dropdown, local_model_config.strong_model);
         populate_local_model_dropdown(deep_model_options, deep_model_dropdown, local_model_config.deep_model);
+        suppress_local_model_signal = false;
     }
 
     private void populate_local_model_dropdown(Gtk.StringList options,
@@ -303,9 +314,7 @@ public class AiConfigPanelView : Object {
             }
         }
 
-        suppress_local_model_signal = true;
         dropdown.set_selected(selected_index);
-        suppress_local_model_signal = false;
         dropdown.set_sensitive(installed_model_names.size > 0);
     }
 
@@ -326,6 +335,10 @@ public class AiConfigPanelView : Object {
         var strong_model = selected_model_from_dropdown(strong_model_options, strong_model_dropdown);
         var deep_model = selected_model_from_dropdown(deep_model_options, deep_model_dropdown);
         try {
+            local_model_save_in_flight = true;
+            pending_fast_model = fast_model;
+            pending_strong_model = strong_model;
+            pending_deep_model = deep_model;
             local_model_config = yield api_client.set_ai_local_model_config(
                 fast_model,
                 strong_model,
@@ -336,6 +349,11 @@ public class AiConfigPanelView : Object {
         } catch (Error e) {
             error_reported("AI Config", e.message);
             debug_log_requested("Save local model config failed: %s".printf(e.message));
+        } finally {
+            local_model_save_in_flight = false;
+            pending_fast_model = null;
+            pending_strong_model = null;
+            pending_deep_model = null;
         }
     }
 
@@ -350,6 +368,13 @@ public class AiConfigPanelView : Object {
         if (models_match(local_model_config.fast_model, fast_model) &&
             models_match(local_model_config.strong_model, strong_model) &&
             models_match(local_model_config.deep_model, deep_model)) {
+            return;
+        }
+
+        if (local_model_save_in_flight &&
+            models_match(pending_fast_model, fast_model) &&
+            models_match(pending_strong_model, strong_model) &&
+            models_match(pending_deep_model, deep_model)) {
             return;
         }
 
