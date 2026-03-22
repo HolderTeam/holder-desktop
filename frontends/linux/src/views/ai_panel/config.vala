@@ -5,7 +5,6 @@ public class AiConfigPanelView : Object {
 
     private Gtk.Label status_label;
     private Gtk.Label local_runtime_label;
-    private Gtk.Label local_installed_label;
     private Gtk.Label local_recommended_label;
     private Gtk.Box local_recommended_buttons_box;
     private Gtk.Label local_activity_label;
@@ -90,11 +89,6 @@ public class AiConfigPanelView : Object {
         local_runtime_label.set_wrap(true);
         root.append(local_runtime_label);
 
-        local_installed_label = new Gtk.Label("");
-        local_installed_label.set_halign(Gtk.Align.START);
-        local_installed_label.set_wrap(true);
-        root.append(local_installed_label);
-
         fast_model_options = new Gtk.StringList(null);
         fast_model_dropdown = new Gtk.DropDown(fast_model_options, null);
         root.append(build_local_model_row(
@@ -178,7 +172,6 @@ public class AiConfigPanelView : Object {
     private void set_idle_state(string message) {
         status_label.set_text(message);
         local_runtime_label.set_text("");
-        local_installed_label.set_text("");
         local_recommended_label.set_text("");
         local_activity_label.set_text("");
         local_pulls_label.set_text("");
@@ -213,8 +206,6 @@ public class AiConfigPanelView : Object {
         }
         update_local_model_dropdowns();
 
-        local_installed_label.set_text("Installed models: %s".printf(join_list(capabilities.models)));
-
         if (capabilities.recommended_install.size == 0) {
             local_recommended_label.set_text("Recommended installs: none");
         } else {
@@ -236,7 +227,6 @@ public class AiConfigPanelView : Object {
 
     public void render_local_models_error(string message) {
         local_runtime_label.set_text("Local runtime unavailable");
-        local_installed_label.set_text("");
         local_recommended_label.set_text("");
         local_activity_label.set_text(message);
         local_pulls_label.set_text("");

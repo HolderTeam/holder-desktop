@@ -31,10 +31,12 @@ private void test_local_info_builds_markdown_and_orders_home_first() {
     assert(text.contains("# Local info"));
     assert(text.contains("## Health"));
     assert(text.contains("## Content"));
+    assert(text.contains("## Local Models"));
     assert(text.contains("## Sync"));
     assert(text.contains("- Projects: `2`"));
     assert(text.contains("- Cards: `2`"));
     assert(text.contains("- AI Threads: `2`"));
+    assert(text.contains("- Installed models: `none`"));
 
     var home_idx = text.index_of("- Home:");
     var p1_idx = text.index_of("- Project 1:");
@@ -64,6 +66,8 @@ private void test_local_info_logs_count_failures_and_continues() {
     assert(wait_for_condition(() => done));
     assert(text.contains("- Cards: `0`"));
     assert(text.contains("- AI Threads: `0`"));
+    assert(text.contains("- Installed models: `none`"));
+    assert(text.contains("## Local Models"));
     assert(logger.lines.size >= 2);
 }
 
