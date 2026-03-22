@@ -99,7 +99,7 @@ public class SidebarPane : Object {
         thread_list.set_vexpand(false);
         thread_scroll = new Gtk.ScrolledWindow();
         thread_scroll.set_propagate_natural_height(true);
-        thread_scroll.set_max_content_height(336);
+        thread_scroll.set_max_content_height(216);
         thread_scroll.set_vexpand(false);
         thread_scroll.set_child(thread_list);
         box.append(thread_scroll);
