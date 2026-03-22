@@ -15,7 +15,6 @@ public class AiConfigPanelView : Object {
     private Gtk.StringList fast_model_options;
     private Gtk.StringList strong_model_options;
     private Gtk.StringList deep_model_options;
-    private Gtk.Button save_local_models_button;
     private Gtk.ListBox providers_list;
 
     private Gee.ArrayList<AiRuntimeProvider> providers_cache = new Gee.ArrayList<AiRuntimeProvider>();
@@ -28,6 +27,8 @@ public class AiConfigPanelView : Object {
         new AiLocalModelConfigInfo(null, null, null, 0);
 
     private bool suppress_enable_signal = false;
+    private bool suppress_local_model_signal = false;
+    private uint local_model_save_timeout_id = 0;
 
     public Gtk.Widget widget { get; private set; }
 
@@ -91,6 +92,9 @@ public class AiConfigPanelView : Object {
 
         fast_model_options = new Gtk.StringList(null);
         fast_model_dropdown = new Gtk.DropDown(fast_model_options, null);
+        fast_model_dropdown.notify["selected"].connect(() => {
+            schedule_local_model_save();
+        });
         root.append(build_local_model_row(
             "Fast local model",
             "Used for quick background AI tasks.",
@@ -99,6 +103,9 @@ public class AiConfigPanelView : Object {
 
         strong_model_options = new Gtk.StringList(null);
         strong_model_dropdown = new Gtk.DropDown(strong_model_options, null);
+        strong_model_dropdown.notify["selected"].connect(() => {
+            schedule_local_model_save();
+        });
         root.append(build_local_model_row(
             "Strong local model",
             "Used for normal AI replies.",
@@ -107,18 +114,14 @@ public class AiConfigPanelView : Object {
 
         deep_model_options = new Gtk.StringList(null);
         deep_model_dropdown = new Gtk.DropDown(deep_model_options, null);
+        deep_model_dropdown.notify["selected"].connect(() => {
+            schedule_local_model_save();
+        });
         root.append(build_local_model_row(
             "Deep local model",
             "Reserved for slower, higher-effort local reasoning.",
             deep_model_dropdown
         ));
-
-        save_local_models_button = new Gtk.Button.with_label("Save Local Models");
-        save_local_models_button.set_halign(Gtk.Align.START);
-        save_local_models_button.clicked.connect(() => {
-            save_local_model_config.begin();
-        });
-        root.append(save_local_models_button);
 
         local_recommended_label = new Gtk.Label("");
         local_recommended_label.set_halign(Gtk.Align.START);
@@ -281,7 +284,6 @@ public class AiConfigPanelView : Object {
         populate_local_model_dropdown(fast_model_options, fast_model_dropdown, local_model_config.fast_model);
         populate_local_model_dropdown(strong_model_options, strong_model_dropdown, local_model_config.strong_model);
         populate_local_model_dropdown(deep_model_options, deep_model_dropdown, local_model_config.deep_model);
-        save_local_models_button.set_sensitive(installed_model_names.size > 0);
     }
 
     private void populate_local_model_dropdown(Gtk.StringList options,
@@ -301,7 +303,9 @@ public class AiConfigPanelView : Object {
             }
         }
 
+        suppress_local_model_signal = true;
         dropdown.set_selected(selected_index);
+        suppress_local_model_signal = false;
         dropdown.set_sensitive(installed_model_names.size > 0);
     }
 
@@ -328,11 +332,48 @@ public class AiConfigPanelView : Object {
                 deep_model
             );
             update_local_model_dropdowns();
-            status_label.set_text("Saved local model preferences.");
+            debug_log_requested("Saved local model preferences.");
         } catch (Error e) {
             error_reported("AI Config", e.message);
             debug_log_requested("Save local model config failed: %s".printf(e.message));
         }
+    }
+
+    private void schedule_local_model_save() {
+        if (suppress_local_model_signal || installed_model_names.size == 0) {
+            return;
+        }
+
+        var fast_model = selected_model_from_dropdown(fast_model_options, fast_model_dropdown);
+        var strong_model = selected_model_from_dropdown(strong_model_options, strong_model_dropdown);
+        var deep_model = selected_model_from_dropdown(deep_model_options, deep_model_dropdown);
+        if (models_match(local_model_config.fast_model, fast_model) &&
+            models_match(local_model_config.strong_model, strong_model) &&
+            models_match(local_model_config.deep_model, deep_model)) {
+            return;
+        }
+
+        if (local_model_save_timeout_id != 0) {
+            Source.remove(local_model_save_timeout_id);
+            local_model_save_timeout_id = 0;
+        }
+
+        debug_log_requested("Saving local model preferences...");
+        local_model_save_timeout_id = Timeout.add(500, () => {
+            local_model_save_timeout_id = 0;
+            save_local_model_config.begin();
+            return Source.REMOVE;
+        });
+    }
+
+    private bool models_match(string? a, string? b) {
+        if (a == null && b == null) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        return a == b;
     }
 
     private void rebuild_recommended_pull_buttons(Gee.ArrayList<string> recommended_models) {
