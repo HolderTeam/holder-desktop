@@ -47,11 +47,12 @@ public class SidebarPane : Object {
         });
 
         var project_list = new Gtk.ListView(project_selection, project_factory);
-        project_list.set_vexpand(true);
+        project_list.set_vexpand(false);
 
         var project_scroll = new Gtk.ScrolledWindow();
-        project_scroll.set_min_content_height(140);
-        project_scroll.set_vexpand(true);
+        project_scroll.set_propagate_natural_height(true);
+        project_scroll.set_max_content_height(336);
+        project_scroll.set_vexpand(false);
         project_scroll.set_child(project_list);
         box.append(project_scroll);
 
