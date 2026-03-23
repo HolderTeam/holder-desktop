@@ -60,6 +60,27 @@ public class ApiParsersCommon { // LCOV_EXCL_LINE: declaration-only coverage art
 
         return root.get_object(); // LCOV_EXCL_BR_LINE: accessor edge branch artifact
     }
+
+    public static Json.Object parse_response_object_bytes(Bytes payload) throws Error {
+        var parser = new Json.Parser();
+        var data = payload.get_data();
+        var size = payload.get_size();
+        if (size > 0 && data[size - 1] == 0) {
+            size--;
+        }
+        try {
+            parser.load_from_data((string) data, (ssize_t) size);
+        } catch (Error e) {
+            throw new ApiError.PARSE("Invalid JSON response: %s".printf(e.message));
+        }
+
+        var root = parser.get_root();
+        if (root == null || root.get_node_type() != Json.NodeType.OBJECT) {
+            throw new ApiError.PARSE("Response JSON root is not an object");
+        }
+
+        return root.get_object();
+    }
 }
 
 }

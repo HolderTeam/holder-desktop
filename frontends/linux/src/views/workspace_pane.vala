@@ -10,6 +10,9 @@ public class WorkspacePane : Object {
     private Gtk.ToggleButton search_toggle_btn;
     private Gtk.ToggleButton editor_toggle_btn;
     private Gtk.ToggleButton toolbox_toggle_btn;
+    private Gtk.Revealer message_revealer;
+    private Gtk.Label message_label;
+    private Gtk.Button message_debug_button;
     private Gtk.Box search_row;
     private Gtk.Revealer find_revealer;
     private Gtk.Box replace_row;
@@ -38,6 +41,7 @@ public class WorkspacePane : Object {
     public signal void explorer_panel_toggled(bool visible);
     public signal void ai_panel_toggled(bool visible);
     public signal void toolbox_toggled(bool visible);
+    public signal void open_debug_panel_requested();
     public signal void search_activated();
     public signal void search_changed();
     public signal void search_cleared();
@@ -53,6 +57,18 @@ public class WorkspacePane : Object {
 
     public void set_window_title_text(string title_text) {
         title_label.set_text(title_text);
+    }
+
+    public void set_app_message(string? text) {
+        if (text == null || text.strip().length == 0) {
+            message_label.set_text("");
+            message_debug_button.set_visible(false);
+            message_revealer.set_reveal_child(false);
+            return;
+        }
+        message_label.set_text(text);
+        message_debug_button.set_visible(true);
+        message_revealer.set_reveal_child(true);
     }
 
     public void set_editor_state(string text, bool editable) {
@@ -346,6 +362,42 @@ public class WorkspacePane : Object {
         header.pack_end(new_project_btn);
         header.pack_end(new_card_btn);
         outer.append(header);
+
+        message_revealer = new Gtk.Revealer();
+        message_revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN);
+        message_revealer.set_reveal_child(false);
+
+        var message_box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        message_box.set_margin_top(6);
+        message_box.set_margin_bottom(0);
+        message_box.set_margin_start(8);
+        message_box.set_margin_end(8);
+        message_box.add_css_class("card");
+
+        message_label = new Gtk.Label("") { xalign = 0.0f };
+        message_label.set_wrap(true);
+        message_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        message_label.set_hexpand(true);
+        message_label.set_margin_top(10);
+        message_label.set_margin_bottom(10);
+        message_label.set_margin_start(12);
+        message_label.set_margin_end(12);
+        message_box.append(message_label);
+
+        message_debug_button = new Gtk.Button.with_label("Open Debug Panel");
+        message_debug_button.set_halign(Gtk.Align.END);
+        message_debug_button.set_valign(Gtk.Align.CENTER);
+        message_debug_button.set_margin_top(8);
+        message_debug_button.set_margin_bottom(8);
+        message_debug_button.set_margin_end(8);
+        message_debug_button.set_visible(false);
+        message_debug_button.clicked.connect(() => {
+            open_debug_panel_requested();
+        });
+        message_box.append(message_debug_button);
+
+        message_revealer.set_child(message_box);
+        outer.append(message_revealer);
 
         search_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         search_row.set_margin_top(8);

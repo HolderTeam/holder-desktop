@@ -51,11 +51,9 @@ public class ApiClientTransport : Object { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LI
         }
 
         var status = response.status;
-        var response_text = (string) response.body.get_data();
-
         Json.Object root;
         try { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: exception table branch artifact
-            root = ApiParsersCommon.parse_response_object(response_text); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: parser throw edge branch artifact
+            root = ApiParsersCommon.parse_response_object_bytes(response.body); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: parser throw edge branch artifact
         } catch (Error e) {
             if (status >= 200 && status < 300) { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: short-circuit branch artifact
                 throw e; // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: throw edge branch artifact

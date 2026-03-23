@@ -16,6 +16,17 @@ public class LocalInfoController : Object {
         var uptime_seconds = health.uptime_ms / 1000;
         var projects = yield api.list_projects();
         var ordered_projects = order_projects_home_first(projects);
+        string local_models_section = "- `none`\n";
+
+        try {
+            var capabilities = yield api.get_ai_capabilities();
+            local_models_section = build_local_models_section(capabilities.models);
+        } catch (Error e) {
+            local_models_section = "- `unavailable`\n";
+            if (logger != null) {
+                logger.log_debug("Local info: failed to load AI capabilities: %s".printf(e.message));
+            }
+        }
 
         int total_card_count = 0;
         int total_thread_count = 0;
@@ -104,6 +115,8 @@ public class LocalInfoController : Object {
             "- Projects: `%d`\n".printf(projects.size) +
             "- Cards: `%d`\n".printf(total_card_count) +
             "- AI Threads: `%d`\n\n".printf(total_thread_count) +
+            "## Local Models\n" +
+            local_models_section + "\n" +
             "## Sync\n" +
             sync_section.str;
     }
@@ -130,6 +143,18 @@ public class LocalInfoController : Object {
         }
         var now = new DateTime.now_utc().to_unix();
         return TextUtils.format_relative_time(now, timestamp);
+    }
+
+    private string build_local_models_section(Gee.ArrayList<string> values) {
+        if (values.size == 0) {
+            return "- `none`\n";
+        }
+
+        var builder = new StringBuilder();
+        foreach (var value in values) {
+            builder.append("- `%s`\n".printf(value));
+        }
+        return builder.str;
     }
 }
 

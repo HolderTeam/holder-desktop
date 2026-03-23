@@ -2584,6 +2584,27 @@ private void test_request_json_unwrapped_parse_error_on_2xx_rethrows_parse() {
     assert(got_parse);
 }
 
+private void test_request_json_unwrapped_accepts_valid_json_with_trailing_nul() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true}");
+    var client = make_client(transport);
+
+    bool done = false;
+    bool ok = false;
+    client.request_json_unwrapped_for_tests.begin("GET", "/ai_catalog.json", null, null, (obj, res) => {
+        try {
+            var root = client.request_json_unwrapped_for_tests.end(res);
+            ok = root.has_member("ok") && root.get_boolean_member("ok");
+        } catch (Error e) {
+            ok = false;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(ok);
+}
+
 private void test_request_json_unwrapped_non_2xx_paths_map_to_http() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(500, "not-json");
@@ -2939,6 +2960,8 @@ int main(string[] args) {
                   test_request_json_unwrapped_transport_error_maps_to_api_transport);
     Test.add_func("/api_client/request_json_unwrapped_parse_error_on_2xx_rethrows_parse",
                   test_request_json_unwrapped_parse_error_on_2xx_rethrows_parse);
+    Test.add_func("/api_client/request_json_unwrapped_accepts_valid_json_with_trailing_nul",
+                  test_request_json_unwrapped_accepts_valid_json_with_trailing_nul);
     Test.add_func("/api_client/request_json_unwrapped_non_2xx_paths_map_to_http",
                   test_request_json_unwrapped_non_2xx_paths_map_to_http);
     Test.add_func("/api_client/run_ai_stream_parses_sse_and_raw_data",
