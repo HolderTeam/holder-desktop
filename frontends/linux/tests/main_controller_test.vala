@@ -1585,21 +1585,56 @@ private void test_create_project_success_reloads_and_toasts() {
     var controller = harness.controller;
 
     bool saw_toast = false;
-    bool saw_created = false;
+    bool saw_ready = false;
     controller.toast_requested.connect((message) => {
         if (message == "Created project: New") {
             saw_toast = true;
         }
     });
     controller.status_changed.connect((text) => {
-        if (text == "Project created") {
-            saw_created = true;
+        if (text == "Project ready") {
+            saw_ready = true;
         }
     });
 
     controller.create_project_named.begin("New");
-    assert(wait_for_condition(() => saw_toast && saw_created));
+    assert(wait_for_condition(() => saw_toast && saw_ready));
     assert(api.create_project_calls == 1);
+    assert(api.create_card_calls == 1);
+    assert(api.last_created_project_id == "p-created");
+    assert(api.last_created_title == "Untitled in New");
+    assert(api.last_created_content == "# Untitled in New\n\n");
+    assert(controller.selected_project_id() == "p-created");
+    assert(controller.selected_card_id() == "c-created");
+}
+
+private void test_create_project_starter_card_failure_still_selects_project() {
+    var api = new MainControllerFakeApi();
+    api.fail_create_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    bool got_starter_card_error = false;
+    bool saw_project_created = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Failed to create starter card") {
+            got_starter_card_error = true;
+        }
+    });
+    controller.status_changed.connect((text) => {
+        if (text == "Project created") {
+            saw_project_created = true;
+        }
+    });
+
+    controller.create_project_named.begin("New");
+    assert(wait_for_condition(() => got_starter_card_error && saw_project_created));
+    assert(api.create_project_calls == 1);
+    assert(api.create_card_calls == 0);
+    assert(controller.selected_project_id() == "p-created");
+    assert(controller.selected_card_id() == null);
 }
 
 private void test_on_project_selected_triggers_reload() {
@@ -2123,6 +2158,10 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/create_project_success_reloads_and_toasts",
         test_create_project_success_reloads_and_toasts
+    );
+    Test.add_func(
+        "/main_controller/create_project_starter_card_failure_still_selects_project",
+        test_create_project_starter_card_failure_still_selects_project
     );
     Test.add_func(
         "/main_controller/on_project_selected_triggers_reload",

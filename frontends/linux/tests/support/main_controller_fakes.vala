@@ -74,6 +74,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int delete_card_link_calls = 0;
     public string last_updated_card_id = "";
     public string last_created_project_id = "";
+    public string last_created_project_name = "";
     public string last_created_title = "";
     public string last_created_content = "";
     public string? last_created_parent_card_id = null;
@@ -189,6 +190,10 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         if (include_home_project) {
             projects.add(new HolderLinux.Project("p-home", "Home", "encrypted_git", "/tmp/home", 11, 11));
         }
+        if (create_project_calls > 0) {
+            var created_name = last_created_project_name.length > 0 ? last_created_project_name : "Created Project";
+            projects.add(new HolderLinux.Project("p-created", created_name, "encrypted_git", "/tmp/p-created", 12, 12));
+        }
         projects.add(new HolderLinux.Project("p1", "Project 1", "encrypted_git", "/tmp/p1", 10, 10));
         return projects;
     }
@@ -198,6 +203,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
             throw new IOError.FAILED("create project failed");
         }
         create_project_calls++;
+        last_created_project_name = name;
         return "p-created";
     }
 
@@ -271,6 +277,11 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
             return cards;
         }
         if (view == "tree" && parent_card_id != null && parent_card_id.strip().length > 0) {
+            return cards;
+        }
+        if (create_card_calls > 0 && project_id == "p-created") {
+            var created_title = last_created_title.length > 0 ? last_created_title : "Untitled";
+            cards.add(new HolderLinux.CardSummary("c-created", project_id, created_title, "c-created.md", 1000.0, null, 22, 22));
             return cards;
         }
         cards.add(new HolderLinux.CardSummary("c1", project_id, "Card 1", "c1.md", 1024.0, null, 20, 20));

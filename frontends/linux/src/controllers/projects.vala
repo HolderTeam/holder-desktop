@@ -15,6 +15,31 @@ internal class ProjectsController : Object {
         owner.status_changed("Creating project...");
         try {
             var project_id = yield owner.api.create_project(name, privacy_mode);
+            string? starter_card_id = null;
+            try {
+                var starter_title = "Untitled in %s".printf(name);
+                starter_card_id = yield owner.api.create_card(
+                    project_id,
+                    starter_title,
+                    "# %s\n\n".printf(starter_title),
+                    null
+                );
+                owner.emit_activity(
+                    "result.card.create",
+                    "Created card: %s".printf(starter_title),
+                    project_id,
+                    starter_card_id,
+                    new CardCreatedDetails(starter_title, null)
+                );
+            } catch (Error e) {
+                owner.emit_activity(
+                    "result.card.create_failed",
+                    "Failed to create starter card: %s".printf(e.message),
+                    project_id,
+                    null
+                );
+                owner.error_reported("Failed to create starter card", e.message);
+            }
             owner.emit_activity(
                 "result.project.create",
                 "Created project: %s".printf(name),
@@ -22,8 +47,8 @@ internal class ProjectsController : Object {
                 null
             );
             owner.toast_requested("Created project: %s".printf(name));
-            owner.status_changed("Project created");
-            yield owner.reload_everything_with_selection(project_id, null);
+            owner.status_changed(starter_card_id != null ? "Project ready" : "Project created");
+            yield owner.reload_everything_with_selection(project_id, starter_card_id);
         } catch (Error e) {
             owner.emit_activity(
                 "result.project.create_failed",
