@@ -8,6 +8,12 @@ public class AiRunController : Object {
     private uint ai_poll_id = 0;
     private uint transcript_request_serial = 0;
     private const uint AI_POLL_INTERVAL_MS = 2000;
+    private string current_run_thread_id = "";
+    private string current_run_id = "";
+    private string current_run_provider = "";
+    private string current_run_model = "";
+    private string current_run_router_model = "";
+    private int current_run_prompt_chars = 0;
 
     public signal void status_changed(string text);
     public signal void error_reported(string title, string details);
@@ -205,9 +211,12 @@ public class AiRunController : Object {
             "Started AI run",
             current_project.project_id,
             current_card != null ? current_card.card_id : null,
-            new AiRunDetails("", "", false)
+            new AiRunDetails(thread_id, "", "", "", "", prompt.length, false)
         );
 
+        reset_current_run_metadata();
+        current_run_thread_id = thread_id;
+        current_run_prompt_chars = prompt.length;
         ai_run_in_flight = true;
         set_send_enabled_requested(false);
         status_changed("Running AI...");
@@ -232,7 +241,7 @@ public class AiRunController : Object {
                 "AI run complete",
                 current_project.project_id,
                 current_card != null ? current_card.card_id : null,
-                new AiRunDetails("", "", true)
+                build_current_run_details(true)
             );
             yield main_controller.reload_ai_threads_for_project(current_project.project_id, thread_id);
             refresh_selected_thread_output.begin();
@@ -244,13 +253,14 @@ public class AiRunController : Object {
                 "AI run failed: %s".printf(e.message),
                 current_project.project_id,
                 current_card != null ? current_card.card_id : null,
-                new AiRunDetails("", "", false)
+                build_current_run_details(false)
             );
             error_reported("AI run failed", e.message);
         } finally {
             ai_run_in_flight = false;
             set_send_enabled_requested(true);
             refresh_status.begin();
+            reset_current_run_metadata();
         }
     }
 
@@ -291,18 +301,23 @@ public class AiRunController : Object {
     }
 
     internal void handle_ai_run_event(string event_name, Json.Object data) {
+        update_current_run_metadata(data);
         switch (event_name) {
             case "chunk":
                 append_output_chunk_requested(json_string_member_or_empty(data, "delta"));
                 break;
             case "progress":
                 var message = json_string_member_or_empty(data, "message");
+                var target = describe_run_target(data);
                 if (message.length > 0) {
-                    append_output_requested("System", message);
+                    append_output_requested(
+                        "System",
+                        target.length > 0 ? "%s (%s)".printf(message, target) : message
+                    );
                 }
                 break;
             case "fallback":
-                var model = json_string_member_or_empty(data, "model");
+                var model = describe_run_target(data);
                 var error = json_string_member_or_empty(data, "error");
                 var detail = model.length > 0 ? "Fallback from %s".printf(model) : "Fallback";
                 if (error.length > 0) {
@@ -315,10 +330,12 @@ public class AiRunController : Object {
                 append_output_requested("System", failed.length > 0 ? failed : "Run failed.");
                 break;
             case "done":
-                var model_done = json_string_member_or_empty(data, "model");
+                var model_done = describe_run_target(data);
                 if (model_done.length > 0) {
                     append_output_requested("System", "Completed with %s".printf(model_done));
                 }
+                break;
+            case "router_result":
                 break;
             default:
                 break;
@@ -342,11 +359,82 @@ public class AiRunController : Object {
             if (builder.len > 0) {
                 builder.append("\n\n");
             }
-            builder.append(message_role_label(message.role));
+            builder.append(message_heading(message));
             builder.append(":\n");
             builder.append(message.content);
         }
         return builder.str;
+    }
+
+    private string message_heading(AiMessage message) {
+        var label = message_role_label(message.role);
+        var target = describe_provider_model(message.provider, message.model);
+        if (target.length == 0) {
+            return label;
+        }
+        return "%s (%s)".printf(label, target);
+    }
+
+    private string describe_run_target(Json.Object data) {
+        return describe_provider_model(
+            json_string_member_or_empty(data, "provider"),
+            json_string_member_or_empty(data, "model")
+        );
+    }
+
+    private string describe_provider_model(string? provider, string? model) {
+        var provider_text = provider != null ? provider.strip() : "";
+        var model_text = model != null ? model.strip() : "";
+        if (provider_text.length > 0 && model_text.length > 0) {
+            return "%s/%s".printf(provider_text, model_text);
+        }
+        if (model_text.length > 0) {
+            return model_text;
+        }
+        if (provider_text.length > 0) {
+            return provider_text;
+        }
+        return "";
+    }
+
+    private void update_current_run_metadata(Json.Object data) {
+        var run_id = json_string_member_or_empty(data, "run_id");
+        if (run_id.length > 0) {
+            current_run_id = run_id;
+        }
+        var provider = json_string_member_or_empty(data, "provider");
+        if (provider.length > 0) {
+            current_run_provider = provider;
+        }
+        var model = json_string_member_or_empty(data, "model");
+        if (model.length > 0) {
+            current_run_model = model;
+        }
+        var router_model = json_string_member_or_empty(data, "router_model");
+        if (router_model.length > 0) {
+            current_run_router_model = router_model;
+        }
+    }
+
+    private AiRunDetails build_current_run_details(bool success) {
+        return new AiRunDetails(
+            current_run_thread_id,
+            current_run_id,
+            current_run_provider,
+            current_run_model,
+            current_run_router_model,
+            current_run_prompt_chars,
+            success
+        );
+    }
+
+    private void reset_current_run_metadata() {
+        current_run_thread_id = "";
+        current_run_id = "";
+        current_run_provider = "";
+        current_run_model = "";
+        current_run_router_model = "";
+        current_run_prompt_chars = 0;
     }
 
     private string message_role_label(string role) {

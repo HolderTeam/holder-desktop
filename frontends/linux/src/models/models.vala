@@ -880,12 +880,30 @@ public class ResourceChangedDetails : ActivityDetails {
 }
 
 public class AiRunDetails : ActivityDetails {
+    public string thread_id { get; construct; }
+    public string run_id { get; construct; }
     public string provider { get; construct; }
     public string model { get; construct; }
+    public string router_model { get; construct; }
+    public int prompt_chars { get; construct; }
     public bool success { get; construct; }
 
-    public AiRunDetails(string provider, string model, bool success) {
-        Object(provider: provider, model: model, success: success);
+    public AiRunDetails(string thread_id,
+                        string run_id,
+                        string provider,
+                        string model,
+                        string router_model,
+                        int prompt_chars,
+                        bool success) {
+        Object(
+            thread_id: thread_id,
+            run_id: run_id,
+            provider: provider,
+            model: model,
+            router_model: router_model,
+            prompt_chars: prompt_chars,
+            success: success
+        );
     }
 }
 

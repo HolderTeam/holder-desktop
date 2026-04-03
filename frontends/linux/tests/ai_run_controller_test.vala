@@ -212,6 +212,8 @@ private void test_stream_progress_fallback_failed_events_are_rendered() {
     api.emit_progress = true;
     api.emit_fallback = true;
     api.emit_failed = true;
+    api.emitted_provider = "ollama";
+    api.emitted_model = "phi4";
     var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
@@ -222,10 +224,10 @@ private void test_stream_progress_fallback_failed_events_are_rendered() {
     bool saw_fallback = false;
     bool saw_failed = false;
     controller.append_output_requested.connect((role, text) => {
-        if (text.contains("working")) {
+        if (text.contains("working (ollama/phi4)")) {
             saw_progress = true;
         }
-        if (text.contains("Fallback from phi4")) {
+        if (text.contains("Fallback from ollama/phi4")) {
             saw_fallback = true;
         }
         if (text.contains("bad prompt")) {
@@ -261,6 +263,71 @@ private void test_stream_failed_without_error_uses_default_message() {
     controller.on_send_clicked("prompt");
     assert(wait_for_condition(() => saw_default_failed));
     assert(!saw_done_model_message);
+}
+
+private void test_refresh_selected_thread_output_includes_provider_and_model_labels() {
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
+    ctx.transcript_messages.add(
+        new HolderLinux.AiMessage("m1", "t1", "assistant", "cloud", "openai", "gpt-5.4", "answer", 1)
+    );
+    ctx.transcript_messages.add(
+        new HolderLinux.AiMessage("m2", "t1", "user", "local", null, null, "question", 2)
+    );
+    var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
+
+    string transcript = "";
+    controller.replace_output_requested.connect((text) => {
+        transcript = text;
+    });
+
+    controller.refresh_selected_thread_output.begin();
+    assert(wait_for_condition(() => transcript.length > 0));
+    assert(transcript.contains("Assistant (openai/gpt-5.4):\nanswer"));
+    assert(transcript.contains("You:\nquestion"));
+}
+
+private void test_run_activity_details_capture_stream_metadata() {
+    var api = new AiRunFakeApi();
+    api.emit_router_result = true;
+    api.emitted_provider = "openai";
+    api.emitted_model = "gpt-5.4";
+    api.emitted_router_model = "qwen3:4b";
+    api.emitted_run_id = "run-42";
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
+    ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
+    var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
+
+    HolderLinux.AiRunDetails? start_details = null;
+    HolderLinux.AiRunDetails? complete_details = null;
+    controller.activity_requested.connect((kind, message, project_id, card_id, details) => {
+        var ai_details = details as HolderLinux.AiRunDetails;
+        if (kind == "action.ai.run.start") {
+            start_details = ai_details;
+        } else if (kind == "result.ai.run_complete") {
+            complete_details = ai_details;
+        }
+    });
+
+    controller.on_send_clicked("prompt");
+    assert(wait_for_condition(() => complete_details != null));
+    assert(start_details != null);
+    assert(((!) start_details).thread_id == "t1");
+    assert(((!) start_details).prompt_chars == "prompt".length);
+    assert(((!) start_details).run_id == "");
+    assert(!((!) start_details).success);
+
+    assert(((!) complete_details).thread_id == "t1");
+    assert(((!) complete_details).run_id == "run-42");
+    assert(((!) complete_details).provider == "openai");
+    assert(((!) complete_details).model == "gpt-5.4");
+    assert(((!) complete_details).router_model == "qwen3:4b");
+    assert(((!) complete_details).prompt_chars == "prompt".length);
+    assert(((!) complete_details).success);
 }
 
 private void test_create_thread_from_prompt_without_project_errors() {
@@ -666,6 +733,14 @@ int main(string[] args) {
     Test.add_func(
         "/ai_run/stream_failed_without_error_uses_default_message",
         test_stream_failed_without_error_uses_default_message
+    );
+    Test.add_func(
+        "/ai_run/refresh_selected_thread_output_includes_provider_and_model_labels",
+        test_refresh_selected_thread_output_includes_provider_and_model_labels
+    );
+    Test.add_func(
+        "/ai_run/run_activity_details_capture_stream_metadata",
+        test_run_activity_details_capture_stream_metadata
     );
     Test.add_func(
         "/ai_run/create_thread_from_prompt_without_project_errors",

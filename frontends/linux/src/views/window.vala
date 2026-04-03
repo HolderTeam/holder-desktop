@@ -1432,11 +1432,38 @@ public class MainWindow : Adw.ApplicationWindow {
             if (card_id != null && card_id.strip().length > 0) {
                 parts.add("card=%s".printf(card_id));
             }
+            append_activity_details(parts, details);
             var scope = parts.size > 0
                 ? " [%s]".printf(string.joinv(", ", parts.to_array()))
                 : "";
             toolbox.log_debug("ACTIVITY %s %s%s".printf(kind, message, scope));
         }
+    }
+
+    private void append_activity_details(Gee.ArrayList<string> parts, ActivityDetails? details) {
+        var ai_details = details as AiRunDetails;
+        if (ai_details == null) {
+            return;
+        }
+        if (ai_details.thread_id.strip().length > 0) {
+            parts.add("thread=%s".printf(ai_details.thread_id));
+        }
+        if (ai_details.run_id.strip().length > 0) {
+            parts.add("run=%s".printf(ai_details.run_id));
+        }
+        if (ai_details.provider.strip().length > 0) {
+            parts.add("provider=%s".printf(ai_details.provider));
+        }
+        if (ai_details.model.strip().length > 0) {
+            parts.add("model=%s".printf(ai_details.model));
+        }
+        if (ai_details.router_model.strip().length > 0) {
+            parts.add("router=%s".printf(ai_details.router_model));
+        }
+        if (ai_details.prompt_chars > 0) {
+            parts.add("prompt_chars=%d".printf(ai_details.prompt_chars));
+        }
+        parts.add("success=%s".printf(ai_details.success ? "true" : "false"));
     }
 
     internal void log_nudge_candidate(NudgeCandidate candidate) {

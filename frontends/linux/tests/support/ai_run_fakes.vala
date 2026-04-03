@@ -20,6 +20,11 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public bool emit_failed_empty = false;
     public bool done_without_model = false;
     public bool emit_chunk_missing_delta = false;
+    public bool emit_router_result = false;
+    public string emitted_run_id = "run-1";
+    public string emitted_provider = "";
+    public string emitted_model = "phi4";
+    public string emitted_router_model = "";
     public bool pull_returns_empty_job_id = false;
     public int64 status_active_pull_jobs = 0;
     public bool fail_export_recovery_token = false;
@@ -253,6 +258,13 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
         }
 
         var chunk_obj = new Json.Object();
+        chunk_obj.set_string_member("run_id", emitted_run_id);
+        if (emitted_provider.length > 0) {
+            chunk_obj.set_string_member("provider", emitted_provider);
+        }
+        if (emitted_model.length > 0) {
+            chunk_obj.set_string_member("model", emitted_model);
+        }
         if (!emit_chunk_missing_delta) {
             chunk_obj.set_string_member("delta", "hello");
         }
@@ -260,15 +272,36 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
 
         if (emit_progress) {
             var progress_obj = new Json.Object();
+            progress_obj.set_string_member("run_id", emitted_run_id);
             progress_obj.set_string_member("message", "working");
+            if (emitted_provider.length > 0) {
+                progress_obj.set_string_member("provider", emitted_provider);
+            }
+            if (emitted_model.length > 0) {
+                progress_obj.set_string_member("model", emitted_model);
+            }
             on_event("progress", progress_obj);
         }
         if (emit_progress_empty) {
             on_event("progress", new Json.Object());
         }
+        if (emit_router_result) {
+            var router_obj = new Json.Object();
+            router_obj.set_string_member("run_id", emitted_run_id);
+            if (emitted_router_model.length > 0) {
+                router_obj.set_string_member("router_model", emitted_router_model);
+            }
+            on_event("router_result", router_obj);
+        }
         if (emit_fallback) {
             var fallback_obj = new Json.Object();
-            fallback_obj.set_string_member("model", "phi4");
+            fallback_obj.set_string_member("run_id", emitted_run_id);
+            if (emitted_provider.length > 0) {
+                fallback_obj.set_string_member("provider", emitted_provider);
+            }
+            if (emitted_model.length > 0) {
+                fallback_obj.set_string_member("model", emitted_model);
+            }
             fallback_obj.set_string_member("error", "rate limit");
             on_event("fallback", fallback_obj);
         }
@@ -285,8 +318,12 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
         }
 
         var done_obj = new Json.Object();
-        if (!done_without_model) {
-            done_obj.set_string_member("model", "phi4");
+        done_obj.set_string_member("run_id", emitted_run_id);
+        if (emitted_provider.length > 0) {
+            done_obj.set_string_member("provider", emitted_provider);
+        }
+        if (!done_without_model && emitted_model.length > 0) {
+            done_obj.set_string_member("model", emitted_model);
         }
         on_event("done", done_obj);
     }
@@ -324,6 +361,7 @@ public class AiRunFakeContext : Object, HolderLinux.IAiRunContext {
     public string? selected_thread_id = null;
     public bool fail_create_thread = false;
     public string create_thread_id = "t-created";
+    public Gee.ArrayList<HolderLinux.AiMessage> transcript_messages = new Gee.ArrayList<HolderLinux.AiMessage>();
 
     public HolderLinux.IHolderApi? get_api_client() {
         return api;
@@ -346,7 +384,7 @@ public class AiRunFakeContext : Object, HolderLinux.IAiRunContext {
     }
 
     public async Gee.ArrayList<HolderLinux.AiMessage> list_ai_messages(string thread_id) throws Error {
-        return new Gee.ArrayList<HolderLinux.AiMessage>();
+        return transcript_messages;
     }
 
     public int64 now_epoch_seconds() {
