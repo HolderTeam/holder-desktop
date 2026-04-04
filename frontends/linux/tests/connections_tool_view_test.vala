@@ -29,6 +29,24 @@ private void spin_main_loop_briefly(int duration_ms = 80) {
     loop.run();
 }
 
+private bool widget_tree_contains_label_text(Gtk.Widget? widget, string needle) {
+    if (widget == null) {
+        return false;
+    }
+    if (widget is Gtk.Label) {
+        var label = widget as Gtk.Label;
+        if (label != null && label.get_text().contains(needle)) {
+            return true;
+        }
+    }
+    for (var child = widget.get_first_child(); child != null; child = child.get_next_sibling()) {
+        if (widget_tree_contains_label_text(child, needle)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 private HolderLinux.Project project(string id, string name) {
     return new HolderLinux.Project(id, name, "plain", "/tmp/%s".printf(id), 1, 1);
 }
@@ -169,6 +187,46 @@ private void test_visible_connections_refresh_is_single_flight_for_latest_select
     assert(api.max_list_card_links_in_flight == 1);
 }
 
+private void test_stale_project_graph_refresh_result_is_dropped_when_generation_changes() {
+    var api = new MainControllerFakeApi();
+    api.list_card_links_delay_ms = 180;
+    var view = new HolderLinux.ConnectionsToolView();
+
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    project_store.append(project("p1", "Project One"));
+    project_store.append(project("p2", "Project Two"));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    project_selection.set_selected(1);
+
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    card_store.append(card("p1-card", "p1", "P1 Unique Node", 10));
+    card_store.append(card("p2-card", "p2", "P2 Unique Node", 10));
+    var card_selection = new Gtk.SingleSelection(card_store);
+    card_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+
+    view.set_api_client(api);
+    view.bind_context(project_selection, card_store, card_selection);
+    view.set_tool_visible(true);
+
+    assert(wait_until_true(() => {
+        return api.list_card_links_calls == 1
+            && widget_tree_contains_label_text(view.get_content_widget(), "P2 Unique Node");
+    }, 3000));
+
+    project_selection.set_selected(0);
+    spin_main_loop_briefly(130);
+    project_selection.set_selected(1);
+
+    spin_main_loop_briefly(120);
+    assert(widget_tree_contains_label_text(view.get_content_widget(), "P2 Unique Node"));
+    assert(!widget_tree_contains_label_text(view.get_content_widget(), "P1 Unique Node"));
+
+    assert(wait_until_true(() => {
+        return api.list_card_links_calls == 3
+            && widget_tree_contains_label_text(view.get_content_widget(), "P2 Unique Node");
+    }, 3000));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     if (!Gtk.init_check()) {
@@ -183,6 +241,8 @@ public static int main(string[] args) {
                   test_visible_connections_refresh_is_debounced);
     Test.add_func("/holder/connections-tool-view/visible-refresh-single-flight-latest-selection",
                   test_visible_connections_refresh_is_single_flight_for_latest_selection);
+    Test.add_func("/holder/connections-tool-view/stale-project-refresh-dropped-on-generation-change",
+                  test_stale_project_graph_refresh_result_is_dropped_when_generation_changes);
 
     return Test.run();
 }

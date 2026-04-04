@@ -77,6 +77,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     private IHolderApi? api;
     private Settings? settings;
     private uint connections_graph_refresh_serial = 0;
+    private uint connections_graph_generation = 0;
     private ConnectionsController controller;
     private Gee.ArrayList<string> internal_links_cache = new Gee.ArrayList<string>();
     private Gee.ArrayList<ConnectionsBoardNode> board_nodes = new Gee.ArrayList<ConnectionsBoardNode>();
@@ -658,6 +659,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     }
 
     private void queue_connections_graph_refresh() {
+        connections_graph_generation++;
         if (!is_tool_visible) {
             pending_refresh_when_visible = true;
             return;
@@ -679,22 +681,27 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             }
             clear_pending_project_empty_state();
             connections_graph_refresh_serial++;
-            refresh_connections_graph.begin(connections_graph_refresh_serial);
+            refresh_connections_graph.begin(
+                connections_graph_refresh_serial,
+                connections_graph_generation
+            );
             return Source.REMOVE;
         });
     }
 
-    private async void refresh_connections_graph(uint request_serial) {
+    private async void refresh_connections_graph(uint request_serial, uint request_generation) {
         graph_refresh_in_flight = true;
         try {
-            if (request_serial != connections_graph_refresh_serial) {
+            if (request_serial != connections_graph_refresh_serial
+                || request_generation != connections_graph_generation) {
                 return;
             }
             if (connections_board_overlay == null || connections_board_nodes_layer == null || connections_board_canvas == null) {
                 return;
             }
             if (show_projects_root) {
-                if (request_serial != connections_graph_refresh_serial) {
+                if (request_serial != connections_graph_refresh_serial
+                    || request_generation != connections_graph_generation) {
                     return;
                 }
                 render_projects_root_board();
@@ -708,7 +715,8 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                 ? card_selection.get_selected_item() as CardSummary
                 : null;
             if (selected_project == null) {
-                if (request_serial != connections_graph_refresh_serial) {
+                if (request_serial != connections_graph_refresh_serial
+                    || request_generation != connections_graph_generation) {
                     return;
                 }
                 // During project/card transitions, selection can briefly pass through null.
@@ -726,7 +734,8 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                 var expected_card_id = selected_card.card_id;
                 var result = yield controller.load_graph_links(api, selected_card);
 
-                if (request_serial != connections_graph_refresh_serial) {
+                if (request_serial != connections_graph_refresh_serial
+                    || request_generation != connections_graph_generation) {
                     return;
                 }
                 var still_selected = card_selection != null
@@ -750,7 +759,8 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             }
 
             if (api == null) {
-                if (request_serial != connections_graph_refresh_serial) {
+                if (request_serial != connections_graph_refresh_serial
+                    || request_generation != connections_graph_generation) {
                     return;
                 }
                 set_graph_empty_state("API unavailable.");
@@ -768,7 +778,8 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                 if (card.project_id != selected_project.project_id) {
                     continue;
                 }
-                if (request_serial != connections_graph_refresh_serial) {
+                if (request_serial != connections_graph_refresh_serial
+                    || request_generation != connections_graph_generation) {
                     return;
                 }
                 try {
@@ -786,7 +797,8 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                     return;
                 }
             }
-            if (request_serial != connections_graph_refresh_serial) {
+            if (request_serial != connections_graph_refresh_serial
+                || request_generation != connections_graph_generation) {
                 return;
             }
             render_project_mode_board(selected_project, cards, project_links);
@@ -952,10 +964,10 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
 
     private void schedule_project_empty_state_if_still_empty(string project_id) {
         clear_pending_project_empty_state();
-        var expected_serial = connections_graph_refresh_serial;
+        var expected_generation = connections_graph_generation;
         pending_project_empty_state_id = Timeout.add(PROJECT_EMPTY_STATE_DELAY_MS, () => {
             pending_project_empty_state_id = 0;
-            if (expected_serial != connections_graph_refresh_serial) {
+            if (expected_generation != connections_graph_generation) {
                 return Source.REMOVE;
             }
             if (show_projects_root) {
