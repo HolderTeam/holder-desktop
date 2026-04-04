@@ -311,6 +311,35 @@ connections_controller_test_exe = executable(
 
 test('holder-linux-connections-controller-tests', connections_controller_test_exe)
 
+connections_tool_view_test_exe = executable(
+  'holder-linux-connections-tool-view-tests',
+  [
+    'tests/support/main_controller_fakes.vala',
+    'src/models/models.vala',
+    'src/models/toolbox_nav_models.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/app_settings.vala',
+    'src/utils/text_utils.vala',
+    'src/controllers/connections.vala',
+    'src/views/toolbox/tool_adapter.vala',
+    'src/views/toolbox/connections_tool_view.vala',
+    'tests/connections_tool_view_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-connections-tool-view-tests', connections_tool_view_test_exe)
+
 terminal_controller_test_exe = executable(
   'holder-linux-terminal-controller-tests',
   [

@@ -3,6 +3,11 @@
 Date: February 19, 2026
 Scope: `frontends/linux` client using backend contracts in `holder/openapi.yaml` and `holder/docs/CLIENTS.md`.
 
+Planning note:
+
+- Backend execution-priority, crash-recovery, and multi-runner work is tracked in `holder-daemon/docs/ASYNC_PLAN.md`.
+- This feature plan should stay aligned with that merged plan rather than duplicating backend design decisions.
+
 ## 1) Source Of Truth
 
 Backend/API authority:
@@ -177,6 +182,7 @@ Status:
 
 - done (polling + pull actions implemented)
 - router config UI pending
+- multi-runner runner list/add/edit/remove UI pending
 
 ### F) AI Threads + Assistant
 
@@ -208,6 +214,7 @@ Status:
 - thread list/create wired
 - `/ai/runs` streaming wired
 - run history browser pending
+- future multi-runner model selection must use runner-qualified labels/refs rather than flat model names
 
 ### G) AI Messages + Provenance
 

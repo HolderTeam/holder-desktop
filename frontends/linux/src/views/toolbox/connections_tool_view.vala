@@ -85,6 +85,8 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     private bool show_projects_root = false;
     private bool has_committed_board = false;
     private uint pending_project_empty_state_id = 0;
+    private bool is_tool_visible = false;
+    private bool pending_refresh_when_visible = false;
 
     private bool project_has_known_cards(Project project) {
         return project.root_card_count > 0;
@@ -123,6 +125,17 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     public void set_api_client(IHolderApi? api) {
         this.api = api;
         queue_connections_graph_refresh();
+    }
+
+    public void set_tool_visible(bool visible) {
+        if (is_tool_visible == visible) {
+            return;
+        }
+        is_tool_visible = visible;
+        if (is_tool_visible && pending_refresh_when_visible) {
+            pending_refresh_when_visible = false;
+            queue_connections_graph_refresh();
+        }
     }
 
     public void set_settings(Settings? settings) {
@@ -641,6 +654,10 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     }
 
     private void queue_connections_graph_refresh() {
+        if (!is_tool_visible) {
+            pending_refresh_when_visible = true;
+            return;
+        }
         clear_pending_project_empty_state();
         connections_graph_refresh_serial++;
         refresh_connections_graph.begin(connections_graph_refresh_serial);
