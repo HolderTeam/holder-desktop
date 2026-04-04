@@ -91,6 +91,43 @@ private void test_hidden_connections_tool_does_not_refresh_until_visible() {
     }));
 }
 
+private void test_visible_connections_refresh_is_debounced() {
+    var api = new MainControllerFakeApi();
+    var view = new HolderLinux.ConnectionsToolView();
+
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    project_store.append(project("p1", "Project"));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    project_selection.set_selected(0);
+
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    card_store.append(card("c1", "p1", "Card One", 10));
+    card_store.append(card("c2", "p1", "Card Two", 20));
+    card_store.append(card("c3", "p1", "Card Three", 30));
+    var card_selection = new Gtk.SingleSelection(card_store);
+    card_selection.set_selected(0);
+
+    view.set_api_client(api);
+    view.bind_context(project_selection, card_store, card_selection);
+    view.set_tool_visible(true);
+
+    assert(wait_until_true(() => {
+        return api.list_card_links_calls == 1 && api.list_card_backlinks_calls == 1;
+    }));
+
+    card_selection.set_selected(1);
+    card_selection.set_selected(2);
+    card_selection.set_selected(0);
+
+    spin_main_loop_briefly(40);
+    assert(api.list_card_links_calls == 1);
+    assert(api.list_card_backlinks_calls == 1);
+
+    assert(wait_until_true(() => {
+        return api.list_card_links_calls == 2 && api.list_card_backlinks_calls == 2;
+    }));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     if (!Gtk.init_check()) {
@@ -101,6 +138,8 @@ public static int main(string[] args) {
 
     Test.add_func("/holder/connections-tool-view/hidden-refresh-suppressed-until-visible",
                   test_hidden_connections_tool_does_not_refresh_until_visible);
+    Test.add_func("/holder/connections-tool-view/visible-refresh-debounced",
+                  test_visible_connections_refresh_is_debounced);
 
     return Test.run();
 }

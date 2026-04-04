@@ -45,6 +45,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     private const int BOARD_BOTTOM_PADDING = 16;
     private const int PROJECT_MODE_MAX_NODES = 12;
     private const uint PROJECT_EMPTY_STATE_DELAY_MS = 250;
+    private const uint GRAPH_REFRESH_DEBOUNCE_MS = 100;
     [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
     private static extern void gtk_style_context_add_provider_for_display(
         Gdk.Display display,
@@ -87,6 +88,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     private uint pending_project_empty_state_id = 0;
     private bool is_tool_visible = false;
     private bool pending_refresh_when_visible = false;
+    private uint pending_graph_refresh_id = 0;
 
     private bool project_has_known_cards(Project project) {
         return project.root_card_count > 0;
@@ -658,9 +660,18 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             pending_refresh_when_visible = true;
             return;
         }
-        clear_pending_project_empty_state();
-        connections_graph_refresh_serial++;
-        refresh_connections_graph.begin(connections_graph_refresh_serial);
+        pending_refresh_when_visible = false;
+        if (pending_graph_refresh_id != 0) {
+            Source.remove(pending_graph_refresh_id);
+            pending_graph_refresh_id = 0;
+        }
+        pending_graph_refresh_id = Timeout.add(GRAPH_REFRESH_DEBOUNCE_MS, () => {
+            pending_graph_refresh_id = 0;
+            clear_pending_project_empty_state();
+            connections_graph_refresh_serial++;
+            refresh_connections_graph.begin(connections_graph_refresh_serial);
+            return Source.REMOVE;
+        });
     }
 
     private async void refresh_connections_graph(uint request_serial) {
