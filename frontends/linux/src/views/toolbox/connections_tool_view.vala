@@ -78,6 +78,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     private Settings? settings;
     private uint connections_graph_refresh_serial = 0;
     private uint connections_graph_generation = 0;
+    private uint connections_graph_content_generation = 0;
     private ConnectionsController controller;
     private Gee.ArrayList<string> internal_links_cache = new Gee.ArrayList<string>();
     private Gee.ArrayList<ConnectionsBoardNode> board_nodes = new Gee.ArrayList<ConnectionsBoardNode>();
@@ -92,9 +93,63 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     private uint pending_graph_refresh_id = 0;
     private bool graph_refresh_in_flight = false;
     private bool pending_graph_refresh_after_flight = false;
+    private string? pending_graph_refresh_target_key = null;
+    private string? in_flight_graph_refresh_target_key = null;
+    private string? committed_graph_refresh_target_key = null;
+    private uint committed_graph_refresh_generation = 0;
 
     private bool project_has_known_cards(Project project) {
         return project.root_card_count > 0;
+    }
+
+    private void note_graph_refresh_content_changed() {
+        connections_graph_content_generation++;
+    }
+
+    private bool internal_links_equal(Gee.ArrayList<string>? link_targets) {
+        int target_size = link_targets != null ? link_targets.size : 0;
+        if (internal_links_cache.size != target_size) {
+            return false;
+        }
+        if (link_targets == null) {
+            return true;
+        }
+        for (int i = 0; i < link_targets.size; i++) {
+            if (internal_links_cache[i] != link_targets[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private string current_graph_refresh_target_key() {
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        var selected_card = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary
+            : null;
+        if (selected_card != null
+            && selected_project != null
+            && selected_card.project_id != selected_project.project_id) {
+            selected_card = null;
+        }
+        string mode = "project_root";
+        string project_id = selected_project != null ? selected_project.project_id : "";
+        string card_id = "";
+        if (show_projects_root) {
+            mode = "projects_root";
+            project_id = "";
+        } else if (selected_card != null) {
+            mode = "card_focus";
+            card_id = selected_card.card_id;
+        }
+        return "%s|%s|%s|%u".printf(
+            mode,
+            project_id,
+            card_id,
+            connections_graph_content_generation
+        );
     }
 
     public Gtk.Widget widget { get; private set; }
@@ -128,6 +183,9 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     }
 
     public void set_api_client(IHolderApi? api) {
+        if (this.api != api) {
+            note_graph_refresh_content_changed();
+        }
         this.api = api;
         queue_connections_graph_refresh();
     }
@@ -153,6 +211,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         this.project_selection = project_selection;
         this.card_store = card_store;
         this.card_selection = card_selection;
+        note_graph_refresh_content_changed();
 
         project_selection.notify["selected"].connect(() => {
             show_projects_root = false;
@@ -166,6 +225,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         });
         card_store.items_changed.connect((position, removed, added) => {
             refresh_connections_structure();
+            note_graph_refresh_content_changed();
             queue_connections_graph_refresh();
         });
 
@@ -415,7 +475,11 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     }
 
     public void set_internal_links(Gee.ArrayList<string> link_targets) {
+        if (internal_links_equal(link_targets)) {
+            return;
+        }
         internal_links_cache.clear();
+        note_graph_refresh_content_changed();
         if (link_targets == null || link_targets.size == 0) {
             queue_connections_graph_refresh();
             return;
@@ -652,6 +716,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                 controller.remember_custom_link_kind(settings, kind);
             }
             toast_requested("Graph link added.");
+            note_graph_refresh_content_changed();
             queue_connections_graph_refresh();
         } catch (Error e) {
             error_reported("Failed to add graph link", e.message);
@@ -659,37 +724,68 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     }
 
     private void queue_connections_graph_refresh() {
-        connections_graph_generation++;
+        var target_key = current_graph_refresh_target_key();
+        if (!graph_refresh_in_flight
+            && pending_graph_refresh_id == 0
+            && !pending_refresh_when_visible
+            && committed_graph_refresh_target_key == target_key
+            && committed_graph_refresh_generation == connections_graph_generation) {
+            return;
+        }
         if (!is_tool_visible) {
+            if (pending_refresh_when_visible && pending_graph_refresh_target_key == target_key) {
+                return;
+            }
+            connections_graph_generation++;
             pending_refresh_when_visible = true;
+            pending_graph_refresh_target_key = target_key;
             return;
         }
         pending_refresh_when_visible = false;
+        if (pending_graph_refresh_id != 0 && pending_graph_refresh_target_key == target_key) {
+            return;
+        }
         if (graph_refresh_in_flight) {
+            if (in_flight_graph_refresh_target_key == target_key) {
+                return;
+            }
+            if (pending_graph_refresh_after_flight && pending_graph_refresh_target_key == target_key) {
+                return;
+            }
+            connections_graph_generation++;
             pending_graph_refresh_after_flight = true;
+            pending_graph_refresh_target_key = target_key;
             return;
         }
         if (pending_graph_refresh_id != 0) {
             Source.remove(pending_graph_refresh_id);
             pending_graph_refresh_id = 0;
         }
+        connections_graph_generation++;
+        pending_graph_refresh_target_key = target_key;
         pending_graph_refresh_id = Timeout.add(GRAPH_REFRESH_DEBOUNCE_MS, () => {
+            var dispatch_target_key = pending_graph_refresh_target_key;
             pending_graph_refresh_id = 0;
+            pending_graph_refresh_target_key = null;
             if (graph_refresh_in_flight) {
                 pending_graph_refresh_after_flight = true;
                 return Source.REMOVE;
             }
             clear_pending_project_empty_state();
             connections_graph_refresh_serial++;
+            in_flight_graph_refresh_target_key = dispatch_target_key;
             refresh_connections_graph.begin(
                 connections_graph_refresh_serial,
-                connections_graph_generation
+                connections_graph_generation,
+                dispatch_target_key ?? target_key
             );
             return Source.REMOVE;
         });
     }
 
-    private async void refresh_connections_graph(uint request_serial, uint request_generation) {
+    private async void refresh_connections_graph(uint request_serial,
+                                                uint request_generation,
+                                                string request_target_key) {
         graph_refresh_in_flight = true;
         try {
             if (request_serial != connections_graph_refresh_serial
@@ -704,6 +800,8 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                     || request_generation != connections_graph_generation) {
                     return;
                 }
+                committed_graph_refresh_target_key = request_target_key;
+                committed_graph_refresh_generation = request_generation;
                 render_projects_root_board();
                 update_add_graph_link_button_state();
                 return;
@@ -753,6 +851,8 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                     }
                     return;
                 }
+                committed_graph_refresh_target_key = request_target_key;
+                committed_graph_refresh_generation = request_generation;
                 render_card_mode_board(selected_project, selected_card, result.outgoing, result.backlinks);
                 update_add_graph_link_button_state();
                 return;
@@ -801,10 +901,13 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                 || request_generation != connections_graph_generation) {
                 return;
             }
+            committed_graph_refresh_target_key = request_target_key;
+            committed_graph_refresh_generation = request_generation;
             render_project_mode_board(selected_project, cards, project_links);
             update_add_graph_link_button_state();
         } finally {
             graph_refresh_in_flight = false;
+            in_flight_graph_refresh_target_key = null;
             if (pending_graph_refresh_after_flight) {
                 pending_graph_refresh_after_flight = false;
                 queue_connections_graph_refresh();

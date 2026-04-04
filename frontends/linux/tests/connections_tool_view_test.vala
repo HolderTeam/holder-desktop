@@ -227,6 +227,48 @@ private void test_stale_project_graph_refresh_result_is_dropped_when_generation_
     }, 3000));
 }
 
+private void test_duplicate_refresh_triggers_for_same_effective_target_are_suppressed() {
+    var api = new MainControllerFakeApi();
+    var view = new HolderLinux.ConnectionsToolView();
+
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    project_store.append(project("p1", "Project"));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    project_selection.set_selected(0);
+
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    card_store.append(card("c1", "p1", "Card One", 10));
+    var card_selection = new Gtk.SingleSelection(card_store);
+    card_selection.set_selected(0);
+
+    view.set_api_client(api);
+    view.bind_context(project_selection, card_store, card_selection);
+    view.set_tool_visible(true);
+
+    assert(wait_until_true(() => {
+        return api.list_card_links_calls == 1 && api.list_card_backlinks_calls == 1;
+    }, 3000));
+
+    view.set_api_client(api);
+    spin_main_loop_briefly(160);
+    assert(api.list_card_links_calls == 1);
+    assert(api.list_card_backlinks_calls == 1);
+
+    var internal_links = new Gee.ArrayList<string>();
+    internal_links.add("Card One");
+    view.set_internal_links(internal_links);
+    assert(wait_until_true(() => {
+        return api.list_card_links_calls == 2 && api.list_card_backlinks_calls == 2;
+    }, 3000));
+
+    var same_internal_links = new Gee.ArrayList<string>();
+    same_internal_links.add("Card One");
+    view.set_internal_links(same_internal_links);
+    spin_main_loop_briefly(160);
+    assert(api.list_card_links_calls == 2);
+    assert(api.list_card_backlinks_calls == 2);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     if (!Gtk.init_check()) {
@@ -243,6 +285,8 @@ public static int main(string[] args) {
                   test_visible_connections_refresh_is_single_flight_for_latest_selection);
     Test.add_func("/holder/connections-tool-view/stale-project-refresh-dropped-on-generation-change",
                   test_stale_project_graph_refresh_result_is_dropped_when_generation_changes);
+    Test.add_func("/holder/connections-tool-view/duplicate-effective-target-refresh-suppressed",
+                  test_duplicate_refresh_triggers_for_same_effective_target_are_suppressed);
 
     return Test.run();
 }
