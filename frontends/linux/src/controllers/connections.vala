@@ -1,5 +1,41 @@
 namespace HolderLinux {
 
+public class ConnectionsBoardNode : Object {
+    public string card_id { get; construct; }
+    public string title { get; construct; }
+    public int64 updated_at { get; construct; }
+    public int child_count { get; construct; }
+    public int x { get; set; }
+    public int y { get; set; }
+
+    public ConnectionsBoardNode(string card_id,
+                                string title,
+                                int64 updated_at = 0,
+                                int child_count = 0,
+                                int x = 0,
+                                int y = 0) {
+        Object(
+            card_id: card_id,
+            title: title,
+            updated_at: updated_at,
+            child_count: child_count,
+            x: x,
+            y: y
+        );
+    }
+}
+
+public class ConnectionsBoardEdge : Object {
+    public string from_card_id { get; construct; }
+    public string to_card_id { get; construct; }
+    public string kind { get; construct; }
+    public bool dashed { get; construct; }
+
+    public ConnectionsBoardEdge(string from_card_id, string to_card_id, string kind, bool dashed = false) {
+        Object(from_card_id: from_card_id, to_card_id: to_card_id, kind: kind, dashed: dashed);
+    }
+}
+
 public class GraphLinkTargetOption : Object {
     public string card_id { get; construct; }
     public string display_text { get; construct; }
@@ -296,6 +332,327 @@ public class ConnectionsController : Object {
             card_id,
             content_generation
         );
+    }
+
+    public string normalized_link_kind(string? kind) {
+        if (kind == null) {
+            return "ref";
+        }
+        var cleaned = kind.strip();
+        return cleaned.length > 0 ? cleaned : "ref";
+    }
+
+    public int child_count_for(string card_id, Gee.ArrayList<CardSummary> cards) {
+        int count = 0;
+        foreach (var card in cards) {
+            if (normalize_parent(card.parent_card_id) == card_id) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public CardSummary? find_card_by_id(string card_id, Gee.ArrayList<CardSummary> cards) {
+        foreach (var card in cards) {
+            if (card.card_id == card_id) {
+                return card;
+            }
+        }
+        return null;
+    }
+
+    public void ensure_board_node(Gee.HashMap<string, ConnectionsBoardNode> nodes_by_id,
+                                  string card_id,
+                                  Gee.ArrayList<CardSummary> cards) {
+        if (nodes_by_id.has_key(card_id)) {
+            return;
+        }
+        var title = ellipsize_title(title_for_card_id(card_id, cards));
+        int64 updated_at = 0;
+        var card = find_card_by_id(card_id, cards);
+        if (card != null) {
+            updated_at = card.updated_at;
+        }
+        nodes_by_id.set(card_id, new ConnectionsBoardNode(
+            card_id,
+            title,
+            updated_at,
+            child_count_for(card_id, cards)
+        ));
+    }
+
+    public bool add_edge_to_list(Gee.HashSet<string> edge_keys,
+                                 Gee.ArrayList<ConnectionsBoardEdge> edges,
+                                 string from_card_id,
+                                 string to_card_id,
+                                 string kind,
+                                 bool dashed) {
+        if (from_card_id == to_card_id) {
+            return false;
+        }
+        var key = "%s|%s|%s".printf(from_card_id, to_card_id, kind);
+        if (edge_keys.contains(key)) {
+            return false;
+        }
+        edge_keys.add(key);
+        edges.add(new ConnectionsBoardEdge(from_card_id, to_card_id, kind, dashed));
+        return true;
+    }
+
+    public void add_board_edge(Gee.HashMap<string, ConnectionsBoardNode> nodes_by_id,
+                               Gee.HashSet<string> edge_keys,
+                               Gee.ArrayList<ConnectionsBoardEdge> edges,
+                               string from_card_id,
+                               string to_card_id,
+                               string kind,
+                               bool dashed,
+                               Gee.ArrayList<CardSummary> cards) {
+        if (!add_edge_to_list(edge_keys, edges, from_card_id, to_card_id, kind, dashed)) {
+            return;
+        }
+        ensure_board_node(nodes_by_id, from_card_id, cards);
+        ensure_board_node(nodes_by_id, to_card_id, cards);
+    }
+
+    public Gee.ArrayList<ConnectionsBoardEdge> build_structural_edges_for_selected(CardSummary selected_card,
+                                                                                   Gee.ArrayList<CardSummary> project_cards) {
+        var out = new Gee.ArrayList<ConnectionsBoardEdge>();
+        var siblings = sibling_cards(selected_card, project_cards);
+        int selected_index = -1;
+        for (int i = 0; i < siblings.size; i++) {
+            if (siblings[i].card_id == selected_card.card_id) {
+                selected_index = i;
+                break;
+            }
+        }
+        if (selected_index > 0) {
+            out.add(new ConnectionsBoardEdge(siblings[selected_index - 1].card_id, selected_card.card_id, "next", true));
+        }
+        if (selected_index >= 0 && selected_index < siblings.size - 1) {
+            out.add(new ConnectionsBoardEdge(selected_card.card_id, siblings[selected_index + 1].card_id, "next", true));
+        }
+        var parent_id = normalize_parent(selected_card.parent_card_id);
+        if (parent_id != null) {
+            out.add(new ConnectionsBoardEdge(parent_id, selected_card.card_id, "child", true));
+        }
+        foreach (var card in project_cards) {
+            if (normalize_parent(card.parent_card_id) == selected_card.card_id) {
+                out.add(new ConnectionsBoardEdge(selected_card.card_id, card.card_id, "child", true));
+            }
+        }
+        return out;
+    }
+
+    public Gee.ArrayList<ConnectionsBoardEdge> build_structural_edges_for_project(Gee.ArrayList<CardSummary> project_cards) {
+        var out = new Gee.ArrayList<ConnectionsBoardEdge>();
+        var parent_groups = new Gee.HashMap<string, Gee.ArrayList<CardSummary>>();
+        foreach (var card in project_cards) {
+            var parent_key = normalize_parent(card.parent_card_id) ?? "";
+            var group = parent_groups.get(parent_key);
+            if (group == null) {
+                group = new Gee.ArrayList<CardSummary>();
+                parent_groups.set(parent_key, group);
+            }
+            group.add(card);
+            if (parent_key.length > 0) {
+                out.add(new ConnectionsBoardEdge(parent_key, card.card_id, "child", true));
+            }
+        }
+        foreach (var group in parent_groups.values) {
+            group.sort((a, b) => compare_sibling_order(a, b));
+            for (int i = 0; i < group.size - 1; i++) {
+                out.add(new ConnectionsBoardEdge(group[i].card_id, group[i + 1].card_id, "next", true));
+            }
+        }
+        return out;
+    }
+
+    public void layout_card_mode_nodes(string center_card_id,
+                                       Gee.ArrayList<ConnectionsBoardNode> nodes,
+                                       int board_min_width,
+                                       int board_node_width,
+                                       int board_node_height,
+                                       int board_padding,
+                                       int canvas_height) {
+        int cx = board_min_width / 2 - board_node_width / 2;
+        int cy = int.max(12, (canvas_height / 2 - board_node_height / 2) - 70);
+        var ring = new Gee.ArrayList<ConnectionsBoardNode>();
+        foreach (var node in nodes) {
+            if (node.card_id == center_card_id) {
+                node.x = cx;
+                node.y = cy;
+            } else {
+                ring.add(node);
+            }
+        }
+        if (ring.size == 0) {
+            return;
+        }
+        int step_x = board_node_width + 56;
+        int step_y = board_node_height + 34;
+        int placed = 0;
+        for (int radius = 1; placed < ring.size; radius++) {
+            for (int grid_y = -radius; grid_y <= radius && placed < ring.size; grid_y++) {
+                for (int grid_x = -radius; grid_x <= radius && placed < ring.size; grid_x++) {
+                    if (imax(iabs(grid_x), iabs(grid_y)) != radius) {
+                        continue;
+                    }
+                    ring[placed].x = int.max(board_padding / 2, cx + grid_x * step_x);
+                    ring[placed].y = int.max(board_padding / 2, cy + grid_y * step_y);
+                    placed++;
+                }
+            }
+        }
+    }
+
+    public void layout_project_mode_nodes(Gee.ArrayList<ConnectionsBoardNode> nodes,
+                                          int board_padding,
+                                          int board_node_width,
+                                          int board_node_height) {
+        if (nodes.size == 0) {
+            return;
+        }
+        int cols = 1;
+        while ((cols * cols) < nodes.size) {
+            cols++;
+        }
+        int gap_x = 36;
+        int gap_y = 36;
+        int start_x = board_padding;
+        int start_y = 20;
+        for (int i = 0; i < nodes.size; i++) {
+            int col = i % cols;
+            int row = i / cols;
+            nodes[i].x = start_x + col * (board_node_width + gap_x);
+            nodes[i].y = start_y + row * (board_node_height + gap_y);
+        }
+    }
+
+    public void spread_nodes_to_avoid_overlap(Gee.ArrayList<ConnectionsBoardNode> nodes,
+                                              int board_node_width,
+                                              int board_node_height) {
+        int gap = 14;
+        if (nodes.size < 2) {
+            return;
+        }
+        var placed = new Gee.ArrayList<ConnectionsBoardNode>();
+        for (int i = 0; i < nodes.size; i++) {
+            var node = nodes[i];
+            int original_x = node.x;
+            int original_y = node.y;
+            int guard = 0;
+            while (overlaps_any(node, placed, gap, board_node_width, board_node_height) && guard < 80) {
+                node.y += board_node_height + gap;
+                if (node.y > 780) {
+                    node.y = original_y + ((guard % 3) * 10);
+                    node.x += (board_node_width / 2) + gap;
+                }
+                guard++;
+            }
+            if (guard >= 80) {
+                node.x = original_x + (i * 22);
+                node.y = original_y + (i * 18);
+            }
+            placed.add(node);
+        }
+    }
+
+    public int target_board_height_for_count(int node_count) {
+        if (node_count <= 1) {
+            return 220;
+        }
+        if (node_count <= 4) {
+            return 320;
+        }
+        if (node_count <= 8) {
+            return 430;
+        }
+        if (node_count <= 14) {
+            return 560;
+        }
+        return 680;
+    }
+
+    public string format_counts_summary(Gee.HashMap<string, int> counts) {
+        if (counts.size == 0) {
+            return "No graph relationships yet.";
+        }
+        var keys = new Gee.ArrayList<string>();
+        foreach (var key in counts.keys) {
+            keys.add(key);
+        }
+        keys.sort((a, b) => {
+            var ca = counts.get(a);
+            var cb = counts.get(b);
+            if (ca != cb) {
+                return cb - ca;
+            }
+            return strcmp(a, b);
+        });
+        var parts = new Gee.ArrayList<string>();
+        foreach (var key in keys) {
+            parts.add("• %s: %d".printf(key, counts.get(key)));
+        }
+        return string.joinv("\n", parts.to_array());
+    }
+
+    public void increment_count(Gee.HashMap<string, int> counts, string kind) {
+        if (counts.has_key(kind)) {
+            counts.set(kind, counts.get(kind) + 1);
+            return;
+        }
+        counts.set(kind, 1);
+    }
+
+    private Gee.ArrayList<CardSummary> sibling_cards(CardSummary selected_card, Gee.ArrayList<CardSummary> project_cards) {
+        var siblings = new Gee.ArrayList<CardSummary>();
+        var target_parent = normalize_parent(selected_card.parent_card_id);
+        foreach (var card in project_cards) {
+            if (normalize_parent(card.parent_card_id) == target_parent) {
+                siblings.add(card);
+            }
+        }
+        siblings.sort((a, b) => compare_sibling_order(a, b));
+        return siblings;
+    }
+
+    private bool overlaps_any(ConnectionsBoardNode node,
+                              Gee.ArrayList<ConnectionsBoardNode> placed,
+                              int gap,
+                              int board_node_width,
+                              int board_node_height) {
+        foreach (var other in placed) {
+            if (nodes_overlap(node, other, gap, board_node_width, board_node_height)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private bool nodes_overlap(ConnectionsBoardNode a,
+                               ConnectionsBoardNode b,
+                               int gap,
+                               int board_node_width,
+                               int board_node_height) {
+        int ax0 = a.x;
+        int ay0 = a.y;
+        int ax1 = a.x + board_node_width + gap;
+        int ay1 = a.y + board_node_height + gap;
+        int bx0 = b.x;
+        int by0 = b.y;
+        int bx1 = b.x + board_node_width + gap;
+        int by1 = b.y + board_node_height + gap;
+        bool x_overlap = ax0 < bx1 && bx0 < ax1;
+        bool y_overlap = ay0 < by1 && by0 < ay1;
+        return x_overlap && y_overlap;
+    }
+
+    private int iabs(int value) {
+        return value < 0 ? -value : value;
+    }
+
+    private int imax(int a, int b) {
+        return a >= b ? a : b;
     }
 
     public async ConnectionsMutationResult update_graph_link_flow(IHolderApi? api,
