@@ -89,6 +89,8 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     private bool is_tool_visible = false;
     private bool pending_refresh_when_visible = false;
     private uint pending_graph_refresh_id = 0;
+    private bool graph_refresh_in_flight = false;
+    private bool pending_graph_refresh_after_flight = false;
 
     private bool project_has_known_cards(Project project) {
         return project.root_card_count > 0;
@@ -661,12 +663,20 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             return;
         }
         pending_refresh_when_visible = false;
+        if (graph_refresh_in_flight) {
+            pending_graph_refresh_after_flight = true;
+            return;
+        }
         if (pending_graph_refresh_id != 0) {
             Source.remove(pending_graph_refresh_id);
             pending_graph_refresh_id = 0;
         }
         pending_graph_refresh_id = Timeout.add(GRAPH_REFRESH_DEBOUNCE_MS, () => {
             pending_graph_refresh_id = 0;
+            if (graph_refresh_in_flight) {
+                pending_graph_refresh_after_flight = true;
+                return Source.REMOVE;
+            }
             clear_pending_project_empty_state();
             connections_graph_refresh_serial++;
             refresh_connections_graph.begin(connections_graph_refresh_serial);
@@ -675,110 +685,119 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     }
 
     private async void refresh_connections_graph(uint request_serial) {
-        if (request_serial != connections_graph_refresh_serial) {
-            return;
-        }
-        if (connections_board_overlay == null || connections_board_nodes_layer == null || connections_board_canvas == null) {
-            return;
-        }
-        if (show_projects_root) {
+        graph_refresh_in_flight = true;
+        try {
             if (request_serial != connections_graph_refresh_serial) {
                 return;
             }
-            render_projects_root_board();
-            update_add_graph_link_button_state();
-            return;
-        }
-        var selected_project = project_selection != null
-            ? project_selection.get_selected_item() as Project
-            : null;
-        var selected_card = card_selection != null
-            ? card_selection.get_selected_item() as CardSummary
-            : null;
-        if (selected_project == null) {
-            if (request_serial != connections_graph_refresh_serial) {
+            if (connections_board_overlay == null || connections_board_nodes_layer == null || connections_board_canvas == null) {
                 return;
             }
-            // During project/card transitions, selection can briefly pass through null.
-            // Keep the committed board to avoid flashing a transient empty state.
-            if (!has_committed_board) {
-                set_graph_empty_state("Select a project to view connections.");
-            }
-            return;
-        }
-        if (selected_card != null && selected_card.project_id != selected_project.project_id) {
-            selected_card = null;
-        }
-
-        if (selected_card != null) {
-            var expected_card_id = selected_card.card_id;
-            var result = yield controller.load_graph_links(api, selected_card);
-
-            if (request_serial != connections_graph_refresh_serial) {
+            if (show_projects_root) {
+                if (request_serial != connections_graph_refresh_serial) {
+                    return;
+                }
+                render_projects_root_board();
+                update_add_graph_link_button_state();
                 return;
             }
-            var still_selected = card_selection != null
+            var selected_project = project_selection != null
+                ? project_selection.get_selected_item() as Project
+                : null;
+            var selected_card = card_selection != null
                 ? card_selection.get_selected_item() as CardSummary
                 : null;
-            if (still_selected == null || still_selected.card_id != expected_card_id) {
-                return;
-            }
-            if (!result.success || result.outgoing == null || result.backlinks == null) {
+            if (selected_project == null) {
+                if (request_serial != connections_graph_refresh_serial) {
+                    return;
+                }
+                // During project/card transitions, selection can briefly pass through null.
+                // Keep the committed board to avoid flashing a transient empty state.
                 if (!has_committed_board) {
-                    set_graph_empty_state(result.outgoing_empty_text);
-                }
-                if (result.debug_message.strip().length > 0) {
-                    debug_log_requested(result.debug_message);
+                    set_graph_empty_state("Select a project to view connections.");
                 }
                 return;
             }
-            render_card_mode_board(selected_project, selected_card, result.outgoing, result.backlinks);
-            update_add_graph_link_button_state();
-            return;
-        }
+            if (selected_card != null && selected_card.project_id != selected_project.project_id) {
+                selected_card = null;
+            }
 
-        if (api == null) {
-            if (request_serial != connections_graph_refresh_serial) {
-                return;
-            }
-            set_graph_empty_state("API unavailable.");
-            return;
-        }
-        var cards = snapshot_cards();
-        var project_links = new Gee.ArrayList<CardLink>();
-        var project_card_ids = new Gee.HashSet<string>();
-        foreach (var card in cards) {
-            if (card.project_id == selected_project.project_id) {
-                project_card_ids.add(card.card_id);
-            }
-        }
-        foreach (var card in cards) {
-            if (card.project_id != selected_project.project_id) {
-                continue;
-            }
-            if (request_serial != connections_graph_refresh_serial) {
-                return;
-            }
-            try {
-                var links = yield api.list_card_links(card.card_id);
-                foreach (var link in links) {
-                    if (link.to_type == "card" && project_card_ids.contains(link.to_card_id)) {
-                        project_links.add(link);
+            if (selected_card != null) {
+                var expected_card_id = selected_card.card_id;
+                var result = yield controller.load_graph_links(api, selected_card);
+
+                if (request_serial != connections_graph_refresh_serial) {
+                    return;
+                }
+                var still_selected = card_selection != null
+                    ? card_selection.get_selected_item() as CardSummary
+                    : null;
+                if (still_selected == null || still_selected.card_id != expected_card_id) {
+                    return;
+                }
+                if (!result.success || result.outgoing == null || result.backlinks == null) {
+                    if (!has_committed_board) {
+                        set_graph_empty_state(result.outgoing_empty_text);
                     }
+                    if (result.debug_message.strip().length > 0) {
+                        debug_log_requested(result.debug_message);
+                    }
+                    return;
                 }
-            } catch (Error e) {
-                if (!has_committed_board) {
-                    set_graph_empty_state("Failed to load project graph links.");
-                }
-                debug_log_requested("Project graph links refresh failed: %s".printf(e.message));
+                render_card_mode_board(selected_project, selected_card, result.outgoing, result.backlinks);
+                update_add_graph_link_button_state();
                 return;
             }
+
+            if (api == null) {
+                if (request_serial != connections_graph_refresh_serial) {
+                    return;
+                }
+                set_graph_empty_state("API unavailable.");
+                return;
+            }
+            var cards = snapshot_cards();
+            var project_links = new Gee.ArrayList<CardLink>();
+            var project_card_ids = new Gee.HashSet<string>();
+            foreach (var card in cards) {
+                if (card.project_id == selected_project.project_id) {
+                    project_card_ids.add(card.card_id);
+                }
+            }
+            foreach (var card in cards) {
+                if (card.project_id != selected_project.project_id) {
+                    continue;
+                }
+                if (request_serial != connections_graph_refresh_serial) {
+                    return;
+                }
+                try {
+                    var links = yield api.list_card_links(card.card_id);
+                    foreach (var link in links) {
+                        if (link.to_type == "card" && project_card_ids.contains(link.to_card_id)) {
+                            project_links.add(link);
+                        }
+                    }
+                } catch (Error e) {
+                    if (!has_committed_board) {
+                        set_graph_empty_state("Failed to load project graph links.");
+                    }
+                    debug_log_requested("Project graph links refresh failed: %s".printf(e.message));
+                    return;
+                }
+            }
+            if (request_serial != connections_graph_refresh_serial) {
+                return;
+            }
+            render_project_mode_board(selected_project, cards, project_links);
+            update_add_graph_link_button_state();
+        } finally {
+            graph_refresh_in_flight = false;
+            if (pending_graph_refresh_after_flight) {
+                pending_graph_refresh_after_flight = false;
+                queue_connections_graph_refresh();
+            }
         }
-        if (request_serial != connections_graph_refresh_serial) {
-            return;
-        }
-        render_project_mode_board(selected_project, cards, project_links);
-        update_add_graph_link_button_state();
     }
 
     private void render_card_mode_board(Project project,

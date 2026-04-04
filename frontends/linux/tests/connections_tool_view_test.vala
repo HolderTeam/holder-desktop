@@ -128,6 +128,47 @@ private void test_visible_connections_refresh_is_debounced() {
     }));
 }
 
+private void test_visible_connections_refresh_is_single_flight_for_latest_selection() {
+    var api = new MainControllerFakeApi();
+    api.list_card_links_delay_ms = 180;
+    var view = new HolderLinux.ConnectionsToolView();
+
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    project_store.append(project("p1", "Project"));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    project_selection.set_selected(0);
+
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    card_store.append(card("c1", "p1", "Card One", 10));
+    card_store.append(card("c2", "p1", "Card Two", 20));
+    card_store.append(card("c3", "p1", "Card Three", 30));
+    var card_selection = new Gtk.SingleSelection(card_store);
+    card_selection.set_selected(0);
+
+    view.set_api_client(api);
+    view.bind_context(project_selection, card_store, card_selection);
+    view.set_tool_visible(true);
+
+    assert(wait_until_true(() => {
+        return api.list_card_links_calls == 1 && api.list_card_backlinks_calls == 1;
+    }, 3000));
+
+    card_selection.set_selected(1);
+    spin_main_loop_briefly(130);
+    card_selection.set_selected(2);
+    card_selection.set_selected(0);
+
+    assert(wait_until_true(() => {
+        return api.list_card_links_calls == 2 && api.list_card_backlinks_calls == 2;
+    }, 3000));
+
+    assert(wait_until_true(() => {
+        return api.list_card_links_calls == 3 && api.list_card_backlinks_calls == 3;
+    }, 3000));
+
+    assert(api.max_list_card_links_in_flight == 1);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     if (!Gtk.init_check()) {
@@ -140,6 +181,8 @@ public static int main(string[] args) {
                   test_hidden_connections_tool_does_not_refresh_until_visible);
     Test.add_func("/holder/connections-tool-view/visible-refresh-debounced",
                   test_visible_connections_refresh_is_debounced);
+    Test.add_func("/holder/connections-tool-view/visible-refresh-single-flight-latest-selection",
+                  test_visible_connections_refresh_is_single_flight_for_latest_selection);
 
     return Test.run();
 }
