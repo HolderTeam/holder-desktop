@@ -87,6 +87,29 @@ public class ConnectionsMutationResult : Object {
     }
 }
 
+public class ConnectionsGraphRefreshTarget : Object {
+    public string mode { get; construct; }
+    public string project_id { get; construct; }
+    public string card_id { get; construct; }
+    public uint content_generation { get; construct; }
+
+    public ConnectionsGraphRefreshTarget(string mode,
+                                         string project_id = "",
+                                         string card_id = "",
+                                         uint content_generation = 0) {
+        Object(
+            mode: mode,
+            project_id: project_id,
+            card_id: card_id,
+            content_generation: content_generation
+        );
+    }
+
+    public string to_key() {
+        return "%s|%s|%s|%u".printf(mode, project_id, card_id, content_generation);
+    }
+}
+
 public class ConnectionsController : Object {
     internal static int ellipsize_cutoff_override_for_tests = int.MIN;
 
@@ -229,6 +252,50 @@ public class ConnectionsController : Object {
                 "Graph links refresh failed: %s".printf(e.message)
             );
         }
+    }
+
+    public bool internal_links_equal(Gee.ArrayList<string> current_links,
+                                     Gee.ArrayList<string>? candidate_links) {
+        int candidate_size = candidate_links != null ? candidate_links.size : 0;
+        if (current_links.size != candidate_size) {
+            return false;
+        }
+        if (candidate_links == null) {
+            return true;
+        }
+        for (int i = 0; i < candidate_links.size; i++) {
+            if (current_links[i] != candidate_links[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public ConnectionsGraphRefreshTarget build_graph_refresh_target(bool show_projects_root,
+                                                                    Project? selected_project,
+                                                                    CardSummary? selected_card,
+                                                                    uint content_generation) {
+        if (selected_card != null
+            && selected_project != null
+            && selected_card.project_id != selected_project.project_id) {
+            selected_card = null;
+        }
+        string mode = "project_root";
+        string project_id = selected_project != null ? selected_project.project_id : "";
+        string card_id = "";
+        if (show_projects_root) {
+            mode = "projects_root";
+            project_id = "";
+        } else if (selected_card != null) {
+            mode = "card_focus";
+            card_id = selected_card.card_id;
+        }
+        return new ConnectionsGraphRefreshTarget(
+            mode,
+            project_id,
+            card_id,
+            content_generation
+        );
     }
 
     public async ConnectionsMutationResult update_graph_link_flow(IHolderApi? api,
