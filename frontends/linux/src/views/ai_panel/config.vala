@@ -84,15 +84,20 @@ public class AiConfigPanelView : Object {
         status_label.set_wrap(true);
         root.append(status_label);
 
-        var local_heading = new Gtk.Label("Local Models");
-        local_heading.set_halign(Gtk.Align.START);
-        local_heading.add_css_class("heading");
-        root.append(local_heading);
+        var runners_heading = new Gtk.Label("Model Runners");
+        runners_heading.set_halign(Gtk.Align.START);
+        runners_heading.add_css_class("heading");
+        root.append(runners_heading);
 
         local_runtime_label = new Gtk.Label("");
         local_runtime_label.set_halign(Gtk.Align.START);
         local_runtime_label.set_wrap(true);
         root.append(local_runtime_label);
+
+        var local_heading = new Gtk.Label("Local Models");
+        local_heading.set_halign(Gtk.Align.START);
+        local_heading.add_css_class("heading");
+        root.append(local_heading);
 
         fast_model_options = new Gtk.StringList(null);
         fast_model_dropdown = new Gtk.DropDown(fast_model_options, null);
