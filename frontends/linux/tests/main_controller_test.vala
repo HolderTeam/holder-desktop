@@ -1523,6 +1523,94 @@ private void test_autosave_failure_keeps_unsaved_save_state() {
     assert(controller.has_unsaved_editor_changes());
 }
 
+private void test_autosave_failure_schedules_retry_and_retry_success_clears_dirty_state() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    string last_error_details = "";
+    controller.error_reported.connect((title, details) => {
+        if (title == "Autosave failed") {
+            last_error_details = details;
+        }
+    });
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.autosave_retry_id != 0));
+    assert(last_error_details.contains("Retrying in 1 s."));
+    assert(controller.has_unsaved_editor_changes());
+
+    api.fail_update_card = false;
+    scheduler.run_all_once();
+    assert(wait_for_condition(() => api.update_card_calls == 1));
+    assert(wait_for_condition(() => !controller.has_unsaved_editor_changes()));
+    assert(controller.autosave_retry_id == 0);
+    assert(controller.autosave_retry_attempts == 0);
+}
+
+private void test_new_edit_cancels_pending_autosave_retry() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.autosave_retry_id != 0));
+
+    controller.schedule_autosave();
+    assert(controller.autosave_retry_id == 0);
+    assert(controller.autosave_retry_attempts == 0);
+}
+
+private void test_navigation_change_cancels_stale_autosave_retry() {
+    var api = new MainControllerFakeApi();
+    api.include_card2 = true;
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.autosave_retry_id != 0));
+
+    api.fail_update_card = false;
+    controller.show_project_overview.begin();
+    assert(wait_for_condition(() => controller.get_current_card() == null));
+    assert(controller.autosave_retry_id == 0);
+    scheduler.run_all_once();
+    assert(api.update_card_calls == 0);
+}
+
 private void test_background_reload_success_keeps_dirty_editor_state() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -2248,6 +2336,18 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/autosave_failure_keeps_unsaved_save_state",
         test_autosave_failure_keeps_unsaved_save_state
+    );
+    Test.add_func(
+        "/main_controller/autosave_failure_schedules_retry_and_retry_success_clears_dirty_state",
+        test_autosave_failure_schedules_retry_and_retry_success_clears_dirty_state
+    );
+    Test.add_func(
+        "/main_controller/new_edit_cancels_pending_autosave_retry",
+        test_new_edit_cancels_pending_autosave_retry
+    );
+    Test.add_func(
+        "/main_controller/navigation_change_cancels_stale_autosave_retry",
+        test_navigation_change_cancels_stale_autosave_retry
     );
     Test.add_func(
         "/main_controller/background_reload_success_keeps_dirty_editor_state",

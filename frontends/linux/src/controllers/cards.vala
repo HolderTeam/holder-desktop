@@ -93,6 +93,7 @@ internal class CardsController : Object {
     }
 
     public void schedule_autosave() {
+        owner.cancel_autosave_retry();
         if (owner.autosave_id != 0) {
             owner.scheduler.cancel(owner.autosave_id);
         }
@@ -168,6 +169,7 @@ internal class CardsController : Object {
             );
             owner.update_selected_card_summary(title, updated_at);
             owner.window_title_changed(title);
+            owner.note_autosave_success();
             owner.set_editor_save_state("Saved");
             owner.status_changed("Saved %s".printf(TextUtils.format_relative_time(owner.now_epoch_seconds(), updated_at)));
         } catch (Error e) {
@@ -177,8 +179,17 @@ internal class CardsController : Object {
                 owner.current_project != null ? owner.current_project.project_id : null,
                 owner.current_card.card_id
             );
+            var repeat_failure = owner.autosave_retry_is_repeat_failure();
+            var retry_delay_ms = owner.note_autosave_retry_scheduled(owner.current_card.card_id);
             owner.set_editor_save_state("Unsaved");
-            owner.error_reported("Autosave failed", e.message);
+            if (repeat_failure) {
+                owner.status_changed("Autosave failed, retrying in %u s".printf((retry_delay_ms + 999) / 1000));
+                return;
+            }
+            owner.error_reported(
+                "Autosave failed",
+                "%s\n\nRetrying in %u s.".printf(e.message, (retry_delay_ms + 999) / 1000)
+            );
         }
     }
 

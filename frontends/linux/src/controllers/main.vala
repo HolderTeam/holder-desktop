@@ -25,6 +25,8 @@ public class MainController : Object, IAiRunContext {
 
     internal bool create_card_in_flight = false;
     internal uint autosave_id = 0;
+    internal uint autosave_retry_id = 0;
+    internal uint autosave_retry_attempts = 0;
     internal uint search_debounce_id = 0;
     internal uint card_loading_status_id = 0;
     internal uint project_cards_loading_status_id = 0;
@@ -287,6 +289,42 @@ public class MainController : Object, IAiRunContext {
 
     public void schedule_autosave() {
         cards_controller.schedule_autosave();
+    }
+
+    public void cancel_autosave_retry() {
+        if (autosave_retry_id != 0) {
+            scheduler.cancel(autosave_retry_id);
+            autosave_retry_id = 0;
+        }
+        autosave_retry_attempts = 0;
+    }
+
+    public void note_autosave_success() {
+        cancel_autosave_retry();
+    }
+
+    public uint note_autosave_retry_scheduled(string card_id) {
+        if (autosave_retry_id != 0) {
+            scheduler.cancel(autosave_retry_id);
+            autosave_retry_id = 0;
+        }
+
+        autosave_retry_attempts++;
+        uint delay_ms = autosave_retry_delay_ms(autosave_retry_attempts);
+        autosave_retry_id = scheduler.schedule_once(delay_ms, () => {
+            autosave_retry_id = 0;
+            if (current_card == null || current_card.card_id != card_id || !has_unsaved_editor_changes()) {
+                autosave_retry_attempts = 0;
+                return Source.REMOVE;
+            }
+            autosave_current_card.begin();
+            return Source.REMOVE;
+        });
+        return delay_ms;
+    }
+
+    public bool autosave_retry_is_repeat_failure() {
+        return autosave_retry_attempts > 0;
     }
 
     public async void autosave_current_card() {
@@ -710,13 +748,28 @@ public class MainController : Object, IAiRunContext {
         return strcmp(a.title.down(), b.title.down());
     }
 
+    private static uint autosave_retry_delay_ms(uint attempts) {
+        switch (attempts) {
+        case 1:
+            return 1000;
+        case 2:
+            return 2000;
+        case 3:
+            return 5000;
+        default:
+            return 10000;
+        }
+    }
+
     internal void set_editor_view_state(string text, bool editable) {
+        cancel_autosave_retry();
         editor_draft_state.reset_to_view_state(text, editable);
         editor_state_changed(text, editable);
         editor_save_state_changed("");
     }
 
     internal void set_loaded_card_editor_state(CardDetail card) {
+        cancel_autosave_retry();
         editor_draft_state.load_card_state(card.card_id, card.content);
         editor_state_changed(card.content, true);
         editor_save_state_changed("");
