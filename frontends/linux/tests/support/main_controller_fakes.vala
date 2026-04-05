@@ -44,6 +44,33 @@ public class MutableTextProvider : Object, HolderLinux.ITextProvider {
     }
 }
 
+public class FakeEditorRecoveryDraftService : Object, HolderLinux.IEditorRecoveryDraftService {
+    public int save_calls = 0;
+    public int remove_calls = 0;
+    public HolderLinux.EditorRecoveryDraft? last_saved_draft = null;
+    public Gee.HashMap<string, HolderLinux.EditorRecoveryDraft> drafts =
+        new Gee.HashMap<string, HolderLinux.EditorRecoveryDraft>();
+
+    public void save_draft(HolderLinux.EditorRecoveryDraft draft) throws Error {
+        save_calls++;
+        last_saved_draft = draft;
+        drafts.set(draft.card_id, draft);
+    }
+
+    public HolderLinux.EditorRecoveryDraft? load_draft(string card_id) throws Error {
+        return drafts.get(card_id);
+    }
+
+    public void remove_draft(string card_id) throws Error {
+        remove_calls++;
+        drafts.unset(card_id);
+    }
+
+    public string draft_path_for_card_id(string card_id) {
+        return "/tmp/%s.json".printf(card_id);
+    }
+}
+
 public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int list_projects_calls = 0;
     public int list_cards_calls = 0;

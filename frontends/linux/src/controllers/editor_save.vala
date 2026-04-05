@@ -4,12 +4,15 @@ internal class EditorSaveController : Object {
     private const uint AUTOSAVE_DELAY_MS = 900;
 
     private MainController owner; // LCOV_EXCL_LINE: field declaration-only coverage artifact
+    private IEditorRecoveryDraftService recovery_draft_service;
     private uint autosave_id = 0;
     private uint autosave_retry_id = 0;
     private uint autosave_retry_attempts = 0;
 
-    public EditorSaveController(MainController owner) {
+    public EditorSaveController(MainController owner,
+                                IEditorRecoveryDraftService? recovery_draft_service = null) {
         this.owner = owner;
+        this.recovery_draft_service = recovery_draft_service ?? new EditorRecoveryDraftService();
     }
 
     public void schedule_autosave() {
@@ -26,13 +29,19 @@ internal class EditorSaveController : Object {
     }
 
     public async void autosave_current_card() {
-        if (owner.api == null || owner.current_card == null) {
+        if (owner.current_card == null) {
             return;
         }
 
         var previous_content = owner.editor_draft_state.committed_text;
         var text = owner.editor_text.get_text();
         if (!has_unsaved_editor_changes()) {
+            return;
+        }
+        if (owner.api == null) {
+            save_local_recovery_draft(owner.current_card, text);
+            owner.status_changed("Backend unavailable, saved recovery draft locally");
+            set_editor_save_state("Unsaved");
             return;
         }
         var previous_title = owner.current_card.title;
@@ -93,6 +102,7 @@ internal class EditorSaveController : Object {
             set_editor_save_state("Saved");
             owner.status_changed("Saved %s".printf(TextUtils.format_relative_time(owner.now_epoch_seconds(), updated_at)));
         } catch (Error e) {
+            save_local_recovery_draft(owner.current_card, text);
             owner.emit_activity(
                 "result.card.autosave_failed",
                 "Autosave failed: %s".printf(e.message),
@@ -199,6 +209,20 @@ internal class EditorSaveController : Object {
             return 5000;
         default:
             return 10000;
+        }
+    }
+
+    private void save_local_recovery_draft(CardDetail card, string content) {
+        try {
+            recovery_draft_service.save_draft(new EditorRecoveryDraft(
+                card.card_id,
+                card.project_id,
+                TextUtils.title_from_content(content),
+                content,
+                owner.now_epoch_seconds()
+            ));
+        } catch (Error e) {
+            warning("Failed to save local recovery draft for %s: %s", card.card_id, e.message);
         }
     }
 

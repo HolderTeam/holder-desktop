@@ -26,6 +26,7 @@ sources = [
   'src/state/activity_log.vala',
   'src/services/core_interfaces.vala',
   'src/services/app_settings.vala',
+  'src/services/editor_recovery_draft_service.vala',
   'src/services/print_service.vala',
   'src/services/git_sync_service.vala',
   'src/services/resources_service.vala',
@@ -192,6 +193,7 @@ main_controller_test_exe = executable(
     'tests/support/main_controller_harness.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
+    'src/services/editor_recovery_draft_service.vala',
     'src/state/editor_draft_state.vala',
     'src/utils/text_utils.vala',
     'src/controllers/main.vala',
@@ -216,11 +218,30 @@ main_controller_test_exe = executable(
 
 test('holder-linux-main-controller-tests', main_controller_test_exe)
 
+editor_recovery_draft_service_test_exe = executable(
+  'holder-linux-editor-recovery-draft-service-tests',
+  [
+    'src/services/editor_recovery_draft_service.vala',
+    'tests/editor_recovery_draft_service_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-editor-recovery-draft-service-tests', editor_recovery_draft_service_test_exe)
+
 git_sync_controller_test_exe = executable(
   'holder-linux-git-sync-controller-tests',
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/services/app_settings.vala',
@@ -248,6 +269,7 @@ resources_controller_test_exe = executable(
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/services/resources_service.vala',
@@ -273,6 +295,7 @@ resources_service_test_exe = executable(
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/services/resources_service.vala',
@@ -295,6 +318,7 @@ connections_controller_test_exe = executable(
   'holder-linux-connections-controller-tests',
   [
     'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/services/app_settings.vala',
@@ -319,6 +343,7 @@ connections_tool_view_test_exe = executable(
   'holder-linux-connections-tool-view-tests',
   [
     'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
     'src/models/models.vala',
     'src/models/toolbox_nav_models.vala',
     'src/services/core_interfaces.vala',
@@ -368,6 +393,7 @@ git_sync_service_test_exe = executable(
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/services/git_sync_service.vala',
@@ -453,6 +479,7 @@ local_info_controller_test_exe = executable(
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/utils/text_utils.vala',
@@ -478,6 +505,7 @@ local_info_flow_controller_test_exe = executable(
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/utils/text_utils.vala',
@@ -1253,6 +1281,7 @@ trash_tool_view_test_exe = executable(
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
     'src/models/models.vala',
     'src/models/toolbox_nav_models.vala',
     'src/services/core_interfaces.vala',
@@ -1282,6 +1311,7 @@ trash_controller_test_exe = executable(
   [
     'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
     'src/models/models.vala',
     'src/services/core_interfaces.vala',
     'src/controllers/trash.vala',

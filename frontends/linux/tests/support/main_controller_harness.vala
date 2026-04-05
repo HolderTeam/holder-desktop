@@ -20,7 +20,8 @@ public class MainControllerTestHarness : Object {
                                      FakeClock clock,
                                      FakeServerDiscovery? discovery = null,
                                      HolderLinux.IHolderApi? initial_api = null,
-                                     bool inject_initial_api = true) {
+                                     bool inject_initial_api = true,
+                                     HolderLinux.IEditorRecoveryDraftService? recovery_draft_service = null) {
         project_store = new GLib.ListStore(typeof(HolderLinux.Project));
         card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
         thread_store = new GLib.ListStore(typeof(HolderLinux.AiThreadSummary));
@@ -45,7 +46,9 @@ public class MainControllerTestHarness : Object {
             discovery ?? new FakeServerDiscovery(),
             clock,
             scheduler,
-            inject_initial_api ? (initial_api ?? api) : null
+            inject_initial_api ? (initial_api ?? api) : null,
+            null,
+            recovery_draft_service
         );
 
         controller.editor_state_changed.connect((text, editable) => {
