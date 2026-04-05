@@ -1036,7 +1036,7 @@ private void test_start_ai_runner_pull_parses_job_id_and_payload() {
 
     bool done = false;
     string job_id = "";
-    client.start_ai_runner_pull.begin("phi4", (obj, res) => {
+    client.start_ai_runner_pull.begin("phi4", null, (obj, res) => {
         try {
             job_id = client.start_ai_runner_pull.end(res);
         } catch (Error e) {
@@ -2096,7 +2096,7 @@ private void test_start_runner_pull_missing_data_is_protocol_error_and_missing_j
 
     bool done_empty = false;
     string job = "x";
-    client.start_ai_runner_pull.begin("phi4", (o1, r1) => {
+    client.start_ai_runner_pull.begin("phi4", null, (o1, r1) => {
         try {
             job = client.start_ai_runner_pull.end(r1);
         } catch (Error e) {
@@ -2109,7 +2109,7 @@ private void test_start_runner_pull_missing_data_is_protocol_error_and_missing_j
 
     bool done_error = false;
     bool got_protocol = false;
-    client.start_ai_runner_pull.begin("phi4", (o2, r2) => {
+    client.start_ai_runner_pull.begin("phi4", null, (o2, r2) => {
         try {
             client.start_ai_runner_pull.end(r2);
         } catch (Error e) {

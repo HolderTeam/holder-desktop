@@ -1,6 +1,101 @@
 namespace HolderLinux {
 
 public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifact
+    private static AiRunnerRuntimeInfo parse_ai_runner_runtime(Json.Object data) {
+        var models = new Gee.ArrayList<string>();
+        if (data.has_member("models")) {
+            var items = data.get_array_member("models");
+            for (uint i = 0; i < items.get_length(); i++) {
+                var item = items.get_object_element(i);
+                var name = ApiParsersCommon.string_member_or_empty(item, "name");
+                if (name.length > 0) {
+                    models.add(name);
+                }
+            }
+        }
+
+        var pulls = new Gee.ArrayList<AiRunnerPullInfo>();
+        if (data.has_member("pulls")) {
+            var items = data.get_array_member("pulls");
+            for (uint i = 0; i < items.get_length(); i++) {
+                var item = items.get_object_element(i);
+                double percent = 0.0;
+                string stage = "";
+                if (item.has_member("progress")) {
+                    var progress = item.get_object_member("progress");
+                    if (progress != null) {
+                        if (progress.has_member("percent")) {
+                            percent = progress.get_double_member("percent");
+                        }
+                        stage = ApiParsersCommon.string_member_or_empty(progress, "stage");
+                    }
+                }
+                pulls.add(new AiRunnerPullInfo(
+                    ApiParsersCommon.string_member_or_empty(item, "job_id"),
+                    ApiParsersCommon.string_member_or_empty(item, "runner_id"),
+                    ApiParsersCommon.string_member_or_empty(item, "model"),
+                    ApiParsersCommon.string_member_or_empty(item, "status"),
+                    percent,
+                    stage
+                ));
+            }
+        }
+
+        return new AiRunnerRuntimeInfo(
+            data.has_member("configured") ? data.get_boolean_member("configured") : false,
+            data.has_member("available") ? data.get_boolean_member("available") : false,
+            data.has_member("spawn_attempted") ? data.get_boolean_member("spawn_attempted") : false,
+            data.has_member("last_checked") ? data.get_int_member("last_checked") : 0,
+            ApiParsersCommon.nullable_string_member_or_null(data, "version") ?? "",
+            ApiParsersCommon.nullable_string_member_or_null(data, "error") ?? "",
+            models,
+            pulls
+        );
+    }
+
+    private static AiRunnerInfo parse_ai_runner(Json.Object data) {
+        var runtime_node = ApiParsersCommon.object_member_or_null(data, "runtime");
+        var runtime = runtime_node != null
+            ? parse_ai_runner_runtime(runtime_node)
+            : new AiRunnerRuntimeInfo(false, false, false, 0, "", "", new Gee.ArrayList<string>(), new Gee.ArrayList<AiRunnerPullInfo>());
+
+        return new AiRunnerInfo(
+            ApiParsersCommon.string_member_or_empty(data, "runner_id"),
+            ApiParsersCommon.string_member_or_empty(data, "name"),
+            ApiParsersCommon.string_member_or_empty(data, "kind"),
+            ApiParsersCommon.nullable_string_member_or_null(data, "base_url"),
+            ApiParsersCommon.string_member_or_empty(data, "source"),
+            data.has_member("enabled") ? data.get_boolean_member("enabled") : false,
+            data.has_member("created_at") ? data.get_int_member("created_at") : 0,
+            data.has_member("updated_at") ? data.get_int_member("updated_at") : 0,
+            runtime
+        );
+    }
+
+    public static Gee.ArrayList<AiRunnerInfo> parse_ai_runners(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai runners response");
+        }
+        var data = root.get_object_member("data");
+        if (!data.has_member("runners")) {
+            throw new ApiError.PROTOCOL("Missing data.runners for ai runners response");
+        }
+
+        var runners = new Gee.ArrayList<AiRunnerInfo>();
+        var items = data.get_array_member("runners");
+        for (uint i = 0; i < items.get_length(); i++) {
+            runners.add(parse_ai_runner(items.get_object_element(i)));
+        }
+        return runners;
+    }
+
+    public static AiRunnerInfo parse_ai_runner_detail(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for ai runner response");
+        }
+        return parse_ai_runner(root.get_object_member("data"));
+    }
+
     public static AiCapabilitiesInfo parse_ai_capabilities(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
         if (!root.has_member("data")) {
             throw new ApiError.PROTOCOL("Missing data for ai capabilities response");

@@ -95,7 +95,7 @@ private void test_start_ai_runner_pull_success() {
 
     bool done = false;
     string job_id = "";
-    client.start_ai_runner_pull.begin("phi4", (obj, res) => {
+    client.start_ai_runner_pull.begin("phi4", null, (obj, res) => {
         try {
             job_id = client.start_ai_runner_pull.end(res);
         } catch (Error e) {
@@ -111,6 +111,28 @@ private void test_start_ai_runner_pull_success() {
     assert(transport.last_content_type == "application/json");
 }
 
+private void test_start_ai_runner_pull_with_runner_id() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"job_id\":\"job-2\"}}");
+    var client = make_client(transport);
+
+    bool done = false;
+    string job_id = "";
+    client.start_ai_runner_pull.begin("phi4", "manual-a", (obj, res) => {
+        try {
+            job_id = client.start_ai_runner_pull.end(res);
+        } catch (Error e) {
+            job_id = "";
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(job_id == "job-2");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.contains("/ai/runner/pull"));
+}
+
 private void test_start_ai_runner_pull_missing_data_protocol_error() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(200, "{\"ok\":true}");
@@ -118,7 +140,7 @@ private void test_start_ai_runner_pull_missing_data_protocol_error() {
 
     bool done = false;
     bool got_protocol = false;
-    client.start_ai_runner_pull.begin("phi4", (obj, res) => {
+    client.start_ai_runner_pull.begin("phi4", null, (obj, res) => {
         try {
             client.start_ai_runner_pull.end(res);
         } catch (Error e) {
@@ -138,7 +160,7 @@ private void test_start_ai_runner_pull_missing_job_id_returns_empty_string() {
 
     bool done = false;
     string job_id = "not-empty";
-    client.start_ai_runner_pull.begin("phi4", (obj, res) => {
+    client.start_ai_runner_pull.begin("phi4", null, (obj, res) => {
         try {
             job_id = client.start_ai_runner_pull.end(res);
         } catch (Error e) {
@@ -242,6 +264,87 @@ private void test_list_ai_provider_catalog_parses_unwrapped_response() {
     assert(transport.last_uri.contains("/ai_catalog.json"));
 }
 
+private void test_list_ai_runners_parses_response() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"runners\":[{\"runner_id\":\"auto-local\",\"name\":\"Local Ollama\",\"kind\":\"ollama\",\"source\":\"auto_local\",\"enabled\":true,\"created_at\":0,\"updated_at\":0,\"runtime\":{\"configured\":true,\"available\":true,\"version\":\"1.0\",\"models\":[{\"name\":\"m1\"}],\"pulls\":[{\"job_id\":\"job-1\",\"runner_id\":\"auto-local\",\"model\":\"m2\",\"status\":\"pulling\",\"progress\":{\"percent\":25.0,\"stage\":\"downloading\"}}]}}]}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.AiRunnerInfo>? runners = null;
+    client.list_ai_runners.begin((obj, res) => {
+        try {
+            runners = client.list_ai_runners.end(res);
+        } catch (Error e) {
+            runners = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(runners != null);
+    assert(runners.size == 1);
+    assert(runners[0].runner_id == "auto-local");
+    assert(runners[0].runtime.available);
+    assert(runners[0].runtime.models[0] == "m1");
+    assert(runners[0].runtime.pulls[0].model == "m2");
+    assert(transport.last_uri.contains("/ai/runners"));
+}
+
+private void test_create_update_delete_ai_runner_requests() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(201, "{\"ok\":true,\"data\":{\"runner_id\":\"manual-a\",\"name\":\"Office\",\"kind\":\"ollama\",\"base_url\":\"http://office:11434\",\"source\":\"manual\",\"enabled\":true,\"created_at\":1,\"updated_at\":1,\"runtime\":{\"configured\":true,\"available\":false,\"models\":[],\"pulls\":[]}}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"runner_id\":\"manual-a\",\"name\":\"Desk\",\"kind\":\"ollama\",\"base_url\":\"http://desk:11434\",\"source\":\"manual\",\"enabled\":false,\"created_at\":1,\"updated_at\":2,\"runtime\":{\"configured\":false,\"available\":false,\"models\":[],\"pulls\":[]}}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"runner_id\":\"manual-a\"}}");
+    var client = make_client(transport);
+
+    bool done_create = false;
+    HolderLinux.AiRunnerInfo? created = null;
+    client.create_ai_runner.begin("Office", "http://office:11434", true, (obj, res) => {
+        try {
+            created = client.create_ai_runner.end(res);
+        } catch (Error e) {
+            created = null;
+        }
+        done_create = true;
+    });
+    assert(wait_for_condition(() => done_create));
+    assert(created != null);
+    assert(created.runner_id == "manual-a");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.contains("/ai/runners"));
+
+    bool done_update = false;
+    HolderLinux.AiRunnerInfo? updated = null;
+    client.update_ai_runner.begin("manual-a", "Desk", "http://desk:11434", false, (obj, res) => {
+        try {
+            updated = client.update_ai_runner.end(res);
+        } catch (Error e) {
+            updated = null;
+        }
+        done_update = true;
+    });
+    assert(wait_for_condition(() => done_update));
+    assert(updated != null);
+    assert(updated.name == "Desk");
+    assert(transport.last_method == "PATCH");
+    assert(transport.last_uri.contains("/ai/runners/manual-a"));
+
+    bool done_delete = false;
+    client.delete_ai_runner.begin("manual-a", (obj, res) => {
+        try {
+            client.delete_ai_runner.end(res);
+        } catch (Error e) {
+        }
+        done_delete = true;
+    });
+    assert(wait_for_condition(() => done_delete));
+    assert(transport.last_method == "DELETE");
+    assert(transport.last_uri.contains("/ai/runners/manual-a"));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -253,6 +356,8 @@ public static int main(string[] args) {
                   test_get_ai_status_parses_response);
     Test.add_func("/api_client_ai/start_ai_runner_pull_success",
                   test_start_ai_runner_pull_success);
+    Test.add_func("/api_client_ai/start_ai_runner_pull_with_runner_id",
+                  test_start_ai_runner_pull_with_runner_id);
     Test.add_func("/api_client_ai/start_ai_runner_pull_missing_data_protocol_error",
                   test_start_ai_runner_pull_missing_data_protocol_error);
     Test.add_func("/api_client_ai/start_ai_runner_pull_missing_job_id_returns_empty_string",
@@ -263,6 +368,10 @@ public static int main(string[] args) {
                   test_create_ai_thread_missing_data_protocol_error);
     Test.add_func("/api_client_ai/list_ai_provider_catalog_parses_unwrapped_response",
                   test_list_ai_provider_catalog_parses_unwrapped_response);
+    Test.add_func("/api_client_ai/list_ai_runners_parses_response",
+                  test_list_ai_runners_parses_response);
+    Test.add_func("/api_client_ai/create_update_delete_ai_runner_requests",
+                  test_create_update_delete_ai_runner_requests);
 
     return Test.run();
 }

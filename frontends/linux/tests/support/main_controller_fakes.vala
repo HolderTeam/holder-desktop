@@ -524,9 +524,48 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         return new HolderLinux.AiStatusInfo(1, true, "", 0, 0, 0, new Gee.ArrayList<string>());
     }
 
-    public async string start_ai_runner_pull(string model_tag) throws Error {
+    public async string start_ai_runner_pull(string model_tag, string? runner_id = null) throws Error {
         return "job-1";
     }
+
+    public async Gee.ArrayList<HolderLinux.AiRunnerInfo> list_ai_runners() throws Error {
+        return new Gee.ArrayList<HolderLinux.AiRunnerInfo>();
+    }
+
+    public async HolderLinux.AiRunnerInfo create_ai_runner(string name,
+                                                           string base_url,
+                                                           bool enabled = true) throws Error {
+        return new HolderLinux.AiRunnerInfo(
+            "manual-created",
+            name,
+            "ollama",
+            base_url,
+            "manual",
+            enabled,
+            0,
+            0,
+            new HolderLinux.AiRunnerRuntimeInfo(false, false, false, 0, "", "", new Gee.ArrayList<string>(), new Gee.ArrayList<HolderLinux.AiRunnerPullInfo>())
+        );
+    }
+
+    public async HolderLinux.AiRunnerInfo update_ai_runner(string runner_id,
+                                                           string? name = null,
+                                                           string? base_url = null,
+                                                           bool? enabled = null) throws Error {
+        return new HolderLinux.AiRunnerInfo(
+            runner_id,
+            name ?? "Runner",
+            "ollama",
+            base_url,
+            "manual",
+            enabled ?? true,
+            0,
+            0,
+            new HolderLinux.AiRunnerRuntimeInfo(false, false, false, 0, "", "", new Gee.ArrayList<string>(), new Gee.ArrayList<HolderLinux.AiRunnerPullInfo>())
+        );
+    }
+
+    public async void delete_ai_runner(string runner_id) throws Error {}
 
     public async Gee.ArrayList<HolderLinux.AiThreadSummary> list_ai_threads(string project_id) throws Error {
         if (fail_list_threads) {

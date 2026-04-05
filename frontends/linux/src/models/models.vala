@@ -378,6 +378,96 @@ public class AiCapabilitiesInfo : Object {
     }
 }
 
+public class AiRunnerPullInfo : Object {
+    public string job_id { get; construct; }
+    public string runner_id { get; construct; }
+    public string model { get; construct; }
+    public string status { get; construct; }
+    public double percent { get; construct; }
+    public string stage { get; construct; }
+
+    public AiRunnerPullInfo(string job_id,
+                            string runner_id,
+                            string model,
+                            string status,
+                            double percent,
+                            string stage) {
+        Object(
+            job_id: job_id,
+            runner_id: runner_id,
+            model: model,
+            status: status,
+            percent: percent,
+            stage: stage
+        );
+    }
+}
+
+public class AiRunnerRuntimeInfo : Object {
+    public bool configured { get; construct; }
+    public bool available { get; construct; }
+    public bool spawn_attempted { get; construct; }
+    public int64 last_checked { get; construct; }
+    public string version { get; construct; }
+    public string error { get; construct; }
+    public Gee.ArrayList<string> models { get; construct; }
+    public Gee.ArrayList<AiRunnerPullInfo> pulls { get; construct; }
+
+    public AiRunnerRuntimeInfo(bool configured,
+                               bool available,
+                               bool spawn_attempted,
+                               int64 last_checked,
+                               string version,
+                               string error,
+                               Gee.ArrayList<string> models,
+                               Gee.ArrayList<AiRunnerPullInfo> pulls) {
+        Object(
+            configured: configured,
+            available: available,
+            spawn_attempted: spawn_attempted,
+            last_checked: last_checked,
+            version: version,
+            error: error,
+            models: models,
+            pulls: pulls
+        );
+    }
+}
+
+public class AiRunnerInfo : Object {
+    public string runner_id { get; construct; }
+    public string name { get; construct; }
+    public string kind { get; construct; }
+    public string? base_url { get; construct; }
+    public string source { get; construct; }
+    public bool enabled { get; construct; }
+    public int64 created_at { get; construct; }
+    public int64 updated_at { get; construct; }
+    public AiRunnerRuntimeInfo runtime { get; construct; }
+
+    public AiRunnerInfo(string runner_id,
+                        string name,
+                        string kind,
+                        string? base_url,
+                        string source,
+                        bool enabled,
+                        int64 created_at,
+                        int64 updated_at,
+                        AiRunnerRuntimeInfo runtime) {
+        Object(
+            runner_id: runner_id,
+            name: name,
+            kind: kind,
+            base_url: base_url,
+            source: source,
+            enabled: enabled,
+            created_at: created_at,
+            updated_at: updated_at,
+            runtime: runtime
+        );
+    }
+}
+
 public class AiStatusInfo : Object {
     public int64 checked_at { get; construct; }
     public bool runner_available { get; construct; }

@@ -193,8 +193,30 @@ public class ApiClient : Object, IHolderApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR
         return yield ApiClientAiEndpoints.get_ai_status(this); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
-    public async string start_ai_runner_pull(string model_tag) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-        return yield ApiClientAiEndpoints.start_ai_runner_pull(this, model_tag); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    public async string start_ai_runner_pull(string model_tag,
+                                             string? runner_id = null) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+        return yield ApiClientAiEndpoints.start_ai_runner_pull(this, model_tag, runner_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async Gee.ArrayList<AiRunnerInfo> list_ai_runners() throws Error {
+        return yield ApiClientAiEndpoints.list_ai_runners(this);
+    }
+
+    public async AiRunnerInfo create_ai_runner(string name,
+                                               string base_url,
+                                               bool enabled = true) throws Error {
+        return yield ApiClientAiEndpoints.create_ai_runner(this, name, base_url, enabled);
+    }
+
+    public async AiRunnerInfo update_ai_runner(string runner_id,
+                                               string? name = null,
+                                               string? base_url = null,
+                                               bool? enabled = null) throws Error {
+        return yield ApiClientAiEndpoints.update_ai_runner(this, runner_id, name, base_url, enabled);
+    }
+
+    public async void delete_ai_runner(string runner_id) throws Error {
+        yield ApiClientAiEndpoints.delete_ai_runner(this, runner_id);
     }
 
     public async Gee.ArrayList<AiThreadSummary> list_ai_threads(string project_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
