@@ -2261,6 +2261,8 @@ private void test_run_ai_stream_eof_without_blank_line_and_with_context_fields()
                 saw_chunk = true;
             }
         },
+        null,
+        null,
         (obj, res) => {
             try { client.run_ai_stream.end(res); } catch (Error e) {}
             done = true;
@@ -2296,6 +2298,8 @@ private void test_run_ai_stream_multiline_data_joins_with_newline() {
                 saw_joined_raw = true;
             }
         },
+        null,
+        null,
         (obj, res) => {
             try { client.run_ai_stream.end(res); } catch (Error e) {}
             done = true;
@@ -2669,6 +2673,8 @@ private void test_run_ai_stream_parses_sse_and_raw_data() {
                 saw_raw = true;
             }
         },
+        null,
+        null,
         (obj, res) => {
             try {
                 client.run_ai_stream.end(res);
@@ -2706,6 +2712,8 @@ private void test_run_ai_stream_http_error() {
         null,
         null,
         (event_name, data) => {},
+        null,
+        null,
         (obj, res) => {
             try {
                 client.run_ai_stream.end(res);
@@ -2735,6 +2743,8 @@ private void test_run_ai_stream_transport_error() {
         null,
         null,
         (event_name, data) => {},
+        null,
+        null,
         (obj, res) => {
             try {
                 client.run_ai_stream.end(res);
@@ -2765,6 +2775,8 @@ private void test_run_ai_stream_sse_read_error_maps_to_transport_error() {
         null,
         null,
         (event_name, data) => {},
+        null,
+        null,
         (obj, res) => {
             try {
                 client.run_ai_stream.end(res);

@@ -27,7 +27,11 @@ internal class AiPanelEventOrchestrator : Object {
 
     public void bind() {
         ai_panel.send_requested.connect(() => {
-            ai_run_controller.on_send_clicked(ai_panel.get_prompt_text());
+            ai_run_controller.on_send_clicked(
+                ai_panel.get_prompt_text(),
+                ai_panel.get_selected_runner_id(),
+                ai_panel.get_selected_model_name()
+            );
         });
         ai_panel.new_thread_requested.connect(() => {
             ai_run_controller.create_thread_from_prompt.begin();
@@ -58,7 +62,7 @@ internal class AiPanelEventOrchestrator : Object {
             sink.log_activity(kind, message, project_id, card_id, details);
         });
         ai_run_controller.render_status_requested.connect((capabilities, status) => {
-            ai_panel.render_status(capabilities, status);
+            ai_panel.render_status(capabilities, status, ai_run_controller.get_last_rendered_runners());
         });
         ai_run_controller.render_status_error_requested.connect((message) => {
             ai_panel.render_status_error(message);

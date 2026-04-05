@@ -10,10 +10,12 @@ public class AiRunController : Object {
     private const uint AI_POLL_INTERVAL_MS = 2000;
     private string current_run_thread_id = "";
     private string current_run_id = "";
+    private string current_run_runner_id = "";
     private string current_run_provider = "";
     private string current_run_model = "";
     private string current_run_router_model = "";
     private int current_run_prompt_chars = 0;
+    private Gee.ArrayList<AiRunnerInfo> last_rendered_runners = new Gee.ArrayList<AiRunnerInfo>();
 
     public signal void status_changed(string text);
     public signal void error_reported(string title, string details);
@@ -30,6 +32,10 @@ public class AiRunController : Object {
     public signal void replace_output_requested(string text);
     public signal void clear_prompt_requested();
     public signal void set_send_enabled_requested(bool enabled);
+
+    public Gee.ArrayList<AiRunnerInfo> get_last_rendered_runners() {
+        return last_rendered_runners;
+    }
 
     public AiRunController(IAiRunContext main_controller, IScheduler? scheduler = null) {
         this.main_controller = main_controller;
@@ -55,6 +61,7 @@ public class AiRunController : Object {
         try {
             var capabilities = yield api.get_ai_capabilities(project_id);
             var status = yield api.get_ai_status();
+            last_rendered_runners = yield api.list_ai_runners();
             render_status_requested(capabilities, status);
             update_ai_polling(status.active_pull_jobs > 0);
         } catch (Error e) {
@@ -86,7 +93,9 @@ public class AiRunController : Object {
         }
     }
 
-    public void on_send_clicked(string prompt_text) {
+    public void on_send_clicked(string prompt_text,
+                                string? selected_runner_id = null,
+                                string? selected_model_name = null) {
         if (ai_run_in_flight) {
             status_changed("AI run already in progress...");
             return;
@@ -106,12 +115,14 @@ public class AiRunController : Object {
         if (current_thread == null) {
             create_ai_thread_named.begin(
                 "Thread %s".printf(main_controller.now_epoch_seconds().to_string()),
-                prompt
+                prompt,
+                selected_runner_id,
+                selected_model_name
             );
             return;
         }
 
-        send_prompt_to_ai.begin(prompt, current_thread.thread_id);
+        send_prompt_to_ai.begin(prompt, current_thread.thread_id, selected_runner_id, selected_model_name);
     }
 
     public async void create_thread_from_prompt() {
@@ -157,7 +168,10 @@ public class AiRunController : Object {
         stop_ai_polling();
     }
 
-    private async void create_ai_thread_named(string title, string? continue_prompt) {
+    private async void create_ai_thread_named(string title,
+                                              string? continue_prompt,
+                                              string? selected_runner_id = null,
+                                              string? selected_model_name = null) {
         var current_project = main_controller.get_current_project();
         if (current_project == null) {
             error_reported("Cannot create thread", "No project/API context.");
@@ -175,7 +189,7 @@ public class AiRunController : Object {
             );
             toast_requested("Created AI thread");
             if (continue_prompt != null && continue_prompt.strip().length > 0) {
-                send_prompt_to_ai.begin(continue_prompt, thread_id);
+                send_prompt_to_ai.begin(continue_prompt, thread_id, selected_runner_id, selected_model_name);
             }
         } catch (Error e) {
             activity_requested(
@@ -189,7 +203,10 @@ public class AiRunController : Object {
         }
     }
 
-    private async void send_prompt_to_ai(string prompt, string? preferred_thread_id = null) {
+    private async void send_prompt_to_ai(string prompt,
+                                         string? preferred_thread_id = null,
+                                         string? selected_runner_id = null,
+                                         string? selected_model_name = null) {
         var api = main_controller.get_api_client();
         var current_project = main_controller.get_current_project();
         var current_ai_thread = main_controller.get_current_ai_thread();
@@ -211,11 +228,19 @@ public class AiRunController : Object {
             "Started AI run",
             current_project.project_id,
             current_card != null ? current_card.card_id : null,
-            new AiRunDetails(thread_id, "", "", "", "", prompt.length, false)
+            new AiRunDetails(thread_id,
+                             "",
+                             selected_runner_id ?? "",
+                             selected_model_name ?? "",
+                             "",
+                             prompt.length,
+                             false)
         );
 
         reset_current_run_metadata();
         current_run_thread_id = thread_id;
+        current_run_runner_id = selected_runner_id ?? "";
+        current_run_model = selected_model_name ?? "";
         current_run_prompt_chars = prompt.length;
         ai_run_in_flight = true;
         set_send_enabled_requested(false);
@@ -233,7 +258,9 @@ public class AiRunController : Object {
                 context_card_body,
                 (event_name, data) => {
                     handle_ai_run_event(event_name, data);
-                }
+                },
+                selected_runner_id,
+                selected_model_name
             );
             append_output_chunk_requested("\n");
             activity_requested(
@@ -378,21 +405,29 @@ public class AiRunController : Object {
     private string describe_run_target(Json.Object data) {
         return describe_provider_model(
             json_string_member_or_empty(data, "provider"),
-            json_string_member_or_empty(data, "model")
+            json_string_member_or_empty(data, "model"),
+            json_string_member_or_empty(data, "runner_id")
         );
     }
 
-    private string describe_provider_model(string? provider, string? model) {
+    private string describe_provider_model(string? provider, string? model, string? runner_id = null) {
         var provider_text = provider != null ? provider.strip() : "";
         var model_text = model != null ? model.strip() : "";
+        var runner_text = runner_id != null ? runner_id.strip() : "";
         if (provider_text.length > 0 && model_text.length > 0) {
             return "%s/%s".printf(provider_text, model_text);
+        }
+        if (runner_text.length > 0 && model_text.length > 0) {
+            return "%s/%s".printf(runner_text, model_text);
         }
         if (model_text.length > 0) {
             return model_text;
         }
         if (provider_text.length > 0) {
             return provider_text;
+        }
+        if (runner_text.length > 0) {
+            return runner_text;
         }
         return "";
     }
@@ -405,6 +440,10 @@ public class AiRunController : Object {
         var provider = json_string_member_or_empty(data, "provider");
         if (provider.length > 0) {
             current_run_provider = provider;
+        }
+        var runner_id = json_string_member_or_empty(data, "runner_id");
+        if (runner_id.length > 0) {
+            current_run_runner_id = runner_id;
         }
         var model = json_string_member_or_empty(data, "model");
         if (model.length > 0) {
@@ -420,7 +459,7 @@ public class AiRunController : Object {
         return new AiRunDetails(
             current_run_thread_id,
             current_run_id,
-            current_run_provider,
+            current_run_provider.length > 0 ? current_run_provider : current_run_runner_id,
             current_run_model,
             current_run_router_model,
             current_run_prompt_chars,
@@ -431,6 +470,7 @@ public class AiRunController : Object {
     private void reset_current_run_metadata() {
         current_run_thread_id = "";
         current_run_id = "";
+        current_run_runner_id = "";
         current_run_provider = "";
         current_run_model = "";
         current_run_router_model = "";

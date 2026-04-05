@@ -308,7 +308,9 @@ public class ApiClient : Object, IHolderApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR
                                     string? context_card_id,
                                     string? context_card_title,
                                     string? context_card_body,
-                                    AiRunEventHandler on_event) throws Error {
+                                    AiRunEventHandler on_event,
+                                    string? runner_id = null,
+                                    string? model = null) throws Error {
         yield ApiClientAiStream.run(
             transport,
             base_url,
@@ -319,7 +321,9 @@ public class ApiClient : Object, IHolderApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR
             context_card_id,
             context_card_title,
             context_card_body,
-            on_event
+            on_event,
+            runner_id,
+            model
         );
     }
 

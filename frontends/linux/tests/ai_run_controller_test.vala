@@ -58,6 +58,29 @@ private void test_send_without_thread_creates_thread_then_runs() {
     assert(api.last_thread_id == "t-created");
 }
 
+private void test_send_with_selected_runner_and_model_passes_run_options() {
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
+    ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
+    var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
+
+    bool done = false;
+    controller.status_changed.connect((text) => {
+        if (text == "AI run complete") {
+            done = true;
+        }
+    });
+
+    controller.on_send_clicked("hello world", "manual-a", "qwen3:4b");
+    assert(wait_for_condition(() => done));
+    assert(api.run_calls == 1);
+    assert(api.last_thread_id == "t1");
+    assert(api.last_run_runner_id == "manual-a");
+    assert(api.last_run_model == "qwen3:4b");
+}
+
 private void test_send_requires_project() {
     var api = new AiRunFakeApi();
     var ctx = new AiRunFakeContext();
@@ -144,6 +167,30 @@ private void test_start_model_pull_with_empty_job_id_reports_started() {
 
 private void test_refresh_status_emits_render_status() {
     var api = new AiRunFakeApi();
+    var runner_models = new Gee.ArrayList<string>();
+    runner_models.add("phi4-mini");
+    api.runners.add(
+        new HolderLinux.AiRunnerInfo(
+            "manual-a",
+            "Manual A",
+            "ollama",
+            "http://127.0.0.1:22434",
+            "manual",
+            true,
+            1,
+            1,
+            new HolderLinux.AiRunnerRuntimeInfo(
+                true,
+                true,
+                false,
+                1,
+                "",
+                "0.6.0",
+                runner_models,
+                new Gee.ArrayList<HolderLinux.AiRunnerPullInfo>()
+            )
+        )
+    );
     var ctx = new AiRunFakeContext();
     ctx.api = api;
     ctx.project = new HolderLinux.Project("p1", "P", "encrypted_git", "/tmp", 1, 1);
@@ -156,6 +203,10 @@ private void test_refresh_status_emits_render_status() {
 
     controller.refresh_status.begin();
     assert(wait_for_condition(() => rendered));
+    assert(controller.get_last_rendered_runners().size == 1);
+    assert(controller.get_last_rendered_runners()[0].runner_id == "manual-a");
+    assert(controller.get_last_rendered_runners()[0].runtime.models.size == 1);
+    assert(controller.get_last_rendered_runners()[0].runtime.models[0] == "phi4-mini");
 }
 
 private void test_refresh_status_error_preserves_rendered_state_and_emits_status_error() {
@@ -697,6 +748,10 @@ int main(string[] args) {
     Test.add_func(
         "/ai_run/send_without_thread_creates_thread_then_runs",
         test_send_without_thread_creates_thread_then_runs
+    );
+    Test.add_func(
+        "/ai_run/send_with_selected_runner_and_model_passes_run_options",
+        test_send_with_selected_runner_and_model_passes_run_options
     );
     Test.add_func(
         "/ai_run/send_requires_project",

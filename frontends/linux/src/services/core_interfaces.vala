@@ -112,7 +112,9 @@ public interface IHolderApi : Object {
                                              string? context_card_id,
                                              string? context_card_title,
                                              string? context_card_body,
-                                             AiRunEventHandler on_event) throws Error;
+                                             AiRunEventHandler on_event,
+                                             string? runner_id = null,
+                                             string? model = null) throws Error;
     public abstract async string create_card(string project_id,
                                              string title,
                                              string content,

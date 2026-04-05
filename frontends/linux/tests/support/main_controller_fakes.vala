@@ -701,7 +701,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                     string? context_card_id,
                                     string? context_card_title,
                                     string? context_card_body,
-                                    HolderLinux.AiRunEventHandler on_event) throws Error {}
+                                    HolderLinux.AiRunEventHandler on_event,
+                                    string? runner_id = null,
+                                    string? model = null) throws Error {}
 
     public async string create_card(string project_id,
                                     string title,

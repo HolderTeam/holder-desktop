@@ -10,7 +10,9 @@ public class ApiClientAiStream : Object { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LIN
                                  string? context_card_id,
                                  string? context_card_title,
                                  string? context_card_body,
-                                 AiRunEventHandler on_event) throws Error {
+                                 AiRunEventHandler on_event,
+                                 string? runner_id = null,
+                                 string? model = null) throws Error {
         var body = new Json.Builder();
         body.begin_object();
         body.set_member_name("prompt");
@@ -22,6 +24,14 @@ public class ApiClientAiStream : Object { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LIN
         if (thread_id != null && thread_id.length > 0) {
             body.set_member_name("thread_id");
             body.add_string_value(thread_id);
+        }
+        if (runner_id != null && runner_id.length > 0) {
+            body.set_member_name("runner_id");
+            body.add_string_value(runner_id);
+        }
+        if (model != null && model.length > 0) {
+            body.set_member_name("model");
+            body.add_string_value(model);
         }
         if (context_card_id != null || context_card_title != null || context_card_body != null) {
             body.set_member_name("context");
