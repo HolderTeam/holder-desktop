@@ -15,12 +15,12 @@ private Json.Object parse_json_object(string payload) {
 private void test_parse_ai_capabilities_full_and_defaults() {
     var root_full = parse_json_object(
         "{\"data\":{" +
-        "\"runner_available\":true," +
-        "\"error\":\"none\"," +
-        "\"last_checked\":123," +
-        "\"version\":\"1.2.3\"," +
         "\"caste\":{\"name\":\"CasteX\"}," +
-        "\"models\":[{\"name\":\"m1\"},{\"id\":\"skip\"}]," +
+        "\"runners\":[" +
+        "{\"runner_id\":\"auto-local\",\"name\":\"Local Ollama\",\"kind\":\"ollama\",\"source\":\"auto_local\",\"enabled\":true," +
+        "\"runtime\":{\"configured\":true,\"available\":true,\"spawn_attempted\":false,\"last_checked\":123,\"version\":\"1.2.3\",\"error\":\"none\"," +
+        "\"models\":[{\"name\":\"m1\"},{\"digest\":\"skip\"}],\"pulls\":[]}}" +
+        "]," +
         "\"recommended_install\":[{\"tag\":\"t1\"},{\"id\":\"skip\"}]" +
         "}}"
     );
@@ -74,16 +74,21 @@ private void test_parse_ai_status_full_and_defaults() {
     var root_full = parse_json_object(
         "{\"data\":{" +
         "\"checked_at\":321," +
-        "\"runner_available\":true," +
-        "\"runner_error\":\"\"," +
         "\"active_runs\":2," +
-        "\"active_pull_jobs\":3," +
-        "\"cloud_configured_providers\":4," +
+        "\"cloud\":[{\"provider\":\"switchyard\"},{\"provider\":\"openrouter\"}]," +
+        "\"runners\":[" +
+        "{\"runner_id\":\"auto-local\",\"name\":\"Local Ollama\",\"kind\":\"ollama\",\"source\":\"auto_local\",\"enabled\":true," +
+        "\"runtime\":{\"configured\":true,\"available\":true,\"spawn_attempted\":false,\"last_checked\":9,\"version\":\"1.2.3\",\"error\":\"\"," +
+        "\"models\":[]," +
         "\"pulls\":[" +
-        "{\"job_id\":\"job-1\",\"runner_id\":\"auto-local\",\"model\":\"m1\",\"status\":\"pulling\",\"progress\":{\"percent\":12.5,\"stage\":\"downloading\"}}," +
-        "{\"progress\":{}," +
-        "\"unused\":true}," +
+        "{\"job_id\":\"job-1\",\"runner_id\":\"auto-local\",\"model\":\"m1\",\"status\":\"downloading\",\"progress\":{\"percent\":12.5,\"stage\":\"downloading\"}}," +
+        "{\"progress\":{},\"unused\":true}," +
         "{\"model\":\"m3\",\"status\":\"queued\"}" +
+        "]}}," +
+        "{\"runner_id\":\"manual-a\",\"name\":\"Office\",\"kind\":\"ollama\",\"source\":\"manual\",\"enabled\":true," +
+        "\"runtime\":{\"configured\":true,\"available\":false,\"spawn_attempted\":false,\"last_checked\":10,\"version\":\"\",\"error\":\"offline\"," +
+        "\"models\":[]," +
+        "\"pulls\":[{\"job_id\":\"job-9\",\"runner_id\":\"manual-a\",\"model\":\"m4\",\"status\":\"completed\",\"progress\":{\"percent\":100.0,\"stage\":\"done\"}}]}}" +
         "]" +
         "}}"
     );
@@ -99,13 +104,13 @@ private void test_parse_ai_status_full_and_defaults() {
     assert(full.runner_available);
     assert(full.runner_error == "");
     assert(full.active_runs == 2);
-    assert(full.active_pull_jobs == 3);
-    assert(full.cloud_configured_providers == 4);
-    assert(full.pulls.size == 3);
+    assert(full.active_pull_jobs == 2);
+    assert(full.cloud_configured_providers == 2);
+    assert(full.pulls.size == 4);
     assert(full.pulls[0].job_id == "job-1");
     assert(full.pulls[0].runner_id == "auto-local");
     assert(full.pulls[0].model == "m1");
-    assert(full.pulls[0].status == "pulling");
+    assert(full.pulls[0].status == "downloading");
     assert(full.pulls[0].percent == 12.5);
     assert(full.pulls[0].stage == "downloading");
     assert(full.pulls[1].runner_id == "");
@@ -114,6 +119,8 @@ private void test_parse_ai_status_full_and_defaults() {
     assert(full.pulls[1].percent == 0.0);
     assert(full.pulls[2].model == "m3");
     assert(full.pulls[2].status == "queued");
+    assert(full.pulls[3].runner_id == "manual-a");
+    assert(full.pulls[3].status == "completed");
 
     var root_defaults = parse_json_object("{\"data\":{}}");
     HolderLinux.AiStatusInfo defaults;

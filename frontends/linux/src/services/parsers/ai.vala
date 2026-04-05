@@ -1,6 +1,59 @@
 namespace HolderLinux {
 
 public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifact
+    private static Gee.ArrayList<AiRunnerInfo> parse_ai_runners_from_data(Json.Object data) {
+        var runners = new Gee.ArrayList<AiRunnerInfo>();
+        if (!data.has_member("runners")) {
+            return runners;
+        }
+        var items = data.get_array_member("runners");
+        for (uint i = 0; i < items.get_length(); i++) {
+            runners.add(parse_ai_runner(items.get_object_element(i)));
+        }
+        return runners;
+    }
+
+    private static AiRunnerInfo? find_auto_local_runner(Gee.ArrayList<AiRunnerInfo> runners) {
+        foreach (var runner in runners) {
+            if (runner.runner_id == "auto-local" || runner.source == "auto_local") {
+                return runner;
+            }
+        }
+        return null;
+    }
+
+    private static int64 count_active_pulls(Gee.ArrayList<AiRunnerInfo> runners) {
+        int64 count = 0;
+        foreach (var runner in runners) {
+            foreach (var pull in runner.runtime.pulls) {
+                if (pull.status == "queued" ||
+                    pull.status == "running" ||
+                    pull.status == "downloading" ||
+                    pull.status == "verifying") {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    private static Gee.ArrayList<AiRunnerPullInfo> collect_runner_pulls(Gee.ArrayList<AiRunnerInfo> runners) {
+        var pulls = new Gee.ArrayList<AiRunnerPullInfo>();
+        foreach (var runner in runners) {
+            foreach (var pull in runner.runtime.pulls) {
+                pulls.add(new AiRunnerPullInfo(
+                    pull.job_id,
+                    pull.runner_id,
+                    pull.model,
+                    pull.status,
+                    pull.percent,
+                    pull.stage
+                ));
+            }
+        }
+        return pulls;
+    }
+
     private static AiRunnerRuntimeInfo parse_ai_runner_runtime(Json.Object data) {
         var models = new Gee.ArrayList<string>();
         if (data.has_member("models")) {
@@ -19,6 +72,20 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
             var items = data.get_array_member("pulls");
             for (uint i = 0; i < items.get_length(); i++) {
                 var item = items.get_object_element(i);
+                string model_name = "unknown";
+                if (item.has_member("model")) {
+                    model_name = ApiParsersCommon.string_member_or_empty(item, "model");
+                    if (model_name.length == 0) {
+                        model_name = "unknown";
+                    }
+                }
+                string pull_status = "unknown";
+                if (item.has_member("status")) {
+                    pull_status = ApiParsersCommon.string_member_or_empty(item, "status");
+                    if (pull_status.length == 0) {
+                        pull_status = "unknown";
+                    }
+                }
                 double percent = 0.0;
                 string stage = "";
                 if (item.has_member("progress")) {
@@ -33,8 +100,8 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
                 pulls.add(new AiRunnerPullInfo(
                     ApiParsersCommon.string_member_or_empty(item, "job_id"),
                     ApiParsersCommon.string_member_or_empty(item, "runner_id"),
-                    ApiParsersCommon.string_member_or_empty(item, "model"),
-                    ApiParsersCommon.string_member_or_empty(item, "status"),
+                    model_name,
+                    pull_status,
                     percent,
                     stage
                 ));
@@ -80,13 +147,7 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
         if (!data.has_member("runners")) {
             throw new ApiError.PROTOCOL("Missing data.runners for ai runners response");
         }
-
-        var runners = new Gee.ArrayList<AiRunnerInfo>();
-        var items = data.get_array_member("runners");
-        for (uint i = 0; i < items.get_length(); i++) {
-            runners.add(parse_ai_runner(items.get_object_element(i)));
-        }
-        return runners;
+        return parse_ai_runners_from_data(data);
     }
 
     public static AiRunnerInfo parse_ai_runner_detail(Json.Object root) throws Error {
@@ -102,14 +163,12 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
         }
 
         var data = root.get_object_member("data"); // LCOV_EXCL_BR_LINE: invalid-type branch aborts in json-glib
+        var runners = parse_ai_runners_from_data(data);
+        var auto_local = find_auto_local_runner(runners);
         var models = new Gee.ArrayList<string>();
-        if (data.has_member("models")) { // LCOV_EXCL_BR_LINE: short-circuit artifact branch
-            var items = data.get_array_member("models"); // LCOV_EXCL_BR_LINE: invalid-type branch aborts in json-glib
-            for (uint i = 0; i < items.get_length(); i++) { // LCOV_EXCL_BR_LINE: loop overflow branch artifact
-                var model = items.get_object_element(i);
-                if (model.has_member("name")) {
-                    models.add(model.get_string_member("name"));
-                }
+        if (auto_local != null) {
+            foreach (var model_name in auto_local.runtime.models) {
+                models.add(model_name);
             }
         }
 
@@ -131,10 +190,10 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
         }
 
         return new AiCapabilitiesInfo( // LCOV_EXCL_BR_LINE: ctor edge branches are coverage artifacts
-            data.has_member("runner_available") ? data.get_boolean_member("runner_available") : false, // LCOV_EXCL_BR_LINE: json member error edge artifact
-            ApiParsersCommon.string_member_or_empty(data, "error"),
-            data.has_member("last_checked") ? data.get_int_member("last_checked") : 0,
-            ApiParsersCommon.string_member_or_empty(data, "version"),
+            auto_local != null ? auto_local.runtime.available : false,
+            auto_local != null ? auto_local.runtime.error : "",
+            auto_local != null ? auto_local.runtime.last_checked : 0,
+            auto_local != null ? auto_local.runtime.version : "",
             caste_name,
             models,
             recommended_install
@@ -147,43 +206,22 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
         }
 
         var data = root.get_object_member("data");
-        var pulls_out = new Gee.ArrayList<AiRunnerPullInfo>();
-        if (data.has_member("pulls")) { // LCOV_EXCL_BR_LINE: short-circuit artifact branch
-            var pulls = data.get_array_member("pulls"); // LCOV_EXCL_BR_LINE: invalid-type branch aborts in json-glib
-            for (uint i = 0; i < pulls.get_length(); i++) { // LCOV_EXCL_BR_LINE: loop overflow branch artifact
-                var pull = pulls.get_object_element(i);
-                var model = pull.has_member("model") ? pull.get_string_member("model") : "unknown";
-                var status = pull.has_member("status") ? pull.get_string_member("status") : "unknown";
-                var runner_id = pull.has_member("runner_id") ? pull.get_string_member("runner_id") : "";
-                double percent = 0.0;
-                string stage = "";
-                if (pull.has_member("progress")) { // LCOV_EXCL_BR_LINE: short-circuit artifact branch
-                    var progress = pull.get_object_member("progress");
-                    if (progress != null) {
-                        if (progress.has_member("percent")) { // LCOV_EXCL_BR_LINE: null-check short-circuit artifact
-                            percent = progress.get_double_member("percent");
-                        }
-                        stage = ApiParsersCommon.string_member_or_empty(progress, "stage");
-                    }
-                }
-                pulls_out.add(new AiRunnerPullInfo(
-                    pull.has_member("job_id") ? pull.get_string_member("job_id") : "",
-                    runner_id,
-                    model,
-                    status,
-                    percent,
-                    stage
-                ));
-            }
+        var runners = parse_ai_runners_from_data(data);
+        var auto_local = find_auto_local_runner(runners);
+        var pulls_out = collect_runner_pulls(runners);
+
+        int64 cloud_configured = 0;
+        if (data.has_member("cloud")) {
+            cloud_configured = data.get_array_member("cloud").get_length();
         }
 
         return new AiStatusInfo( // LCOV_EXCL_BR_LINE: ctor edge branches are coverage artifacts
             data.has_member("checked_at") ? data.get_int_member("checked_at") : 0,
-            data.has_member("runner_available") ? data.get_boolean_member("runner_available") : false,
-            ApiParsersCommon.string_member_or_empty(data, "runner_error"),
+            auto_local != null ? auto_local.runtime.available : false,
+            auto_local != null ? auto_local.runtime.error : "",
             data.has_member("active_runs") ? data.get_int_member("active_runs") : 0,
-            data.has_member("active_pull_jobs") ? data.get_int_member("active_pull_jobs") : 0,
-            data.has_member("cloud_configured_providers") ? data.get_int_member("cloud_configured_providers") : 0,
+            count_active_pulls(runners),
+            cloud_configured,
             pulls_out
         );
     }

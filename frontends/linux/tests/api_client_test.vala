@@ -977,7 +977,7 @@ private void test_get_ai_capabilities_parses_nested_data() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"runner_available\":true,\"error\":\"\",\"last_checked\":5,\"version\":\"1.2\",\"caste\":{\"name\":\"user\"},\"models\":[{\"name\":\"m1\"},{\"name\":\"m2\"}],\"recommended_install\":[{\"tag\":\"r1\"}]}}"
+        "{\"ok\":true,\"data\":{\"caste\":{\"name\":\"user\"},\"runners\":[{\"runner_id\":\"auto-local\",\"name\":\"Local Ollama\",\"kind\":\"ollama\",\"source\":\"auto_local\",\"enabled\":true,\"runtime\":{\"configured\":true,\"available\":true,\"spawn_attempted\":false,\"last_checked\":5,\"version\":\"1.2\",\"error\":\"\",\"models\":[{\"name\":\"m1\"},{\"name\":\"m2\"}],\"pulls\":[]}}],\"recommended_install\":[{\"tag\":\"r1\"}]}}"
     );
     var client = make_client(transport);
 
@@ -1006,7 +1006,7 @@ private void test_get_ai_status_parses_pull_jobs() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"checked_at\":10,\"runner_available\":true,\"runner_error\":\"\",\"active_runs\":2,\"active_pull_jobs\":1,\"cloud_configured_providers\":3,\"pulls\":[{\"job_id\":\"job-9\",\"runner_id\":\"manual-a\",\"model\":\"phi4\",\"status\":\"running\",\"progress\":{\"percent\":55.5,\"stage\":\"downloading\"}}]}}"
+        "{\"ok\":true,\"data\":{\"checked_at\":10,\"active_runs\":2,\"cloud\":[{\"provider\":\"p1\"},{\"provider\":\"p2\"},{\"provider\":\"p3\"}],\"runners\":[{\"runner_id\":\"auto-local\",\"name\":\"Local Ollama\",\"kind\":\"ollama\",\"source\":\"auto_local\",\"enabled\":true,\"runtime\":{\"configured\":true,\"available\":true,\"spawn_attempted\":false,\"last_checked\":10,\"version\":\"1.0\",\"error\":\"\",\"models\":[],\"pulls\":[]}}, {\"runner_id\":\"manual-a\",\"name\":\"Office\",\"kind\":\"ollama\",\"source\":\"manual\",\"enabled\":true,\"runtime\":{\"configured\":true,\"available\":true,\"spawn_attempted\":false,\"last_checked\":10,\"version\":\"1.0\",\"error\":\"\",\"models\":[],\"pulls\":[{\"job_id\":\"job-9\",\"runner_id\":\"manual-a\",\"model\":\"phi4\",\"status\":\"running\",\"progress\":{\"percent\":55.5,\"stage\":\"downloading\"}}]}}]}}"
     );
     var client = make_client(transport);
 
@@ -1025,6 +1025,7 @@ private void test_get_ai_status_parses_pull_jobs() {
     assert(status != null);
     assert(status.active_runs == 2);
     assert(status.active_pull_jobs == 1);
+    assert(status.cloud_configured_providers == 3);
     assert(status.pulls.size == 1);
     assert(status.pulls[0].job_id == "job-9");
     assert(status.pulls[0].runner_id == "manual-a");
@@ -2150,7 +2151,7 @@ private void test_ai_capabilities_optional_fields_and_no_project_query() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"runner_available\":false,\"error\":\"runner missing\",\"models\":[{}],\"recommended_install\":[{}],\"caste\":null}}"
+        "{\"ok\":true,\"data\":{\"runners\":[{\"runner_id\":\"auto-local\",\"name\":\"Local Ollama\",\"kind\":\"ollama\",\"source\":\"auto_local\",\"enabled\":true,\"runtime\":{\"configured\":true,\"available\":false,\"spawn_attempted\":false,\"last_checked\":0,\"version\":\"\",\"error\":\"runner missing\",\"models\":[],\"pulls\":[]}}],\"recommended_install\":[{}],\"caste\":null}}"
     );
     var client = make_client(transport);
 
@@ -2178,7 +2179,7 @@ private void test_ai_capabilities_missing_caste_and_null_string_fields() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"runner_available\":true,\"error\":null,\"version\":null,\"models\":[],\"recommended_install\":[]}}"
+        "{\"ok\":true,\"data\":{\"runners\":[{\"runner_id\":\"auto-local\",\"name\":\"Local Ollama\",\"kind\":\"ollama\",\"source\":\"auto_local\",\"enabled\":true,\"runtime\":{\"configured\":true,\"available\":true,\"spawn_attempted\":false,\"last_checked\":0,\"version\":null,\"error\":null,\"models\":[],\"pulls\":[]}}],\"recommended_install\":[]}}"
     );
     var client = make_client(transport);
 
@@ -2204,7 +2205,7 @@ private void test_ai_status_missing_pull_fields_uses_defaults() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"pulls\":[{}]}}"
+        "{\"ok\":true,\"data\":{\"runners\":[{\"runner_id\":\"auto-local\",\"name\":\"Local Ollama\",\"kind\":\"ollama\",\"source\":\"auto_local\",\"enabled\":true,\"runtime\":{\"configured\":true,\"available\":true,\"spawn_attempted\":false,\"last_checked\":0,\"version\":\"\",\"error\":\"\",\"models\":[],\"pulls\":[{}]}}]}}"
     );
     var client = make_client(transport);
 

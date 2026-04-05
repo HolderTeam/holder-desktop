@@ -10,7 +10,7 @@ private void test_get_ai_capabilities_with_project_query() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"runner_available\":true,\"error\":\"\",\"last_checked\":100,\"version\":\"1.0\",\"caste\":{\"name\":\"caste\"},\"models\":[{\"name\":\"m1\"}],\"recommended_install\":[{\"tag\":\"r1\"}]}}"
+        "{\"ok\":true,\"data\":{\"caste\":{\"name\":\"caste\"},\"runners\":[{\"runner_id\":\"auto-local\",\"name\":\"Local Ollama\",\"kind\":\"ollama\",\"source\":\"auto_local\",\"enabled\":true,\"runtime\":{\"configured\":true,\"available\":true,\"spawn_attempted\":false,\"last_checked\":100,\"version\":\"1.0\",\"error\":\"\",\"models\":[{\"name\":\"m1\"}],\"pulls\":[]}}],\"recommended_install\":[{\"tag\":\"r1\"}]}}"
     );
     var client = make_client(transport);
 
@@ -39,7 +39,7 @@ private void test_get_ai_capabilities_without_project_query() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"runner_available\":false,\"error\":\"none\",\"last_checked\":0,\"version\":\"\",\"models\":[],\"recommended_install\":[]}}"
+        "{\"ok\":true,\"data\":{\"runners\":[],\"recommended_install\":[]}}"
     );
     var client = make_client(transport);
 
@@ -65,7 +65,7 @@ private void test_get_ai_status_parses_response() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"checked_at\":9,\"runner_available\":true,\"runner_error\":\"\",\"active_runs\":1,\"active_pull_jobs\":1,\"cloud_configured_providers\":2,\"pulls\":[{\"job_id\":\"job-1\",\"runner_id\":\"auto-local\",\"model\":\"phi4\",\"status\":\"running\",\"progress\":{\"percent\":12.5}}]}}"
+        "{\"ok\":true,\"data\":{\"checked_at\":9,\"active_runs\":1,\"cloud\":[{\"provider\":\"a\"},{\"provider\":\"b\"}],\"runners\":[{\"runner_id\":\"auto-local\",\"name\":\"Local Ollama\",\"kind\":\"ollama\",\"source\":\"auto_local\",\"enabled\":true,\"runtime\":{\"configured\":true,\"available\":true,\"spawn_attempted\":false,\"last_checked\":9,\"version\":\"1.0\",\"error\":\"\",\"models\":[],\"pulls\":[{\"job_id\":\"job-1\",\"runner_id\":\"auto-local\",\"model\":\"phi4\",\"status\":\"running\",\"progress\":{\"percent\":12.5}}]}}]}}"
     );
     var client = make_client(transport);
 
