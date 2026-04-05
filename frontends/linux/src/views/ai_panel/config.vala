@@ -23,7 +23,7 @@ public class AiConfigPanelView : Object {
 
     private Gee.ArrayList<AiRuntimeProvider> providers_cache = new Gee.ArrayList<AiRuntimeProvider>();
     private Gee.ArrayList<AiRunnerInfo> runners_cache = new Gee.ArrayList<AiRunnerInfo>();
-    private Gee.ArrayList<string> installed_model_names = new Gee.ArrayList<string>();
+    private Gee.ArrayList<string?> local_model_option_values = new Gee.ArrayList<string?>();
     private HashTable<string, AiProviderCredentialState> credential_by_provider =
         new HashTable<string, AiProviderCredentialState>(str_hash, str_equal);
     private HashTable<string, AiProviderSettingState> setting_by_provider =
@@ -215,7 +215,7 @@ public class AiConfigPanelView : Object {
         clear_runner_rows();
         local_activity_label.set_text("");
         local_pulls_label.set_text("");
-        installed_model_names.clear();
+        local_model_option_values.clear();
         local_model_config = new AiLocalModelConfigInfo(null, null, null, 0);
         clear_recommended_buttons();
         update_local_model_dropdowns();
@@ -240,10 +240,6 @@ public class AiConfigPanelView : Object {
             ));
         }
 
-        installed_model_names.clear();
-        for (int i = 0; i < capabilities.models.size; i++) {
-            installed_model_names.add(capabilities.models[i]);
-        }
         update_local_model_dropdowns();
 
         if (capabilities.recommended_install.size == 0) {
@@ -270,7 +266,7 @@ public class AiConfigPanelView : Object {
         local_recommended_label.set_text("");
         local_activity_label.set_text(message);
         local_pulls_label.set_text("");
-        installed_model_names.clear();
+        local_model_option_values.clear();
         update_local_model_dropdowns();
         clear_recommended_buttons();
     }
@@ -351,27 +347,39 @@ public class AiConfigPanelView : Object {
         while (options.get_n_items() > 0) {
             options.remove(options.get_n_items() - 1);
         }
+        local_model_option_values.clear();
 
         options.append("(auto)");
+        local_model_option_values.add(null);
         uint selected_index = 0;
-        for (int i = 0; i < installed_model_names.size; i++) {
-            var name = installed_model_names[i];
-            options.append(name);
-            if (selected_model != null && selected_model == name) {
-                selected_index = (uint) i + 1;
+        foreach (var runner in runners_cache) {
+            for (int i = 0; i < runner.runtime.models.size; i++) {
+                var model_name = runner.runtime.models[i];
+                var model_ref = "%s::%s".printf(runner.runner_id, model_name);
+                options.append(display_runner_model_label(runner, model_name));
+                local_model_option_values.add(model_ref);
+                if (selected_model != null && selected_model == model_ref) {
+                    selected_index = local_model_option_values.size - 1;
+                }
             }
         }
 
+        if (selected_model != null && selected_index == 0) {
+            options.append("Missing: %s".printf(display_model_ref_label(selected_model)));
+            local_model_option_values.add(selected_model);
+            selected_index = local_model_option_values.size - 1;
+        }
+
         dropdown.set_selected(selected_index);
-        dropdown.set_sensitive(installed_model_names.size > 0);
+        dropdown.set_sensitive(local_model_option_values.size > 1);
     }
 
     private string? selected_model_from_dropdown(Gtk.StringList options, Gtk.DropDown dropdown) {
         var selected = dropdown.get_selected();
-        if (selected == 0 || selected >= options.get_n_items()) {
+        if (selected == 0 || selected >= local_model_option_values.size) {
             return null;
         }
-        return options.get_string(selected);
+        return local_model_option_values[(int) selected];
     }
 
     private async void save_local_model_config() {
@@ -406,7 +414,7 @@ public class AiConfigPanelView : Object {
     }
 
     private void schedule_local_model_save() {
-        if (suppress_local_model_signal || installed_model_names.size == 0) {
+        if (suppress_local_model_signal || local_model_option_values.size <= 1) {
             return;
         }
 
@@ -447,6 +455,29 @@ public class AiConfigPanelView : Object {
             return false;
         }
         return a == b;
+    }
+
+    private string display_runner_model_label(AiRunnerInfo runner, string model_name) {
+        var runner_label = runner.name.strip();
+        if (runner_label.length == 0) {
+            runner_label = runner.runner_id;
+        }
+        return "%s / %s".printf(runner_label, model_name);
+    }
+
+    private string display_model_ref_label(string model_ref) {
+        var separator = model_ref.index_of("::");
+        if (separator < 0) {
+            return model_ref;
+        }
+        var runner_id = model_ref.substring(0, separator);
+        var model_name = model_ref.substring(separator + 2);
+        foreach (var runner in runners_cache) {
+            if (runner.runner_id == runner_id) {
+                return display_runner_model_label(runner, model_name);
+            }
+        }
+        return "%s / %s".printf(runner_id, model_name);
     }
 
     private void rebuild_recommended_pull_buttons(Gee.ArrayList<string> recommended_models) {
