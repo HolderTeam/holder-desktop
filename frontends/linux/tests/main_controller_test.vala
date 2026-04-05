@@ -1567,6 +1567,82 @@ private void test_autosave_without_api_writes_local_recovery_draft() {
     assert(controller.has_unsaved_editor_changes());
 }
 
+private void test_autosave_failure_keeps_existing_recovery_draft() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var draft_service = new FakeEditorRecoveryDraftService();
+    var harness = make_harness(api, scheduler, clock, null, null, true, draft_service);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    try {
+        draft_service.save_draft(new HolderLinux.EditorRecoveryDraft(
+            "c1",
+            "p1",
+            "Old Draft",
+            "# Old Draft",
+            999
+        ));
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    draft_service.save_calls = 0;
+    draft_service.remove_calls = 0;
+
+    harness.editor_text.value = "# Failed Save Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    controller.autosave_current_card.begin();
+
+    assert(wait_for_condition(() => draft_service.save_calls == 1));
+    assert(draft_service.remove_calls == 0);
+    assert(draft_service.drafts.has_key("c1"));
+    assert(draft_service.drafts["c1"].content == "# Failed Save Title\n\nDraft body");
+}
+
+private void test_confirmed_save_removes_recovery_draft() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var draft_service = new FakeEditorRecoveryDraftService();
+    var harness = make_harness(api, scheduler, clock, null, null, true, draft_service);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    try {
+        draft_service.save_draft(new HolderLinux.EditorRecoveryDraft(
+            "c1",
+            "p1",
+            "Offline Title",
+            "# Offline Title\n\nOffline body",
+            1001
+        ));
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    draft_service.save_calls = 0;
+    draft_service.remove_calls = 0;
+
+    harness.editor_text.value = "# Saved Title\n\nDurable body";
+    controller.on_editor_content_changed();
+    controller.autosave_current_card.begin();
+
+    assert(wait_for_condition(() => draft_service.remove_calls == 1));
+    assert(!draft_service.drafts.has_key("c1"));
+    assert(!controller.has_unsaved_editor_changes());
+}
+
 private void test_autosave_failure_schedules_retry_and_retry_success_clears_dirty_state() {
     var api = new MainControllerFakeApi();
     api.fail_update_card = true;
@@ -2384,6 +2460,14 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/autosave_without_api_writes_local_recovery_draft",
         test_autosave_without_api_writes_local_recovery_draft
+    );
+    Test.add_func(
+        "/main_controller/autosave_failure_keeps_existing_recovery_draft",
+        test_autosave_failure_keeps_existing_recovery_draft
+    );
+    Test.add_func(
+        "/main_controller/confirmed_save_removes_recovery_draft",
+        test_confirmed_save_removes_recovery_draft
     );
     Test.add_func(
         "/main_controller/autosave_failure_schedules_retry_and_retry_success_clears_dirty_state",

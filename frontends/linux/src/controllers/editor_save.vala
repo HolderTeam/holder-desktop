@@ -75,6 +75,7 @@ internal class EditorSaveController : Object {
             owner.current_card.content = text;
             owner.editor_draft_state.mark_save_succeeded(owner.current_card.card_id, text);
             owner.current_card.updated_at = updated_at;
+            remove_local_recovery_draft(owner.current_card.card_id);
             owner.emit_activity(
                 "result.card.autosave",
                 "Autosaved card: %s [doc_chars=%d, body_chars=%d, delta_chars=%+d, body_empty=%s, fingerprint=%s]".printf(
@@ -223,6 +224,14 @@ internal class EditorSaveController : Object {
             ));
         } catch (Error e) {
             warning("Failed to save local recovery draft for %s: %s", card.card_id, e.message);
+        }
+    }
+
+    private void remove_local_recovery_draft(string card_id) {
+        try {
+            recovery_draft_service.remove_draft(card_id);
+        } catch (Error e) {
+            warning("Failed to remove local recovery draft for %s: %s", card_id, e.message);
         }
     }
 
