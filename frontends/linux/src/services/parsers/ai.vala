@@ -147,21 +147,33 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
         }
 
         var data = root.get_object_member("data");
-        var pull_jobs = new Gee.ArrayList<string>();
+        var pulls_out = new Gee.ArrayList<AiRunnerPullInfo>();
         if (data.has_member("pulls")) { // LCOV_EXCL_BR_LINE: short-circuit artifact branch
             var pulls = data.get_array_member("pulls"); // LCOV_EXCL_BR_LINE: invalid-type branch aborts in json-glib
             for (uint i = 0; i < pulls.get_length(); i++) { // LCOV_EXCL_BR_LINE: loop overflow branch artifact
                 var pull = pulls.get_object_element(i);
                 var model = pull.has_member("model") ? pull.get_string_member("model") : "unknown";
                 var status = pull.has_member("status") ? pull.get_string_member("status") : "unknown";
+                var runner_id = pull.has_member("runner_id") ? pull.get_string_member("runner_id") : "";
                 double percent = 0.0;
+                string stage = "";
                 if (pull.has_member("progress")) { // LCOV_EXCL_BR_LINE: short-circuit artifact branch
                     var progress = pull.get_object_member("progress");
-                    if (progress != null && progress.has_member("percent")) { // LCOV_EXCL_BR_LINE: null-check short-circuit artifact
-                        percent = progress.get_double_member("percent");
+                    if (progress != null) {
+                        if (progress.has_member("percent")) { // LCOV_EXCL_BR_LINE: null-check short-circuit artifact
+                            percent = progress.get_double_member("percent");
+                        }
+                        stage = ApiParsersCommon.string_member_or_empty(progress, "stage");
                     }
                 }
-                pull_jobs.add("%s (%s, %.1f%%)".printf(model, status, percent));
+                pulls_out.add(new AiRunnerPullInfo(
+                    pull.has_member("job_id") ? pull.get_string_member("job_id") : "",
+                    runner_id,
+                    model,
+                    status,
+                    percent,
+                    stage
+                ));
             }
         }
 
@@ -172,7 +184,7 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
             data.has_member("active_runs") ? data.get_int_member("active_runs") : 0,
             data.has_member("active_pull_jobs") ? data.get_int_member("active_pull_jobs") : 0,
             data.has_member("cloud_configured_providers") ? data.get_int_member("cloud_configured_providers") : 0,
-            pull_jobs
+            pulls_out
         );
     }
 

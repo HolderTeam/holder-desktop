@@ -521,7 +521,15 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async HolderLinux.AiStatusInfo get_ai_status() throws Error {
-        return new HolderLinux.AiStatusInfo(1, true, "", 0, 0, 0, new Gee.ArrayList<string>());
+        return new HolderLinux.AiStatusInfo(
+            1,
+            true,
+            "",
+            0,
+            0,
+            0,
+            new Gee.ArrayList<HolderLinux.AiRunnerPullInfo>()
+        );
     }
 
     public async string start_ai_runner_pull(string model_tag, string? runner_id = null) throws Error {

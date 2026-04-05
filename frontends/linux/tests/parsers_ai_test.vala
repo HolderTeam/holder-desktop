@@ -80,7 +80,7 @@ private void test_parse_ai_status_full_and_defaults() {
         "\"active_pull_jobs\":3," +
         "\"cloud_configured_providers\":4," +
         "\"pulls\":[" +
-        "{\"model\":\"m1\",\"status\":\"pulling\",\"progress\":{\"percent\":12.5}}," +
+        "{\"job_id\":\"job-1\",\"runner_id\":\"auto-local\",\"model\":\"m1\",\"status\":\"pulling\",\"progress\":{\"percent\":12.5,\"stage\":\"downloading\"}}," +
         "{\"progress\":{}," +
         "\"unused\":true}," +
         "{\"model\":\"m3\",\"status\":\"queued\"}" +
@@ -101,10 +101,19 @@ private void test_parse_ai_status_full_and_defaults() {
     assert(full.active_runs == 2);
     assert(full.active_pull_jobs == 3);
     assert(full.cloud_configured_providers == 4);
-    assert(full.pull_jobs.size == 3);
-    assert(full.pull_jobs[0] == "m1 (pulling, 12.5%)");
-    assert(full.pull_jobs[1] == "unknown (unknown, 0.0%)");
-    assert(full.pull_jobs[2] == "m3 (queued, 0.0%)");
+    assert(full.pulls.size == 3);
+    assert(full.pulls[0].job_id == "job-1");
+    assert(full.pulls[0].runner_id == "auto-local");
+    assert(full.pulls[0].model == "m1");
+    assert(full.pulls[0].status == "pulling");
+    assert(full.pulls[0].percent == 12.5);
+    assert(full.pulls[0].stage == "downloading");
+    assert(full.pulls[1].runner_id == "");
+    assert(full.pulls[1].model == "unknown");
+    assert(full.pulls[1].status == "unknown");
+    assert(full.pulls[1].percent == 0.0);
+    assert(full.pulls[2].model == "m3");
+    assert(full.pulls[2].status == "queued");
 
     var root_defaults = parse_json_object("{\"data\":{}}");
     HolderLinux.AiStatusInfo defaults;
@@ -120,7 +129,7 @@ private void test_parse_ai_status_full_and_defaults() {
     assert(defaults.active_runs == 0);
     assert(defaults.active_pull_jobs == 0);
     assert(defaults.cloud_configured_providers == 0);
-    assert(defaults.pull_jobs.size == 0);
+    assert(defaults.pulls.size == 0);
 }
 
 private void test_parse_ai_status_missing_data_is_protocol_error() {

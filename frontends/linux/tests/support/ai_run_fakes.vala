@@ -147,7 +147,15 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
         if (fail_status) {
             throw new IOError.FAILED("status failed");
         }
-        return new HolderLinux.AiStatusInfo(1, true, "", 0, status_active_pull_jobs, 0, new Gee.ArrayList<string>());
+        return new HolderLinux.AiStatusInfo(
+            1,
+            true,
+            "",
+            0,
+            status_active_pull_jobs,
+            0,
+            new Gee.ArrayList<HolderLinux.AiRunnerPullInfo>()
+        );
     }
     public async string start_ai_runner_pull(string model_tag, string? runner_id = null) throws Error {
         if (fail_pull) {

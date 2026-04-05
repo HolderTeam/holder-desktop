@@ -475,7 +475,7 @@ public class AiStatusInfo : Object {
     public int64 active_runs { get; construct; }
     public int64 active_pull_jobs { get; construct; }
     public int64 cloud_configured_providers { get; construct; }
-    public Gee.ArrayList<string> pull_jobs { get; construct; }
+    public Gee.ArrayList<AiRunnerPullInfo> pulls { get; construct; }
 
     public AiStatusInfo(int64 checked_at,
                         bool runner_available,
@@ -483,7 +483,7 @@ public class AiStatusInfo : Object {
                         int64 active_runs,
                         int64 active_pull_jobs,
                         int64 cloud_configured_providers,
-                        Gee.ArrayList<string> pull_jobs) {
+                        Gee.ArrayList<AiRunnerPullInfo> pulls) {
         Object(
             checked_at: checked_at,
             runner_available: runner_available,
@@ -491,7 +491,7 @@ public class AiStatusInfo : Object {
             active_runs: active_runs,
             active_pull_jobs: active_pull_jobs,
             cloud_configured_providers: cloud_configured_providers,
-            pull_jobs: pull_jobs
+            pulls: pulls
         );
     }
 }

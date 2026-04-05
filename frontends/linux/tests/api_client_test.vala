@@ -1006,7 +1006,7 @@ private void test_get_ai_status_parses_pull_jobs() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"checked_at\":10,\"runner_available\":true,\"runner_error\":\"\",\"active_runs\":2,\"active_pull_jobs\":1,\"cloud_configured_providers\":3,\"pulls\":[{\"model\":\"phi4\",\"status\":\"running\",\"progress\":{\"percent\":55.5}}]}}"
+        "{\"ok\":true,\"data\":{\"checked_at\":10,\"runner_available\":true,\"runner_error\":\"\",\"active_runs\":2,\"active_pull_jobs\":1,\"cloud_configured_providers\":3,\"pulls\":[{\"job_id\":\"job-9\",\"runner_id\":\"manual-a\",\"model\":\"phi4\",\"status\":\"running\",\"progress\":{\"percent\":55.5,\"stage\":\"downloading\"}}]}}"
     );
     var client = make_client(transport);
 
@@ -1025,8 +1025,13 @@ private void test_get_ai_status_parses_pull_jobs() {
     assert(status != null);
     assert(status.active_runs == 2);
     assert(status.active_pull_jobs == 1);
-    assert(status.pull_jobs.size == 1);
-    assert(status.pull_jobs[0].contains("55.5%"));
+    assert(status.pulls.size == 1);
+    assert(status.pulls[0].job_id == "job-9");
+    assert(status.pulls[0].runner_id == "manual-a");
+    assert(status.pulls[0].model == "phi4");
+    assert(status.pulls[0].status == "running");
+    assert(status.pulls[0].percent == 55.5);
+    assert(status.pulls[0].stage == "downloading");
 }
 
 private void test_start_ai_runner_pull_parses_job_id_and_payload() {
@@ -2216,9 +2221,11 @@ private void test_ai_status_missing_pull_fields_uses_defaults() {
 
     assert(wait_for_condition(() => done));
     assert(status != null);
-    assert(status.pull_jobs.size == 1);
-    assert(status.pull_jobs[0].contains("unknown"));
-    assert(status.pull_jobs[0].contains("0.0%"));
+    assert(status.pulls.size == 1);
+    assert(status.pulls[0].runner_id == "");
+    assert(status.pulls[0].model == "unknown");
+    assert(status.pulls[0].status == "unknown");
+    assert(status.pulls[0].percent == 0.0);
 }
 
 private void test_provider_catalog_missing_providers_returns_empty() {

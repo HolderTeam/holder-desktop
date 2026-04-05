@@ -258,7 +258,7 @@ public class AiConfigPanelView : Object {
                 status.cloud_configured_providers
             )
         );
-        local_pulls_label.set_text("Pull jobs: %s".printf(join_list(status.pull_jobs)));
+        local_pulls_label.set_text("Pull jobs: %s".printf(format_status_pull_jobs(status.pulls)));
     }
 
     public void render_local_models_error(string message) {
@@ -480,6 +480,26 @@ public class AiConfigPanelView : Object {
         return "%s / %s".printf(runner_id, model_name);
     }
 
+    private string format_status_pull_jobs(Gee.ArrayList<AiRunnerPullInfo> pulls) {
+        if (pulls.size == 0) {
+            return "none";
+        }
+
+        var pull_parts = new Gee.ArrayList<string>();
+        foreach (var pull in pulls) {
+            var target = display_pull_target_label(pull);
+            pull_parts.add("%s (%s, %.1f%%)".printf(target, pull.status, pull.percent));
+        }
+        return join_list(pull_parts);
+    }
+
+    private string display_pull_target_label(AiRunnerPullInfo pull) {
+        if (pull.runner_id.strip().length == 0) {
+            return pull.model;
+        }
+        return display_model_ref_label("%s::%s".printf(pull.runner_id, pull.model));
+    }
+
     private void rebuild_recommended_pull_buttons(Gee.ArrayList<string> recommended_models) {
         clear_recommended_buttons();
 
@@ -554,7 +574,11 @@ public class AiConfigPanelView : Object {
         if (runner.runtime.pulls.size > 0) {
             var pull_parts = new Gee.ArrayList<string>();
             foreach (var pull in runner.runtime.pulls) {
-                pull_parts.add("%s (%s, %.1f%%)".printf(pull.model, pull.status, pull.percent));
+                pull_parts.add("%s (%s, %.1f%%)".printf(
+                    display_pull_target_label(pull),
+                    pull.status,
+                    pull.percent
+                ));
             }
             var pulls = new Gtk.Label("Pulls: %s".printf(join_list(pull_parts))) { xalign = 0.0f };
             pulls.set_wrap(true);

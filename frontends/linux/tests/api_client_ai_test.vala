@@ -65,7 +65,7 @@ private void test_get_ai_status_parses_response() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"checked_at\":9,\"runner_available\":true,\"runner_error\":\"\",\"active_runs\":1,\"active_pull_jobs\":1,\"cloud_configured_providers\":2,\"pulls\":[{\"model\":\"phi4\",\"status\":\"running\",\"progress\":{\"percent\":12.5}}]}}"
+        "{\"ok\":true,\"data\":{\"checked_at\":9,\"runner_available\":true,\"runner_error\":\"\",\"active_runs\":1,\"active_pull_jobs\":1,\"cloud_configured_providers\":2,\"pulls\":[{\"job_id\":\"job-1\",\"runner_id\":\"auto-local\",\"model\":\"phi4\",\"status\":\"running\",\"progress\":{\"percent\":12.5}}]}}"
     );
     var client = make_client(transport);
 
@@ -84,7 +84,9 @@ private void test_get_ai_status_parses_response() {
     assert(status != null);
     assert(status.runner_available);
     assert(status.active_runs == 1);
-    assert(status.pull_jobs.size == 1);
+    assert(status.pulls.size == 1);
+    assert(status.pulls[0].runner_id == "auto-local");
+    assert(status.pulls[0].model == "phi4");
     assert(transport.last_uri.contains("/ai/status"));
 }
 
