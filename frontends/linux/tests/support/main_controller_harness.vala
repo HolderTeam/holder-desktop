@@ -48,6 +48,10 @@ public class MainControllerTestHarness : Object {
             inject_initial_api ? (initial_api ?? api) : null
         );
 
+        controller.editor_state_changed.connect((text, editable) => {
+            editor_text.value = text;
+        });
+
         controller.project_selection_requested.connect((project_id) => {
             if (project_id == null || project_id.strip().length == 0) {
                 project_selection.set_selected_index(uint.MAX);

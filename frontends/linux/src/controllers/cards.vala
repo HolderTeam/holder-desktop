@@ -109,8 +109,11 @@ internal class CardsController : Object {
             return;
         }
 
-        var previous_content = owner.current_card.content;
+        var previous_content = owner.editor_draft_state.committed_text;
         var text = owner.editor_text.get_text();
+        if (!owner.has_unsaved_editor_changes()) {
+            return;
+        }
         var previous_title = owner.current_card.title;
         var title = TextUtils.title_from_content(text);
         var updated_at = owner.now_epoch_seconds();
@@ -139,6 +142,7 @@ internal class CardsController : Object {
             }
             owner.current_card.title = title;
             owner.current_card.content = text;
+            owner.editor_draft_state.mark_save_succeeded(owner.current_card.card_id, text);
             owner.current_card.updated_at = updated_at;
             owner.emit_activity(
                 "result.card.autosave",

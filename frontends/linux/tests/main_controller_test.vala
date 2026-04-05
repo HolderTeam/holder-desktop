@@ -1462,6 +1462,58 @@ private void test_autosave_failure_emits_error() {
     harness.editor_text.value = "# New title";
     controller.autosave_current_card.begin();
     assert(wait_for_condition(() => got_error));
+    assert(controller.has_unsaved_editor_changes());
+}
+
+private void test_background_reload_success_keeps_dirty_editor_state() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+    assert(!controller.has_unsaved_editor_changes());
+
+    harness.editor_text.value = "# Card 1\n\nDraft changes";
+    assert(controller.has_unsaved_editor_changes());
+
+    controller.reload_cards_for_selected_project.begin();
+    assert(wait_for_condition(() => api.list_cards_calls >= 2));
+    assert(controller.has_unsaved_editor_changes());
+}
+
+private void test_background_reload_failure_keeps_dirty_editor_state() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Card 1\n\nDraft changes";
+    assert(controller.has_unsaved_editor_changes());
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Failed to load cards") {
+            got_error = true;
+        }
+    });
+
+    api.fail_list_cards = true;
+    controller.reload_cards_for_selected_project.begin();
+    assert(wait_for_condition(() => got_error));
+    assert(controller.has_unsaved_editor_changes());
 }
 
 private void test_autosave_without_card_is_noop() {
@@ -2130,6 +2182,14 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/autosave_failure_emits_error",
         test_autosave_failure_emits_error
+    );
+    Test.add_func(
+        "/main_controller/background_reload_success_keeps_dirty_editor_state",
+        test_background_reload_success_keeps_dirty_editor_state
+    );
+    Test.add_func(
+        "/main_controller/background_reload_failure_keeps_dirty_editor_state",
+        test_background_reload_failure_keeps_dirty_editor_state
     );
     Test.add_func(
         "/main_controller/autosave_without_card_is_noop",
