@@ -1547,7 +1547,7 @@ private void test_autosave_failure_schedules_retry_and_retry_success_clears_dirt
     harness.editor_text.value = "# Updated Title\n\nDraft body";
     controller.on_editor_content_changed();
     controller.autosave_current_card.begin();
-    assert(wait_for_condition(() => controller.autosave_retry_id != 0));
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
     assert(last_error_details.contains("Retrying in 1 s."));
     assert(controller.has_unsaved_editor_changes());
 
@@ -1555,8 +1555,8 @@ private void test_autosave_failure_schedules_retry_and_retry_success_clears_dirt
     scheduler.run_all_once();
     assert(wait_for_condition(() => api.update_card_calls == 1));
     assert(wait_for_condition(() => !controller.has_unsaved_editor_changes()));
-    assert(controller.autosave_retry_id == 0);
-    assert(controller.autosave_retry_attempts == 0);
+    assert(!controller.has_pending_autosave_retry());
+    assert(controller.get_autosave_retry_attempts() == 0);
 }
 
 private void test_new_edit_cancels_pending_autosave_retry() {
@@ -1576,11 +1576,11 @@ private void test_new_edit_cancels_pending_autosave_retry() {
     harness.editor_text.value = "# Updated Title\n\nDraft body";
     controller.on_editor_content_changed();
     controller.autosave_current_card.begin();
-    assert(wait_for_condition(() => controller.autosave_retry_id != 0));
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
 
     controller.schedule_autosave();
-    assert(controller.autosave_retry_id == 0);
-    assert(controller.autosave_retry_attempts == 0);
+    assert(!controller.has_pending_autosave_retry());
+    assert(controller.get_autosave_retry_attempts() == 0);
 }
 
 private void test_navigation_change_cancels_stale_autosave_retry() {
@@ -1601,12 +1601,12 @@ private void test_navigation_change_cancels_stale_autosave_retry() {
     harness.editor_text.value = "# Updated Title\n\nDraft body";
     controller.on_editor_content_changed();
     controller.autosave_current_card.begin();
-    assert(wait_for_condition(() => controller.autosave_retry_id != 0));
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
 
     api.fail_update_card = false;
     controller.show_project_overview.begin();
     assert(wait_for_condition(() => controller.get_current_card() == null));
-    assert(controller.autosave_retry_id == 0);
+    assert(!controller.has_pending_autosave_retry());
     scheduler.run_all_once();
     assert(api.update_card_calls == 0);
 }

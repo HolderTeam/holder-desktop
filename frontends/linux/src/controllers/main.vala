@@ -24,9 +24,6 @@ public class MainController : Object, IAiRunContext {
     internal AiThreadSummary? current_ai_thread;
 
     internal bool create_card_in_flight = false;
-    internal uint autosave_id = 0;
-    internal uint autosave_retry_id = 0;
-    internal uint autosave_retry_attempts = 0;
     internal uint search_debounce_id = 0;
     internal uint card_loading_status_id = 0;
     internal uint project_cards_loading_status_id = 0;
@@ -35,6 +32,7 @@ public class MainController : Object, IAiRunContext {
 
     private ProjectsController projects_controller;
     private CardsController cards_controller;
+    private EditorSaveController editor_save_controller;
     private SearchController search_controller;
     private AiThreadsController ai_threads_controller;
     private IExplorerStateSink? explorer_state_sink;
@@ -96,6 +94,7 @@ public class MainController : Object, IAiRunContext {
         this.explorer_state_sink = explorer_state_sink;
         this.projects_controller = new ProjectsController(this);
         this.cards_controller = new CardsController(this);
+        this.editor_save_controller = new EditorSaveController(this);
         this.search_controller = new SearchController(this);
         this.ai_threads_controller = new AiThreadsController(this);
     }
@@ -288,59 +287,27 @@ public class MainController : Object, IAiRunContext {
     }
 
     public void schedule_autosave() {
-        cards_controller.schedule_autosave();
-    }
-
-    public void cancel_autosave_retry() {
-        if (autosave_retry_id != 0) {
-            scheduler.cancel(autosave_retry_id);
-            autosave_retry_id = 0;
-        }
-        autosave_retry_attempts = 0;
-    }
-
-    public void note_autosave_success() {
-        cancel_autosave_retry();
-    }
-
-    public uint note_autosave_retry_scheduled(string card_id) {
-        if (autosave_retry_id != 0) {
-            scheduler.cancel(autosave_retry_id);
-            autosave_retry_id = 0;
-        }
-
-        autosave_retry_attempts++;
-        uint delay_ms = autosave_retry_delay_ms(autosave_retry_attempts);
-        autosave_retry_id = scheduler.schedule_once(delay_ms, () => {
-            autosave_retry_id = 0;
-            if (current_card == null || current_card.card_id != card_id || !has_unsaved_editor_changes()) {
-                autosave_retry_attempts = 0;
-                return Source.REMOVE;
-            }
-            autosave_current_card.begin();
-            return Source.REMOVE;
-        });
-        return delay_ms;
-    }
-
-    public bool autosave_retry_is_repeat_failure() {
-        return autosave_retry_attempts > 0;
+        editor_save_controller.schedule_autosave();
     }
 
     public async void autosave_current_card() {
-        yield cards_controller.autosave_current_card();
+        yield editor_save_controller.autosave_current_card();
     }
 
     public bool has_unsaved_editor_changes() {
-        return editor_draft_state.has_unsaved_changes(current_card, editor_text);
+        return editor_save_controller.has_unsaved_editor_changes();
     }
 
     public void on_editor_content_changed() {
-        if (current_card == null) {
-            editor_save_state_changed("");
-            return;
-        }
-        editor_save_state_changed(has_unsaved_editor_changes() ? "Unsaved" : "");
+        editor_save_controller.on_editor_content_changed();
+    }
+
+    public bool has_pending_autosave_retry() {
+        return editor_save_controller.has_pending_autosave_retry();
+    }
+
+    public uint get_autosave_retry_attempts() {
+        return editor_save_controller.get_autosave_retry_attempts();
     }
 
     public async void move_card_by_intent(string card_id,
@@ -748,36 +715,14 @@ public class MainController : Object, IAiRunContext {
         return strcmp(a.title.down(), b.title.down());
     }
 
-    private static uint autosave_retry_delay_ms(uint attempts) {
-        switch (attempts) {
-        case 1:
-            return 1000;
-        case 2:
-            return 2000;
-        case 3:
-            return 5000;
-        default:
-            return 10000;
-        }
-    }
-
     internal void set_editor_view_state(string text, bool editable) {
-        cancel_autosave_retry();
-        editor_draft_state.reset_to_view_state(text, editable);
-        editor_state_changed(text, editable);
-        editor_save_state_changed("");
+        editor_save_controller.set_editor_view_state(text, editable);
     }
 
     internal void set_loaded_card_editor_state(CardDetail card) {
-        cancel_autosave_retry();
-        editor_draft_state.load_card_state(card.card_id, card.content);
-        editor_state_changed(card.content, true);
-        editor_save_state_changed("");
+        editor_save_controller.set_loaded_card_editor_state(card);
     }
 
-    internal void set_editor_save_state(string text) {
-        editor_save_state_changed(text);
-    }
 }
 
 }
