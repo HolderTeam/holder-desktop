@@ -10,6 +10,7 @@ public class WorkspacePane : Object {
     private Gtk.ToggleButton search_toggle_btn;
     private Gtk.ToggleButton editor_toggle_btn;
     private Gtk.ToggleButton toolbox_toggle_btn;
+    private Gtk.Label save_state_label;
     private Gtk.Revealer message_revealer;
     private Gtk.Label message_label;
     private Gtk.Button message_debug_button;
@@ -57,6 +58,16 @@ public class WorkspacePane : Object {
 
     public void set_window_title_text(string title_text) {
         title_label.set_text(title_text);
+    }
+
+    public void set_save_state_text(string text) {
+        if (text == null || text.strip().length == 0) {
+            save_state_label.set_text("");
+            save_state_label.set_visible(false);
+            return;
+        }
+        save_state_label.set_text(text);
+        save_state_label.set_visible(true);
     }
 
     public void set_app_message(string? text) {
@@ -272,7 +283,14 @@ public class WorkspacePane : Object {
 
         var header = new Adw.HeaderBar();
         title_label = new Gtk.Label("Editor");
-        header.set_title_widget(title_label);
+        save_state_label = new Gtk.Label("");
+        save_state_label.add_css_class("caption");
+        save_state_label.add_css_class("dim-label");
+        save_state_label.set_visible(false);
+        var title_box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+        title_box.append(title_label);
+        title_box.append(save_state_label);
+        header.set_title_widget(title_box);
 
         var refresh_btn = new Gtk.Button.from_icon_name("view-refresh-symbolic");
         refresh_btn.set_tooltip_text("Refresh projects and cards");

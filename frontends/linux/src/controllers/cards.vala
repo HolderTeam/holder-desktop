@@ -126,6 +126,7 @@ internal class CardsController : Object {
         var content_fingerprint = short_content_fingerprint(text);
 
         try {
+            owner.set_editor_save_state("Saving...");
             yield owner.api.update_card(owner.current_card.card_id, title, text, updated_at);
             if (previous_title != title) {
                 owner.emit_activity(
@@ -167,6 +168,7 @@ internal class CardsController : Object {
             );
             owner.update_selected_card_summary(title, updated_at);
             owner.window_title_changed(title);
+            owner.set_editor_save_state("Saved");
             owner.status_changed("Saved %s".printf(TextUtils.format_relative_time(owner.now_epoch_seconds(), updated_at)));
         } catch (Error e) {
             owner.emit_activity(
@@ -175,6 +177,7 @@ internal class CardsController : Object {
                 owner.current_project != null ? owner.current_project.project_id : null,
                 owner.current_card.card_id
             );
+            owner.set_editor_save_state("Unsaved");
             owner.error_reported("Autosave failed", e.message);
         }
     }

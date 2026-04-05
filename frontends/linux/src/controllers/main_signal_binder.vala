@@ -3,6 +3,7 @@ namespace HolderLinux {
 internal interface IMainControllerSignalSink : Object {
     public abstract void on_status_changed(string text);
     public abstract void on_editor_state_changed(string text, bool editable);
+    public abstract void on_editor_save_state_changed(string text);
     public abstract void on_window_title_changed(string title_text);
     public abstract void on_toast_requested(string message);
     public abstract void on_error_reported(string title_text, string details);
@@ -40,6 +41,9 @@ internal class MainControllerSignalBinder : Object {
         });
         controller.editor_state_changed.connect((text, editable) => {
             sink.on_editor_state_changed(text, editable);
+        });
+        controller.editor_save_state_changed.connect((text) => {
+            sink.on_editor_save_state_changed(text);
         });
         controller.window_title_changed.connect((title_text) => {
             sink.on_window_title_changed(title_text);

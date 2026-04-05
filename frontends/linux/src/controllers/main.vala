@@ -40,6 +40,7 @@ public class MainController : Object, IAiRunContext {
 
     public signal void status_changed(string text);
     public signal void editor_state_changed(string text, bool editable);
+    public signal void editor_save_state_changed(string text);
     public signal void window_title_changed(string title_text);
     public signal void toast_requested(string message);
     public signal void error_reported(string title_text, string details);
@@ -294,6 +295,14 @@ public class MainController : Object, IAiRunContext {
 
     public bool has_unsaved_editor_changes() {
         return editor_draft_state.has_unsaved_changes(current_card, editor_text);
+    }
+
+    public void on_editor_content_changed() {
+        if (current_card == null) {
+            editor_save_state_changed("");
+            return;
+        }
+        editor_save_state_changed(has_unsaved_editor_changes() ? "Unsaved" : "");
     }
 
     public async void move_card_by_intent(string card_id,
@@ -704,11 +713,17 @@ public class MainController : Object, IAiRunContext {
     internal void set_editor_view_state(string text, bool editable) {
         editor_draft_state.reset_to_view_state(text, editable);
         editor_state_changed(text, editable);
+        editor_save_state_changed("");
     }
 
     internal void set_loaded_card_editor_state(CardDetail card) {
         editor_draft_state.load_card_state(card.card_id, card.content);
         editor_state_changed(card.content, true);
+        editor_save_state_changed("");
+    }
+
+    internal void set_editor_save_state(string text) {
+        editor_save_state_changed(text);
     }
 }
 

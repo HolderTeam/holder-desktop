@@ -147,6 +147,10 @@ private class WindowMainControllerSignalSink : Object, IMainControllerSignalSink
         owner.set_editor_state(text, editable);
     }
 
+    public void on_editor_save_state_changed(string text) {
+        owner.set_editor_save_state_text(text);
+    }
+
     public void on_window_title_changed(string title_text) {
         owner.update_window_title(title_text);
     }
@@ -545,6 +549,7 @@ public class MainWindow : Adw.ApplicationWindow {
         public bool editable = false;
         public bool show_search = false;
         public string window_title = "Holder";
+        public string save_state = "";
         public string search_summary = "";
         public string? ai_thread_title = null;
     }
@@ -1237,6 +1242,7 @@ public class MainWindow : Adw.ApplicationWindow {
             return;
         }
         refresh_connections_internal_links_from_editor();
+        controller.on_editor_content_changed();
         controller.schedule_autosave();
     }
 
@@ -1357,6 +1363,11 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void update_window_title(string title_text) {
         editor_render_state.window_title = title_text;
+        apply_editor_chrome_state();
+    }
+
+    internal void set_editor_save_state_text(string text) {
+        editor_render_state.save_state = text;
         apply_editor_chrome_state();
     }
 
@@ -1640,6 +1651,7 @@ public class MainWindow : Adw.ApplicationWindow {
 
     private void apply_editor_chrome_state() {
         workspace.set_window_title_text(editor_render_state.window_title);
+        workspace.set_save_state_text(editor_render_state.save_state);
         title = editor_render_state.window_title;
         search_summary_label.set_text(editor_render_state.search_summary);
         ai_panel.set_thread_title(editor_render_state.ai_thread_title);

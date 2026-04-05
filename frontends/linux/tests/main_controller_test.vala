@@ -1460,8 +1460,66 @@ private void test_autosave_failure_emits_error() {
         }
     });
     harness.editor_text.value = "# New title";
+    controller.on_editor_content_changed();
     controller.autosave_current_card.begin();
     assert(wait_for_condition(() => got_error));
+    assert(controller.has_unsaved_editor_changes());
+}
+
+private void test_editor_change_emits_unsaved_until_save_confirmation() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    string last_save_state = "";
+    controller.editor_save_state_changed.connect((text) => {
+        last_save_state = text;
+    });
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+    assert(last_save_state == "");
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    assert(last_save_state == "Unsaved");
+    assert(controller.has_unsaved_editor_changes());
+
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => last_save_state == "Saved"));
+    assert(!controller.has_unsaved_editor_changes());
+}
+
+private void test_autosave_failure_keeps_unsaved_save_state() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    string last_save_state = "";
+    controller.editor_save_state_changed.connect((text) => {
+        last_save_state = text;
+    });
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    assert(last_save_state == "Unsaved");
+
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => last_save_state == "Unsaved"));
     assert(controller.has_unsaved_editor_changes());
 }
 
@@ -2182,6 +2240,14 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/autosave_failure_emits_error",
         test_autosave_failure_emits_error
+    );
+    Test.add_func(
+        "/main_controller/editor_change_emits_unsaved_until_save_confirmation",
+        test_editor_change_emits_unsaved_until_save_confirmation
+    );
+    Test.add_func(
+        "/main_controller/autosave_failure_keeps_unsaved_save_state",
+        test_autosave_failure_keeps_unsaved_save_state
     );
     Test.add_func(
         "/main_controller/background_reload_success_keeps_dirty_editor_state",
