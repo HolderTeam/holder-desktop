@@ -9,7 +9,8 @@ private HolderLinux.MainController make_controller(MainControllerFakeApi api,
                                                    MutableTextProvider editor_text,
                                                    FakeServerDiscovery? discovery = null,
                                                    HolderLinux.IHolderApi? initial_api = null,
-                                                   bool inject_initial_api = true) {
+                                                   bool inject_initial_api = true,
+                                                   HolderLinux.IEditorRecoveryDraftService? recovery_draft_service = null) {
     var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
     var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
     var thread_store = new GLib.ListStore(typeof(HolderLinux.AiThreadSummary));
@@ -32,7 +33,9 @@ private HolderLinux.MainController make_controller(MainControllerFakeApi api,
         discovery ?? new FakeServerDiscovery(),
         clock,
         scheduler,
-        inject_initial_api ? (initial_api ?? api) : null
+        inject_initial_api ? (initial_api ?? api) : null,
+        null,
+        recovery_draft_service
     );
     controller.project_selection_requested.connect((project_id) => {
         if (project_id == null || project_id.strip().length == 0) {
@@ -88,8 +91,17 @@ private MainControllerTestHarness make_harness(MainControllerFakeApi api,
                                  FakeClock clock,
                                  FakeServerDiscovery? discovery = null,
                                  HolderLinux.IHolderApi? initial_api = null,
-                                 bool inject_initial_api = true) {
-    return new MainControllerTestHarness(api, scheduler, clock, discovery, initial_api, inject_initial_api);
+                                 bool inject_initial_api = true,
+                                 HolderLinux.IEditorRecoveryDraftService? recovery_draft_service = null) {
+    return new MainControllerTestHarness(
+        api,
+        scheduler,
+        clock,
+        discovery,
+        initial_api,
+        inject_initial_api,
+        recovery_draft_service
+    );
 }
 
 private string? prepare_search_result_card(HolderLinux.MainController controller, uint position) {
@@ -1445,7 +1457,8 @@ private void test_autosave_failure_emits_error() {
     api.fail_update_card = true;
     var scheduler = new TestScheduler();
     var clock = new FakeClock();
-    var harness = make_harness(api, scheduler, clock);
+    var draft_service = new FakeEditorRecoveryDraftService();
+    var harness = make_harness(api, scheduler, clock, null, null, true, draft_service);
     var controller = harness.controller;
     controller.reload_everything.begin();
     assert(wait_for_condition(() => controller.get_current_project() != null));
@@ -1460,8 +1473,313 @@ private void test_autosave_failure_emits_error() {
         }
     });
     harness.editor_text.value = "# New title";
+    controller.on_editor_content_changed();
     controller.autosave_current_card.begin();
     assert(wait_for_condition(() => got_error));
+    assert(controller.has_unsaved_editor_changes());
+    assert(draft_service.save_calls == 1);
+    assert(draft_service.last_saved_draft != null);
+    assert(draft_service.last_saved_draft.card_id == "c1");
+    assert(draft_service.last_saved_draft.content == "# New title");
+}
+
+private void test_editor_change_emits_unsaved_until_save_confirmation() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    string last_save_state = "";
+    controller.editor_save_state_changed.connect((text) => {
+        last_save_state = text;
+    });
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+    assert(last_save_state == "");
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    assert(last_save_state == "Unsaved");
+    assert(controller.has_unsaved_editor_changes());
+
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => last_save_state == "Saved"));
+    assert(!controller.has_unsaved_editor_changes());
+}
+
+private void test_autosave_failure_keeps_unsaved_save_state() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    string last_save_state = "";
+    controller.editor_save_state_changed.connect((text) => {
+        last_save_state = text;
+    });
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    assert(last_save_state == "Unsaved");
+
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => last_save_state == "Unsaved"));
+    assert(controller.has_unsaved_editor_changes());
+}
+
+private void test_autosave_without_api_writes_local_recovery_draft() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var draft_service = new FakeEditorRecoveryDraftService();
+    var harness = make_harness(api, scheduler, clock, null, null, true, draft_service);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Offline Title\n\nOffline body";
+    controller.on_editor_content_changed();
+    controller.api = null;
+
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => draft_service.save_calls == 1));
+    assert(draft_service.last_saved_draft != null);
+    assert(draft_service.last_saved_draft.card_id == "c1");
+    assert(draft_service.last_saved_draft.title == "Offline Title");
+    assert(draft_service.last_saved_draft.content == "# Offline Title\n\nOffline body");
+    assert(controller.has_unsaved_editor_changes());
+}
+
+private void test_autosave_failure_keeps_existing_recovery_draft() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var draft_service = new FakeEditorRecoveryDraftService();
+    var harness = make_harness(api, scheduler, clock, null, null, true, draft_service);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    try {
+        draft_service.save_draft(new HolderLinux.EditorRecoveryDraft(
+            "c1",
+            "p1",
+            "Old Draft",
+            "# Old Draft",
+            999
+        ));
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    draft_service.save_calls = 0;
+    draft_service.remove_calls = 0;
+
+    harness.editor_text.value = "# Failed Save Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    controller.autosave_current_card.begin();
+
+    assert(wait_for_condition(() => draft_service.save_calls == 1));
+    assert(draft_service.remove_calls == 0);
+    assert(draft_service.drafts.has_key("c1"));
+    assert(draft_service.drafts["c1"].content == "# Failed Save Title\n\nDraft body");
+}
+
+private void test_confirmed_save_removes_recovery_draft() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var draft_service = new FakeEditorRecoveryDraftService();
+    var harness = make_harness(api, scheduler, clock, null, null, true, draft_service);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    try {
+        draft_service.save_draft(new HolderLinux.EditorRecoveryDraft(
+            "c1",
+            "p1",
+            "Offline Title",
+            "# Offline Title\n\nOffline body",
+            1001
+        ));
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    draft_service.save_calls = 0;
+    draft_service.remove_calls = 0;
+
+    harness.editor_text.value = "# Saved Title\n\nDurable body";
+    controller.on_editor_content_changed();
+    controller.autosave_current_card.begin();
+
+    assert(wait_for_condition(() => draft_service.remove_calls == 1));
+    assert(!draft_service.drafts.has_key("c1"));
+    assert(!controller.has_unsaved_editor_changes());
+}
+
+private void test_autosave_failure_schedules_retry_and_retry_success_clears_dirty_state() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    string last_error_details = "";
+    controller.error_reported.connect((title, details) => {
+        if (title == "Autosave failed") {
+            last_error_details = details;
+        }
+    });
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+    assert(last_error_details.contains("Retrying in 1 s."));
+    assert(controller.has_unsaved_editor_changes());
+
+    api.fail_update_card = false;
+    scheduler.run_all_once();
+    assert(wait_for_condition(() => api.update_card_calls == 1));
+    assert(wait_for_condition(() => !controller.has_unsaved_editor_changes()));
+    assert(!controller.has_pending_autosave_retry());
+    assert(controller.get_autosave_retry_attempts() == 0);
+}
+
+private void test_new_edit_cancels_pending_autosave_retry() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+
+    controller.schedule_autosave();
+    assert(!controller.has_pending_autosave_retry());
+    assert(controller.get_autosave_retry_attempts() == 0);
+}
+
+private void test_navigation_change_cancels_stale_autosave_retry() {
+    var api = new MainControllerFakeApi();
+    api.include_card2 = true;
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+
+    api.fail_update_card = false;
+    controller.show_project_overview.begin();
+    assert(wait_for_condition(() => controller.get_current_card() == null));
+    assert(!controller.has_pending_autosave_retry());
+    scheduler.run_all_once();
+    assert(api.update_card_calls == 0);
+}
+
+private void test_background_reload_success_keeps_dirty_editor_state() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+    assert(!controller.has_unsaved_editor_changes());
+
+    harness.editor_text.value = "# Card 1\n\nDraft changes";
+    assert(controller.has_unsaved_editor_changes());
+
+    controller.reload_cards_for_selected_project.begin();
+    assert(wait_for_condition(() => api.list_cards_calls >= 2));
+    assert(controller.has_unsaved_editor_changes());
+}
+
+private void test_background_reload_failure_keeps_dirty_editor_state() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Card 1\n\nDraft changes";
+    assert(controller.has_unsaved_editor_changes());
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Failed to load cards") {
+            got_error = true;
+        }
+    });
+
+    api.fail_list_cards = true;
+    controller.reload_cards_for_selected_project.begin();
+    assert(wait_for_condition(() => got_error));
+    assert(controller.has_unsaved_editor_changes());
 }
 
 private void test_autosave_without_card_is_noop() {
@@ -2130,6 +2448,46 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/autosave_failure_emits_error",
         test_autosave_failure_emits_error
+    );
+    Test.add_func(
+        "/main_controller/editor_change_emits_unsaved_until_save_confirmation",
+        test_editor_change_emits_unsaved_until_save_confirmation
+    );
+    Test.add_func(
+        "/main_controller/autosave_failure_keeps_unsaved_save_state",
+        test_autosave_failure_keeps_unsaved_save_state
+    );
+    Test.add_func(
+        "/main_controller/autosave_without_api_writes_local_recovery_draft",
+        test_autosave_without_api_writes_local_recovery_draft
+    );
+    Test.add_func(
+        "/main_controller/autosave_failure_keeps_existing_recovery_draft",
+        test_autosave_failure_keeps_existing_recovery_draft
+    );
+    Test.add_func(
+        "/main_controller/confirmed_save_removes_recovery_draft",
+        test_confirmed_save_removes_recovery_draft
+    );
+    Test.add_func(
+        "/main_controller/autosave_failure_schedules_retry_and_retry_success_clears_dirty_state",
+        test_autosave_failure_schedules_retry_and_retry_success_clears_dirty_state
+    );
+    Test.add_func(
+        "/main_controller/new_edit_cancels_pending_autosave_retry",
+        test_new_edit_cancels_pending_autosave_retry
+    );
+    Test.add_func(
+        "/main_controller/navigation_change_cancels_stale_autosave_retry",
+        test_navigation_change_cancels_stale_autosave_retry
+    );
+    Test.add_func(
+        "/main_controller/background_reload_success_keeps_dirty_editor_state",
+        test_background_reload_success_keeps_dirty_editor_state
+    );
+    Test.add_func(
+        "/main_controller/background_reload_failure_keeps_dirty_editor_state",
+        test_background_reload_failure_keeps_dirty_editor_state
     );
     Test.add_func(
         "/main_controller/autosave_without_card_is_noop",

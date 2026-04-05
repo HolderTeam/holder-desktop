@@ -257,6 +257,7 @@ public class ToolboxPane : Object {
 
         var connections_page = stack.add_titled(connections_tool.widget, "connections", "Connections");
         connections_page.set_icon_name("network-wired-symbolic");
+        connections_tool.set_tool_visible(false);
 
         resources_tool = new ResourcesToolView();
         tool_adapters.set("resources", resources_tool);
@@ -355,11 +356,19 @@ public class ToolboxPane : Object {
         stack.notify["visible-child"].connect(() => {
             var visible = stack.get_visible_child();
             var page = visible != null ? stack.get_page(visible) : null;
+            if (connections_tool != null) {
+                connections_tool.set_tool_visible(page != null && page.name == "connections");
+            }
             apply_shell_state();
             if (page.title == "Trash") {
                 refresh_trash();
             }
         });
+        if (connections_tool != null) {
+            var visible = stack.get_visible_child();
+            var page = visible != null ? stack.get_page(visible) : null;
+            connections_tool.set_tool_visible(page != null && page.name == "connections");
+        }
         apply_shell_state();
 
         var scroller = new Gtk.ScrolledWindow();

@@ -13,6 +13,12 @@ It is **not** a chat app, **not** a cloud client, and **not** an IDE.
 
 The frontend is intentionally **thin**: it renders state, manages user interaction, and delegates all real logic (storage, indexing, AI, git, search) to a local backend service.
 
+Status note:
+
+- The responsibility split in this file is still broadly correct.
+- Some older architecture notes later in this document describe an earlier shell and endpoint surface.
+- For active implementation planning, treat this file plus `docs/FEATURE_PLAN.md` and `docs/refactor_todo.md` as the current guidance.
+
 ---
 
 ## Core UX Model
@@ -309,10 +315,15 @@ Source layout:
 
 * `frontends/linux/main.vala` - thin entrypoint
 * `frontends/linux/src/app.vala` - `Adw.Application`
-* `frontends/linux/src/window.vala` - main window/UI flow
-* `frontends/linux/src/api_client.vala` - authenticated Holder API client
-* `frontends/linux/src/discovery.vala` - backend discovery via `holder.json`
-* `frontends/linux/src/models.vala` - typed app models
+* `frontends/linux/src/views/window.vala` - main window composition
+* `frontends/linux/src/views/workspace_pane.vala` - editor/toolbox shell
+* `frontends/linux/src/views/ai_panel*.vala` - AI panel UI
+* `frontends/linux/src/views/toolbox*.vala` - toolbox shell and tools
+* `frontends/linux/src/controllers/*.vala` - orchestration, transitions, feature controllers
+* `frontends/linux/src/services/api_client/*.vala` - authenticated Holder API client surface
+* `frontends/linux/src/services/discovery.vala` - backend discovery via `holder.json`
+* `frontends/linux/src/models/*.vala` - typed app models
+* `frontends/linux/src/state/*.vala` - app state and activity state
 
 ### Backend Discovery + Auth
 
@@ -340,6 +351,18 @@ All requests use:
 * `POST /cards`
 * `GET /cards/{card_id}`
 * `PATCH /cards/{card_id}`
+* `GET /search/cards`
+* `GET /ai/capabilities`
+* `GET /ai/status`
+* `POST /ai/runner/pull`
+* `GET /ai/runner/pull/{job_id}`
+* `POST /ai/runner/retry`
+* `GET/PUT /ai/local-models/config`
+* `GET/POST /ai/threads`
+* `GET/PATCH/DELETE /ai/threads/{thread_id}`
+* `POST /ai/runs`
+* `GET /ai/runs`
+* recovery token export/import routes
 
 ### Current Behavior Implemented
 
@@ -351,14 +374,21 @@ All requests use:
 * Editor loads selected card content
 * New card button creates an initial card
 * Debounced autosave (~900ms) sends card updates to backend
+* Card search is wired
+* AI panel status/model pull/config UI is wired
+* AI threads and `/ai/runs` streaming are wired
+* Toolbox is now a substantial surface, including Connections and Recovery Key flows
+* Selection and rendering flow is transition-gated through controllers/orchestrators rather than direct widget-to-widget mutation
 
 ### Known Gaps / Next Work
 
-* No AI panel integration yet (`/ai/*` not wired)
-* No search UI yet (`/search/cards`, `/search/ai` not wired)
-* No resource/project metadata management UI yet
-* No GActions/keyboard shortcuts yet
-* No Flatpak packaging/app-id integration pass yet
+* AI message/provenance UI is still incomplete
+* AI search UI is still incomplete
+* Resource management UI remains partial
+* Multi-runner runner management UI is planned but not implemented yet
+* Frontend-side recovery drafts for failed saves are planned in `holder-daemon/docs/ASYNC_PLAN.md` but not implemented yet
+* Connections refresh containment work in `holder-daemon/docs/ASYNC_PLAN.md` is still relevant
+* Flatpak packaging/app-id integration still needs a pass
 
 ### Notes For Future Edits
 
@@ -367,3 +397,6 @@ All requests use:
   * `holder/openapi.yaml`
   * `holder/docs/CLIENTS.md`
   * `holder/docs/SWAGGER_TUTORIAL.md`
+* Active frontend work tracking:
+  * `frontends/linux/docs/FEATURE_PLAN.md`
+  * `frontends/linux/docs/refactor_todo.md`

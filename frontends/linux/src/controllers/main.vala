@@ -18,12 +18,12 @@ public class MainController : Object, IAiRunContext {
     internal IServerDiscovery server_discovery;
     internal IClock clock;
     internal IScheduler scheduler;
+    internal EditorDraftState editor_draft_state;
     internal Project? current_project;
     internal CardDetail? current_card;
     internal AiThreadSummary? current_ai_thread;
 
     internal bool create_card_in_flight = false;
-    internal uint autosave_id = 0;
     internal uint search_debounce_id = 0;
     internal uint card_loading_status_id = 0;
     internal uint project_cards_loading_status_id = 0;
@@ -32,6 +32,7 @@ public class MainController : Object, IAiRunContext {
 
     private ProjectsController projects_controller;
     private CardsController cards_controller;
+    private EditorSaveController editor_save_controller;
     private SearchController search_controller;
     private AiThreadsController ai_threads_controller;
     private IExplorerStateSink? explorer_state_sink;
@@ -39,6 +40,7 @@ public class MainController : Object, IAiRunContext {
 
     public signal void status_changed(string text);
     public signal void editor_state_changed(string text, bool editable);
+    public signal void editor_save_state_changed(string text);
     public signal void window_title_changed(string title_text);
     public signal void toast_requested(string message);
     public signal void error_reported(string title_text, string details);
@@ -73,7 +75,8 @@ public class MainController : Object, IAiRunContext {
                           IClock? clock = null,
                           IScheduler? scheduler = null,
                           IHolderApi? initial_api = null,
-                          IExplorerStateSink? explorer_state_sink = null) {
+                          IExplorerStateSink? explorer_state_sink = null,
+                          IEditorRecoveryDraftService? recovery_draft_service = null) {
         this.project_store = project_store;
         this.project_selection = project_selection;
         this.card_store = card_store;
@@ -87,10 +90,12 @@ public class MainController : Object, IAiRunContext {
         this.server_discovery = server_discovery;
         this.clock = clock ?? new SystemClock();
         this.scheduler = scheduler ?? new MainLoopScheduler();
+        this.editor_draft_state = new EditorDraftState();
         this.api = initial_api;
         this.explorer_state_sink = explorer_state_sink;
         this.projects_controller = new ProjectsController(this);
         this.cards_controller = new CardsController(this);
+        this.editor_save_controller = new EditorSaveController(this, recovery_draft_service);
         this.search_controller = new SearchController(this);
         this.ai_threads_controller = new AiThreadsController(this);
     }
@@ -210,7 +215,7 @@ public class MainController : Object, IAiRunContext {
         if (selected == null) {
             current_project = null;
             current_card = null;
-            editor_state_changed("# No Project Selected\n\nSelect a project to view its overview.", false);
+            set_editor_view_state("# No Project Selected\n\nSelect a project to view its overview.", false);
             return;
         }
         var selected_project_id = selected.project_id;
@@ -244,7 +249,7 @@ public class MainController : Object, IAiRunContext {
             return;
         }
 
-        editor_state_changed(build_project_overview_text(selected, card_count, resources_text, thread_count), false);
+        set_editor_view_state(build_project_overview_text(selected, card_count, resources_text, thread_count), false);
         show_editor_requested();
         window_title_changed(selected.name);
         status_changed("Loaded project overview");
@@ -283,11 +288,27 @@ public class MainController : Object, IAiRunContext {
     }
 
     public void schedule_autosave() {
-        cards_controller.schedule_autosave();
+        editor_save_controller.schedule_autosave();
     }
 
     public async void autosave_current_card() {
-        yield cards_controller.autosave_current_card();
+        yield editor_save_controller.autosave_current_card();
+    }
+
+    public bool has_unsaved_editor_changes() {
+        return editor_save_controller.has_unsaved_editor_changes();
+    }
+
+    public void on_editor_content_changed() {
+        editor_save_controller.on_editor_content_changed();
+    }
+
+    public bool has_pending_autosave_retry() {
+        return editor_save_controller.has_pending_autosave_retry();
+    }
+
+    public uint get_autosave_retry_attempts() {
+        return editor_save_controller.get_autosave_retry_attempts();
     }
 
     public async void move_card_by_intent(string card_id,
@@ -328,7 +349,7 @@ public class MainController : Object, IAiRunContext {
             if (project_store.get_n_items() == 0) {
                 current_project = null;
                 clear_cards();
-                editor_state_changed("# No Projects\n\nCreate a project to start writing.", false);
+                set_editor_view_state("# No Projects\n\nCreate a project to start writing.", false);
                 return;
             }
 
@@ -494,7 +515,7 @@ public class MainController : Object, IAiRunContext {
                 return;
             }
             current_card = card;
-            editor_state_changed(card.content, true);
+            set_loaded_card_editor_state(card);
             show_editor_requested();
             window_title_changed(card.title);
             status_changed("Loaded %s".printf(card.title));
@@ -694,6 +715,15 @@ public class MainController : Object, IAiRunContext {
         }
         return strcmp(a.title.down(), b.title.down());
     }
+
+    internal void set_editor_view_state(string text, bool editable) {
+        editor_save_controller.set_editor_view_state(text, editable);
+    }
+
+    internal void set_loaded_card_editor_state(CardDetail card) {
+        editor_save_controller.set_loaded_card_editor_state(card);
+    }
+
 }
 
 }

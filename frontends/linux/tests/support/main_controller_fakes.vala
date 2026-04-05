@@ -44,6 +44,33 @@ public class MutableTextProvider : Object, HolderLinux.ITextProvider {
     }
 }
 
+public class FakeEditorRecoveryDraftService : Object, HolderLinux.IEditorRecoveryDraftService {
+    public int save_calls = 0;
+    public int remove_calls = 0;
+    public HolderLinux.EditorRecoveryDraft? last_saved_draft = null;
+    public Gee.HashMap<string, HolderLinux.EditorRecoveryDraft> drafts =
+        new Gee.HashMap<string, HolderLinux.EditorRecoveryDraft>();
+
+    public void save_draft(HolderLinux.EditorRecoveryDraft draft) throws Error {
+        save_calls++;
+        last_saved_draft = draft;
+        drafts.set(draft.card_id, draft);
+    }
+
+    public HolderLinux.EditorRecoveryDraft? load_draft(string card_id) throws Error {
+        return drafts.get(card_id);
+    }
+
+    public void remove_draft(string card_id) throws Error {
+        remove_calls++;
+        drafts.unset(card_id);
+    }
+
+    public string draft_path_for_card_id(string card_id) {
+        return "/tmp/%s.json".printf(card_id);
+    }
+}
+
 public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int list_projects_calls = 0;
     public int list_cards_calls = 0;
@@ -70,6 +97,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int hard_delete_trash_calls = 0;
     public int list_card_links_calls = 0;
     public int list_card_backlinks_calls = 0;
+    public int list_card_links_in_flight = 0;
+    public int max_list_card_links_in_flight = 0;
     public int create_card_link_calls = 0;
     public int delete_card_link_calls = 0;
     public string last_updated_card_id = "";
@@ -96,6 +125,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_create_resource = false;
     public bool fail_update_resource = false;
     public bool fail_delete_resource = false;
+    public uint list_card_links_delay_ms = 0;
     public bool include_card2 = false;
     public string next_move_into_title = "";
     public bool search_returns_card2 = false;
@@ -324,7 +354,20 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         if (fail_list_card_links) {
             throw new IOError.FAILED("list card links failed");
         }
+        list_card_links_in_flight++;
+        if (list_card_links_in_flight > max_list_card_links_in_flight) {
+            max_list_card_links_in_flight = list_card_links_in_flight;
+        }
+        if (list_card_links_delay_ms > 0) {
+            var loop = new MainLoop(null, false);
+            Timeout.add(list_card_links_delay_ms, () => {
+                loop.quit();
+                return Source.REMOVE;
+            });
+            loop.run();
+        }
         list_card_links_calls++;
+        list_card_links_in_flight--;
         return card_links;
     }
 
