@@ -334,6 +334,27 @@ public class ConnectionsController : Object {
         );
     }
 
+    public string describe_graph_refresh_target(ConnectionsGraphRefreshTarget target) {
+        switch (target.mode) {
+        case "projects_root":
+            return "projects_root";
+        case "card_focus":
+            return "card:%s".printf(target.card_id);
+        default:
+            return target.project_id.length > 0
+                ? "project:%s".printf(target.project_id)
+                : "project:none";
+        }
+    }
+
+    public string format_graph_refresh_debug_event(string event_name,
+                                                   ConnectionsGraphRefreshTarget target) {
+        return "Connections refresh %s: %s".printf(
+            event_name,
+            describe_graph_refresh_target(target)
+        );
+    }
+
     public string normalized_link_kind(string? kind) {
         if (kind == null) {
             return "ref";

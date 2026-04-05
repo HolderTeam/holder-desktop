@@ -70,6 +70,10 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         connections_graph_content_generation++;
     }
 
+    private void debug_graph_refresh(string event_name, ConnectionsGraphRefreshTarget target) {
+        debug_log_requested(controller.format_graph_refresh_debug_event(event_name, target));
+    }
+
     private ConnectionsGraphRefreshTarget current_graph_refresh_target() {
         var selected_project = project_selection != null
             ? project_selection.get_selected_item() as Project
@@ -665,38 +669,45 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             && committed_graph_refresh_target != null
             && committed_graph_refresh_target.to_key() == target_key
             && committed_graph_refresh_generation == connections_graph_generation) {
+            debug_graph_refresh("skipped unchanged target", target);
             return;
         }
         if (!is_tool_visible) {
             if (pending_refresh_when_visible
                 && pending_graph_refresh_target != null
                 && pending_graph_refresh_target.to_key() == target_key) {
+                debug_graph_refresh("suppressed hidden duplicate", target);
                 return;
             }
             connections_graph_generation++;
             pending_refresh_when_visible = true;
             pending_graph_refresh_target = target;
+            debug_graph_refresh("suppressed while hidden", target);
             return;
         }
         pending_refresh_when_visible = false;
         if (pending_graph_refresh_id != 0
             && pending_graph_refresh_target != null
             && pending_graph_refresh_target.to_key() == target_key) {
+            debug_graph_refresh("coalesced pending duplicate", target);
             return;
         }
         if (graph_refresh_in_flight) {
             if (in_flight_graph_refresh_target != null
                 && in_flight_graph_refresh_target.to_key() == target_key) {
+                debug_graph_refresh("suppressed same target in flight", target);
                 return;
             }
             if (pending_graph_refresh_after_flight
                 && pending_graph_refresh_target != null
                 && pending_graph_refresh_target.to_key() == target_key) {
+                debug_graph_refresh("coalesced duplicate after flight", target);
                 return;
             }
             connections_graph_generation++;
             pending_graph_refresh_after_flight = true;
             pending_graph_refresh_target = target;
+            debug_graph_refresh("coalesced after in-flight refresh", target);
             return;
         }
         if (pending_graph_refresh_id != 0) {
@@ -711,6 +722,9 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             pending_graph_refresh_target = null;
             if (graph_refresh_in_flight) {
                 pending_graph_refresh_after_flight = true;
+                if (dispatch_target != null) {
+                    debug_graph_refresh("coalesced at debounce dispatch", dispatch_target);
+                }
                 return Source.REMOVE;
             }
             clear_pending_project_empty_state();
@@ -732,6 +746,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         try {
             if (request_serial != connections_graph_refresh_serial
                 || request_generation != connections_graph_generation) {
+                debug_graph_refresh("dropped stale preflight", request_target);
                 return;
             }
             if (connections_board_overlay == null || connections_board_nodes_layer == null || connections_board_canvas == null) {
@@ -740,6 +755,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             if (show_projects_root) {
                 if (request_serial != connections_graph_refresh_serial
                     || request_generation != connections_graph_generation) {
+                    debug_graph_refresh("dropped stale projects root", request_target);
                     return;
                 }
                 committed_graph_refresh_target = request_target;
@@ -757,6 +773,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             if (selected_project == null) {
                 if (request_serial != connections_graph_refresh_serial
                     || request_generation != connections_graph_generation) {
+                    debug_graph_refresh("dropped stale missing project", request_target);
                     return;
                 }
                 // During project/card transitions, selection can briefly pass through null.
@@ -776,12 +793,14 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
 
                 if (request_serial != connections_graph_refresh_serial
                     || request_generation != connections_graph_generation) {
+                    debug_graph_refresh("dropped stale card result", request_target);
                     return;
                 }
                 var still_selected = card_selection != null
                     ? card_selection.get_selected_item() as CardSummary
                     : null;
                 if (still_selected == null || still_selected.card_id != expected_card_id) {
+                    debug_graph_refresh("dropped stale card selection", request_target);
                     return;
                 }
                 if (!result.success || result.outgoing == null || result.backlinks == null) {
@@ -803,6 +822,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             if (api == null) {
                 if (request_serial != connections_graph_refresh_serial
                     || request_generation != connections_graph_generation) {
+                    debug_graph_refresh("dropped stale api unavailable", request_target);
                     return;
                 }
                 set_graph_empty_state("API unavailable.");
@@ -822,6 +842,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                 }
                 if (request_serial != connections_graph_refresh_serial
                     || request_generation != connections_graph_generation) {
+                    debug_graph_refresh("dropped stale project result", request_target);
                     return;
                 }
                 try {
@@ -841,6 +862,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             }
             if (request_serial != connections_graph_refresh_serial
                 || request_generation != connections_graph_generation) {
+                debug_graph_refresh("dropped stale project completion", request_target);
                 return;
             }
             committed_graph_refresh_target = request_target;

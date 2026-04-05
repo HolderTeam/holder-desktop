@@ -47,6 +47,15 @@ private bool widget_tree_contains_label_text(Gtk.Widget? widget, string needle) 
     return false;
 }
 
+private bool logs_contain(Gee.ArrayList<string> logs, string needle) {
+    foreach (var line in logs) {
+        if (line.contains(needle)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 private HolderLinux.Project project(string id, string name) {
     return new HolderLinux.Project(id, name, "plain", "/tmp/%s".printf(id), 1, 1);
 }
@@ -269,6 +278,54 @@ private void test_duplicate_refresh_triggers_for_same_effective_target_are_suppr
     assert(api.list_card_backlinks_calls == 2);
 }
 
+private void test_debug_logs_cover_skipped_suppressed_stale_and_coalesced_refreshes() {
+    var api = new MainControllerFakeApi();
+    api.list_card_links_delay_ms = 180;
+    var view = new HolderLinux.ConnectionsToolView();
+    var logs = new Gee.ArrayList<string>();
+    view.debug_log_requested.connect((line) => {
+        logs.add(line);
+    });
+
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    project_store.append(project("p1", "Project"));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    project_selection.set_selected(0);
+
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    card_store.append(card("c1", "p1", "Card One", 10));
+    card_store.append(card("c2", "p1", "Card Two", 20));
+    card_store.append(card("c3", "p1", "Card Three", 30));
+    var card_selection = new Gtk.SingleSelection(card_store);
+    card_selection.set_selected(0);
+
+    view.set_api_client(api);
+    view.bind_context(project_selection, card_store, card_selection);
+
+    card_selection.set_selected(1);
+    assert(wait_until_true(() => {
+        return logs_contain(logs, "suppressed while hidden");
+    }, 3000));
+
+    view.set_tool_visible(true);
+    assert(wait_until_true(() => {
+        return api.list_card_links_calls == 1 && api.list_card_backlinks_calls == 1;
+    }, 3000));
+
+    view.set_api_client(api);
+    assert(wait_until_true(() => {
+        return logs_contain(logs, "skipped unchanged target");
+    }, 3000));
+
+    card_selection.set_selected(2);
+    spin_main_loop_briefly(130);
+    card_selection.set_selected(0);
+    assert(wait_until_true(() => {
+        return logs_contain(logs, "coalesced after in-flight refresh")
+            && logs_contain(logs, "dropped stale card result");
+    }, 3000));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     if (!Gtk.init_check()) {
@@ -287,6 +344,8 @@ public static int main(string[] args) {
                   test_stale_project_graph_refresh_result_is_dropped_when_generation_changes);
     Test.add_func("/holder/connections-tool-view/duplicate-effective-target-refresh-suppressed",
                   test_duplicate_refresh_triggers_for_same_effective_target_are_suppressed);
+    Test.add_func("/holder/connections-tool-view/debug-logs-cover-refresh-scheduler-decisions",
+                  test_debug_logs_cover_skipped_suppressed_stale_and_coalesced_refreshes);
 
     return Test.run();
 }
