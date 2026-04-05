@@ -58,50 +58,17 @@ internal class EditorSaveController : Object {
         try {
             set_editor_save_state("Saving...");
             yield ((!) owner.api).update_card(owner.current_card.card_id, title, text, updated_at);
-            if (previous_title != title) {
-                owner.emit_activity(
-                    "result.card.rename",
-                    "Renamed card: %s -> %s [body_empty=%s]".printf(
-                        previous_title,
-                        title,
-                        body_empty ? "true" : "false"
-                    ),
-                    owner.current_project != null ? owner.current_project.project_id : null,
-                    owner.current_card.card_id,
-                    new CardRenamedDetails(previous_title, title, body_empty)
-                );
-            }
-            owner.current_card.title = title;
-            owner.current_card.content = text;
-            owner.editor_draft_state.mark_save_succeeded(owner.current_card.card_id, text);
-            owner.current_card.updated_at = updated_at;
-            remove_local_recovery_draft(owner.current_card.card_id);
-            owner.emit_activity(
-                "result.card.autosave",
-                "Autosaved card: %s [doc_chars=%d, body_chars=%d, delta_chars=%+d, body_empty=%s, fingerprint=%s]".printf(
-                    title,
-                    doc_chars,
-                    body_chars,
-                    delta_chars,
-                    body_empty ? "true" : "false",
-                    content_fingerprint
-                ),
-                owner.current_project != null ? owner.current_project.project_id : null,
-                owner.current_card.card_id,
-                new CardAutosavedDetails(
-                    title,
-                    doc_chars,
-                    body_chars,
-                    delta_chars,
-                    body_empty,
-                    content_fingerprint
-                )
+            note_confirmed_durable_save(
+                previous_title,
+                title,
+                text,
+                updated_at,
+                body_empty,
+                doc_chars,
+                body_chars,
+                delta_chars,
+                content_fingerprint
             );
-            owner.update_selected_card_summary(title, updated_at);
-            owner.window_title_changed(title);
-            note_autosave_success();
-            set_editor_save_state("Saved");
-            owner.status_changed("Saved %s".printf(TextUtils.format_relative_time(owner.now_epoch_seconds(), updated_at)));
         } catch (Error e) {
             save_local_recovery_draft(owner.current_card, text);
             owner.emit_activity(
@@ -211,6 +178,70 @@ internal class EditorSaveController : Object {
         default:
             return 10000;
         }
+    }
+
+    // A save is confirmed only after the backend request returns success.
+    // Frontend cleanup that assumes durability, such as clearing recovery
+    // drafts or advancing the committed editor baseline, must happen here.
+    private void note_confirmed_durable_save(string previous_title,
+                                             string title,
+                                             string text,
+                                             int64 updated_at,
+                                             bool body_empty,
+                                             int doc_chars,
+                                             int body_chars,
+                                             int delta_chars,
+                                             string content_fingerprint) {
+        if (owner.current_card == null) {
+            return;
+        }
+
+        if (previous_title != title) {
+            owner.emit_activity(
+                "result.card.rename",
+                "Renamed card: %s -> %s [body_empty=%s]".printf(
+                    previous_title,
+                    title,
+                    body_empty ? "true" : "false"
+                ),
+                owner.current_project != null ? owner.current_project.project_id : null,
+                owner.current_card.card_id,
+                new CardRenamedDetails(previous_title, title, body_empty)
+            );
+        }
+
+        owner.current_card.title = title;
+        owner.current_card.content = text;
+        owner.current_card.updated_at = updated_at;
+        owner.editor_draft_state.mark_save_succeeded(owner.current_card.card_id, text);
+        remove_local_recovery_draft(owner.current_card.card_id);
+
+        owner.emit_activity(
+            "result.card.autosave",
+            "Autosaved card: %s [doc_chars=%d, body_chars=%d, delta_chars=%+d, body_empty=%s, fingerprint=%s]".printf(
+                title,
+                doc_chars,
+                body_chars,
+                delta_chars,
+                body_empty ? "true" : "false",
+                content_fingerprint
+            ),
+            owner.current_project != null ? owner.current_project.project_id : null,
+            owner.current_card.card_id,
+            new CardAutosavedDetails(
+                title,
+                doc_chars,
+                body_chars,
+                delta_chars,
+                body_empty,
+                content_fingerprint
+            )
+        );
+        owner.update_selected_card_summary(title, updated_at);
+        owner.window_title_changed(title);
+        note_autosave_success();
+        set_editor_save_state("Saved");
+        owner.status_changed("Saved %s".printf(TextUtils.format_relative_time(owner.now_epoch_seconds(), updated_at)));
     }
 
     private void save_local_recovery_draft(CardDetail card, string content) {
