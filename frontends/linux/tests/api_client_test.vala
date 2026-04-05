@@ -977,7 +977,7 @@ private void test_get_ai_capabilities_parses_nested_data() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"runner_available\":true,\"error\":\"\",\"last_checked\":5,\"version\":\"1.2\",\"caste\":{\"name\":\"user\"},\"models\":[{\"name\":\"m1\"},{\"name\":\"m2\"}],\"recommended_install\":[{\"tag\":\"r1\"}]}}"
+        "{\"ok\":true,\"data\":{\"caste\":{\"name\":\"user\"},\"runners\":[{\"runner_id\":\"auto-local\",\"name\":\"Local Ollama\",\"kind\":\"ollama\",\"source\":\"auto_local\",\"enabled\":true,\"runtime\":{\"configured\":true,\"available\":true,\"spawn_attempted\":false,\"last_checked\":5,\"version\":\"1.2\",\"error\":\"\",\"models\":[{\"name\":\"m1\"},{\"name\":\"m2\"}],\"pulls\":[]}}],\"recommended_install\":[{\"tag\":\"r1\"}]}}"
     );
     var client = make_client(transport);
 
@@ -1006,7 +1006,7 @@ private void test_get_ai_status_parses_pull_jobs() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"checked_at\":10,\"runner_available\":true,\"runner_error\":\"\",\"active_runs\":2,\"active_pull_jobs\":1,\"cloud_configured_providers\":3,\"pulls\":[{\"model\":\"phi4\",\"status\":\"running\",\"progress\":{\"percent\":55.5}}]}}"
+        "{\"ok\":true,\"data\":{\"checked_at\":10,\"active_runs\":2,\"cloud\":[{\"provider\":\"p1\"},{\"provider\":\"p2\"},{\"provider\":\"p3\"}],\"runners\":[{\"runner_id\":\"auto-local\",\"name\":\"Local Ollama\",\"kind\":\"ollama\",\"source\":\"auto_local\",\"enabled\":true,\"runtime\":{\"configured\":true,\"available\":true,\"spawn_attempted\":false,\"last_checked\":10,\"version\":\"1.0\",\"error\":\"\",\"models\":[],\"pulls\":[]}}, {\"runner_id\":\"manual-a\",\"name\":\"Office\",\"kind\":\"ollama\",\"source\":\"manual\",\"enabled\":true,\"runtime\":{\"configured\":true,\"available\":true,\"spawn_attempted\":false,\"last_checked\":10,\"version\":\"1.0\",\"error\":\"\",\"models\":[],\"pulls\":[{\"job_id\":\"job-9\",\"runner_id\":\"manual-a\",\"model\":\"phi4\",\"status\":\"running\",\"progress\":{\"percent\":55.5,\"stage\":\"downloading\"}}]}}]}}"
     );
     var client = make_client(transport);
 
@@ -1025,8 +1025,14 @@ private void test_get_ai_status_parses_pull_jobs() {
     assert(status != null);
     assert(status.active_runs == 2);
     assert(status.active_pull_jobs == 1);
-    assert(status.pull_jobs.size == 1);
-    assert(status.pull_jobs[0].contains("55.5%"));
+    assert(status.cloud_configured_providers == 3);
+    assert(status.pulls.size == 1);
+    assert(status.pulls[0].job_id == "job-9");
+    assert(status.pulls[0].runner_id == "manual-a");
+    assert(status.pulls[0].model == "phi4");
+    assert(status.pulls[0].status == "running");
+    assert(status.pulls[0].percent == 55.5);
+    assert(status.pulls[0].stage == "downloading");
 }
 
 private void test_start_ai_runner_pull_parses_job_id_and_payload() {
@@ -1036,7 +1042,7 @@ private void test_start_ai_runner_pull_parses_job_id_and_payload() {
 
     bool done = false;
     string job_id = "";
-    client.start_ai_runner_pull.begin("phi4", (obj, res) => {
+    client.start_ai_runner_pull.begin("phi4", null, (obj, res) => {
         try {
             job_id = client.start_ai_runner_pull.end(res);
         } catch (Error e) {
@@ -2096,7 +2102,7 @@ private void test_start_runner_pull_missing_data_is_protocol_error_and_missing_j
 
     bool done_empty = false;
     string job = "x";
-    client.start_ai_runner_pull.begin("phi4", (o1, r1) => {
+    client.start_ai_runner_pull.begin("phi4", null, (o1, r1) => {
         try {
             job = client.start_ai_runner_pull.end(r1);
         } catch (Error e) {
@@ -2109,7 +2115,7 @@ private void test_start_runner_pull_missing_data_is_protocol_error_and_missing_j
 
     bool done_error = false;
     bool got_protocol = false;
-    client.start_ai_runner_pull.begin("phi4", (o2, r2) => {
+    client.start_ai_runner_pull.begin("phi4", null, (o2, r2) => {
         try {
             client.start_ai_runner_pull.end(r2);
         } catch (Error e) {
@@ -2145,7 +2151,7 @@ private void test_ai_capabilities_optional_fields_and_no_project_query() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"runner_available\":false,\"error\":\"runner missing\",\"models\":[{}],\"recommended_install\":[{}],\"caste\":null}}"
+        "{\"ok\":true,\"data\":{\"runners\":[{\"runner_id\":\"auto-local\",\"name\":\"Local Ollama\",\"kind\":\"ollama\",\"source\":\"auto_local\",\"enabled\":true,\"runtime\":{\"configured\":true,\"available\":false,\"spawn_attempted\":false,\"last_checked\":0,\"version\":\"\",\"error\":\"runner missing\",\"models\":[],\"pulls\":[]}}],\"recommended_install\":[{}],\"caste\":null}}"
     );
     var client = make_client(transport);
 
@@ -2173,7 +2179,7 @@ private void test_ai_capabilities_missing_caste_and_null_string_fields() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"runner_available\":true,\"error\":null,\"version\":null,\"models\":[],\"recommended_install\":[]}}"
+        "{\"ok\":true,\"data\":{\"runners\":[{\"runner_id\":\"auto-local\",\"name\":\"Local Ollama\",\"kind\":\"ollama\",\"source\":\"auto_local\",\"enabled\":true,\"runtime\":{\"configured\":true,\"available\":true,\"spawn_attempted\":false,\"last_checked\":0,\"version\":null,\"error\":null,\"models\":[],\"pulls\":[]}}],\"recommended_install\":[]}}"
     );
     var client = make_client(transport);
 
@@ -2199,7 +2205,7 @@ private void test_ai_status_missing_pull_fields_uses_defaults() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":{\"pulls\":[{}]}}"
+        "{\"ok\":true,\"data\":{\"runners\":[{\"runner_id\":\"auto-local\",\"name\":\"Local Ollama\",\"kind\":\"ollama\",\"source\":\"auto_local\",\"enabled\":true,\"runtime\":{\"configured\":true,\"available\":true,\"spawn_attempted\":false,\"last_checked\":0,\"version\":\"\",\"error\":\"\",\"models\":[],\"pulls\":[{}]}}]}}"
     );
     var client = make_client(transport);
 
@@ -2216,9 +2222,11 @@ private void test_ai_status_missing_pull_fields_uses_defaults() {
 
     assert(wait_for_condition(() => done));
     assert(status != null);
-    assert(status.pull_jobs.size == 1);
-    assert(status.pull_jobs[0].contains("unknown"));
-    assert(status.pull_jobs[0].contains("0.0%"));
+    assert(status.pulls.size == 1);
+    assert(status.pulls[0].runner_id == "");
+    assert(status.pulls[0].model == "unknown");
+    assert(status.pulls[0].status == "unknown");
+    assert(status.pulls[0].percent == 0.0);
 }
 
 private void test_provider_catalog_missing_providers_returns_empty() {
@@ -2261,6 +2269,8 @@ private void test_run_ai_stream_eof_without_blank_line_and_with_context_fields()
                 saw_chunk = true;
             }
         },
+        null,
+        null,
         (obj, res) => {
             try { client.run_ai_stream.end(res); } catch (Error e) {}
             done = true;
@@ -2296,6 +2306,8 @@ private void test_run_ai_stream_multiline_data_joins_with_newline() {
                 saw_joined_raw = true;
             }
         },
+        null,
+        null,
         (obj, res) => {
             try { client.run_ai_stream.end(res); } catch (Error e) {}
             done = true;
@@ -2669,6 +2681,8 @@ private void test_run_ai_stream_parses_sse_and_raw_data() {
                 saw_raw = true;
             }
         },
+        null,
+        null,
         (obj, res) => {
             try {
                 client.run_ai_stream.end(res);
@@ -2706,6 +2720,8 @@ private void test_run_ai_stream_http_error() {
         null,
         null,
         (event_name, data) => {},
+        null,
+        null,
         (obj, res) => {
             try {
                 client.run_ai_stream.end(res);
@@ -2735,6 +2751,8 @@ private void test_run_ai_stream_transport_error() {
         null,
         null,
         (event_name, data) => {},
+        null,
+        null,
         (obj, res) => {
             try {
                 client.run_ai_stream.end(res);
@@ -2765,6 +2783,8 @@ private void test_run_ai_stream_sse_read_error_maps_to_transport_error() {
         null,
         null,
         (event_name, data) => {},
+        null,
+        null,
         (obj, res) => {
             try {
                 client.run_ai_stream.end(res);

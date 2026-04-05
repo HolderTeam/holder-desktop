@@ -10,6 +10,10 @@ public class AiPanel : Object {
     private Gtk.TextBuffer ai_output_buffer;
     private Gtk.TextView ai_prompt_view;
     private Gtk.Label ai_assistant_thread_label;
+    private Gtk.DropDown ai_runner_dropdown;
+    private Gtk.DropDown ai_model_dropdown;
+    private Gtk.StringList ai_runner_options;
+    private Gtk.StringList ai_model_options;
     private Gtk.Box ai_nudges_section;
     private Gtk.Box ai_nudges_box;
     private Gtk.Button send_btn;
@@ -18,6 +22,7 @@ public class AiPanel : Object {
     private string? nudges_project_id;
     private string? nudges_card_id;
     private uint nudges_request_serial = 0;
+    private Gee.ArrayList<AiRunnerInfo> run_target_runners = new Gee.ArrayList<AiRunnerInfo>();
 
     public Gtk.Widget widget { get; private set; }
 
@@ -78,6 +83,25 @@ public class AiPanel : Object {
         return buffer.get_text(start, end, false);
     }
 
+    public string? get_selected_runner_id() {
+        if (run_target_runners.size == 0) {
+            return null;
+        }
+        var selected = ai_runner_dropdown.get_selected();
+        if (selected == Gtk.INVALID_LIST_POSITION || selected >= run_target_runners.size) {
+            return run_target_runners[0].runner_id;
+        }
+        return run_target_runners[(int) selected].runner_id;
+    }
+
+    public string? get_selected_model_name() {
+        var selected = ai_model_dropdown.get_selected();
+        if (selected == Gtk.INVALID_LIST_POSITION || selected == 0 || selected >= ai_model_options.get_n_items()) {
+            return null;
+        }
+        return ai_model_options.get_string(selected);
+    }
+
     public void clear_prompt() {
         ai_prompt_view.get_buffer().set_text("", -1);
     }
@@ -106,8 +130,11 @@ public class AiPanel : Object {
         ai_output_buffer.set_text(text, -1);
     }
 
-    public void render_status(AiCapabilitiesInfo capabilities, AiStatusInfo status) {
+    public void render_status(AiCapabilitiesInfo capabilities,
+                              AiStatusInfo status,
+                              Gee.ArrayList<AiRunnerInfo> runners) {
         ai_config_panel.render_local_models(capabilities, status);
+        update_run_target_controls(runners);
     }
 
     public void render_status_error(string message) {
@@ -147,6 +174,20 @@ public class AiPanel : Object {
         ai_assistant_thread_label = new Gtk.Label("Thread: none selected") { xalign = 0.0f };
         ai_assistant_thread_label.add_css_class("dim-label");
         assistant.append(ai_assistant_thread_label);
+
+        var run_target_box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        ai_runner_options = new Gtk.StringList(null);
+        ai_runner_dropdown = new Gtk.DropDown(ai_runner_options, null);
+        ai_runner_dropdown.set_hexpand(true);
+        ai_runner_dropdown.notify["selected"].connect(() => {
+            refresh_model_dropdown_for_selected_runner();
+        });
+        ai_model_options = new Gtk.StringList(null);
+        ai_model_dropdown = new Gtk.DropDown(ai_model_options, null);
+        ai_model_dropdown.set_hexpand(true);
+        run_target_box.append(ai_runner_dropdown);
+        run_target_box.append(ai_model_dropdown);
+        assistant.append(run_target_box);
 
         ai_nudges_section = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
         ai_nudges_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
@@ -202,6 +243,72 @@ public class AiPanel : Object {
     private void apply_render_state() {
         ai_assistant_thread_label.set_text(render_state.thread_title);
         send_btn.set_sensitive(render_state.send_enabled);
+    }
+
+    private void update_run_target_controls(Gee.ArrayList<AiRunnerInfo> runners) {
+        var previous_runner_id = get_selected_runner_id();
+        var previous_model_name = get_selected_model_name();
+
+        run_target_runners.clear();
+        while (ai_runner_options.get_n_items() > 0) {
+            ai_runner_options.remove(ai_runner_options.get_n_items() - 1);
+        }
+
+        foreach (var runner in runners) {
+            run_target_runners.add(runner);
+            var label = runner.name;
+            if (runner.runtime.available) {
+                label += " (available)";
+            }
+            ai_runner_options.append(label);
+        }
+
+        uint selected_runner_index = 0;
+        if (previous_runner_id != null) {
+            for (int i = 0; i < run_target_runners.size; i++) {
+                if (run_target_runners[i].runner_id == previous_runner_id) {
+                    selected_runner_index = (uint) i;
+                    break;
+                }
+            }
+        }
+
+        ai_runner_dropdown.set_selected(selected_runner_index);
+        ai_runner_dropdown.set_sensitive(run_target_runners.size > 0);
+        refresh_model_dropdown_for_selected_runner(previous_model_name);
+    }
+
+    private void refresh_model_dropdown_for_selected_runner(string? preferred_model_name = null) {
+        while (ai_model_options.get_n_items() > 0) {
+            ai_model_options.remove(ai_model_options.get_n_items() - 1);
+        }
+        ai_model_options.append("(auto)");
+
+        var runner = selected_run_target_runner();
+        uint selected_model_index = 0;
+        if (runner != null) {
+            for (int i = 0; i < runner.runtime.models.size; i++) {
+                var model_name = runner.runtime.models[i];
+                ai_model_options.append(model_name);
+                if (preferred_model_name != null && preferred_model_name == model_name) {
+                    selected_model_index = (uint) i + 1;
+                }
+            }
+        }
+
+        ai_model_dropdown.set_selected(selected_model_index);
+        ai_model_dropdown.set_sensitive(runner != null && runner.runtime.models.size > 0);
+    }
+
+    private AiRunnerInfo? selected_run_target_runner() {
+        if (run_target_runners.size == 0) {
+            return null;
+        }
+        var selected = ai_runner_dropdown.get_selected();
+        if (selected == Gtk.INVALID_LIST_POSITION || selected >= run_target_runners.size) {
+            return run_target_runners[0];
+        }
+        return run_target_runners[(int) selected];
     }
 
     private async void refresh_nudges_async(uint request_serial,

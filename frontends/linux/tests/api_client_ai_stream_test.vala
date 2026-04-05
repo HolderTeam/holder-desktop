@@ -40,6 +40,8 @@ private void test_run_ai_stream_parses_sse_and_raw_data() {
                 second_raw = payload.get_string_member("raw");
             }
         },
+        null,
+        null,
         (obj, res) => {
             try {
                 HolderLinux.ApiClientAiStream.run.end(res);
@@ -80,6 +82,8 @@ private void test_run_ai_stream_http_error() {
         null,
         null,
         (event_name, payload) => {},
+        null,
+        null,
         (obj, res) => {
             try {
                 HolderLinux.ApiClientAiStream.run.end(res);
@@ -111,6 +115,8 @@ private void test_run_ai_stream_transport_error() {
         null,
         null,
         (event_name, payload) => {},
+        null,
+        null,
         (obj, res) => {
             try {
                 HolderLinux.ApiClientAiStream.run.end(res);
@@ -143,6 +149,8 @@ private void test_run_ai_stream_sse_read_error_maps_to_transport() {
         null,
         null,
         (event_name, payload) => {},
+        null,
+        null,
         (obj, res) => {
             try {
                 HolderLinux.ApiClientAiStream.run.end(res);
@@ -181,6 +189,8 @@ private void test_run_ai_stream_eof_without_blank_line_emits_last_event() {
             event_name = name;
             payload_ok = payload.get_boolean_member("ok");
         },
+        null,
+        null,
         (obj, res) => {
             try {
                 HolderLinux.ApiClientAiStream.run.end(res);

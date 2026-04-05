@@ -17,11 +17,17 @@ public class ApiClientAiEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration b
         return ApiParsersAi.parse_ai_status(root); // LCOV_EXCL_BR_LINE: return edge artifact
     }
 
-    public static async string start_ai_runner_pull(ApiClient client, string model_tag) throws Error { // LCOV_EXCL_BR_LINE: async declaration branch artifact
+    public static async string start_ai_runner_pull(ApiClient client,
+                                                    string model_tag,
+                                                    string? runner_id = null) throws Error { // LCOV_EXCL_BR_LINE: async declaration branch artifact
         var body = new Json.Builder();
         body.begin_object();
         body.set_member_name("model");
         body.add_string_value(model_tag);
+        if (runner_id != null && runner_id.length > 0) {
+            body.set_member_name("runner_id");
+            body.add_string_value(runner_id);
+        }
         body.end_object();
 
         var root = yield client.request_json("POST", "/ai/runner/pull", client.json_string_from_builder(body), null); // LCOV_EXCL_BR_LINE: yield resume edge artifact
@@ -30,6 +36,70 @@ public class ApiClientAiEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration b
         }
         var data = root.get_object_member("data"); // LCOV_EXCL_BR_LINE: invalid-type branch artifact
         return data.has_member("job_id") ? data.get_string_member("job_id") : ""; // LCOV_EXCL_BR_LINE: return edge artifact
+    }
+
+    public static async Gee.ArrayList<AiRunnerInfo> list_ai_runners(ApiClient client) throws Error {
+        var root = yield client.request_json("GET", "/ai/runners", null, null);
+        return ApiParsersAi.parse_ai_runners(root);
+    }
+
+    public static async AiRunnerInfo create_ai_runner(ApiClient client,
+                                                      string name,
+                                                      string base_url,
+                                                      bool enabled = true) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("name");
+        body.add_string_value(name);
+        body.set_member_name("kind");
+        body.add_string_value("ollama");
+        body.set_member_name("base_url");
+        body.add_string_value(base_url);
+        body.set_member_name("enabled");
+        body.add_boolean_value(enabled);
+        body.end_object();
+
+        var root = yield client.request_json("POST", "/ai/runners", client.json_string_from_builder(body), null);
+        return ApiParsersAi.parse_ai_runner_detail(root);
+    }
+
+    public static async AiRunnerInfo update_ai_runner(ApiClient client,
+                                                      string runner_id,
+                                                      string? name = null,
+                                                      string? base_url = null,
+                                                      bool? enabled = null) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        if (name != null) {
+            body.set_member_name("name");
+            body.add_string_value(name);
+        }
+        if (base_url != null) {
+            body.set_member_name("base_url");
+            body.add_string_value(base_url);
+        }
+        if (enabled != null) {
+            body.set_member_name("enabled");
+            body.add_boolean_value(enabled);
+        }
+        body.end_object();
+
+        var root = yield client.request_json(
+            "PATCH",
+            "/ai/runners/" + Uri.escape_string(runner_id, null, false),
+            client.json_string_from_builder(body),
+            null
+        );
+        return ApiParsersAi.parse_ai_runner_detail(root);
+    }
+
+    public static async void delete_ai_runner(ApiClient client, string runner_id) throws Error {
+        yield client.request_json(
+            "DELETE",
+            "/ai/runners/" + Uri.escape_string(runner_id, null, false),
+            null,
+            null
+        );
     }
 
     public static async Gee.ArrayList<AiThreadSummary> list_ai_threads(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact

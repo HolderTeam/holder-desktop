@@ -5,6 +5,8 @@ namespace HolderLinuxTests {
 public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public int run_calls = 0;
     public string? last_thread_id = null;
+    public string? last_run_runner_id = null;
+    public string? last_run_model = null;
     public int start_pull_calls = 0;
     public string last_pull_model = "";
     public bool fail_capabilities = false;
@@ -29,6 +31,7 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public int64 status_active_pull_jobs = 0;
     public bool fail_export_recovery_token = false;
     public string export_recovery_token_payload = "{\"token\":\"fake\"}";
+    public Gee.ArrayList<HolderLinux.AiRunnerInfo> runners = new Gee.ArrayList<HolderLinux.AiRunnerInfo>();
 
     public async void health_check() throws Error {}
     public async HolderLinux.HealthInfo get_health_info() throws Error {
@@ -144,9 +147,17 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
         if (fail_status) {
             throw new IOError.FAILED("status failed");
         }
-        return new HolderLinux.AiStatusInfo(1, true, "", 0, status_active_pull_jobs, 0, new Gee.ArrayList<string>());
+        return new HolderLinux.AiStatusInfo(
+            1,
+            true,
+            "",
+            0,
+            status_active_pull_jobs,
+            0,
+            new Gee.ArrayList<HolderLinux.AiRunnerPullInfo>()
+        );
     }
-    public async string start_ai_runner_pull(string model_tag) throws Error {
+    public async string start_ai_runner_pull(string model_tag, string? runner_id = null) throws Error {
         if (fail_pull) {
             throw new IOError.FAILED("pull failed");
         }
@@ -157,6 +168,41 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
         }
         return "job-1";
     }
+    public async Gee.ArrayList<HolderLinux.AiRunnerInfo> list_ai_runners() throws Error {
+        return runners;
+    }
+    public async HolderLinux.AiRunnerInfo create_ai_runner(string name,
+                                                           string base_url,
+                                                           bool enabled = true) throws Error {
+        return new HolderLinux.AiRunnerInfo(
+            "manual-created",
+            name,
+            "ollama",
+            base_url,
+            "manual",
+            enabled,
+            0,
+            0,
+            new HolderLinux.AiRunnerRuntimeInfo(false, false, false, 0, "", "", new Gee.ArrayList<string>(), new Gee.ArrayList<HolderLinux.AiRunnerPullInfo>())
+        );
+    }
+    public async HolderLinux.AiRunnerInfo update_ai_runner(string runner_id,
+                                                           string? name = null,
+                                                           string? base_url = null,
+                                                           bool? enabled = null) throws Error {
+        return new HolderLinux.AiRunnerInfo(
+            runner_id,
+            name ?? "Runner",
+            "ollama",
+            base_url,
+            "manual",
+            enabled ?? true,
+            0,
+            0,
+            new HolderLinux.AiRunnerRuntimeInfo(false, false, false, 0, "", "", new Gee.ArrayList<string>(), new Gee.ArrayList<HolderLinux.AiRunnerPullInfo>())
+        );
+    }
+    public async void delete_ai_runner(string runner_id) throws Error {}
     public async Gee.ArrayList<HolderLinux.AiThreadSummary> list_ai_threads(string project_id) throws Error {
         return new Gee.ArrayList<HolderLinux.AiThreadSummary>();
     }
@@ -241,12 +287,16 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                     string? context_card_id,
                                     string? context_card_title,
                                     string? context_card_body,
-                                    HolderLinux.AiRunEventHandler on_event) throws Error {
+                                    HolderLinux.AiRunEventHandler on_event,
+                                    string? runner_id = null,
+                                    string? model = null) throws Error {
         if (fail_stream) {
             throw new IOError.FAILED("stream failed");
         }
         run_calls++;
         last_thread_id = thread_id;
+        last_run_runner_id = runner_id;
+        last_run_model = model;
 
         if (slow_stream) {
             var loop = new MainLoop();
@@ -264,6 +314,9 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
         }
         if (emitted_model.length > 0) {
             chunk_obj.set_string_member("model", emitted_model);
+        }
+        if (emitted_provider.length == 0 && runner_id != null && runner_id.length > 0) {
+            chunk_obj.set_string_member("runner_id", runner_id);
         }
         if (!emit_chunk_missing_delta) {
             chunk_obj.set_string_member("delta", "hello");

@@ -62,7 +62,16 @@ public interface IHolderApi : Object {
                                                                        int limit = 30) throws Error;
     public abstract async AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error;
     public abstract async AiStatusInfo get_ai_status() throws Error;
-    public abstract async string start_ai_runner_pull(string model_tag) throws Error;
+    public abstract async string start_ai_runner_pull(string model_tag, string? runner_id = null) throws Error;
+    public abstract async Gee.ArrayList<AiRunnerInfo> list_ai_runners() throws Error;
+    public abstract async AiRunnerInfo create_ai_runner(string name,
+                                                        string base_url,
+                                                        bool enabled = true) throws Error;
+    public abstract async AiRunnerInfo update_ai_runner(string runner_id,
+                                                        string? name = null,
+                                                        string? base_url = null,
+                                                        bool? enabled = null) throws Error;
+    public abstract async void delete_ai_runner(string runner_id) throws Error;
     public abstract async Gee.ArrayList<AiThreadSummary> list_ai_threads(string project_id) throws Error;
     public abstract async Gee.ArrayList<AiMessage> list_ai_messages(string thread_id) throws Error;
     public abstract async string create_ai_thread(string project_id, string title) throws Error;
@@ -103,7 +112,9 @@ public interface IHolderApi : Object {
                                              string? context_card_id,
                                              string? context_card_title,
                                              string? context_card_body,
-                                             AiRunEventHandler on_event) throws Error;
+                                             AiRunEventHandler on_event,
+                                             string? runner_id = null,
+                                             string? model = null) throws Error;
     public abstract async string create_card(string project_id,
                                              string title,
                                              string content,
