@@ -65,6 +65,8 @@ private void test_core_run_ai_stream_delegates_to_ai_stream_runner() {
             event_name = name;
             piece = payload.get_string_member("piece");
         },
+        null,
+        null,
         (obj, res) => {
             try {
                 client.run_ai_stream.end(res);
