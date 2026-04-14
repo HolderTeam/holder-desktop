@@ -1234,6 +1234,330 @@ selection_intent_orchestrator_test_exe = executable(
 
 test('holder-linux-selection-intent-orchestrator-tests', selection_intent_orchestrator_test_exe)
 
+activity_log_controller_test_exe = executable(
+  'holder-linux-activity-log-controller-tests',
+  [
+    'src/models/models.vala',
+    'src/state/activity_log.vala',
+    'src/controllers/activity_log.vala',
+    'tests/activity_log_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-activity-log-controller-tests', activity_log_controller_test_exe)
+
+activity_reducer_test_exe = executable(
+  'holder-linux-activity-reducer-tests',
+  [
+    'src/models/models.vala',
+    'src/state/activity_log.vala',
+    'src/controllers/activity_reducer.vala',
+    'tests/activity_reducer_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-activity-reducer-tests', activity_reducer_test_exe)
+
+ai_panel_event_orchestrator_test_exe = executable(
+  'holder-linux-ai-panel-event-orchestrator-tests',
+  [
+    'src/models/models.vala',
+    'src/controllers/ai_panel_event_orchestrator.vala',
+    'tests/ai_panel_event_orchestrator_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-ai-panel-event-orchestrator-tests', ai_panel_event_orchestrator_test_exe)
+
+card_append_test_exe = executable(
+  'holder-linux-card-append-tests',
+  [
+    'src/controllers/card_append.vala',
+    'tests/card_append_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-card-append-tests', card_append_test_exe)
+
+explorer_selection_test_exe = executable(
+  'holder-linux-explorer-selection-tests',
+  [
+    'src/models/models.vala',
+    'src/controllers/explorer_selection.vala',
+    'tests/explorer_selection_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('gtk4'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-explorer-selection-tests', explorer_selection_test_exe)
+
+find_replace_test_exe = executable(
+  'holder-linux-find-replace-tests',
+  [
+    'src/controllers/find_replace.vala',
+    'tests/find_replace_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-find-replace-tests', find_replace_test_exe)
+
+search_selection_test_exe = executable(
+  'holder-linux-search-selection-tests',
+  [
+    'src/controllers/search_selection.vala',
+    'tests/search_selection_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gtk4'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-search-selection-tests', search_selection_test_exe)
+
+selection_request_test_exe = executable(
+  'holder-linux-selection-request-tests',
+  [
+    'src/controllers/selection_request.vala',
+    'tests/selection_request_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gtk4'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-selection-request-tests', selection_request_test_exe)
+
+share_controller_test_exe = executable(
+  'holder-linux-share-controller-tests',
+  [
+    'src/controllers/share.vala',
+    'tests/share_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-share-controller-tests', share_controller_test_exe)
+
+tool_help_test_exe = executable(
+  'holder-linux-tool-help-tests',
+  [
+    'src/controllers/tool_help.vala',
+    'tests/tool_help_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-tool-help-tests', tool_help_test_exe)
+
+internal_link_test_exe = executable(
+  'holder-linux-internal-link-tests',
+  [
+    'src/controllers/internal_link.vala',
+    'tests/internal_link_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-internal-link-tests', internal_link_test_exe)
+
+project_create_test_exe = executable(
+  'holder-linux-project-create-tests',
+  [
+    'src/controllers/project_create.vala',
+    'tests/project_create_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-project-create-tests', project_create_test_exe)
+
+local_info_ui_test_exe = executable(
+  'holder-linux-local-info-ui-tests',
+  [
+    'src/controllers/local_info_flow.vala',
+    'src/controllers/local_info_ui.vala',
+    'tests/local_info_ui_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-local-info-ui-tests', local_info_ui_test_exe)
+
+window_feedback_orchestrator_test_exe = executable(
+  'holder-linux-window-feedback-orchestrator-tests',
+  [
+    'src/controllers/window_feedback_orchestrator.vala',
+    'tests/window_feedback_orchestrator_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-window-feedback-orchestrator-tests', window_feedback_orchestrator_test_exe)
+
+window_action_binder_test_exe = executable(
+  'holder-linux-window-action-binder-tests',
+  [
+    'src/controllers/window_action_binder.vala',
+    'tests/window_action_binder_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-window-action-binder-tests', window_action_binder_test_exe)
+
+recovery_ui_test_exe = executable(
+  'holder-linux-recovery-ui-tests',
+  [
+    'src/controllers/recovery_ui.vala',
+    'tests/recovery_ui_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-recovery-ui-tests', recovery_ui_test_exe)
+
+flowboard_context_test_exe = executable(
+  'holder-linux-flowboard-context-tests',
+  [
+    'src/controllers/flowboard_context.vala',
+    'tests/flowboard_context_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-flowboard-context-tests', flowboard_context_test_exe)
+
+sidebar_selection_renderer_test_exe = executable(
+  'holder-linux-sidebar-selection-renderer-tests',
+  [
+    'src/controllers/sidebar_selection_renderer.vala',
+    'tests/sidebar_selection_renderer_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gtk4'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-sidebar-selection-renderer-tests', sidebar_selection_renderer_test_exe)
+
 app_test_exe = executable(
   'holder-linux-app-tests',
   [
