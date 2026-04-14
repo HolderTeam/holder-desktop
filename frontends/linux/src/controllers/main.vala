@@ -163,9 +163,8 @@ public class MainController : Object, IAiRunContext {
         status_changed("Discovering local server...");
         editor_state_changed("# Loading\n\nDiscovering local server...", false);
 
-        ServerInfo info;
         try {
-            info = server_discovery.discover_server();
+            yield reconnect_from_discovery();
         } catch (Error e) {
             status_changed(e.message);
             editor_state_changed(
@@ -177,22 +176,50 @@ public class MainController : Object, IAiRunContext {
             return;
         }
 
-        api = api_factory.create(info.base_url(), info.auth_token);
-        api_client_ready(api);
-
         status_changed("Checking API health...");
         editor_state_changed("# Loading\n\nChecking API health...", false);
         try {
-            yield api.health_check();
+            yield ((!) api).health_check();
         } catch (Error e) {
+            if (yield try_reconnect_after_transport_error(e)) {
+                status_changed("Checking API health...");
+                editor_state_changed("# Loading\n\nChecking API health...", false);
+                try {
+                    yield ((!) api).health_check();
+                } catch (Error retry_error) {
+                    status_changed("Health check failed");
+                    editor_state_changed(
+                        "# Health Check Failed\n\n" +
+                        "Could not connect to the Holder API.\n\n" +
+                        retry_error.message,
+                        false
+                    );
+                    error_reported("Health check failed", retry_error.message);
+                    return;
+                }
+            } else {
+                status_changed("Health check failed");
+                editor_state_changed(
+                    "# Health Check Failed\n\n" +
+                    "Could not connect to the Holder API.\n\n" +
+                    e.message,
+                    false
+                );
+                error_reported("Health check failed", e.message);
+                return;
+            }
+        }
+
+        var info = active_server_info;
+        if (info == null) {
             status_changed("Health check failed");
             editor_state_changed(
                 "# Health Check Failed\n\n" +
                 "Could not connect to the Holder API.\n\n" +
-                e.message,
+                "Missing active server info.",
                 false
             );
-            error_reported("Health check failed", e.message);
+            error_reported("Health check failed", "Missing active server info.");
             return;
         }
 
@@ -550,6 +577,15 @@ public class MainController : Object, IAiRunContext {
             || lower.contains("unreachable");
     }
 
+    private ServerInfo? active_server_info = null;
+
+    private async void reconnect_from_discovery() throws Error {
+        var info = server_discovery.discover_server();
+        active_server_info = info;
+        api = api_factory.create(info.base_url(), info.auth_token);
+        api_client_ready(api);
+    }
+
     private async bool try_reconnect_after_transport_error(Error e) {
         if (!is_transport_error_message(e.message)) {
             return false;
@@ -560,13 +596,15 @@ public class MainController : Object, IAiRunContext {
         reconnect_in_flight = true;
         try {
             status_changed("Reconnecting to backend...");
-            var info = server_discovery.discover_server();
-            api = api_factory.create(info.base_url(), info.auth_token);
-            api_client_ready(api);
+            yield reconnect_from_discovery();
             try {
                 yield ((!) api).health_check();
             } catch (Error health_error) {
                 warning("Reconnect health-check failed: %s", health_error.message);
+                return false;
+            }
+            var info = active_server_info;
+            if (info == null) {
                 return false;
             }
             status_changed("Reconnected to %s:%d".printf(info.bind, info.port));

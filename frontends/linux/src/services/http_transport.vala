@@ -35,9 +35,17 @@ public class SoupApiHttpTransport : Object, IApiHttpTransport {
     private Soup.Session streaming_session;
 
     public SoupApiHttpTransport(Soup.Session? session = null) {
-        this.session = session ?? new Soup.Session();
-        this.streaming_session = session ?? new Soup.Session();
+        this.session = session ?? new Soup.Session.with_options(
+            "max-conns", 32,
+            "max-conns-per-host", 16
+        );
+        this.streaming_session = session ?? new Soup.Session.with_options(
+            "max-conns", 32,
+            "max-conns-per-host", 16
+        );
         if (session == null) {
+            this.session.proxy_resolver = null;
+            this.streaming_session.proxy_resolver = null;
             this.streaming_session.timeout = 0;
             this.streaming_session.idle_timeout = 0;
         }
