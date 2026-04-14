@@ -11,7 +11,7 @@ internal class WindowFeedbackOrchestrator : Object {
     private CardAppendController card_append_controller; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private RecoveryUiController recovery_ui_controller; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private RecoveryDialogAdapter recovery_dialog_adapter; // LCOV_EXCL_LINE: field declaration-only coverage artifact
-    private PrintUiController print_ui_controller; // LCOV_EXCL_LINE: field declaration-only coverage artifact
+    private PrintAdapter print_ui_controller; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private IWindowFeedbackSink sink; // LCOV_EXCL_LINE: field declaration-only coverage artifact
 
     public WindowFeedbackOrchestrator(FindReplaceController find_replace_controller,
@@ -19,7 +19,7 @@ internal class WindowFeedbackOrchestrator : Object {
                                       CardAppendController card_append_controller,
                                       RecoveryUiController recovery_ui_controller,
                                       RecoveryDialogAdapter recovery_dialog_adapter,
-                                      PrintUiController print_ui_controller,
+                                      PrintAdapter print_ui_controller,
                                       IWindowFeedbackSink sink) {
         this.find_replace_controller = find_replace_controller;
         this.share_controller = share_controller;

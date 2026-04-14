@@ -25,7 +25,7 @@ internal class RecoveryDialogAdapter : Object {
     public signal void error_reported(string title, string details);
 }
 
-public class PrintUiController : Object {
+public class PrintAdapter : Object {
     public signal void toast_requested(string message);
     public signal void error_reported(string title, string details);
 }
@@ -59,7 +59,7 @@ private void test_bind_forwards_toasts_and_errors_from_all_sources() {
     var card_append = new HolderLinux.CardAppendController();
     var recovery_ui = new HolderLinux.RecoveryUiController();
     var recovery_dialog = new HolderLinux.RecoveryDialogAdapter();
-    var print_ui = new HolderLinux.PrintUiController();
+    var print_ui = new HolderLinux.PrintAdapter();
     var sink = new RecordingWindowFeedbackSink();
 
     var orchestrator = new HolderLinux.WindowFeedbackOrchestrator(

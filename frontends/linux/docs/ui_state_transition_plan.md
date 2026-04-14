@@ -55,7 +55,7 @@ Active refactor tracking now lives in `docs/refactor_todo.md`.
     - Window-level non-state actions (`About`, `Preferences`) now run through `WindowActionsAdapter`; `MainWindow` now forwards action signals and no longer builds those dialogs inline.
     - New-project dialog rendering now runs through `ProjectCreateDialogAdapter` and submission validation/privacy-mode mapping now runs through `ProjectCreateController`; `MainWindow` now only forwards create intent to `MainController`.
     - Card-action dialogs (`Move to Trash` confirm, `Create Linked Card` confirm) now run through `CardActionDialogAdapter`; `MainWindow` now forwards confirmed actions only.
-    - Print action orchestration now runs through `PrintUiController` (error/toast mapping centralized); `MainWindow` now only provides current editor text + parent window.
+    - Print action orchestration now runs through `PrintAdapter` (error/toast mapping centralized); `MainWindow` now only provides current editor text + parent window.
     - Local-info action orchestration now runs through `LocalInfoUiController`; `MainWindow` now triggers the flow only.
     - Internal-link navigation decisioning (`open existing` vs `offer create` vs `ignore`) now runs through `InternalLinkController.decide_navigation(...)`; `MainWindow` now only provides cursor context/card snapshot and executes UI callbacks from the decision.
     - Flowboard project-overview tile activation now routes through `SelectionIntentController.on_project_selection(...)` + `SelectionTransitionController` instead of directly calling `MainController.show_project_overview_for(...)`.

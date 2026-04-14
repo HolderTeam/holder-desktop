@@ -621,7 +621,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private CardActionDialogAdapter card_action_dialog_adapter;
     private ProjectCreateDialogAdapter project_create_dialog_adapter;
     private PrintService print_service;
-    private PrintUiController print_ui_controller;
+    private PrintAdapter print_ui_controller;
     private AiRunController ai_run_controller;
     private AiPanelEventOrchestrator ai_panel_event_orchestrator;
     private FindReplaceController find_replace_controller;
@@ -770,7 +770,7 @@ public class MainWindow : Adw.ApplicationWindow {
         card_action_dialog_adapter = new CardActionDialogAdapter(this);
         project_create_dialog_adapter = new ProjectCreateDialogAdapter(this);
         print_service = new PrintService();
-        print_ui_controller = new PrintUiController(print_service);
+        print_ui_controller = new PrintAdapter(print_service);
         recovery_controller = new RecoveryController(new WindowRecoveryContext(controller));
         recovery_ui_controller = new RecoveryUiController(recovery_controller);
         recovery_dialog_adapter = new RecoveryDialogAdapter(this, recovery_ui_controller);

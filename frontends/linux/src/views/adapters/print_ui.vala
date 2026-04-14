@@ -1,12 +1,12 @@
 namespace HolderLinux {
 
-internal class PrintUiController : Object {
+internal class PrintAdapter : Object {
     private PrintService print_service;
 
     public signal void toast_requested(string message);
     public signal void error_reported(string title, string details);
 
-    public PrintUiController(PrintService print_service) {
+    public PrintAdapter(PrintService print_service) {
         this.print_service = print_service;
     }
 
