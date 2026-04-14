@@ -95,7 +95,7 @@ sources = [
   'src/controllers/ai_threads.vala',
   'src/controllers/ai_run.vala',
   'src/controllers/ai_panel_event_orchestrator.vala',
-  'src/controllers/print_ui.vala',
+  'src/views/adapters/print_ui.vala',
   'src/controllers/git_sync.vala',
   'src/controllers/resources.vala',
   'src/controllers/connections.vala',
