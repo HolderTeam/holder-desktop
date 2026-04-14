@@ -2066,6 +2066,23 @@ recovery_controller_test_exe = executable(
 
 test('holder-linux-recovery-controller-tests', recovery_controller_test_exe)
 
+recovery_service_test_exe = executable(
+  'holder-linux-recovery-service-tests',
+  [
+    'src/services/recovery_service.vala',
+    'tests/recovery_service_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-recovery-service-tests', recovery_service_test_exe)
+
 parsers_health_test_exe = executable(
   'holder-linux-parsers-health-tests',
   [

@@ -110,6 +110,127 @@ private void test_activity_details_models_preserve_constructor_values() {
     assert(push.branch == "main");
 }
 
+private void test_ai_models_preserve_constructor_values() {
+    var model_names = new Gee.ArrayList<string>();
+    model_names.add("llama3");
+    model_names.add("qwen3");
+
+    var recommended = new Gee.ArrayList<string>();
+    recommended.add("llama3");
+
+    var capabilities = new HolderLinux.AiCapabilitiesInfo(
+        true, "", 111, "1.2.3", "Developer", model_names, recommended
+    );
+    assert(capabilities.runner_available);
+    assert(capabilities.runner_error == "");
+    assert(capabilities.last_checked == 111);
+    assert(capabilities.runner_version == "1.2.3");
+    assert(capabilities.caste_name == "Developer");
+    assert(capabilities.models.size == 2);
+    assert(capabilities.recommended_install.size == 1);
+
+    var pull = new HolderLinux.AiRunnerPullInfo("job-1", "auto-local", "llama3", "pulling", 42.5, "download");
+    assert(pull.job_id == "job-1");
+    assert(pull.runner_id == "auto-local");
+    assert(pull.model == "llama3");
+    assert(pull.status == "pulling");
+    assert(pull.percent == 42.5);
+    assert(pull.stage == "download");
+
+    var runtime_models = new Gee.ArrayList<string>();
+    runtime_models.add("llama3");
+    var pulls = new Gee.ArrayList<HolderLinux.AiRunnerPullInfo>();
+    pulls.add(pull);
+
+    var runtime = new HolderLinux.AiRunnerRuntimeInfo(
+        true, true, true, 222, "0.6.0", "", runtime_models, pulls
+    );
+    assert(runtime.configured);
+    assert(runtime.available);
+    assert(runtime.spawn_attempted);
+    assert(runtime.last_checked == 222);
+    assert(runtime.version == "0.6.0");
+    assert(runtime.models.size == 1);
+    assert(runtime.pulls.size == 1);
+    assert(runtime.pulls[0] == pull);
+
+    var runner = new HolderLinux.AiRunnerInfo(
+        "manual-a", "Office Runner", "ollama", "http://127.0.0.1:11434", "user", true, 333, 444, runtime
+    );
+    assert(runner.runner_id == "manual-a");
+    assert(runner.name == "Office Runner");
+    assert(runner.kind == "ollama");
+    assert(runner.base_url == "http://127.0.0.1:11434");
+    assert(runner.source == "user");
+    assert(runner.enabled);
+    assert(runner.created_at == 333);
+    assert(runner.updated_at == 444);
+    assert(runner.runtime == runtime);
+
+    var status = new HolderLinux.AiStatusInfo(555, false, "offline", 3, 1, 2, pulls);
+    assert(status.checked_at == 555);
+    assert(!status.runner_available);
+    assert(status.runner_error == "offline");
+    assert(status.active_runs == 3);
+    assert(status.active_pull_jobs == 1);
+    assert(status.cloud_configured_providers == 2);
+    assert(status.pulls.size == 1);
+
+    var thread = new HolderLinux.AiThreadSummary("thread-1", "proj-1", "Investigate bug", 666, 777);
+    assert(thread.thread_id == "thread-1");
+    assert(thread.project_id == "proj-1");
+    assert(thread.title == "Investigate bug");
+    assert(thread.created_at == 666);
+    assert(thread.updated_at == 777);
+
+    var message = new HolderLinux.AiMessage(
+        "msg-1", "thread-1", "assistant", "runner", "openai", "gpt-4.1", "Try this next.", 888
+    );
+    assert(message.message_id == "msg-1");
+    assert(message.thread_id == "thread-1");
+    assert(message.role == "assistant");
+    assert(message.source == "runner");
+    assert(message.provider == "openai");
+    assert(message.model == "gpt-4.1");
+    assert(message.content == "Try this next.");
+    assert(message.created_at == 888);
+
+    var catalog_provider = new HolderLinux.AiCatalogProvider(
+        "openai", "OpenAI", true, false, "https://platform.openai.com", "https://platform.openai.com/docs"
+    );
+    assert(catalog_provider.id == "openai");
+    assert(catalog_provider.display_name == "OpenAI");
+    assert(catalog_provider.enabled);
+    assert(!catalog_provider.configured);
+    assert(catalog_provider.setup_url.contains("openai.com"));
+    assert(catalog_provider.docs_url.contains("/docs"));
+
+    var runtime_provider = new HolderLinux.AiRuntimeProvider(
+        "anthropic", "Anthropic", false, true, "https://console.anthropic.com", "https://docs.anthropic.com"
+    );
+    assert(runtime_provider.id == "anthropic");
+    assert(runtime_provider.display_name == "Anthropic");
+    assert(!runtime_provider.enabled);
+    assert(runtime_provider.configured);
+
+    var credential_state = new HolderLinux.AiProviderCredentialState("openai", true, "sk-...1234", 999);
+    assert(credential_state.provider == "openai");
+    assert(credential_state.configured);
+    assert(credential_state.api_key_preview == "sk-...1234");
+    assert(credential_state.updated_at == 999);
+
+    var setting_state = new HolderLinux.AiProviderSettingState("openai", true, 1001);
+    assert(setting_state.provider == "openai");
+    assert(setting_state.enabled);
+    assert(setting_state.updated_at == 1001);
+
+    var local_model_config = new HolderLinux.AiLocalModelConfigInfo("fast", "strong", null, 1002);
+    assert(local_model_config.fast_model == "fast");
+    assert(local_model_config.strong_model == "strong");
+    assert(local_model_config.deep_model == null);
+    assert(local_model_config.updated_at == 1002);
+}
+
 private void test_nudge_models_preserve_constructor_values_and_defaults() {
     var nudge = new HolderLinux.AiNudge(
         "nudge-1", "card.title_only", "proj-1", "card-1", "Title", "Body", "fp-1", "abc123", 99
@@ -144,6 +265,7 @@ public static int main(string[] args) {
     Test.add_func("/holder/models/recovery-and-git-models", test_recovery_and_git_models_preserve_constructor_values);
     Test.add_func("/holder/models/card-context-models", test_card_context_models_preserve_constructor_values);
     Test.add_func("/holder/models/activity-details-models", test_activity_details_models_preserve_constructor_values);
+    Test.add_func("/holder/models/ai-models", test_ai_models_preserve_constructor_values);
     Test.add_func("/holder/models/nudge-models", test_nudge_models_preserve_constructor_values_and_defaults);
     return Test.run();
 }
