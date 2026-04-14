@@ -10,7 +10,7 @@ private HolderLinux.ActivityLogEntry entry_with_details(int64 timestamp,
     return new HolderLinux.ActivityLogEntry(timestamp, kind, kind, project_id, card_id, details);
 }
 
-private Gee.ArrayList<HolderLinux.ActivityLogEntry> entries(params HolderLinux.ActivityLogEntry[] items) {
+private Gee.ArrayList<HolderLinux.ActivityLogEntry> entries(HolderLinux.ActivityLogEntry[] items) {
     var out = new Gee.ArrayList<HolderLinux.ActivityLogEntry>();
     foreach (var item in items) {
         out.add(item);
@@ -29,7 +29,7 @@ private void test_reduce_returns_empty_for_no_entries() {
 
 private void test_title_only_candidate_is_emitted_for_short_non_placeholder_empty_doc() {
     var reducer = new HolderLinux.SessionActivityReducer();
-    var input = entries(
+    var input = entries({
         entry_with_details(
             100,
             "result.card.autosave",
@@ -37,7 +37,7 @@ private void test_title_only_candidate_is_emitted_for_short_non_placeholder_empt
             "card-1",
             new HolderLinux.CardAutosavedDetails("Real Title", 120, 0, 0, true, "fp-1")
         )
-    );
+    });
 
     var candidates = reducer.reduce(input);
 
@@ -57,7 +57,7 @@ private void test_title_only_candidate_is_emitted_for_short_non_placeholder_empt
 private void test_title_only_candidate_is_rejected_for_placeholder_or_long_doc() {
     var reducer = new HolderLinux.SessionActivityReducer();
 
-    var placeholder = entries(
+    var placeholder = entries({
         entry_with_details(
             100,
             "result.card.autosave",
@@ -65,10 +65,10 @@ private void test_title_only_candidate_is_rejected_for_placeholder_or_long_doc()
             "card-1",
             new HolderLinux.CardAutosavedDetails("Untitled Note", 80, 0, 0, true, "fp-a")
         )
-    );
+    });
     assert(reducer.reduce(placeholder).size == 0);
 
-    var too_long = entries(
+    var too_long = entries({
         entry_with_details(
             101,
             "result.card.autosave",
@@ -76,19 +76,19 @@ private void test_title_only_candidate_is_rejected_for_placeholder_or_long_doc()
             "card-1",
             new HolderLinux.CardAutosavedDetails("Real Title", 161, 0, 0, true, "fp-b")
         )
-    );
+    });
     assert(reducer.reduce(too_long).size == 0);
 }
 
 private void test_title_only_candidate_rejects_missing_details_or_ids() {
     var reducer = new HolderLinux.SessionActivityReducer();
 
-    var missing_details = entries(
+    var missing_details = entries({
         entry_with_details(100, "result.card.autosave", "proj-1", "card-1", null)
-    );
+    });
     assert(reducer.reduce(missing_details).size == 0);
 
-    var missing_project = entries(
+    var missing_project = entries({
         entry_with_details(
             101,
             "result.card.autosave",
@@ -96,10 +96,10 @@ private void test_title_only_candidate_rejects_missing_details_or_ids() {
             "card-1",
             new HolderLinux.CardAutosavedDetails("Real Title", 120, 0, 0, true, "fp-x")
         )
-    );
+    });
     assert(reducer.reduce(missing_project).size == 0);
 
-    var missing_card = entries(
+    var missing_card = entries({
         entry_with_details(
             102,
             "result.card.autosave",
@@ -107,13 +107,13 @@ private void test_title_only_candidate_rejects_missing_details_or_ids() {
             null,
             new HolderLinux.CardAutosavedDetails("Real Title", 120, 0, 0, true, "fp-y")
         )
-    );
+    });
     assert(reducer.reduce(missing_card).size == 0);
 }
 
 private void test_stuck_drafting_candidate_counts_recent_autosaves_for_same_card() {
     var reducer = new HolderLinux.SessionActivityReducer();
-    var input = entries(
+    var input = entries({
         entry_with_details(
             10,
             "result.card.autosave",
@@ -135,7 +135,7 @@ private void test_stuck_drafting_candidate_counts_recent_autosaves_for_same_card
             "card-1",
             new HolderLinux.CardAutosavedDetails("Draft", 130, 90, 5, false, "fp-2")
         )
-    );
+    });
 
     var candidates = reducer.reduce(input);
 
@@ -153,7 +153,7 @@ private void test_stuck_drafting_candidate_counts_recent_autosaves_for_same_card
 private void test_stuck_drafting_rejects_latest_entry_with_large_body() {
     var reducer = new HolderLinux.SessionActivityReducer();
 
-    var oversized_body = entries(
+    var oversized_body = entries({
         entry_with_details(
             100,
             "result.card.autosave",
@@ -168,7 +168,7 @@ private void test_stuck_drafting_rejects_latest_entry_with_large_body() {
             "card-1",
             new HolderLinux.CardAutosavedDetails("Draft", 172, 162, 2, false, "fp-2")
         )
-    );
+    });
 
     assert(reducer.reduce(oversized_body).size == 0);
 }
@@ -176,12 +176,12 @@ private void test_stuck_drafting_rejects_latest_entry_with_large_body() {
 private void test_stuck_drafting_rejects_missing_details_or_ids() {
     var reducer = new HolderLinux.SessionActivityReducer();
 
-    var missing_details = entries(
+    var missing_details = entries({
         entry_with_details(100, "result.card.autosave", "proj-1", "card-1", null)
-    );
+    });
     assert(reducer.reduce(missing_details).size == 0);
 
-    var missing_project = entries(
+    var missing_project = entries({
         entry_with_details(
             101,
             "result.card.autosave",
@@ -189,10 +189,10 @@ private void test_stuck_drafting_rejects_missing_details_or_ids() {
             "card-1",
             new HolderLinux.CardAutosavedDetails("Draft", 120, 80, 2, false, "fp-x")
         )
-    );
+    });
     assert(reducer.reduce(missing_project).size == 0);
 
-    var missing_card = entries(
+    var missing_card = entries({
         entry_with_details(
             102,
             "result.card.autosave",
@@ -200,13 +200,13 @@ private void test_stuck_drafting_rejects_missing_details_or_ids() {
             null,
             new HolderLinux.CardAutosavedDetails("Draft", 120, 80, 2, false, "fp-y")
         )
-    );
+    });
     assert(reducer.reduce(missing_card).size == 0);
 }
 
 private void test_stuck_drafting_breaks_on_old_entries_and_skips_other_cards() {
     var reducer = new HolderLinux.SessionActivityReducer();
-    var input = entries(
+    var input = entries({
         entry_with_details(
             100,
             "result.card.autosave",
@@ -235,14 +235,14 @@ private void test_stuck_drafting_breaks_on_old_entries_and_skips_other_cards() {
             "card-1",
             new HolderLinux.CardAutosavedDetails("Draft", 130, 90, 2, false, "fp-c")
         )
-    );
+    });
 
     assert(reducer.reduce(input).size == 0);
 }
 
 private void test_git_push_failed_repeated_candidate_is_emitted_after_multiple_failures() {
     var reducer = new HolderLinux.SessionActivityReducer();
-    var input = entries(
+    var input = entries({
         entry_with_details(
             100,
             "result.git.push",
@@ -257,7 +257,7 @@ private void test_git_push_failed_repeated_candidate_is_emitted_after_multiple_f
             null,
             new HolderLinux.GitPushDetails("network_error", "abc123", "main")
         )
-    );
+    });
 
     var candidates = reducer.reduce(input);
 
@@ -276,12 +276,12 @@ private void test_git_push_failed_repeated_candidate_is_emitted_after_multiple_f
 private void test_git_push_candidate_rejects_missing_details_or_project() {
     var reducer = new HolderLinux.SessionActivityReducer();
 
-    var missing_details = entries(
+    var missing_details = entries({
         entry_with_details(100, "result.git.push", "proj-1", null, null)
-    );
+    });
     assert(reducer.reduce(missing_details).size == 0);
 
-    var missing_project = entries(
+    var missing_project = entries({
         entry_with_details(
             101,
             "result.git.push",
@@ -289,14 +289,14 @@ private void test_git_push_candidate_rejects_missing_details_or_project() {
             null,
             new HolderLinux.GitPushDetails("failed", "abc123", "main")
         )
-    );
+    });
     assert(reducer.reduce(missing_project).size == 0);
 }
 
 private void test_git_push_candidate_ignores_successful_statuses_and_old_failures() {
     var reducer = new HolderLinux.SessionActivityReducer();
 
-    var successful = entries(
+    var successful = entries({
         entry_with_details(
             100,
             "result.git.push",
@@ -304,10 +304,10 @@ private void test_git_push_candidate_ignores_successful_statuses_and_old_failure
             null,
             new HolderLinux.GitPushDetails("pushed", "abc123", "main")
         )
-    );
+    });
     assert(reducer.reduce(successful).size == 0);
 
-    var stale = entries(
+    var stale = entries({
         entry_with_details(
             1,
             "result.git.push",
@@ -322,13 +322,13 @@ private void test_git_push_candidate_ignores_successful_statuses_and_old_failure
             null,
             new HolderLinux.GitPushDetails("failed", "abc123", "main")
         )
-    );
+    });
     assert(reducer.reduce(stale).size == 0);
 }
 
 private void test_git_push_skips_other_projects_and_successes_and_allows_blank_commit() {
     var reducer = new HolderLinux.SessionActivityReducer();
-    var input = entries(
+    var input = entries({
         entry_with_details(
             100,
             "result.git.push",
@@ -357,7 +357,7 @@ private void test_git_push_skips_other_projects_and_successes_and_allows_blank_c
             null,
             new HolderLinux.GitPushDetails("network_error", "", "main")
         )
-    );
+    });
 
     var candidates = reducer.reduce(input);
 
@@ -372,7 +372,7 @@ private void test_git_push_skips_other_projects_and_successes_and_allows_blank_c
 
 private void test_reduce_dedupes_candidates_across_repeated_calls() {
     var reducer = new HolderLinux.SessionActivityReducer();
-    var input = entries(
+    var input = entries({
         entry_with_details(
             100,
             "result.card.autosave",
@@ -380,7 +380,7 @@ private void test_reduce_dedupes_candidates_across_repeated_calls() {
             "card-1",
             new HolderLinux.CardAutosavedDetails("Real Title", 120, 0, 0, true, "fp-1")
         )
-    );
+    });
 
     var first = reducer.reduce(input);
     var second = reducer.reduce(input);
