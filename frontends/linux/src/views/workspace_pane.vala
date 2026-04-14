@@ -23,6 +23,7 @@ public class WorkspacePane : Object {
     private int last_ai_panel_width = -1;
     private bool ai_panel_width_user_set = false;
     private bool suppress_ai_position_persist = false;
+    private bool ai_panel_visible = false;
     public Gtk.Widget widget { get; private set; }
     public GtkSource.Buffer editor_buffer { get; private set; }
     public GtkSource.View editor_view { get; private set; }
@@ -149,10 +150,15 @@ public class WorkspacePane : Object {
     }
 
     public void set_ai_panel_visible(bool visible) {
+        ai_panel_visible = visible;
         ai_panel.widget.set_visible(visible);
         if (visible) {
             apply_initial_ai_panel_position(true);
         }
+    }
+
+    public bool is_ai_panel_visible() {
+        return ai_panel_visible;
     }
 
     public void set_ai_panel_width(int width) {

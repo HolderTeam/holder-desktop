@@ -1132,6 +1132,7 @@ public class MainWindow : Adw.ApplicationWindow {
         ai_run_controller.set_panel_visible(visible);
         if (visible) {
             ai_panel.refresh_config(controller.selected_project_id());
+            ai_panel.refresh_nudges(controller.selected_project_id(), controller.selected_card_id());
         }
     }
 
@@ -1328,7 +1329,9 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void on_app_state_changed() {
         apply_sidebar_from_state();
-        ai_panel.refresh_nudges(app_state_store.selection.project_id, app_state_store.selection.card_id);
+        if (workspace.is_ai_panel_visible()) {
+            ai_panel.refresh_nudges(app_state_store.selection.project_id, app_state_store.selection.card_id);
+        }
     }
 
     internal void on_navigation_loading_changed(bool loading) {
@@ -1377,6 +1380,9 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void refresh_ai_status() {
+        if (!workspace.is_ai_panel_visible()) {
+            return;
+        }
         ai_run_controller.refresh_status.begin();
     }
 
@@ -1414,8 +1420,10 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void on_api_client_connected(IHolderApi api_client) {
         ai_panel.set_api_client(api_client);
-        ai_panel.refresh_config(controller.selected_project_id());
-        ai_panel.refresh_nudges(controller.selected_project_id(), controller.selected_card_id());
+        if (workspace.is_ai_panel_visible()) {
+            ai_panel.refresh_config(controller.selected_project_id());
+            ai_panel.refresh_nudges(controller.selected_project_id(), controller.selected_card_id());
+        }
         toolbox.set_api_client(api_client);
     }
 
