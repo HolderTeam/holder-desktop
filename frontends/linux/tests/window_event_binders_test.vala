@@ -152,6 +152,178 @@ private class RecordingWindowFlowboardEventSink : Object, IWindowFlowboardEventS
     }
 }
 
+private class FakeSidebarEventSource : Object, ISidebarEventSource {
+    public void emit_card_move_to_trash_requested(string card_id) {
+        card_move_to_trash_requested(card_id);
+    }
+
+    public void emit_card_context_selection_requested(string card_id) {
+        card_context_selection_requested(card_id);
+    }
+
+    public void emit_card_create_child_requested(string card_id) {
+        card_create_child_requested(card_id);
+    }
+}
+
+private class RecordingSidebarEventSink : Object, ISidebarEventSink {
+    public string move_to_trash_card_id = "";
+    public string context_selection_card_id = "";
+    public string create_child_card_id = "";
+
+    public void on_sidebar_card_move_to_trash_requested(string card_id) {
+        move_to_trash_card_id = card_id;
+    }
+
+    public void on_sidebar_card_context_selection_requested(string card_id) {
+        context_selection_card_id = card_id;
+    }
+
+    public void on_sidebar_card_create_child_requested(string card_id) {
+        create_child_card_id = card_id;
+    }
+}
+
+private class FakeWorkspaceEventSource : Object, IWorkspaceEventSource {
+    public void emit_refresh_requested() {
+        refresh_requested();
+    }
+
+    public void emit_new_project_requested() {
+        new_project_requested();
+    }
+
+    public void emit_new_card_requested() {
+        new_card_requested();
+    }
+
+    public void emit_explorer_panel_toggled(bool visible) {
+        explorer_panel_toggled(visible);
+    }
+
+    public void emit_ai_panel_toggled(bool visible) {
+        ai_panel_toggled(visible);
+    }
+
+    public void emit_toolbox_toggled(bool visible) {
+        toolbox_toggled(visible);
+    }
+
+    public void emit_open_debug_panel_requested() {
+        open_debug_panel_requested();
+    }
+
+    public void emit_search_activated() {
+        search_activated();
+    }
+
+    public void emit_search_changed() {
+        search_changed();
+    }
+
+    public void emit_search_cleared() {
+        search_cleared();
+    }
+
+    public void emit_search_focus_results_requested() {
+        search_focus_results_requested();
+    }
+
+    public void emit_search_result_activated(uint position) {
+        search_result_activated(position);
+    }
+
+    public void emit_find_next_requested() {
+        find_next_requested();
+    }
+
+    public void emit_replace_requested() {
+        replace_requested();
+    }
+
+    public void emit_replace_all_requested() {
+        replace_all_requested();
+    }
+}
+
+private class RecordingWorkspaceEventSink : Object, IWorkspaceEventSink {
+    public int refresh_calls = 0;
+    public int new_project_calls = 0;
+    public int new_card_calls = 0;
+    public Gee.ArrayList<bool> explorer_toggle_values = new Gee.ArrayList<bool>();
+    public Gee.ArrayList<bool> ai_toggle_values = new Gee.ArrayList<bool>();
+    public Gee.ArrayList<bool> toolbox_toggle_values = new Gee.ArrayList<bool>();
+    public int open_debug_calls = 0;
+    public int search_activated_calls = 0;
+    public int search_changed_calls = 0;
+    public int search_cleared_calls = 0;
+    public int search_focus_results_calls = 0;
+    public uint last_search_result_position = uint.MAX;
+    public int find_next_calls = 0;
+    public int replace_calls = 0;
+    public int replace_all_calls = 0;
+
+    public void on_workspace_refresh_requested() {
+        refresh_calls++;
+    }
+
+    public void on_workspace_new_project_requested() {
+        new_project_calls++;
+    }
+
+    public void on_workspace_new_card_requested() {
+        new_card_calls++;
+    }
+
+    public void on_workspace_explorer_panel_toggled(bool visible) {
+        explorer_toggle_values.add(visible);
+    }
+
+    public void on_workspace_ai_panel_toggled(bool visible) {
+        ai_toggle_values.add(visible);
+    }
+
+    public void on_workspace_toolbox_toggled(bool visible) {
+        toolbox_toggle_values.add(visible);
+    }
+
+    public void on_workspace_open_debug_panel_requested() {
+        open_debug_calls++;
+    }
+
+    public void on_workspace_search_activated() {
+        search_activated_calls++;
+    }
+
+    public void on_workspace_search_changed() {
+        search_changed_calls++;
+    }
+
+    public void on_workspace_search_cleared() {
+        search_cleared_calls++;
+    }
+
+    public void on_workspace_search_focus_results_requested() {
+        search_focus_results_calls++;
+    }
+
+    public void on_workspace_search_result_activated(uint position) {
+        last_search_result_position = position;
+    }
+
+    public void on_workspace_find_next_requested() {
+        find_next_calls++;
+    }
+
+    public void on_workspace_replace_requested() {
+        replace_calls++;
+    }
+
+    public void on_workspace_replace_all_requested() {
+        replace_all_calls++;
+    }
+}
+
 private class FakeEditorControllerAttachTarget : Object, IEditorControllerAttachTarget {
     public IInternalLinkClickController? click = null;
     public IInternalLinkKeyController? key = null;
@@ -324,6 +496,65 @@ private void test_selection_editor_binder_forwards_selection_buffer_and_internal
     assert(sink.last_state == Gdk.ModifierType.CONTROL_MASK);
 }
 
+private void test_sidebar_binder_forwards_sidebar_events() {
+    var source = new HolderLinux.FakeSidebarEventSource();
+    var sink = new HolderLinux.RecordingSidebarEventSink();
+    var binder = new HolderLinux.WindowSidebarEventBinder(source, sink);
+
+    binder.bind();
+
+    source.emit_card_move_to_trash_requested("card-trash");
+    source.emit_card_context_selection_requested("card-context");
+    source.emit_card_create_child_requested("card-parent");
+
+    assert(sink.move_to_trash_card_id == "card-trash");
+    assert(sink.context_selection_card_id == "card-context");
+    assert(sink.create_child_card_id == "card-parent");
+}
+
+private void test_workspace_binder_forwards_workspace_events() {
+    var source = new HolderLinux.FakeWorkspaceEventSource();
+    var sink = new HolderLinux.RecordingWorkspaceEventSink();
+    var binder = new HolderLinux.WindowWorkspaceEventBinder(source, sink);
+
+    binder.bind();
+
+    source.emit_refresh_requested();
+    source.emit_new_project_requested();
+    source.emit_new_card_requested();
+    source.emit_explorer_panel_toggled(true);
+    source.emit_ai_panel_toggled(false);
+    source.emit_toolbox_toggled(true);
+    source.emit_open_debug_panel_requested();
+    source.emit_search_activated();
+    source.emit_search_changed();
+    source.emit_search_cleared();
+    source.emit_search_focus_results_requested();
+    source.emit_search_result_activated(7);
+    source.emit_find_next_requested();
+    source.emit_replace_requested();
+    source.emit_replace_all_requested();
+
+    assert(sink.refresh_calls == 1);
+    assert(sink.new_project_calls == 1);
+    assert(sink.new_card_calls == 1);
+    assert(sink.explorer_toggle_values.size == 1);
+    assert(sink.explorer_toggle_values[0]);
+    assert(sink.ai_toggle_values.size == 1);
+    assert(!sink.ai_toggle_values[0]);
+    assert(sink.toolbox_toggle_values.size == 1);
+    assert(sink.toolbox_toggle_values[0]);
+    assert(sink.open_debug_calls == 1);
+    assert(sink.search_activated_calls == 1);
+    assert(sink.search_changed_calls == 1);
+    assert(sink.search_cleared_calls == 1);
+    assert(sink.search_focus_results_calls == 1);
+    assert(sink.last_search_result_position == 7);
+    assert(sink.find_next_calls == 1);
+    assert(sink.replace_calls == 1);
+    assert(sink.replace_all_calls == 1);
+}
+
 private void test_flowboard_binder_forwards_store_and_controller_signals() {
     var project_store = new GLib.ListStore(typeof(Project));
     project_store.append(sample_project());
@@ -403,6 +634,14 @@ public static int main(string[] args) {
     Test.add_func(
         "/holder/window-event-binders/selection-editor-binder-forwards-selection-buffer-and-internal-link-events",
         test_selection_editor_binder_forwards_selection_buffer_and_internal_link_events
+    );
+    Test.add_func(
+        "/holder/window-event-binders/sidebar-binder-forwards-sidebar-events",
+        test_sidebar_binder_forwards_sidebar_events
+    );
+    Test.add_func(
+        "/holder/window-event-binders/workspace-binder-forwards-workspace-events",
+        test_workspace_binder_forwards_workspace_events
     );
     Test.add_func(
         "/holder/window-event-binders/flowboard-binder-forwards-store-and-controller-signals",

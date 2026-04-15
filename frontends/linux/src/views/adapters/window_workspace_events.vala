@@ -1,31 +1,21 @@
 namespace HolderLinux {
 
-internal interface ISidebarEventSink : Object {
-    public abstract void on_sidebar_card_move_to_trash_requested(string card_id);
-    public abstract void on_sidebar_card_context_selection_requested(string card_id);
-    public abstract void on_sidebar_card_create_child_requested(string card_id);
-}
-
-internal class WindowSidebarEventBinder : Object {
-    private SidebarPane sidebar; // LCOV_EXCL_LINE: field declaration-only coverage artifact
-    private ISidebarEventSink sink; // LCOV_EXCL_LINE: field declaration-only coverage artifact
-
-    public WindowSidebarEventBinder(SidebarPane sidebar, ISidebarEventSink sink) {
-        this.sidebar = sidebar;
-        this.sink = sink;
-    }
-
-    public void bind() {
-        sidebar.card_move_to_trash_requested.connect((card_id) => {
-            sink.on_sidebar_card_move_to_trash_requested(card_id);
-        });
-        sidebar.card_context_selection_requested.connect((card_id) => {
-            sink.on_sidebar_card_context_selection_requested(card_id);
-        });
-        sidebar.card_create_child_requested.connect((card_id) => {
-            sink.on_sidebar_card_create_child_requested(card_id);
-        });
-    }
+internal interface IWorkspaceEventSource : Object {
+    public abstract signal void refresh_requested();
+    public abstract signal void new_project_requested();
+    public abstract signal void new_card_requested();
+    public abstract signal void explorer_panel_toggled(bool visible);
+    public abstract signal void ai_panel_toggled(bool visible);
+    public abstract signal void toolbox_toggled(bool visible);
+    public abstract signal void open_debug_panel_requested();
+    public abstract signal void search_activated();
+    public abstract signal void search_changed();
+    public abstract signal void search_cleared();
+    public abstract signal void search_focus_results_requested();
+    public abstract signal void search_result_activated(uint position);
+    public abstract signal void find_next_requested();
+    public abstract signal void replace_requested();
+    public abstract signal void replace_all_requested();
 }
 
 internal interface IWorkspaceEventSink : Object {
@@ -47,10 +37,10 @@ internal interface IWorkspaceEventSink : Object {
 }
 
 internal class WindowWorkspaceEventBinder : Object {
-    private WorkspacePane workspace; // LCOV_EXCL_LINE: field declaration-only coverage artifact
+    private IWorkspaceEventSource workspace; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private IWorkspaceEventSink sink; // LCOV_EXCL_LINE: field declaration-only coverage artifact
 
-    public WindowWorkspaceEventBinder(WorkspacePane workspace, IWorkspaceEventSink sink) {
+    public WindowWorkspaceEventBinder(IWorkspaceEventSource workspace, IWorkspaceEventSink sink) {
         this.workspace = workspace;
         this.sink = sink;
     }

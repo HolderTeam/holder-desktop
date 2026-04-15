@@ -491,6 +491,23 @@ private class WindowSidebarEventSink : Object, ISidebarEventSink {
     }
 }
 
+private class WindowSidebarEventSource : Object, ISidebarEventSource {
+    private SidebarPane sidebar;
+
+    public WindowSidebarEventSource(SidebarPane sidebar) {
+        this.sidebar = sidebar;
+        sidebar.card_move_to_trash_requested.connect((card_id) => {
+            card_move_to_trash_requested(card_id);
+        });
+        sidebar.card_context_selection_requested.connect((card_id) => {
+            card_context_selection_requested(card_id);
+        });
+        sidebar.card_create_child_requested.connect((card_id) => {
+            card_create_child_requested(card_id);
+        });
+    }
+}
+
 private class WindowWorkspaceEventSink : Object, IWorkspaceEventSink {
     private MainWindow owner;
 
@@ -556,6 +573,59 @@ private class WindowWorkspaceEventSink : Object, IWorkspaceEventSink {
 
     public void on_workspace_replace_all_requested() {
         owner.on_workspace_replace_all_requested();
+    }
+}
+
+private class WindowWorkspaceEventSource : Object, IWorkspaceEventSource {
+    private WorkspacePane workspace;
+
+    public WindowWorkspaceEventSource(WorkspacePane workspace) {
+        this.workspace = workspace;
+        workspace.refresh_requested.connect(() => {
+            refresh_requested();
+        });
+        workspace.new_project_requested.connect(() => {
+            new_project_requested();
+        });
+        workspace.new_card_requested.connect(() => {
+            new_card_requested();
+        });
+        workspace.explorer_panel_toggled.connect((visible) => {
+            explorer_panel_toggled(visible);
+        });
+        workspace.ai_panel_toggled.connect((visible) => {
+            ai_panel_toggled(visible);
+        });
+        workspace.toolbox_toggled.connect((visible) => {
+            toolbox_toggled(visible);
+        });
+        workspace.open_debug_panel_requested.connect(() => {
+            open_debug_panel_requested();
+        });
+        workspace.search_activated.connect(() => {
+            search_activated();
+        });
+        workspace.search_changed.connect(() => {
+            search_changed();
+        });
+        workspace.search_cleared.connect(() => {
+            search_cleared();
+        });
+        workspace.search_focus_results_requested.connect(() => {
+            search_focus_results_requested();
+        });
+        workspace.search_result_activated.connect((position) => {
+            search_result_activated(position);
+        });
+        workspace.find_next_requested.connect(() => {
+            find_next_requested();
+        });
+        workspace.replace_requested.connect(() => {
+            replace_requested();
+        });
+        workspace.replace_all_requested.connect(() => {
+            replace_all_requested();
+        });
     }
 }
 
@@ -935,11 +1005,11 @@ public class MainWindow : Adw.ApplicationWindow {
 
         sidebar = new SidebarPane(project_selection, card_selection, ai_thread_selection);
         window_sidebar_event_binder = new WindowSidebarEventBinder(
-            sidebar,
+            new WindowSidebarEventSource(sidebar),
             new WindowSidebarEventSink(this)
         );
         window_workspace_event_binder = new WindowWorkspaceEventBinder(
-            workspace,
+            new WindowWorkspaceEventSource(workspace),
             new WindowWorkspaceEventSink(this)
         );
         window_selection_editor_event_binder = new WindowSelectionEditorEventBinder(
