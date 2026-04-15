@@ -38,7 +38,7 @@ public class MainController : Object, IAiRunContext {
     private MainProjectFlowController main_project_flow_controller;
     private MainCardLoadController main_card_load_controller;
     private MainOverviewController main_overview_controller;
-    private MainStoreSyncController main_store_sync_controller;
+    private StoreSyncController store_sync_controller;
     internal IExplorerStateSink? explorer_state_sink;
     // LCOV_EXCL_STOP
 
@@ -97,7 +97,7 @@ public class MainController : Object, IAiRunContext {
         this.editor_draft_state = new EditorDraftState();
         this.api = initial_api;
         this.explorer_state_sink = explorer_state_sink;
-        this.main_store_sync_controller = new MainStoreSyncController(this);
+        this.store_sync_controller = new StoreSyncController(this);
         this.backend_session_controller = new BackendSessionController(this);
         this.main_bootstrap_controller = new MainBootstrapController(this);
         this.main_project_flow_controller = new MainProjectFlowController(this);
@@ -284,35 +284,35 @@ public class MainController : Object, IAiRunContext {
     }
 
     internal void replace_projects(Gee.ArrayList<Project> projects) {
-        main_store_sync_controller.replace_projects(projects);
+        store_sync_controller.replace_projects(projects);
     }
 
     internal void replace_cards(Gee.ArrayList<CardSummary> cards) {
-        main_store_sync_controller.replace_cards(cards);
+        store_sync_controller.replace_cards(cards);
     }
 
     internal void replace_ai_threads(Gee.ArrayList<AiThreadSummary> threads) {
-        main_store_sync_controller.replace_ai_threads(threads);
+        store_sync_controller.replace_ai_threads(threads);
     }
 
     internal void clear_cards() {
-        main_store_sync_controller.clear_cards();
+        store_sync_controller.clear_cards();
     }
 
     internal void replace_search_results(Gee.ArrayList<SearchCardResult> results) {
-        main_store_sync_controller.replace_search_results(results);
+        store_sync_controller.replace_search_results(results);
     }
 
     internal bool has_card_summary(string card_id) {
-        return main_store_sync_controller.has_card_summary(card_id);
+        return store_sync_controller.has_card_summary(card_id);
     }
 
     internal bool has_project_summary(string project_id) {
-        return main_store_sync_controller.has_project_summary(project_id);
+        return store_sync_controller.has_project_summary(project_id);
     }
 
     internal void update_selected_card_summary(string title, int64 updated_at) {
-        main_store_sync_controller.update_selected_card_summary(title, updated_at);
+        store_sync_controller.update_selected_card_summary(title, updated_at);
     }
 
     public static Gee.ArrayList<CardSummary> rebuild_card_summaries(
@@ -321,7 +321,7 @@ public class MainController : Object, IAiRunContext {
         string title,
         int64 updated_at
     ) {
-        return MainStoreSyncController.rebuild_card_summaries(
+        return StoreSyncController.rebuild_card_summaries(
             source_cards,
             target_card_id,
             title,

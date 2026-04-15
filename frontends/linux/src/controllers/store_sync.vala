@@ -1,9 +1,9 @@
 namespace HolderLinux {
 
-internal class MainStoreSyncController : Object {
+internal class StoreSyncController : Object {
     private MainController owner;
 
-    public MainStoreSyncController(MainController owner) {
+    public StoreSyncController(MainController owner) {
         this.owner = owner;
     }
 

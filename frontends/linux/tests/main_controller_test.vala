@@ -2091,11 +2091,11 @@ private void test_rebuild_card_summaries_handles_null_and_non_target_cards() {
 private void test_compare_cards_for_sidebar_orders_older_last_and_tiebreaks_by_title() {
     var newer = new HolderLinux.CardSummary("new", "p1", "Zulu", "new.md", 1.0, null, 1, 20);
     var older = new HolderLinux.CardSummary("old", "p1", "Alpha", "old.md", 2.0, null, 2, 10);
-    assert(HolderLinux.MainStoreSyncController.compare_cards_for_sidebar(older, newer) == 1);
+    assert(HolderLinux.StoreSyncController.compare_cards_for_sidebar(older, newer) == 1);
 
     var tie_a = new HolderLinux.CardSummary("a", "p1", "Beta", "a.md", 1.0, null, 1, 50);
     var tie_b = new HolderLinux.CardSummary("b", "p1", "alpha", "b.md", 2.0, null, 2, 50);
-    assert(HolderLinux.MainStoreSyncController.compare_cards_for_sidebar(tie_a, tie_b) > 0);
+    assert(HolderLinux.StoreSyncController.compare_cards_for_sidebar(tie_a, tie_b) > 0);
 }
 
 private void test_create_ai_thread_success() {
