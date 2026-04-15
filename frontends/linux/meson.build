@@ -1529,6 +1529,24 @@ app_state_test_exe = executable(
 
 test('holder-linux-app-state-tests', app_state_test_exe)
 
+editor_draft_state_test_exe = executable(
+  'holder-linux-editor-draft-state-tests',
+  [
+    'src/models/card.vala',
+    'src/state/editor_draft_state.vala',
+    'tests/editor_draft_state_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-editor-draft-state-tests', editor_draft_state_test_exe)
+
 selection_transition_test_exe = executable(
   'holder-linux-selection-transition-tests',
   [
