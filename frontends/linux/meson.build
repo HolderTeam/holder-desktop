@@ -52,6 +52,9 @@ sources = [
   'src/views/adapters/card_action_dialog.vala',
   'src/views/adapters/project_create_dialog.vala',
   'src/views/adapters/recovery_dialog.vala',
+  'src/views/adapters/window_selection_editor_events.vala',
+  'src/views/adapters/window_lifecycle_events.vala',
+  'src/views/adapters/window_state_events.vala',
   'src/views/toolbox.vala',
   'src/views/toolbox/tool_shell.vala',
   'src/views/toolbox/tool_adapter.vala',
@@ -91,7 +94,7 @@ sources = [
   'src/controllers/window_feedback_orchestrator.vala',
   'src/controllers/window_action_binder.vala',
   'src/controllers/window_view_event_binder.vala',
-  'src/controllers/window_interaction_event_binder.vala',
+  'src/controllers/window_flowboard_event_binder.vala',
   'src/controllers/ai_threads.vala',
   'src/controllers/ai_run.vala',
   'src/controllers/ai_panel_event_orchestrator.vala',
@@ -1794,6 +1797,47 @@ window_feedback_orchestrator_test_exe = executable(
 )
 
 test('holder-linux-window-feedback-orchestrator-tests', window_feedback_orchestrator_test_exe)
+
+window_event_binders_test_exe = executable(
+  'holder-linux-window-event-binders-tests',
+  [
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/state/app_state.vala',
+    'src/controllers/project_create.vala',
+    'src/controllers/flowboard.vala',
+    'src/controllers/app_transition.vala',
+    'src/controllers/selection_transition.vala',
+    'src/controllers/window_flowboard_event_binder.vala',
+    'src/views/adapters/window_selection_editor_events.vala',
+    'src/views/adapters/window_lifecycle_events.vala',
+    'src/views/adapters/window_state_events.vala',
+    'tests/window_event_binders_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('gtksourceview-5'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-window-event-binders-tests', window_event_binders_test_exe)
 
 main_signal_binder_test_exe = executable(
   'holder-linux-main-signal-binder-tests',

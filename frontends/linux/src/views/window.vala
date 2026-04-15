@@ -907,11 +907,11 @@ public class MainWindow : Adw.ApplicationWindow {
         );
         window_lifecycle_event_binder = new WindowLifecycleEventBinder(
             project_create_controller,
-            this,
+            new GtkWindowCloseRequestSource(this),
             new WindowLifecycleEventSink(this)
         );
         window_state_event_binder = new WindowStateEventBinder(
-            root_paned,
+            new GtkPanedPositionSource(root_paned),
             app_state_store,
             selection_transition_controller,
             new WindowStateEventSink(this)
