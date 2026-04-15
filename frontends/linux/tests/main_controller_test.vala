@@ -1884,6 +1884,167 @@ private void test_autosave_without_card_is_noop() {
     assert(api.update_card_calls == 0);
 }
 
+private void test_autosave_without_unsaved_changes_is_noop() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    string last_save_state = "unchanged";
+    controller.editor_save_state_changed.connect((text) => {
+        last_save_state = text;
+    });
+
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => true));
+    assert(api.update_card_calls == 0);
+    assert(last_save_state == "unchanged");
+}
+
+private void test_editor_content_changed_without_current_card_clears_save_state() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    string last_save_state = "seed";
+    controller.editor_save_state_changed.connect((text) => {
+        last_save_state = text;
+    });
+
+    controller.on_editor_content_changed();
+    assert(last_save_state == "");
+}
+
+private void test_repeated_autosave_failures_use_backoff_status_and_tiers() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    string last_status = "";
+    controller.status_changed.connect((text) => {
+        last_status = text;
+    });
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+    assert(controller.get_autosave_retry_attempts() == 1);
+
+    scheduler.run_all_once();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+    assert(controller.get_autosave_retry_attempts() == 2);
+    assert(last_status == "Autosave failed, retrying in 2 s");
+
+    scheduler.run_all_once();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+    assert(controller.get_autosave_retry_attempts() == 3);
+    assert(last_status == "Autosave failed, retrying in 5 s");
+
+    scheduler.run_all_once();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+    assert(controller.get_autosave_retry_attempts() == 4);
+    assert(last_status == "Autosave failed, retrying in 10 s");
+}
+
+private void test_repeated_manual_autosave_failure_replaces_existing_retry_timer() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+    assert(controller.get_autosave_retry_attempts() == 1);
+    assert(scheduler.cancel_calls == 0);
+
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+    assert(controller.get_autosave_retry_attempts() == 2);
+    assert(scheduler.cancel_calls >= 1);
+}
+
+private void test_clean_editor_state_cancels_pending_retry_when_view_changes() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+
+    controller.show_project_overview.begin();
+    assert(wait_for_condition(() => !controller.has_pending_autosave_retry()));
+    assert(controller.get_autosave_retry_attempts() == 0);
+}
+
+private void test_retry_callback_resets_attempts_when_editor_is_clean() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+
+    harness.editor_text.value = controller.get_current_card().content;
+    controller.on_editor_content_changed();
+    scheduler.run_all_once();
+    assert(!controller.has_pending_autosave_retry());
+    assert(controller.get_autosave_retry_attempts() == 0);
+}
+
 private void test_update_selected_card_summary_without_current_card_is_noop() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -2707,6 +2868,30 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/autosave_without_card_is_noop",
         test_autosave_without_card_is_noop
+    );
+    Test.add_func(
+        "/main_controller/autosave_without_unsaved_changes_is_noop",
+        test_autosave_without_unsaved_changes_is_noop
+    );
+    Test.add_func(
+        "/main_controller/editor_content_changed_without_current_card_clears_save_state",
+        test_editor_content_changed_without_current_card_clears_save_state
+    );
+    Test.add_func(
+        "/main_controller/repeated_autosave_failures_use_backoff_status_and_tiers",
+        test_repeated_autosave_failures_use_backoff_status_and_tiers
+    );
+    Test.add_func(
+        "/main_controller/repeated_manual_autosave_failure_replaces_existing_retry_timer",
+        test_repeated_manual_autosave_failure_replaces_existing_retry_timer
+    );
+    Test.add_func(
+        "/main_controller/clean_editor_state_cancels_pending_retry_when_view_changes",
+        test_clean_editor_state_cancels_pending_retry_when_view_changes
+    );
+    Test.add_func(
+        "/main_controller/retry_callback_resets_attempts_when_editor_is_clean",
+        test_retry_callback_resets_attempts_when_editor_is_clean
     );
     Test.add_func(
         "/main_controller/update_selected_card_summary_without_current_card_is_noop",

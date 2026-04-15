@@ -47,11 +47,16 @@ public class MutableTextProvider : Object, HolderLinux.ITextProvider {
 public class FakeEditorRecoveryDraftService : Object, HolderLinux.IEditorRecoveryDraftService {
     public int save_calls = 0;
     public int remove_calls = 0;
+    public bool fail_save = false;
+    public bool fail_remove = false;
     public HolderLinux.EditorRecoveryDraft? last_saved_draft = null;
     public Gee.HashMap<string, HolderLinux.EditorRecoveryDraft> drafts =
         new Gee.HashMap<string, HolderLinux.EditorRecoveryDraft>();
 
     public void save_draft(HolderLinux.EditorRecoveryDraft draft) throws Error {
+        if (fail_save) {
+            throw new IOError.FAILED("save draft failed");
+        }
         save_calls++;
         last_saved_draft = draft;
         drafts.set(draft.card_id, draft);
@@ -62,6 +67,9 @@ public class FakeEditorRecoveryDraftService : Object, HolderLinux.IEditorRecover
     }
 
     public void remove_draft(string card_id) throws Error {
+        if (fail_remove) {
+            throw new IOError.FAILED("remove draft failed");
+        }
         remove_calls++;
         drafts.unset(card_id);
     }

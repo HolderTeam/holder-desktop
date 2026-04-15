@@ -641,6 +641,232 @@ private void test_resolve_link_action_card_project_ilink_and_unknown() {
     assert(!unknown.handled);
 }
 
+private void test_internal_links_refresh_target_and_normalized_kind_helpers() {
+    var controller = new ConnectionsController();
+
+    var empty = new Gee.ArrayList<string>();
+    assert(controller.internal_links_equal(empty, null));
+
+    var current = new Gee.ArrayList<string>();
+    current.add("a");
+    assert(!controller.internal_links_equal(current, null));
+
+    var mismatch = new Gee.ArrayList<string>();
+    mismatch.add("b");
+    assert(!controller.internal_links_equal(current, mismatch));
+
+    var project = new Project("p1", "Project", "plain", "/tmp/p1", 1, 1);
+    var foreign_card = card("c2", "p2", "Foreign", 1);
+    var target = controller.build_graph_refresh_target(false, project, foreign_card, 9);
+    assert(target.mode == "project_root");
+    assert(target.project_id == "p1");
+    assert(target.card_id == "");
+
+    var root_target = controller.build_graph_refresh_target(true, project, null, 3);
+    assert(root_target.mode == "projects_root");
+    assert(root_target.project_id == "");
+    assert(controller.describe_graph_refresh_target(root_target) == "projects_root");
+
+    var none_target = new ConnectionsGraphRefreshTarget("project_root", "", "", 0);
+    assert(controller.describe_graph_refresh_target(none_target) == "project:none");
+    assert(controller.format_graph_refresh_debug_event("queued", root_target)
+        == "Connections refresh queued: projects_root");
+
+    assert(controller.normalized_link_kind(null) == "ref");
+    assert(controller.normalized_link_kind("   ") == "ref");
+    assert(controller.normalized_link_kind(" depends_on ") == "depends_on");
+}
+
+private void test_graph_structure_helpers_cover_counts_lookup_and_dedup() {
+    var controller = new ConnectionsController();
+    var cards = new Gee.ArrayList<CardSummary>();
+    cards.add(card("parent", "p1", "Parent", 1));
+    cards.add(card("child-a", "p1", "Child A", 1, "parent"));
+    cards.add(card("child-b", "p1", "Child B", 2, "parent"));
+
+    assert(controller.child_count_for("parent", cards) == 2);
+    assert(controller.find_card_by_id("missing", cards) == null);
+
+    var nodes = new Gee.HashMap<string, ConnectionsBoardNode>();
+    var edge_keys = new Gee.HashSet<string>();
+    var edges = new Gee.ArrayList<ConnectionsBoardEdge>();
+
+    assert(!controller.add_edge_to_list(edge_keys, edges, "a", "a", "ref", false));
+    assert(controller.add_edge_to_list(edge_keys, edges, "a", "b", "ref", false));
+    assert(!controller.add_edge_to_list(edge_keys, edges, "a", "b", "ref", false));
+
+    controller.add_board_edge(nodes, edge_keys, edges, "a", "b", "ref", false, cards);
+    assert(nodes.size == 0);
+
+    controller.add_board_edge(nodes, edge_keys, edges, "parent", "child-a", "child", true, cards);
+    assert(nodes.has_key("parent"));
+    assert(nodes.has_key("child-a"));
+    assert(nodes.get("parent").child_count == 2);
+}
+
+private void test_build_structural_edges_for_selected_and_project() {
+    var controller = new ConnectionsController();
+    var project_cards = new Gee.ArrayList<CardSummary>();
+    project_cards.add(card("parent", "p1", "Parent", 1));
+    project_cards.add(card("prev", "p1", "Prev", 1, "parent", 10));
+    project_cards.add(card("sel", "p1", "Selected", 2, "parent", 20));
+    project_cards.add(card("next", "p1", "Next", 3, "parent", 30));
+    project_cards.add(card("child", "p1", "Child", 1, "sel", 40));
+
+    var selected_edges = controller.build_structural_edges_for_selected(project_cards[2], project_cards);
+    assert(selected_edges.size == 4);
+    assert(selected_edges[0].kind == "next");
+    assert(selected_edges[0].from_card_id == "prev");
+    assert(selected_edges[1].to_card_id == "next");
+    assert(selected_edges[2].kind == "child");
+    assert(selected_edges[2].from_card_id == "parent");
+    assert(selected_edges[3].from_card_id == "sel");
+    assert(selected_edges[3].to_card_id == "child");
+
+    var project_edges = controller.build_structural_edges_for_project(project_cards);
+    bool found_parent_child = false;
+    bool found_sibling_next = false;
+    foreach (var edge in project_edges) {
+        if (edge.from_card_id == "parent" && edge.to_card_id == "sel" && edge.kind == "child") {
+            found_parent_child = true;
+        }
+        if (edge.from_card_id == "prev" && edge.to_card_id == "sel" && edge.kind == "next") {
+            found_sibling_next = true;
+        }
+    }
+    assert(found_parent_child);
+    assert(found_sibling_next);
+}
+
+private void test_layout_helpers_and_target_board_height_thresholds() {
+    var controller = new ConnectionsController();
+
+    var card_nodes = new Gee.ArrayList<ConnectionsBoardNode>();
+    card_nodes.add(new ConnectionsBoardNode("center", "Center"));
+    card_nodes.add(new ConnectionsBoardNode("n1", "N1"));
+    card_nodes.add(new ConnectionsBoardNode("n2", "N2"));
+    card_nodes.add(new ConnectionsBoardNode("n3", "N3"));
+    card_nodes.add(new ConnectionsBoardNode("n4", "N4"));
+    card_nodes.add(new ConnectionsBoardNode("n5", "N5"));
+    controller.layout_card_mode_nodes("center", card_nodes, 800, 180, 90, 40, 600);
+    assert(card_nodes[0].x > 0);
+    assert(card_nodes[1].x != card_nodes[0].x || card_nodes[1].y != card_nodes[0].y);
+
+    var empty_nodes = new Gee.ArrayList<ConnectionsBoardNode>();
+    controller.layout_project_mode_nodes(empty_nodes, 24, 180, 90);
+    assert(empty_nodes.size == 0);
+
+    var grid_nodes = new Gee.ArrayList<ConnectionsBoardNode>();
+    for (int i = 0; i < 5; i++) {
+        grid_nodes.add(new ConnectionsBoardNode("g%d".printf(i), "G%d".printf(i)));
+    }
+    controller.layout_project_mode_nodes(grid_nodes, 24, 180, 90);
+    assert(grid_nodes[4].y > grid_nodes[0].y);
+
+    var spread_nodes = new Gee.ArrayList<ConnectionsBoardNode>();
+    spread_nodes.add(new ConnectionsBoardNode("a", "A", 0, 0, 0, 790));
+    spread_nodes.add(new ConnectionsBoardNode("b", "B", 0, 0, 0, 790));
+    controller.spread_nodes_to_avoid_overlap(spread_nodes, 180, 90);
+    assert(spread_nodes[1].x > 0 || spread_nodes[1].y != 790);
+
+    assert(controller.target_board_height_for_count(8) == 430);
+    assert(controller.target_board_height_for_count(14) == 560);
+    assert(controller.target_board_height_for_count(15) == 680);
+}
+
+private void test_count_summary_and_increment_helpers() {
+    var controller = new ConnectionsController();
+    var counts = new Gee.HashMap<string, int>();
+
+    controller.increment_count(counts, "ref");
+    controller.increment_count(counts, "ref");
+    controller.increment_count(counts, "child");
+
+    var summary = controller.format_counts_summary(counts);
+    assert(summary.contains("• ref: 2"));
+    assert(summary.contains("• child: 1"));
+    assert(summary.index_of("• ref: 2") < summary.index_of("• child: 1"));
+
+    var tied = new Gee.HashMap<string, int>();
+    tied.set("beta", 1);
+    tied.set("alpha", 1);
+    var tied_summary = controller.format_counts_summary(tied);
+    assert(tied_summary.index_of("• alpha: 1") < tied_summary.index_of("• beta: 1"));
+}
+
+private void test_update_delete_and_resolve_link_action_ignored_paths() {
+    var controller = new ConnectionsController();
+
+    bool done_update = false;
+    ConnectionsMutationResult? update_result = null;
+    controller.update_graph_link_flow.begin(null,
+                                            new CardLink("a", "b", "card", "ref", null, 1),
+                                            "custom_kind",
+                                            null,
+                                            true,
+                                            null,
+                                            (obj, res) => {
+        update_result = controller.update_graph_link_flow.end(res);
+        done_update = true;
+    });
+    assert(wait_until_true(() => done_update));
+    assert(update_result != null);
+    assert(!update_result.success);
+    assert(update_result.ignored);
+
+    bool done_delete = false;
+    ConnectionsMutationResult? delete_result = null;
+    controller.delete_graph_link_flow.begin(null, new CardLink("a", "b", "card", "ref", null, 1), (obj, res) => {
+        delete_result = controller.delete_graph_link_flow.end(res);
+        done_delete = true;
+    });
+    assert(wait_until_true(() => done_delete));
+    assert(delete_result != null);
+    assert(!delete_result.success);
+    assert(delete_result.ignored);
+
+    var cards = new Gee.ArrayList<CardSummary>();
+    cards.add(card("a", "p1", "Alpha", 1));
+    assert(!controller.resolve_link_action("", "p1", cards).handled);
+    assert(!controller.resolve_link_action("card:%", "p1", cards).handled);
+    assert(!controller.resolve_link_action("project:%", "p1", cards).handled);
+    assert(!controller.resolve_link_action("ilink:%", "p1", cards).handled);
+}
+
+private void test_update_graph_link_flow_remember_kind_persists_custom_kind() {
+    var controller = new ConnectionsController();
+    var settings = AppSettings.open_or_null();
+    if (settings == null) {
+        assert(true);
+        return;
+    }
+
+    string[] original = settings.get_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS);
+    try {
+        settings.set_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS, {});
+        var api = new HolderLinuxTests.MainControllerFakeApi();
+        var old_link = new CardLink("a", "b", "card", "ref", null, 1);
+
+        bool done = false;
+        ConnectionsMutationResult? out_result = null;
+        controller.update_graph_link_flow.begin(api, old_link, "custom_kind", null, true, settings, (obj, res) => {
+            out_result = controller.update_graph_link_flow.end(res);
+            done = true;
+        });
+        assert(wait_until_true(() => done));
+        assert(out_result != null);
+        assert(out_result.success);
+
+        var stored = new Gee.ArrayList<string>();
+        foreach (var value in settings.get_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS)) {
+            stored.add(value);
+        }
+        assert(stored.contains("custom_kind"));
+    } finally {
+        settings.set_strv(AppSettings.KEY_CUSTOM_CARD_LINK_KINDS, original);
+    }
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     Test.add_func("/holder/connections/ellipsize_title", test_ellipsize_title);
@@ -716,6 +942,20 @@ public static int main(string[] args) {
                   test_group_links_by_kind_preserves_first_seen_order);
     Test.add_func("/holder/connections/resolve_link_action_card_project_ilink_and_unknown",
                   test_resolve_link_action_card_project_ilink_and_unknown);
+    Test.add_func("/holder/connections/internal_links_refresh_target_and_normalized_kind_helpers",
+                  test_internal_links_refresh_target_and_normalized_kind_helpers);
+    Test.add_func("/holder/connections/graph_structure_helpers_cover_counts_lookup_and_dedup",
+                  test_graph_structure_helpers_cover_counts_lookup_and_dedup);
+    Test.add_func("/holder/connections/build_structural_edges_for_selected_and_project",
+                  test_build_structural_edges_for_selected_and_project);
+    Test.add_func("/holder/connections/layout_helpers_and_target_board_height_thresholds",
+                  test_layout_helpers_and_target_board_height_thresholds);
+    Test.add_func("/holder/connections/count_summary_and_increment_helpers",
+                  test_count_summary_and_increment_helpers);
+    Test.add_func("/holder/connections/update_delete_and_resolve_link_action_ignored_paths",
+                  test_update_delete_and_resolve_link_action_ignored_paths);
+    Test.add_func("/holder/connections/update_graph_link_flow_remember_kind_persists_custom_kind",
+                  test_update_graph_link_flow_remember_kind_persists_custom_kind);
     return Test.run();
 }
 
