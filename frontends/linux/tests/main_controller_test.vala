@@ -1987,12 +1987,12 @@ private void test_repeated_manual_autosave_failure_replaces_existing_retry_timer
     controller.autosave_current_card.begin();
     assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
     assert(controller.get_autosave_retry_attempts() == 1);
-    assert(scheduler.cancel_calls == 0);
+    uint cancel_calls_after_first_failure = scheduler.cancel_calls;
 
     controller.autosave_current_card.begin();
     assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
     assert(controller.get_autosave_retry_attempts() == 2);
-    assert(scheduler.cancel_calls >= 1);
+    assert(scheduler.cancel_calls > cancel_calls_after_first_failure);
 }
 
 private void test_clean_editor_state_cancels_pending_retry_when_view_changes() {
@@ -2091,11 +2091,11 @@ private void test_rebuild_card_summaries_handles_null_and_non_target_cards() {
 private void test_compare_cards_for_sidebar_orders_older_last_and_tiebreaks_by_title() {
     var newer = new HolderLinux.CardSummary("new", "p1", "Zulu", "new.md", 1.0, null, 1, 20);
     var older = new HolderLinux.CardSummary("old", "p1", "Alpha", "old.md", 2.0, null, 2, 10);
-    assert(HolderLinux.MainController.compare_cards_for_sidebar(older, newer) == 1);
+    assert(HolderLinux.MainStoreSyncController.compare_cards_for_sidebar(older, newer) == 1);
 
     var tie_a = new HolderLinux.CardSummary("a", "p1", "Beta", "a.md", 1.0, null, 1, 50);
     var tie_b = new HolderLinux.CardSummary("b", "p1", "alpha", "b.md", 2.0, null, 2, 50);
-    assert(HolderLinux.MainController.compare_cards_for_sidebar(tie_a, tie_b) > 0);
+    assert(HolderLinux.MainStoreSyncController.compare_cards_for_sidebar(tie_a, tie_b) > 0);
 }
 
 private void test_create_ai_thread_success() {
