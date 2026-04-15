@@ -5,6 +5,8 @@ namespace HolderLinuxTests {
 public delegate void ListCardsBeforeCompleteHook(string project_id);
 public delegate void HealthBeforeCompleteHook();
 public delegate void ListResourcesBeforeCompleteHook(string project_id);
+public delegate void GetCardBeforeCompleteHook(string card_id);
+public delegate void ListTrashBeforeCompleteHook(string project_id, string type);
 
 public class FakeClock : Object, HolderLinux.IClock {
     public int64 now_value = 1000;
@@ -146,6 +148,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool list_projects_empty_first = false;
     public bool fail_list_projects = false;
     public bool fail_list_projects_once = false;
+    public bool blank_project_sync_status = false;
+    public bool omit_project_sync_retry_times = false;
     public bool list_cards_empty = false;
     public bool slow_create_card = false;
     public bool list_threads_empty = false;
@@ -174,6 +178,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_test_project_git_remote = false;
     public bool fail_push_project_git = false;
     public bool fail_list_trash = false;
+    public bool fail_list_trash_once = false;
     public bool fail_empty_trash = false;
     public bool fail_restore_trash = false;
     public bool fail_hard_delete_trash = false;
@@ -214,6 +219,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public ListCardsBeforeCompleteHook? list_cards_before_complete_hook = null;
     public HealthBeforeCompleteHook? health_before_complete_hook = null;
     public ListResourcesBeforeCompleteHook? list_resources_before_complete_hook = null;
+    public GetCardBeforeCompleteHook? get_card_before_complete_hook = null;
+    public ListTrashBeforeCompleteHook? list_trash_before_complete_hook = null;
     public Gee.ArrayList<string?> health_check_sequence = new Gee.ArrayList<string?>();
 
     public async void health_check() throws Error {
@@ -289,14 +296,14 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                 1710000100,
                 2,
                 3,
-                "pushed",
+                blank_project_sync_status ? "   " : "pushed",
                 "pulled",
                 "last sync failed",
                 null,
                 4,
-                1710000200,
+                omit_project_sync_retry_times ? (int64?) null : (int64?) 1710000200,
                 5,
-                1710000300
+                omit_project_sync_retry_times ? (int64?) null : (int64?) 1710000300
             )
         ));
         return projects;
@@ -425,6 +432,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         if (fail_get_card) {
             throw new IOError.FAILED(get_card_failure_message);
         }
+        if (get_card_before_complete_hook != null) {
+            ((!) get_card_before_complete_hook)(card_id);
+        }
         return new HolderLinux.CardDetail(card_id, "p1", "Card 1", "# Card 1\n\nBody", 20);
     }
 
@@ -479,6 +489,13 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
 
     public async Gee.ArrayList<HolderLinux.TrashItem> list_trash_items(string project_id,
                                                                         string type = "all") throws Error {
+        if (list_trash_before_complete_hook != null) {
+            ((!) list_trash_before_complete_hook)(project_id, type);
+        }
+        if (fail_list_trash_once) {
+            fail_list_trash_once = false;
+            throw new IOError.FAILED("list trash failed");
+        }
         if (fail_list_trash) {
             throw new IOError.FAILED("list trash failed");
         }

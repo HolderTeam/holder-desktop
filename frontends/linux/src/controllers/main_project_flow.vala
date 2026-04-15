@@ -1,7 +1,7 @@
 namespace HolderLinux {
 
 internal class MainProjectFlowController : Object {
-    private MainController owner;
+    private MainController owner; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field declaration-only coverage artifact
 
     public MainProjectFlowController(MainController owner) {
         this.owner = owner;

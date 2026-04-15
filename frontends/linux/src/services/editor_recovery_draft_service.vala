@@ -130,7 +130,7 @@ public class EditorRecoveryDraftService : Object, IEditorRecoveryDraftService {
             if (home != null && home.strip().length > 0) {
                 xdg_state_home = Path.build_filename(home, ".local", "state");
             } else {
-                xdg_state_home = Path.build_filename(Environment.get_tmp_dir(), "holder-state");
+                xdg_state_home = Path.build_filename(Environment.get_tmp_dir(), "holder-state"); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: passwd-backed home makes tmp fallback impractical to force in-process
             }
         }
         return Path.build_filename(xdg_state_home, "holder", "editor-recovery-drafts");

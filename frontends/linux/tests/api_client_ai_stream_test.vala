@@ -207,6 +207,22 @@ private void test_run_ai_stream_eof_without_blank_line_emits_last_event() {
     assert(payload_ok);
 }
 
+private void test_run_ai_stream_serializes_runner_and_model_fields() {
+    var body = HolderLinux.ApiClientAiStream.build_request_body_text(
+        "hello",
+        null,
+        null,
+        null,
+        null,
+        null,
+        "runner-local",
+        "qwen3:4b"
+    );
+
+    assert(body.contains("\"runner_id\":\"runner-local\""));
+    assert(body.contains("\"model\":\"qwen3:4b\""));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -220,6 +236,8 @@ public static int main(string[] args) {
                   test_run_ai_stream_sse_read_error_maps_to_transport);
     Test.add_func("/api_client_ai_stream/run_ai_stream_eof_without_blank_line_emits_last_event",
                   test_run_ai_stream_eof_without_blank_line_emits_last_event);
+    Test.add_func("/api_client_ai_stream/run_ai_stream_serializes_runner_and_model_fields",
+                  test_run_ai_stream_serializes_runner_and_model_fields);
 
     return Test.run();
 }

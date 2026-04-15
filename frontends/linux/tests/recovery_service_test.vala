@@ -181,6 +181,35 @@ private void test_load_payload_from_path_validates_inputs() {
     }
 }
 
+private void test_save_payload_to_path_reports_file_error() {
+    var service = new HolderLinux.RecoveryService();
+    var temp_dir = make_temp_dir();
+    var blocked_path = Path.build_filename(temp_dir, "blocked");
+    assert(DirUtils.create(blocked_path, 0700) == 0);
+
+    try {
+        service.save_payload_to_path(blocked_path, "payload");
+        assert_not_reached();
+    } catch (Error e) {
+        assert(e.message.length > 0);
+    }
+}
+
+private void test_load_payload_from_path_reports_file_error() {
+    var service = new HolderLinux.RecoveryService();
+    var temp_dir = make_temp_dir();
+    var dir_path = Path.build_filename(temp_dir, "blocked");
+    assert(DirUtils.create(dir_path, 0700) == 0);
+
+    try {
+        service.load_payload_from_path(dir_path);
+        assert_not_reached();
+    } catch (Error e) {
+        assert(e.message.length > 0);
+        assert(!e.message.contains("Selected file is empty."));
+    }
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -198,6 +227,10 @@ public static int main(string[] args) {
                   test_save_payload_to_path_validates_inputs);
     Test.add_func("/holder/recovery-service/load-payload-from-path-validates-inputs",
                   test_load_payload_from_path_validates_inputs);
+    Test.add_func("/holder/recovery-service/save-payload-to-path-reports-file-error",
+                  test_save_payload_to_path_reports_file_error);
+    Test.add_func("/holder/recovery-service/load-payload-from-path-reports-file-error",
+                  test_load_payload_from_path_reports_file_error);
 
     return Test.run();
 }

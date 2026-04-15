@@ -167,6 +167,105 @@ private void test_refresh_stale_serial_success_and_error_paths_no_state_update()
     assert(!got_error);
 }
 
+private void test_refresh_stale_no_project_and_no_api_paths_no_state_update() {
+    var api = new MainControllerFakeApi();
+    var controller = new HolderLinux.TrashController();
+    controller.set_api_client(api);
+    controller.set_project_selection(project_selection_with_one());
+    assert(wait_for_condition(() => api.list_trash_calls > 0));
+
+    uint state_changes = 0;
+    controller.state_changed.connect(() => {
+        state_changes++;
+    });
+
+    controller.set_project_selection(null);
+    assert(wait_for_condition(() => state_changes > 0));
+    var before_stale_no_project = state_changes;
+    bool stale_no_project_done = false;
+    controller.refresh.begin(1, (obj, res) => {
+        controller.refresh.end(res);
+        stale_no_project_done = true;
+    });
+    assert(wait_for_condition(() => stale_no_project_done));
+    assert(state_changes == before_stale_no_project);
+    assert(controller.scope_text == "Projects / (none) / Trash");
+    assert(controller.empty_visible);
+    assert(!controller.empty_trash_sensitive);
+
+    controller.set_project_selection(project_selection_with_one());
+    assert(wait_for_condition(() => state_changes > before_stale_no_project));
+    assert(wait_for_condition(() => controller.scope_text == "Projects / Project 1 / Trash"));
+
+    controller.set_api_client(null);
+    assert(wait_for_condition(() => state_changes > before_stale_no_project + 1));
+    var before_stale_no_api = state_changes;
+    bool stale_no_api_done = false;
+    controller.refresh.begin(4, (obj, res) => {
+        controller.refresh.end(res);
+        stale_no_api_done = true;
+    });
+    assert(wait_for_condition(() => stale_no_api_done));
+    assert(state_changes == before_stale_no_api);
+    assert(controller.scope_text == "Projects / Project 1 / Trash");
+    assert(controller.empty_visible);
+    assert(!controller.empty_trash_sensitive);
+}
+
+private void test_refresh_stale_success_and_error_after_async_do_not_mutate_state() {
+    var api = new MainControllerFakeApi();
+    api.trash_items.add(new HolderLinux.TrashItem("card", "c-old", "Old", 1700000000));
+
+    var controller = new HolderLinux.TrashController();
+    controller.set_api_client(api);
+    controller.set_project_selection(project_selection_with_one());
+    assert(wait_for_condition(() => controller.items_store.get_n_items() == 1));
+
+    api.trash_items.clear();
+    api.trash_items.add(new HolderLinux.TrashItem("card", "c-new", "New", 1700000001));
+    api.list_trash_before_complete_hook = (project_id, type) => {
+        api.list_trash_before_complete_hook = null;
+        controller.queue_refresh();
+    };
+
+    bool stale_success_done = false;
+    controller.refresh.begin(2, (obj, res) => {
+        controller.refresh.end(res);
+        stale_success_done = true;
+    });
+    assert(wait_for_condition(() => stale_success_done));
+    api.list_trash_before_complete_hook = null;
+    assert(wait_for_condition(() => controller.items_store.get_n_items() == 1));
+    assert(controller.scope_text == "Projects / Project 1 / Trash");
+    assert(!controller.empty_visible);
+    assert(controller.empty_trash_sensitive);
+    assert(controller.items_store.get_n_items() == 1);
+    var current_item = controller.items_store.get_item(0) as HolderLinux.TrashItem;
+    assert(current_item != null);
+    assert(((!) current_item).item_id == "c-new");
+}
+
+private void test_refresh_replaces_store_when_item_count_shrinks() {
+    var api = new MainControllerFakeApi();
+    api.trash_items.add(new HolderLinux.TrashItem("card", "c1", "Card 1", 1700000000));
+    api.trash_items.add(new HolderLinux.TrashItem("ai_message", "m1", "assistant: m1", 1700000001));
+
+    var controller = new HolderLinux.TrashController();
+    controller.set_api_client(api);
+    controller.set_project_selection(project_selection_with_one());
+
+    assert(wait_for_condition(() => controller.items_store.get_n_items() == 2));
+
+    api.trash_items.clear();
+    api.trash_items.add(new HolderLinux.TrashItem("card", "c2", "Card 2", 1700000002));
+    controller.queue_refresh();
+
+    assert(wait_for_condition(() => controller.items_store.get_n_items() == 1));
+    var item = controller.items_store.get_item(0) as HolderLinux.TrashItem;
+    assert(item != null);
+    assert(((!) item).item_id == "c2");
+}
+
 private void test_restore_hard_delete_and_empty_actions() {
     var api = new MainControllerFakeApi();
     var controller = new HolderLinux.TrashController();
@@ -339,6 +438,12 @@ public static int main(string[] args) {
     Test.add_func("/holder/trash-controller/refresh-no-api", test_refresh_with_project_and_no_api_shows_api_unavailable);
     Test.add_func("/holder/trash-controller/selection-notify-refresh", test_project_selection_notify_selected_triggers_refresh);
     Test.add_func("/holder/trash-controller/stale-serial-success-and-error", test_refresh_stale_serial_success_and_error_paths_no_state_update);
+    Test.add_func("/holder/trash-controller/stale-no-project-and-no-api",
+                  test_refresh_stale_no_project_and_no_api_paths_no_state_update);
+    Test.add_func("/holder/trash-controller/stale-async-success-and-error",
+                  test_refresh_stale_success_and_error_after_async_do_not_mutate_state);
+    Test.add_func("/holder/trash-controller/refresh-replaces-store-when-count-shrinks",
+                  test_refresh_replaces_store_when_item_count_shrinks);
     Test.add_func("/holder/trash-controller/actions", test_restore_hard_delete_and_empty_actions);
     Test.add_func("/holder/trash-controller/actions-no-api", test_actions_with_no_api_are_noops);
     Test.add_func("/holder/trash-controller/action-failures-emit-errors", test_action_failures_emit_errors);

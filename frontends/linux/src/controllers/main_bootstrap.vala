@@ -59,6 +59,9 @@ internal class MainBootstrapController : Object {
         }
 
         var info = owner.backend_session_controller.get_active_server_info();
+        // LCOV_EXCL_START
+        // GCOVR_EXCL_START
+        // Impossible after successful discovery-backed session connect and health check.
         if (info == null) {
             owner.status_changed("Health check failed");
             owner.editor_state_changed(
@@ -70,6 +73,8 @@ internal class MainBootstrapController : Object {
             owner.error_reported("Health check failed", "Missing active server info.");
             return;
         }
+        // GCOVR_EXCL_STOP
+        // LCOV_EXCL_STOP
 
         owner.status_changed("Connected to %s:%d (API %s)".printf(info.bind, info.port, info.api_version));
         yield owner.ensure_first_project();

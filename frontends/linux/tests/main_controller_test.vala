@@ -640,6 +640,30 @@ private void test_open_search_result_missing_card_falls_back_to_first_card() {
     assert(controller.get_current_card() == null);
 }
 
+private void test_open_search_result_reload_failure_returns_null() {
+    var api = new MainControllerFakeApi();
+    api.include_card2 = false;
+    api.search_returns_card2 = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    search_text.value = "card2";
+    controller.run_search.begin();
+    assert(wait_for_condition(() => api.search_calls == 1));
+
+    var list_cards_before = api.list_cards_calls;
+    api.fail_list_cards_once = true;
+    var prepared = prepare_search_result_card(controller, 0);
+    assert(wait_for_condition(() => api.list_cards_calls > list_cards_before));
+    assert(prepared == null);
+}
+
 private void test_run_search_without_project_emits_error() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -788,6 +812,53 @@ private void test_selected_ids_and_api_getter() {
 
     assert(controller.selected_project_id() == "p1");
     assert(controller.selected_card_id() == "c1");
+}
+
+private void test_list_ai_messages_without_api_throws_no_api_context() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock, null, null, false);
+    var controller = harness.controller;
+
+    bool done = false;
+    bool got_error = false;
+    controller.list_ai_messages.begin("t1", (obj, res) => {
+        try {
+            controller.list_ai_messages.end(res);
+        } catch (Error e) {
+            got_error = e.message.contains("No API context.");
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_error);
+    assert(api.list_ai_messages_calls == 0);
+}
+
+private void test_list_ai_messages_with_api_passthrough() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.AiMessage>? messages = null;
+    controller.list_ai_messages.begin("t1", (obj, res) => {
+        try {
+            messages = controller.list_ai_messages.end(res);
+        } catch (Error e) {
+            assert_not_reached();
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(messages != null);
+    assert(messages.size == 0);
+    assert(api.list_ai_messages_calls == 1);
 }
 
 private void test_reload_everything_with_no_api_is_noop() {
@@ -2666,6 +2737,10 @@ int main(string[] args) {
         test_open_search_result_missing_card_falls_back_to_first_card
     );
     Test.add_func(
+        "/main_controller/open_search_result_reload_failure_returns_null",
+        test_open_search_result_reload_failure_returns_null
+    );
+    Test.add_func(
         "/main_controller/run_search_without_project_emits_error",
         test_run_search_without_project_emits_error
     );
@@ -2940,6 +3015,14 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/bootstrap_success_emits_ready_and_refresh",
         test_bootstrap_success_emits_ready_and_refresh
+    );
+    Test.add_func(
+        "/main_controller/list_ai_messages_without_api_throws_no_api_context",
+        test_list_ai_messages_without_api_throws_no_api_context
+    );
+    Test.add_func(
+        "/main_controller/list_ai_messages_with_api_passthrough",
+        test_list_ai_messages_with_api_passthrough
     );
     Test.add_func(
         "/main_controller/bootstrap_creates_first_project_when_empty_first",

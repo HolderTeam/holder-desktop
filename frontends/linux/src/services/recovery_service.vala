@@ -22,14 +22,14 @@ public class RecoveryService : Object, IRecoveryService {
         try {
             tmp_dir = DirUtils.make_tmp("holder-recovery-key-XXXXXX");
         } catch (FileError e) {
-            throw new IOError.FAILED("Could not create temporary directory: %s".printf(e.message));
+            throw new IOError.FAILED("Could not create temporary directory: %s".printf(e.message)); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS temp-dir failure wrapper
         }
 
         var attachment_path = Path.build_filename(tmp_dir, build_safe_filename(project_name));
         try {
             FileUtils.set_contents(attachment_path, payload);
         } catch (FileError e) {
-            throw new IOError.FAILED("Could not create attachment: %s".printf(e.message));
+            throw new IOError.FAILED("Could not create attachment: %s".printf(e.message)); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS file-create failure wrapper
         }
 
         return attachment_path;

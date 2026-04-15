@@ -115,6 +115,11 @@ private void test_replace_requested_handles_no_match_and_errors() {
         error_details = details;
     });
 
+    controller.on_replace_requested("   ", "replacement");
+    assert(last_toast == "Enter text to find.");
+    assert(ops.replace_next_calls == 0);
+    assert(ops.find_next_calls == 0);
+
     ops.replace_next_result = false;
     controller.on_replace_requested("needle", "replacement");
     assert(last_toast == "No match found.");

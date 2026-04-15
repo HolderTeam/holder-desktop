@@ -212,6 +212,25 @@ private void test_clear_delegates_to_store() {
     assert(store.snapshot().size == 0);
 }
 
+private void test_store_discards_oldest_entries_when_capacity_is_exceeded() {
+    var store = new HolderLinux.ActivityLogStore();
+    var controller = new HolderLinux.ActivityLogController(
+        store,
+        new HolderLinux.MainController("proj-cap", "card-cap")
+    );
+
+    for (int i = 0; i < 501; i++) {
+        controller.log("kind.%d".printf(i), "Message %d".printf(i));
+    }
+
+    var entries = store.snapshot();
+    assert(entries.size == 500);
+    assert(entries[0].kind == "kind.1");
+    assert(entries[0].message == "Message 1");
+    assert(entries[entries.size - 1].kind == "kind.500");
+    assert(entries[entries.size - 1].message == "Message 500");
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     Test.add_func("/holder/activity-log/log-appends-explicit-values", test_log_appends_explicit_values);
@@ -223,6 +242,8 @@ public static int main(string[] args) {
     Test.add_func("/holder/activity-log/selection-helpers", test_selection_helpers_log_selected_entities);
     Test.add_func("/holder/activity-log/ai-thread-selection-default-card-id", test_ai_thread_selection_defaults_card_id_to_null);
     Test.add_func("/holder/activity-log/clear-delegates-to-store", test_clear_delegates_to_store);
+    Test.add_func("/holder/activity-log/store-discards-oldest-entries-when-capacity-is-exceeded",
+                  test_store_discards_oldest_entries_when_capacity_is_exceeded);
     return Test.run();
 }
 

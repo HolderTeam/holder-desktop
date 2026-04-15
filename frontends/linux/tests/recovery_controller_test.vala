@@ -135,6 +135,27 @@ private void test_import_recovery_token_calls_reload() {
     assert(context.reload_calls == 1);
 }
 
+private void test_import_recovery_token_requires_api() {
+    var context = new FakeRecoveryContext();
+    var service = new FakeRecoveryService();
+    var controller = new HolderLinux.RecoveryController(context, service);
+
+    bool done = false;
+    bool got_error = false;
+    controller.import_recovery_token.begin("1234", "{\"token\":\"x\"}", (obj, res) => {
+        try {
+            controller.import_recovery_token.end(res);
+        } catch (Error e) {
+            got_error = e.message.contains("API client not connected");
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_error);
+    assert(context.reload_calls == 0);
+}
+
 private void test_service_passthrough_methods() {
     var context = new FakeRecoveryContext();
     var service = new FakeRecoveryService();
@@ -189,6 +210,8 @@ public static int main(string[] args) {
                   test_export_recovery_token_rejects_empty_payload);
     Test.add_func("/recovery_controller/import_recovery_token_calls_reload",
                   test_import_recovery_token_calls_reload);
+    Test.add_func("/recovery_controller/import_recovery_token_requires_api",
+                  test_import_recovery_token_requires_api);
     Test.add_func("/recovery_controller/service_passthrough_methods",
                   test_service_passthrough_methods);
 

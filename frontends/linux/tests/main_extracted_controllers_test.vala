@@ -239,6 +239,34 @@ private void test_main_bootstrap_retry_second_health_failure_reports_retry_error
 
 }
 
+private void test_main_bootstrap_reconnect_retry_success_continues_startup() {
+    var api = new MainControllerFakeApi();
+    api.health_check_sequence.add("connection reset");
+    api.health_check_sequence.add(null);
+    api.health_check_sequence.add(null);
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock, null, null, false);
+    var bootstrap = new HolderLinux.MainBootstrapController(harness.controller);
+
+    bool ready = false;
+    bool saw_connected = false;
+    harness.controller.status_changed.connect((text) => {
+        if (text.contains("Connected to")) {
+            saw_connected = true;
+        }
+    });
+    harness.controller.ai_status_refresh_requested.connect(() => {
+        ready = true;
+    });
+
+    bootstrap.bootstrap.begin();
+    assert(wait_for_condition(() => ready));
+    assert(api.factory_create_calls >= 1);
+    assert(saw_connected);
+    assert(harness.controller.get_current_project() != null);
+}
+
 private void test_main_project_flow_retry_fallback_and_loading_status() {
     var api = new MainControllerFakeApi();
     api.include_card2 = true;
@@ -343,6 +371,34 @@ private void test_main_card_load_status_cancel_and_retry() {
     assert(api.get_card_calls >= 4);
 }
 
+private void test_main_card_load_debounce_emits_loading_status_for_still_selected_card() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var card_load = new HolderLinux.MainCardLoadController(harness.controller);
+
+    harness.controller.reload_everything.begin();
+    assert(wait_for_condition(() => harness.card_store.get_n_items() > 0));
+    harness.card_selection.set_selected_index(0);
+
+    bool saw_loading = false;
+    harness.controller.status_changed.connect((text) => {
+        if (text == "Loading card...") {
+            saw_loading = true;
+        }
+    });
+
+    api.get_card_before_complete_hook = (card_id) => {
+        api.get_card_before_complete_hook = null;
+        scheduler.run_all_once();
+    };
+    card_load.load_card_by_id.begin("c1");
+
+    assert(wait_for_condition(() => saw_loading));
+    assert(harness.controller.card_loading_status_id == 0);
+}
+
 private void test_main_overview_stale_and_selection_change_paths() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -392,6 +448,42 @@ private void test_main_overview_stale_and_selection_change_paths() {
     assert(harness.editor_text.value == prior_editor);
 }
 
+private void test_main_overview_stale_returns_after_success_and_failure_resource_paths() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var overview = new HolderLinux.MainOverviewController(harness.controller);
+
+    harness.controller.reload_everything.begin();
+    assert(wait_for_condition(() => harness.project_store.get_n_items() > 0));
+    harness.project_selection.set_selected_index(0);
+
+    int loaded_count = 0;
+    harness.controller.status_changed.connect((text) => {
+        if (text == "Loaded project overview") {
+            loaded_count++;
+        }
+    });
+
+    api.list_resources_before_complete_hook = (project_id) => {
+        api.list_resources_before_complete_hook = null;
+        overview.show_project_overview.begin();
+    };
+    overview.show_project_overview.begin();
+    assert(wait_for_condition(() => loaded_count >= 1));
+
+    api.fail_list_resources = true;
+    api.list_resources_failure_message = "resources failed";
+    api.list_resources_before_complete_hook = (project_id) => {
+        api.list_resources_before_complete_hook = null;
+        api.fail_list_resources = false;
+        overview.show_project_overview.begin();
+    };
+    overview.show_project_overview.begin();
+    assert(wait_for_condition(() => loaded_count >= 2));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     Log.set_always_fatal(LogLevelFlags.LEVEL_ERROR);
@@ -413,6 +505,10 @@ public static int main(string[] args) {
         test_main_bootstrap_retry_second_health_failure_reports_retry_error
     );
     Test.add_func(
+        "/main_extracted_controllers/main_bootstrap_reconnect_retry_success_continues_startup",
+        test_main_bootstrap_reconnect_retry_success_continues_startup
+    );
+    Test.add_func(
         "/main_extracted_controllers/main_project_flow_retry_fallback_and_loading_status",
         test_main_project_flow_retry_fallback_and_loading_status
     );
@@ -421,8 +517,16 @@ public static int main(string[] args) {
         test_main_card_load_status_cancel_and_retry
     );
     Test.add_func(
+        "/main_extracted_controllers/main_card_load_debounce_emits_loading_status_for_still_selected_card",
+        test_main_card_load_debounce_emits_loading_status_for_still_selected_card
+    );
+    Test.add_func(
         "/main_extracted_controllers/main_overview_stale_and_selection_change_paths",
         test_main_overview_stale_and_selection_change_paths
+    );
+    Test.add_func(
+        "/main_extracted_controllers/main_overview_stale_returns_after_success_and_failure_resource_paths",
+        test_main_overview_stale_returns_after_success_and_failure_resource_paths
     );
 
     return Test.run();

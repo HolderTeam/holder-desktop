@@ -1,18 +1,14 @@
 namespace HolderLinux {
 
 public class ApiClientAiStream : Object { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: declaration branch artifact
-    public static async void run(IApiHttpTransport transport, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: async signature branch artifact
-                                 string base_url,
-                                 string auth_token,
-                                 string prompt,
-                                 string? project_id,
-                                 string? thread_id,
-                                 string? context_card_id,
-                                 string? context_card_title,
-                                 string? context_card_body,
-                                 AiRunEventHandler on_event,
-                                 string? runner_id = null,
-                                 string? model = null) throws Error {
+    internal static string build_request_body_text(string prompt,
+                                                   string? project_id,
+                                                   string? thread_id,
+                                                   string? context_card_id,
+                                                   string? context_card_title,
+                                                   string? context_card_body,
+                                                   string? runner_id = null,
+                                                   string? model = null) {
         var body = new Json.Builder();
         body.begin_object();
         body.set_member_name("prompt");
@@ -51,11 +47,34 @@ public class ApiClientAiStream : Object { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LIN
             body.end_object();
         }
         body.end_object();
+        return ApiClientTransport.json_string_from_builder(body);
+    }
 
+    public static async void run(IApiHttpTransport transport, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: async signature branch artifact
+                                 string base_url,
+                                 string auth_token,
+                                 string prompt,
+                                 string? project_id,
+                                 string? thread_id,
+                                 string? context_card_id,
+                                 string? context_card_title,
+                                 string? context_card_body,
+                                 AiRunEventHandler on_event,
+                                 string? runner_id = null,
+                                 string? model = null) throws Error {
         var message = new Soup.Message("POST", base_url + "/ai/runs");
         message.request_headers.append("Authorization", "Bearer %s".printf(auth_token));
         message.request_headers.append("Accept", "text/event-stream");
-        var body_text = ApiClientTransport.json_string_from_builder(body);
+        var body_text = build_request_body_text(
+            prompt,
+            project_id,
+            thread_id,
+            context_card_id,
+            context_card_title,
+            context_card_body,
+            runner_id,
+            model
+        );
         message.set_request_body_from_bytes("application/json", new Bytes((uint8[]) body_text.data)); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: ctor/allocator edge branch artifact
 
         ApiHttpStreamResponse response;

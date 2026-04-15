@@ -1500,6 +1500,35 @@ app_transition_test_exe = executable(
 
 test('holder-linux-app-transition-tests', app_transition_test_exe)
 
+app_state_test_exe = executable(
+  'holder-linux-app-state-tests',
+  [
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/state/app_state.vala',
+    'tests/app_state_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-app-state-tests', app_state_test_exe)
+
 selection_transition_test_exe = executable(
   'holder-linux-selection-transition-tests',
   [

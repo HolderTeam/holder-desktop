@@ -146,6 +146,29 @@ private void test_local_info_includes_sync_status_times_and_errors_for_remote_pr
     assert(!text.contains("next `never`"));
 }
 
+private void test_local_info_uses_unknown_push_status_and_never_retry_times_when_sync_fields_are_blank() {
+    var api = new MainControllerFakeApi();
+    api.blank_project_sync_status = true;
+    api.omit_project_sync_retry_times = true;
+    var local_info = new HolderLinux.LocalInfoController();
+
+    bool done = false;
+    string text = "";
+    local_info.build_local_info_markdown.begin(api, (obj, res) => {
+        try {
+            text = local_info.build_local_info_markdown.end(res);
+        } catch (Error e) {
+            text = "";
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(text.contains("- Project 1: push `unknown`"));
+    assert(text.contains("push_retry `4` (next `never`)"));
+    assert(text.contains("pull_retry `5` (next `never`)"));
+}
+
 private void test_local_info_propagates_health_error() {
     var api = new MainControllerFakeApi();
     api.fail_health = true;
@@ -179,6 +202,8 @@ public static int main(string[] args) {
                   test_local_info_lists_available_local_models);
     Test.add_func("/local_info/includes_sync_status_times_and_errors_for_remote_projects",
                   test_local_info_includes_sync_status_times_and_errors_for_remote_projects);
+    Test.add_func("/local_info/uses_unknown_push_status_and_never_retry_times_when_sync_fields_are_blank",
+                  test_local_info_uses_unknown_push_status_and_never_retry_times_when_sync_fields_are_blank);
     Test.add_func("/local_info/propagates_health_error",
                   test_local_info_propagates_health_error);
 

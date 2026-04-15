@@ -181,9 +181,28 @@ private void test_validate_pin_and_export_prepare_behaviour() {
     assert(recovery.open_email_calls == 1);
     assert(last_toast == "Opened default email app with recovery key attachment.");
 
+    recovery.export_error = new HolderLinux.TestRecoveryError.FAILED("email export failed");
+    var export_error_done = new BoolFlag();
+    controller.export_for_email.begin(project, "1234", (obj, res) => {
+        controller.export_for_email.end(res);
+        export_error_done.value = true;
+    });
+    wait_for_bool(export_error_done);
+    assert(error_title == "Recovery key email failed");
+    assert(error_details == "email export failed");
+
+    var prepare_no_project_done = new BoolFlag();
+    HolderLinux.RecoverySavePreparation? prep = null;
+    controller.prepare_export_save.begin(null, "1234", (obj, res) => {
+        prep = controller.prepare_export_save.end(res);
+        prepare_no_project_done.value = true;
+    });
+    wait_for_bool(prepare_no_project_done);
+    assert(prep == null);
+    assert(last_toast == "Select a project first.");
+
     recovery.export_error = new HolderLinux.TestRecoveryError.FAILED("export failed");
     var prepare_done = new BoolFlag();
-    HolderLinux.RecoverySavePreparation? prep = null;
     controller.prepare_export_save.begin(project, "1234", (obj, res) => {
         prep = controller.prepare_export_save.end(res);
         prepare_done.value = true;

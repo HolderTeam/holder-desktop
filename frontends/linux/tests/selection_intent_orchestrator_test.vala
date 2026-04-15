@@ -397,6 +397,30 @@ private void test_search_selection_requested_sets_mapped_position() {
     assert(search_selection.get_selected() == 2);
 }
 
+private void test_search_selection_requested_ignores_already_selected_target() {
+    HolderLinux.SelectionIntentController intents;
+    HolderLinux.MainController controller;
+    Gtk.SingleSelection project_selection;
+    Gtk.SingleSelection card_selection;
+    Gtk.SingleSelection ai_thread_selection;
+    Gtk.SingleSelection search_selection;
+    GLib.ListStore card_store;
+    HolderLinux.SearchSelectionController search_selection_controller;
+    var orchestrator = make_orchestrator(
+        out intents, out controller, out project_selection, out card_selection,
+        out ai_thread_selection, out search_selection, out card_store,
+        out search_selection_controller
+    );
+
+    search_selection_controller.mapped_position = 1;
+    list_store_from_selection(search_selection).append(new Object());
+    list_store_from_selection(search_selection).append(new Object());
+    search_selection.set_selected(1);
+
+    orchestrator.on_search_selection_requested(42);
+    assert(search_selection.get_selected() == 1);
+}
+
 private void test_search_result_activation_uses_card_resolver() {
     HolderLinux.SelectionIntentController intents;
     HolderLinux.MainController controller;
@@ -425,6 +449,33 @@ private void test_search_result_activation_uses_card_resolver() {
     assert(intents.last_search_activation_position == 3);
     assert(intents.resolved_search_card != null);
     assert(((!) intents.resolved_search_card).card_id == "c-search");
+}
+
+private void test_search_result_activation_handles_missing_resolved_card() {
+    HolderLinux.SelectionIntentController intents;
+    HolderLinux.MainController controller;
+    Gtk.SingleSelection project_selection;
+    Gtk.SingleSelection card_selection;
+    Gtk.SingleSelection ai_thread_selection;
+    Gtk.SingleSelection search_selection;
+    GLib.ListStore card_store;
+    HolderLinux.SearchSelectionController search_selection_controller;
+    var orchestrator = make_orchestrator(
+        out intents, out controller, out project_selection, out card_selection,
+        out ai_thread_selection, out search_selection, out card_store,
+        out search_selection_controller
+    );
+
+    bool done = false;
+    orchestrator.on_search_result_activation.begin(7, (obj, res) => {
+        orchestrator.on_search_result_activation.end(res);
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(intents.on_search_result_activation_calls == 1);
+    assert(intents.last_search_activation_position == 7);
+    assert(intents.resolved_search_card == null);
 }
 
 private void test_open_card_with_transition_delegates() {
@@ -480,6 +531,92 @@ private void test_select_project_with_transition_delegates() {
     assert(intents.last_project_selection_requested_id == "project-requested");
 }
 
+private void test_select_project_with_transition_ignores_blank_id() {
+    HolderLinux.SelectionIntentController intents;
+    HolderLinux.MainController controller;
+    Gtk.SingleSelection project_selection;
+    Gtk.SingleSelection card_selection;
+    Gtk.SingleSelection ai_thread_selection;
+    Gtk.SingleSelection search_selection;
+    GLib.ListStore card_store;
+    HolderLinux.SearchSelectionController search_selection_controller;
+    var orchestrator = make_orchestrator(
+        out intents, out controller, out project_selection, out card_selection,
+        out ai_thread_selection, out search_selection, out card_store,
+        out search_selection_controller
+    );
+
+    bool done = false;
+    orchestrator.select_project_with_transition.begin("   ", (obj, res) => {
+        orchestrator.select_project_with_transition.end(res);
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(intents.on_project_selection_requested_calls == 0);
+}
+
+private void test_project_selection_changed_emits_activity_logger() {
+    var intents = new HolderLinux.SelectionIntentController();
+    var transition = new HolderLinux.SelectionTransitionController();
+    var selection = new HolderLinux.SelectionController();
+    var controller = new HolderLinux.MainController();
+    var flowboard = new HolderLinux.FlowboardController();
+
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    var card_selection = new Gtk.SingleSelection(card_store);
+    var ai_thread_store = new GLib.ListStore(typeof(HolderLinux.AiThreadSummary));
+    var ai_thread_selection = new Gtk.SingleSelection(ai_thread_store);
+    var search_store = new GLib.ListStore(typeof(Object));
+    var search_selection = new Gtk.SingleSelection(search_store);
+    var search_selection_controller = new HolderLinux.SearchSelectionController();
+
+    int activity_calls = 0;
+    string? last_kind = null;
+    string? last_message = null;
+    string? last_project_id = null;
+    string? last_card_id = "sentinel";
+
+    var orchestrator = new HolderLinux.SelectionIntentOrchestrator(
+        intents,
+        transition,
+        selection,
+        controller,
+        flowboard,
+        project_selection,
+        card_selection,
+        ai_thread_selection,
+        search_selection,
+        card_store,
+        search_selection_controller,
+        (kind, message, project_id, card_id) => {
+            activity_calls++;
+            last_kind = kind;
+            last_message = message;
+            last_project_id = project_id;
+            last_card_id = card_id;
+        }
+    );
+
+    project_store.append(new HolderLinux.Project("p-log", "Project Log"));
+    project_selection.set_selected(0);
+
+    bool done = false;
+    orchestrator.on_project_selection_changed.begin((obj, res) => {
+        orchestrator.on_project_selection_changed.end(res);
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(activity_calls == 1);
+    assert(last_kind == "intent.project.select");
+    assert(last_message == "Project selected: Project Log");
+    assert(last_project_id == "p-log");
+    assert(last_card_id == null);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -495,12 +632,20 @@ public static int main(string[] args) {
                   test_ai_thread_selection_changed_delegates_context);
     Test.add_func("/holder/selection-intent-orchestrator/search-selection-requested",
                   test_search_selection_requested_sets_mapped_position);
+    Test.add_func("/holder/selection-intent-orchestrator/search-selection-requested-noop",
+                  test_search_selection_requested_ignores_already_selected_target);
     Test.add_func("/holder/selection-intent-orchestrator/search-result-activation",
                   test_search_result_activation_uses_card_resolver);
+    Test.add_func("/holder/selection-intent-orchestrator/search-result-activation-missing-card",
+                  test_search_result_activation_handles_missing_resolved_card);
     Test.add_func("/holder/selection-intent-orchestrator/open-card-with-transition",
                   test_open_card_with_transition_delegates);
     Test.add_func("/holder/selection-intent-orchestrator/select-project-with-transition",
                   test_select_project_with_transition_delegates);
+    Test.add_func("/holder/selection-intent-orchestrator/select-project-with-transition-blank-ignored",
+                  test_select_project_with_transition_ignores_blank_id);
+    Test.add_func("/holder/selection-intent-orchestrator/project-selection-changed-activity",
+                  test_project_selection_changed_emits_activity_logger);
 
     return Test.run();
 }

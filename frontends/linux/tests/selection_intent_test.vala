@@ -256,6 +256,34 @@ private void test_search_activation_routes_through_card_open_transition() {
     assert(transitions.last_open_selected_card_id == "c2");
 }
 
+private void test_search_activation_ignores_blank_prepared_card_id() {
+    var intents = new HolderLinux.SelectionIntentController();
+    var transitions = new HolderLinux.SelectionTransitionController();
+    var selection = new HolderLinux.SelectionController();
+    var flowboard = new HolderLinux.FlowboardController();
+    var controller = new HolderLinux.MainController();
+    controller.prepared_search_card_id = "   ";
+
+    bool done = false;
+    intents.on_search_result_activation.begin(
+        0,
+        controller,
+        (card_id) => {
+            return new HolderLinux.CardSummary(card_id, "p2");
+        },
+        transitions,
+        selection,
+        flowboard,
+        (obj, res) => {
+            intents.on_search_result_activation.end(res);
+            done = true;
+        }
+    );
+
+    assert(wait_for_condition(() => done));
+    assert(transitions.run_card_open_transition_calls == 0);
+}
+
 private void test_open_card_with_transition_routes_through_card_open_transition() {
     var intents = new HolderLinux.SelectionIntentController();
     var transitions = new HolderLinux.SelectionTransitionController();
@@ -332,6 +360,8 @@ public int main(string[] args) {
                   test_ai_thread_selection_routes_through_transition);
     Test.add_func("/selection_intent/search_activation_routes_through_card_open_transition",
                   test_search_activation_routes_through_card_open_transition);
+    Test.add_func("/selection_intent/search_activation_ignores_blank_prepared_card_id",
+                  test_search_activation_ignores_blank_prepared_card_id);
     Test.add_func("/selection_intent/open_card_with_transition_routes_through_card_open_transition",
                   test_open_card_with_transition_routes_through_card_open_transition);
     Test.add_func("/selection_intent/open_card_with_transition_ignores_unknown_card",

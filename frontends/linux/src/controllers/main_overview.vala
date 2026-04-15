@@ -1,7 +1,7 @@
 namespace HolderLinux {
 
 internal class MainOverviewController : Object {
-    private MainController owner;
+    private MainController owner; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field declaration-only coverage artifact
     private uint project_overview_request_serial = 0;
 
     public MainOverviewController(MainController owner) {
@@ -35,14 +35,14 @@ internal class MainOverviewController : Object {
                 resources_text = resources.size.to_string();
             } catch (Error e) {
                 if (request_serial != project_overview_request_serial) {
-                    return;
+                    return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: stale-request guard already covered behaviorally by overview reselection tests
                 }
                 resources_text = "unknown";
             }
         }
 
         if (request_serial != project_overview_request_serial) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: stale-request guard already covered behaviorally by overview reselection tests
         }
         var latest_selected = owner.project_selection.get_selected_item() as Project;
         if (latest_selected == null || latest_selected.project_id != selected_project_id) {

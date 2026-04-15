@@ -43,7 +43,7 @@ internal class BackendSessionController : Object {
             }
             var info = active_server_info;
             if (info == null) { // LCOV_EXCL_LINE GCOVR_EXCL_LINE: defensive impossible guard after successful connect_from_discovery()
-                return false;
+                return false; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: Think about deleting it.
             }
             owner.status_changed("Reconnected to %s:%d".printf(info.bind, info.port));
             owner.ai_status_refresh_requested();

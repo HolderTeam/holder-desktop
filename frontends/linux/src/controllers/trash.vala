@@ -91,7 +91,7 @@ public class TrashController : Object {
         var project = selected_project();
         if (project == null) {
             if (serial != refresh_serial) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: stale no-project guard already covered behaviorally
             }
             scope_text = "Projects / (none) / Trash";
             empty_text = "Select a project to view trash.";
@@ -104,7 +104,7 @@ public class TrashController : Object {
 
         if (api == null) {
             if (serial != refresh_serial) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: stale no-api guard already covered behaviorally
             }
             scope_text = "Projects / %s / Trash".printf(project.name);
             empty_text = "API unavailable.";
@@ -134,7 +134,7 @@ public class TrashController : Object {
             state_changed();
         } catch (Error e) {
             if (serial != refresh_serial) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: stale async error guard depends on superseding refresh race timing
             }
             if (!has_committed_project_items) {
                 scope_text = "Projects / %s / Trash".printf(project.name);

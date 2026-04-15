@@ -1585,6 +1585,99 @@ private void test_focus_card_leaf_shows_parent_level() {
     assert(second.card_id == "leaf-b");
 }
 
+private void test_focus_missing_card_is_noop() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("root", "p1", "Root", 1024.0));
+
+    controller.refresh();
+    controller.focus_card("missing");
+
+    assert(controller.is_showing_project_root_level());
+    assert(!controller.is_showing_projects_root());
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 1);
+    var only = tile_at(model, 0);
+    assert(only != null);
+    assert(only.card_id == "root");
+}
+
+private void test_root_mode_getters_reflect_projects_and_nested_states() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("parent", "p1", "Parent", 1024.0));
+    card_store.append(make_card("child", "p1", "Child", 2048.0, "parent"));
+
+    controller.refresh();
+    assert(controller.is_showing_project_root_level());
+    assert(!controller.is_showing_projects_root());
+
+    controller.navigate_to_breadcrumb_index(0);
+    assert(controller.is_showing_projects_root());
+    assert(!controller.is_showing_project_root_level());
+
+    controller.focus_card("parent");
+    assert(!controller.is_showing_projects_root());
+    assert(!controller.is_showing_project_root_level());
+}
+
+private void test_focus_card_handles_non_card_entries_when_detecting_children() {
+    var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
+    var project_selection = new Gtk.SingleSelection(project_store);
+    var card_store = new GLib.ListStore(typeof(GLib.Object));
+    var controller = new HolderLinux.FlowboardController(project_store, project_selection, card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(new GLib.Object());
+    card_store.append(make_card("parent", "p1", "Parent", 1024.0));
+    card_store.append(make_card("child", "p1", "Child", 2048.0, "parent"));
+
+    controller.context_load_requested.connect((project_id, parent_card_id) => {
+        var context = build_context_for_request(project_store, card_store, project_id, parent_card_id);
+        controller.apply_card_context(project_id, parent_card_id, context);
+    });
+
+    controller.focus_card("parent");
+
+    var model = controller.get_visible_model();
+    assert(model.get_n_items() == 1);
+    var only = tile_at(model, 0);
+    assert(only != null);
+    assert(only.card_id == "child");
+}
+
+private void test_focus_orphan_leaf_rebuilds_parent_stack_until_missing_parent() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("sibling", "p1", "Sibling", 1024.0));
+    card_store.append(make_card("orphan", "p1", "Orphan", 2048.0, "missing-parent"));
+
+    controller.focus_card("orphan");
+    assert(controller.is_showing_project_root_level());
+
+    var root_model = controller.get_visible_model();
+    assert(root_model.get_n_items() == 1);
+    var only = tile_at(root_model, 0);
+    assert(only != null);
+    assert(only.card_id == "sibling");
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -1694,6 +1787,14 @@ int main(string[] args) {
                   test_focus_card_container_enters_selected_card_level);
     Test.add_func("/flowboard/focus_card_leaf_shows_parent_level",
                   test_focus_card_leaf_shows_parent_level);
+    Test.add_func("/flowboard/focus_missing_card_is_noop",
+                  test_focus_missing_card_is_noop);
+    Test.add_func("/flowboard/root_mode_getters_reflect_projects_and_nested_states",
+                  test_root_mode_getters_reflect_projects_and_nested_states);
+    Test.add_func("/flowboard/focus_card_handles_non_card_entries_when_detecting_children",
+                  test_focus_card_handles_non_card_entries_when_detecting_children);
+    Test.add_func("/flowboard/focus_orphan_leaf_rebuilds_parent_stack_until_missing_parent",
+                  test_focus_orphan_leaf_rebuilds_parent_stack_until_missing_parent);
 
     return Test.run();
 }
