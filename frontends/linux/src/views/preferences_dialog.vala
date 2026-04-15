@@ -178,14 +178,14 @@ public class PreferencesDialog : Adw.PreferencesDialog {
 
     private uint current_variant_index() {
         if (settings != null) {
-            return color_scheme_to_index(
+            return color_scheme_to_index_value(
                 AppSettings.key_to_color_scheme(settings.get_string(AppSettings.KEY_STYLE_VARIANT))
             );
         }
-        return color_scheme_to_index(Adw.StyleManager.get_default().get_color_scheme());
+        return color_scheme_to_index_value(Adw.StyleManager.get_default().get_color_scheme());
     }
 
-    private uint color_scheme_to_index(Adw.ColorScheme scheme) {
+    internal static uint color_scheme_to_index_value(Adw.ColorScheme scheme) {
         switch (scheme) {
         case Adw.ColorScheme.FORCE_LIGHT:
             return 1;
@@ -196,7 +196,7 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         }
     }
 
-    private Adw.ColorScheme index_to_color_scheme(uint idx) {
+    internal static Adw.ColorScheme index_to_color_scheme_value(uint idx) {
         switch (idx) {
         case 1:
             return Adw.ColorScheme.FORCE_LIGHT;
@@ -205,6 +205,10 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         default:
             return Adw.ColorScheme.DEFAULT;
         }
+    }
+
+    private Adw.ColorScheme index_to_color_scheme(uint idx) {
+        return index_to_color_scheme_value(idx);
     }
 }
 

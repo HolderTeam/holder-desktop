@@ -1,7 +1,23 @@
 namespace HolderLinux {
 
+internal interface IAiCatalogProviderSource : Object {
+    public abstract async Gee.ArrayList<AiCatalogProvider> list_ai_provider_catalog() throws Error;
+}
+
+internal class HolderApiAiCatalogProviderSource : Object, IAiCatalogProviderSource {
+    private IHolderApi api;
+
+    public HolderApiAiCatalogProviderSource(IHolderApi api) {
+        this.api = api;
+    }
+
+    public async Gee.ArrayList<AiCatalogProvider> list_ai_provider_catalog() throws Error {
+        return yield api.list_ai_provider_catalog();
+    }
+}
+
 public class AiCatalogPanelView : Object {
-    private IHolderApi? api;
+    private IAiCatalogProviderSource? catalog_source;
     private AiCatalogController controller;
     private Gtk.ListBox ai_catalog_list;
 
@@ -16,16 +32,20 @@ public class AiCatalogPanelView : Object {
     }
 
     public void set_api_client(IHolderApi? api) {
-        this.api = api;
+        catalog_source = api != null ? new HolderApiAiCatalogProviderSource(api) : null;
+    }
+
+    internal void set_catalog_source(IAiCatalogProviderSource? source) {
+        catalog_source = source;
     }
 
     public async void refresh() {
-        if (api == null) {
+        if (catalog_source == null) {
             return;
         }
         clear_list_box(ai_catalog_list);
         try {
-            var providers = yield api.list_ai_provider_catalog();
+            var providers = yield catalog_source.list_ai_provider_catalog();
             if (providers.size == 0) {
                 ai_catalog_list.append(new Gtk.Label("No providers in catalog.") { xalign = 0.0f });
                 return;

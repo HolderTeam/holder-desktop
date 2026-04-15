@@ -2634,3 +2634,58 @@ tool_shell_test_exe = executable(
 )
 
 test('holder-linux-tool-shell-tests', tool_shell_test_exe)
+
+preferences_dialog_test_exe = executable(
+  'holder-linux-preferences-dialog-tests',
+  [
+    'src/services/app_settings.vala',
+    'src/views/preferences_dialog.vala',
+    'tests/preferences_dialog_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('gtksourceview-5'),
+    dependency('libadwaita-1'),
+    dependency('libspelling-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-preferences-dialog-tests', preferences_dialog_test_exe)
+
+ai_catalog_panel_view_test_exe = executable(
+  'holder-linux-ai-catalog-panel-view-tests',
+  [
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/controllers/ai_catalog.vala',
+    'src/views/ai_panel/catalog.vala',
+    'tests/ai_catalog_panel_view_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-ai-catalog-panel-view-tests', ai_catalog_panel_view_test_exe)
