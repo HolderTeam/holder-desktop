@@ -3,6 +3,8 @@ using GLib;
 namespace HolderLinuxTests {
 
 public delegate void ListCardsBeforeCompleteHook(string project_id);
+public delegate void HealthBeforeCompleteHook();
+public delegate void ListResourcesBeforeCompleteHook(string project_id);
 
 public class FakeClock : Object, HolderLinux.IClock {
     public int64 now_value = 1000;
@@ -126,6 +128,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public string last_move_intent = "";
     public string? last_move_target_card_id = null;
     public bool fail_health = false;
+    public int health_failures_remaining = 0;
     public bool fail_create_card = false;
     public bool fail_create_project = false;
     public bool fail_list_threads = false;
@@ -142,6 +145,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool include_home_project = false;
     public bool list_projects_empty_first = false;
     public bool fail_list_projects = false;
+    public bool fail_list_projects_once = false;
     public bool list_cards_empty = false;
     public bool slow_create_card = false;
     public bool list_threads_empty = false;
@@ -151,13 +155,21 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_delete_card = false;
     public bool fail_search = false;
     public bool fail_get_card = false;
+    public bool fail_get_card_once = false;
     public bool slow_get_card = false;
+    public bool slow_health_once = false;
     public bool fail_list_cards = false;
     public bool fail_list_cards_first = false;
     public bool slow_list_cards_first = false;
     public bool fail_list_cards_once = false;
     public bool slow_list_cards_once = false;
+    public bool slow_list_resources_once = false;
     public string fail_list_cards_for_project_id = "";
+    public string health_failure_message = "health failed";
+    public string list_projects_failure_message = "list projects failed";
+    public string list_cards_failure_message = "list cards failed";
+    public string get_card_failure_message = "get card failed";
+    public string list_resources_failure_message = "list resources failed";
     public bool fail_set_project_git_remote = false;
     public bool fail_test_project_git_remote = false;
     public bool fail_push_project_git = false;
@@ -200,10 +212,35 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public Gee.ArrayList<HolderLinux.CardLink> card_backlinks = new Gee.ArrayList<HolderLinux.CardLink>();
     public Gee.ArrayList<HolderLinux.TrashItem> trash_items = new Gee.ArrayList<HolderLinux.TrashItem>();
     public ListCardsBeforeCompleteHook? list_cards_before_complete_hook = null;
+    public HealthBeforeCompleteHook? health_before_complete_hook = null;
+    public ListResourcesBeforeCompleteHook? list_resources_before_complete_hook = null;
+    public Gee.ArrayList<string?> health_check_sequence = new Gee.ArrayList<string?>();
 
     public async void health_check() throws Error {
+        if (slow_health_once) {
+            slow_health_once = false;
+            var end = GLib.get_monotonic_time() + 50 * 1000;
+            while (GLib.get_monotonic_time() < end) {
+                while (MainContext.default().iteration(false)) {}
+                Thread.usleep(1000);
+            }
+        }
+        if (health_before_complete_hook != null) {
+            ((!) health_before_complete_hook)();
+        }
+        if (health_check_sequence.size > 0) {
+            var outcome = health_check_sequence[0];
+            health_check_sequence.remove_at(0);
+            if (outcome != null) {
+                throw new IOError.FAILED((!) outcome);
+            }
+        }
+        if (health_failures_remaining > 0) {
+            health_failures_remaining--;
+            throw new IOError.FAILED(health_failure_message);
+        }
         if (fail_health) {
-            throw new IOError.FAILED("health failed");
+            throw new IOError.FAILED(health_failure_message);
         }
     }
 
@@ -215,8 +252,12 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
+        if (fail_list_projects_once) {
+            fail_list_projects_once = false;
+            throw new IOError.FAILED(list_projects_failure_message);
+        }
         if (fail_list_projects) {
-            throw new IOError.FAILED("list projects failed");
+            throw new IOError.FAILED(list_projects_failure_message);
         }
         list_projects_calls++;
         list_projects_index++;
@@ -323,17 +364,17 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         }
         if (fail_list_cards_for_project_id != ""
             && project_id == fail_list_cards_for_project_id) {
-            throw new IOError.FAILED("list cards failed");
+            throw new IOError.FAILED(list_cards_failure_message);
         }
         if (fail_list_cards_once) {
             fail_list_cards_once = false;
-            throw new IOError.FAILED("list cards failed");
+            throw new IOError.FAILED(list_cards_failure_message);
         }
         if (fail_list_cards_first && list_cards_index == 1) {
-            throw new IOError.FAILED("list cards failed");
+            throw new IOError.FAILED(list_cards_failure_message);
         }
         if (fail_list_cards) {
-            throw new IOError.FAILED("list cards failed");
+            throw new IOError.FAILED(list_cards_failure_message);
         }
         var cards = new Gee.ArrayList<HolderLinux.CardSummary>();
         if (list_cards_empty) {
@@ -377,8 +418,12 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
             }
         }
         get_card_calls++;
+        if (fail_get_card_once) {
+            fail_get_card_once = false;
+            throw new IOError.FAILED(get_card_failure_message);
+        }
         if (fail_get_card) {
-            throw new IOError.FAILED("get card failed");
+            throw new IOError.FAILED(get_card_failure_message);
         }
         return new HolderLinux.CardDetail(card_id, "p1", "Card 1", "# Card 1\n\nBody", 20);
     }
@@ -413,8 +458,19 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async Gee.ArrayList<HolderLinux.ProjectResource> list_resources(string project_id) throws Error {
+        if (slow_list_resources_once) {
+            slow_list_resources_once = false;
+            var end = GLib.get_monotonic_time() + 50 * 1000;
+            while (GLib.get_monotonic_time() < end) {
+                while (MainContext.default().iteration(false)) {}
+                Thread.usleep(1000);
+            }
+        }
+        if (list_resources_before_complete_hook != null) {
+            ((!) list_resources_before_complete_hook)(project_id);
+        }
         if (fail_list_resources) {
-            throw new IOError.FAILED("list resources failed");
+            throw new IOError.FAILED(list_resources_failure_message);
         }
         list_resources_calls++;
         last_resource_project_id = project_id;
