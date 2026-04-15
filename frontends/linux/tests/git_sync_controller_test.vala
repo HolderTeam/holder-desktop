@@ -556,10 +556,11 @@ private void test_run_github_guided_sync_flow_builds_status_and_toast() {
     assert(out_result != null);
     assert(out_result.status_text.contains("Remote test: reachable (ok)"));
     assert(out_result.status_text.contains("Push: pushed"));
-    assert(out_result.status_text.contains("Sync state: unknown"));
-    assert(out_result.status_text.contains("Last push: never"));
-    assert(out_result.status_text.contains("Push retry count: 0"));
-    assert(out_result.status_text.contains("Pull retry count: 0"));
+    assert(out_result.status_text.contains("Sync state: pushed"));
+    assert(!out_result.status_text.contains("Last push: never"));
+    assert(out_result.status_text.contains("Push retry count: 4"));
+    assert(out_result.status_text.contains("Pull retry count: 5"));
+    assert(out_result.status_text.contains("Error: last sync failed"));
     assert(out_result.toast_message == "Git sync setup completed.");
 }
 

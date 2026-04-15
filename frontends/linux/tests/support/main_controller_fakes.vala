@@ -121,6 +121,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_create_card = false;
     public bool fail_create_project = false;
     public bool fail_list_threads = false;
+    public bool fail_ai_capabilities = false;
     public bool fail_list_resources = false;
     public bool fail_create_resource = false;
     public bool fail_update_resource = false;
@@ -161,6 +162,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_create_card_link = false;
     public bool fail_delete_card_link = false;
     public string test_project_git_remote_status = "reachable";
+    public Gee.ArrayList<string> ai_capability_models = new Gee.ArrayList<string>();
     private int list_projects_index = 0;
     private int list_cards_index = 0;
     public string last_resource_project_id = "";
@@ -224,7 +226,30 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
             var created_name = last_created_project_name.length > 0 ? last_created_project_name : "Created Project";
             projects.add(new HolderLinux.Project("p-created", created_name, "encrypted_git", "/tmp/p-created", 12, 12));
         }
-        projects.add(new HolderLinux.Project("p1", "Project 1", "encrypted_git", "/tmp/p1", 10, 10));
+        projects.add(new HolderLinux.Project(
+            "p1",
+            "Project 1",
+            "encrypted_git",
+            "/tmp/p1",
+            10,
+            10,
+            "https://example.com/p1.git",
+            new HolderLinux.ProjectSyncState(
+                0,
+                1710000000,
+                1710000100,
+                2,
+                3,
+                "pushed",
+                "pulled",
+                "last sync failed",
+                null,
+                4,
+                1710000200,
+                5,
+                1710000300
+            )
+        ));
         return projects;
     }
 
@@ -515,8 +540,11 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error {
+        if (fail_ai_capabilities) {
+            throw new IOError.FAILED("ai capabilities failed");
+        }
         return new HolderLinux.AiCapabilitiesInfo(
-            true, "", 1, "1.0", "user", new Gee.ArrayList<string>(), new Gee.ArrayList<string>()
+            true, "", 1, "1.0", "user", ai_capability_models, new Gee.ArrayList<string>()
         );
     }
 

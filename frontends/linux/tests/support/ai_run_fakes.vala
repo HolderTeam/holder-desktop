@@ -415,6 +415,10 @@ public class AiRunFakeContext : Object, HolderLinux.IAiRunContext {
     public bool fail_create_thread = false;
     public string create_thread_id = "t-created";
     public Gee.ArrayList<HolderLinux.AiMessage> transcript_messages = new Gee.ArrayList<HolderLinux.AiMessage>();
+    public bool fail_list_ai_messages = false;
+    public int fail_list_ai_messages_calls_remaining = 0;
+    public uint list_ai_messages_delay_ms = 0;
+    public int delayed_list_ai_messages_calls_remaining = 0;
 
     public HolderLinux.IHolderApi? get_api_client() {
         return api;
@@ -437,6 +441,24 @@ public class AiRunFakeContext : Object, HolderLinux.IAiRunContext {
     }
 
     public async Gee.ArrayList<HolderLinux.AiMessage> list_ai_messages(string thread_id) throws Error {
+        bool delay_this_call = list_ai_messages_delay_ms > 0
+            && delayed_list_ai_messages_calls_remaining > 0;
+        if (delay_this_call) {
+            delayed_list_ai_messages_calls_remaining--;
+            var loop = new MainLoop();
+            Timeout.add((uint) list_ai_messages_delay_ms, () => {
+                loop.quit();
+                return Source.REMOVE;
+            });
+            loop.run();
+        }
+
+        if (fail_list_ai_messages || fail_list_ai_messages_calls_remaining > 0) {
+            if (fail_list_ai_messages_calls_remaining > 0) {
+                fail_list_ai_messages_calls_remaining--;
+            }
+            throw new IOError.FAILED("list ai messages failed");
+        }
         return transcript_messages;
     }
 

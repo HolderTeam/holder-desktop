@@ -1717,6 +1717,7 @@ tool_help_test_exe = executable(
   [
     'src/controllers/tool_help.vala',
     'tests/tool_help_test.vala',
+    help_resources,
   ],
   dependencies: [
     dependency('gio-2.0'),
