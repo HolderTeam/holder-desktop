@@ -393,6 +393,34 @@ private void test_runtime_provider_and_local_model_config_endpoints() {
     assert(transport.last_content_type == "application/json");
 }
 
+private void test_set_ai_local_model_config_serializes_null_and_string_fields() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"fast_model\":null,\"strong_model\":\"qwen3:4b\",\"deep_model\":null,\"updated_at\":11}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    HolderLinux.AiLocalModelConfigInfo? updated = null;
+    client.set_ai_local_model_config.begin(null, "qwen3:4b", "", (obj, res) => {
+        try {
+            updated = client.set_ai_local_model_config.end(res);
+        } catch (Error e) {
+            updated = null;
+        }
+        done = true;
+    });
+    assert(wait_for_condition(() => done));
+    assert(updated != null);
+    assert(updated.fast_model == null);
+    assert(updated.strong_model == "qwen3:4b");
+    assert(updated.deep_model == null);
+    assert(transport.last_method == "PUT");
+    assert(transport.last_uri.contains("/ai/local-models/config"));
+    assert(transport.last_content_type == "application/json");
+}
+
 private void test_provider_credentials_settings_and_mutations() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
@@ -642,6 +670,8 @@ public static int main(string[] args) {
                   test_list_ai_messages_parses_response);
     Test.add_func("/api_client_ai/runtime_provider_and_local_model_config_endpoints",
                   test_runtime_provider_and_local_model_config_endpoints);
+    Test.add_func("/api_client_ai/set_ai_local_model_config_serializes_null_and_string_fields",
+                  test_set_ai_local_model_config_serializes_null_and_string_fields);
     Test.add_func("/api_client_ai/provider_credentials_settings_and_mutations",
                   test_provider_credentials_settings_and_mutations);
     Test.add_func("/api_client_ai/nudge_endpoints_cover_query_options_and_payloads",
