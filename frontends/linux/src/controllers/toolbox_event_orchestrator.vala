@@ -1,5 +1,34 @@
 namespace HolderLinux {
 
+internal interface IToolboxEventSource : Object {
+    public abstract signal void error_reported(string title_text, string details);
+    public abstract signal void toast_requested(string message);
+    public abstract signal void breadcrumb_navigation_requested(string tool_id,
+                                                               int segment_index,
+                                                               string? project_id,
+                                                               string? card_id);
+    public abstract signal void flowboard_card_open_requested(string card_id);
+    public abstract signal void connections_card_open_requested(string card_id);
+    public abstract signal void connections_card_create_child_requested(string card_id);
+    public abstract signal void flowboard_card_move_to_trash_requested(string card_id);
+    public abstract signal void flowboard_move_intent_requested(string card_id,
+                                                                string project_id,
+                                                                string intent,
+                                                                string? target_card_id,
+                                                                string? parent_card_id);
+    public abstract signal void flowboard_new_card_requested(string? parent_card_id);
+    public abstract signal void send_card_as_email_requested();
+    public abstract signal void send_recovery_key_as_email_requested();
+    public abstract signal void save_recovery_key_to_usb_requested();
+    public abstract signal void import_recovery_key_requested();
+    public abstract signal void terminal_copy_to_card_requested(string text);
+    public abstract signal void activity_requested(string kind,
+                                                  string message,
+                                                  string? project_id,
+                                                  string? card_id,
+                                                  ActivityDetails? details);
+}
+
 internal interface IToolboxEventSink : Object {
     public abstract void show_error(string title_text, string details);
     public abstract void add_toast(string message);
@@ -18,13 +47,13 @@ internal interface IToolboxEventSink : Object {
 }
 
 internal class ToolboxEventOrchestrator : Object {
-    private ToolboxPane toolbox; // LCOV_EXCL_LINE: field declaration-only coverage artifact
+    private IToolboxEventSource toolbox; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private ToolboxBreadcrumbController toolbox_breadcrumb_controller; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private SelectionIntentOrchestrator selection_intent_orchestrator; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private MainController controller; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private IToolboxEventSink sink; // LCOV_EXCL_LINE: field declaration-only coverage artifact
 
-    public ToolboxEventOrchestrator(ToolboxPane toolbox,
+    public ToolboxEventOrchestrator(IToolboxEventSource toolbox,
                                     ToolboxBreadcrumbController toolbox_breadcrumb_controller,
                                     SelectionIntentOrchestrator selection_intent_orchestrator,
                                     MainController controller,

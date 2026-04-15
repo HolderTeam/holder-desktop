@@ -1871,6 +1871,24 @@ main_signal_binder_test_exe = executable(
 
 test('holder-linux-main-signal-binder-tests', main_signal_binder_test_exe)
 
+toolbox_event_orchestrator_test_exe = executable(
+  'holder-linux-toolbox-event-orchestrator-tests',
+  [
+    'src/models/activity_details.vala',
+    'src/controllers/toolbox_event_orchestrator.vala',
+    'tests/toolbox_event_orchestrator_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-toolbox-event-orchestrator-tests', toolbox_event_orchestrator_test_exe)
+
 window_action_binder_test_exe = executable(
   'holder-linux-window-action-binder-tests',
   [

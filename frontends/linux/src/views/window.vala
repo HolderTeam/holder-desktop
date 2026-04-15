@@ -361,6 +361,56 @@ private class WindowToolboxEventSink : Object, IToolboxEventSink {
     }
 }
 
+private class WindowToolboxEventSource : Object, IToolboxEventSource {
+    public WindowToolboxEventSource(ToolboxPane toolbox) {
+        toolbox.error_reported.connect((title_text, details) => {
+            error_reported(title_text, details);
+        });
+        toolbox.toast_requested.connect((message) => {
+            toast_requested(message);
+        });
+        toolbox.breadcrumb_navigation_requested.connect((tool_id, segment_index, project_id, card_id) => {
+            breadcrumb_navigation_requested(tool_id, segment_index, project_id, card_id);
+        });
+        toolbox.flowboard_card_open_requested.connect((card_id) => {
+            flowboard_card_open_requested(card_id);
+        });
+        toolbox.connections_card_open_requested.connect((card_id) => {
+            connections_card_open_requested(card_id);
+        });
+        toolbox.connections_card_create_child_requested.connect((card_id) => {
+            connections_card_create_child_requested(card_id);
+        });
+        toolbox.flowboard_card_move_to_trash_requested.connect((card_id) => {
+            flowboard_card_move_to_trash_requested(card_id);
+        });
+        toolbox.flowboard_move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
+            flowboard_move_intent_requested(card_id, project_id, intent, target_card_id, parent_card_id);
+        });
+        toolbox.flowboard_new_card_requested.connect((parent_card_id) => {
+            flowboard_new_card_requested(parent_card_id);
+        });
+        toolbox.send_card_as_email_requested.connect(() => {
+            send_card_as_email_requested();
+        });
+        toolbox.send_recovery_key_as_email_requested.connect(() => {
+            send_recovery_key_as_email_requested();
+        });
+        toolbox.save_recovery_key_to_usb_requested.connect(() => {
+            save_recovery_key_to_usb_requested();
+        });
+        toolbox.import_recovery_key_requested.connect(() => {
+            import_recovery_key_requested();
+        });
+        toolbox.terminal_copy_to_card_requested.connect((text) => {
+            terminal_copy_to_card_requested(text);
+        });
+        toolbox.activity_requested.connect((kind, message, project_id, card_id, details) => {
+            activity_requested(kind, message, project_id, card_id, details);
+        });
+    }
+}
+
 private class WindowFeedbackSink : Object, IWindowFeedbackSink {
     private MainWindow owner;
 
@@ -866,7 +916,7 @@ public class MainWindow : Adw.ApplicationWindow {
         );
         tool_help_controller = new ToolHelpController();
         toolbox_event_orchestrator = new ToolboxEventOrchestrator(
-            toolbox,
+            new WindowToolboxEventSource(toolbox),
             toolbox_breadcrumb_controller,
             selection_intent_orchestrator,
             controller,
