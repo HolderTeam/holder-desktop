@@ -295,6 +295,272 @@ private void test_list_ai_runners_parses_response() {
     assert(transport.last_uri.contains("/ai/runners"));
 }
 
+private void test_list_ai_messages_parses_response() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"message_id\":\"m1\",\"thread_id\":\"t1\",\"role\":\"assistant\",\"source\":\"cloud\",\"provider\":\"openai\",\"model\":\"gpt-5.4\",\"content\":\"answer\",\"created_at\":1}]}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.AiMessage>? messages = null;
+    client.list_ai_messages.begin("t1", (obj, res) => {
+        try {
+            messages = client.list_ai_messages.end(res);
+        } catch (Error e) {
+            messages = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(messages != null);
+    assert(messages.size == 1);
+    assert(messages[0].message_id == "m1");
+    assert(messages[0].provider == "openai");
+    assert(messages[0].model == "gpt-5.4");
+    assert(transport.last_uri.contains("/ai/messages"));
+    assert(transport.last_uri.contains("thread_id=t1"));
+}
+
+private void test_runtime_provider_and_local_model_config_endpoints() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"providers\":[{\"id\":\"openai\",\"display_name\":\"OpenAI\",\"enabled\":true,\"setup_url\":\"https://setup\",\"docs_url\":\"https://docs\"}]}}"
+    );
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"fast_model\":\"phi4-mini\",\"strong_model\":\"qwen3:4b\",\"deep_model\":null,\"updated_at\":9}}"
+    );
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"fast_model\":\"phi4-mini\",\"strong_model\":null,\"deep_model\":\"deepseek-r1\",\"updated_at\":10}}"
+    );
+    var client = make_client(transport);
+
+    bool done_runtime = false;
+    Gee.ArrayList<HolderLinux.AiRuntimeProvider>? providers = null;
+    client.list_ai_runtime_providers.begin((obj, res) => {
+        try {
+            providers = client.list_ai_runtime_providers.end(res);
+        } catch (Error e) {
+            providers = null;
+        }
+        done_runtime = true;
+    });
+    assert(wait_for_condition(() => done_runtime));
+    assert(providers != null);
+    assert(providers.size == 1);
+    assert(providers[0].id == "openai");
+    assert(transport.last_uri.contains("/ai/providers/catalog"));
+
+    bool done_get = false;
+    HolderLinux.AiLocalModelConfigInfo? current = null;
+    client.get_ai_local_model_config.begin((obj, res) => {
+        try {
+            current = client.get_ai_local_model_config.end(res);
+        } catch (Error e) {
+            current = null;
+        }
+        done_get = true;
+    });
+    assert(wait_for_condition(() => done_get));
+    assert(current != null);
+    assert(current.fast_model == "phi4-mini");
+    assert(current.strong_model == "qwen3:4b");
+    assert(current.deep_model == null);
+    assert(transport.last_uri.contains("/ai/local-models/config"));
+
+    bool done_set = false;
+    HolderLinux.AiLocalModelConfigInfo? updated = null;
+    client.set_ai_local_model_config.begin("phi4-mini", "", "deepseek-r1", (obj, res) => {
+        try {
+            updated = client.set_ai_local_model_config.end(res);
+        } catch (Error e) {
+            updated = null;
+        }
+        done_set = true;
+    });
+    assert(wait_for_condition(() => done_set));
+    assert(updated != null);
+    assert(updated.fast_model == "phi4-mini");
+    assert(updated.strong_model == null);
+    assert(updated.deep_model == "deepseek-r1");
+    assert(transport.last_method == "PUT");
+    assert(transport.last_uri.contains("/ai/local-models/config"));
+    assert(transport.last_content_type == "application/json");
+}
+
+private void test_provider_credentials_settings_and_mutations() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"providers\":[{\"provider\":\"openai\",\"configured\":true,\"api_key_preview\":\"sk-...\",\"updated_at\":7}]}}"
+    );
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"providers\":[{\"provider\":\"openai\",\"enabled\":true,\"updated_at\":8}]}}"
+    );
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    var client = make_client(transport);
+
+    bool done_creds = false;
+    Gee.ArrayList<HolderLinux.AiProviderCredentialState>? creds = null;
+    client.list_ai_provider_credentials.begin((obj, res) => {
+        try {
+            creds = client.list_ai_provider_credentials.end(res);
+        } catch (Error e) {
+            creds = null;
+        }
+        done_creds = true;
+    });
+    assert(wait_for_condition(() => done_creds));
+    assert(creds != null);
+    assert(creds.size == 1);
+    assert(creds[0].provider == "openai");
+    assert(creds[0].configured);
+    assert(creds[0].api_key_preview == "sk-...");
+    assert(creds[0].updated_at == 7);
+    assert(transport.last_uri.contains("/ai/providers/credentials"));
+
+    bool done_settings = false;
+    Gee.ArrayList<HolderLinux.AiProviderSettingState>? settings = null;
+    client.list_ai_provider_settings.begin((obj, res) => {
+        try {
+            settings = client.list_ai_provider_settings.end(res);
+        } catch (Error e) {
+            settings = null;
+        }
+        done_settings = true;
+    });
+    assert(wait_for_condition(() => done_settings));
+    assert(settings != null);
+    assert(settings.size == 1);
+    assert(settings[0].provider == "openai");
+    assert(settings[0].enabled);
+    assert(settings[0].updated_at == 8);
+    assert(transport.last_uri.contains("/ai/providers/settings"));
+
+    bool done_upsert = false;
+    client.upsert_ai_provider_credential.begin("openai", "sk-test", (obj, res) => {
+        try {
+            client.upsert_ai_provider_credential.end(res);
+        } catch (Error e) {
+        }
+        done_upsert = true;
+    });
+    assert(wait_for_condition(() => done_upsert));
+    assert(transport.last_method == "PUT");
+    assert(transport.last_uri.contains("/ai/providers/credentials"));
+    assert(transport.last_content_type == "application/json");
+
+    bool done_delete = false;
+    client.delete_ai_provider_credential.begin("openai", (obj, res) => {
+        try {
+            client.delete_ai_provider_credential.end(res);
+        } catch (Error e) {
+        }
+        done_delete = true;
+    });
+    assert(wait_for_condition(() => done_delete));
+    assert(transport.last_method == "DELETE");
+    assert(transport.last_uri.contains("/ai/providers/credentials/openai"));
+
+    bool done_enabled = false;
+    client.set_ai_provider_enabled.begin("openai", false, (obj, res) => {
+        try {
+            client.set_ai_provider_enabled.end(res);
+        } catch (Error e) {
+        }
+        done_enabled = true;
+    });
+    assert(wait_for_condition(() => done_enabled));
+    assert(transport.last_method == "PUT");
+    assert(transport.last_uri.contains("/ai/providers/settings"));
+    assert(transport.last_content_type == "application/json");
+}
+
+private void test_nudge_endpoints_cover_query_options_and_payloads() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"nudges\":[{\"nudge_id\":\"n1\",\"kind\":\"card.stuck_drafting\",\"project_id\":\"p1\",\"card_id\":\"c1\",\"created_at\":1,\"facts\":{\"streak\":3}}]}}"
+    );
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{}}");
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"kind\":\"card.stuck_drafting\",\"accepted\":true,\"should_nudge\":false,\"reason\":\"keep\",\"nudge\":{\"nudge_id\":\"n1\",\"kind\":\"card.stuck_drafting\",\"project_id\":\"p1\",\"card_id\":\"c1\",\"title\":\"Draft stalled\",\"body\":\"Keep going\",\"basis_fingerprint\":\"fp-1\",\"basis_commit\":\"commit-1\",\"created_at\":123}}}"
+    );
+    var client = make_client(transport);
+
+    bool done_list = false;
+    Gee.ArrayList<HolderLinux.AiNudge>? nudges = null;
+    client.list_ai_nudges.begin("p1", "c1", (obj, res) => {
+        try {
+            nudges = client.list_ai_nudges.end(res);
+        } catch (Error e) {
+            nudges = null;
+        }
+        done_list = true;
+    });
+    assert(wait_for_condition(() => done_list));
+    assert(nudges != null);
+    assert(nudges.size == 1);
+    assert(nudges[0].nudge_id == "n1");
+    assert(transport.last_uri.contains("/ai/nudges?project_id=p1"));
+    assert(transport.last_uri.contains("card_id=c1"));
+
+    bool done_dismiss = false;
+    client.dismiss_ai_nudge.begin("n1", (obj, res) => {
+        try {
+            client.dismiss_ai_nudge.end(res);
+        } catch (Error e) {
+        }
+        done_dismiss = true;
+    });
+    assert(wait_for_condition(() => done_dismiss));
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.contains("/ai/nudges/n1/dismiss"));
+
+    var facts = new Json.Object();
+    facts.set_int_member("streak", 3);
+    bool done_eval = false;
+    HolderLinux.NudgeEvaluationResult? evaluation = null;
+    client.evaluate_nudge_candidate.begin(
+        "card.stuck_drafting",
+        "p1",
+        "c1",
+        123,
+        facts,
+        "fp-1",
+        "commit-1",
+        (obj, res) => {
+            try {
+                evaluation = client.evaluate_nudge_candidate.end(res);
+            } catch (Error e) {
+                evaluation = null;
+            }
+            done_eval = true;
+        }
+    );
+    assert(wait_for_condition(() => done_eval));
+    assert(evaluation != null);
+    assert(evaluation.kind == "card.stuck_drafting");
+    assert(evaluation.accepted);
+    assert(!evaluation.should_nudge);
+    assert(evaluation.reason == "keep");
+    assert(evaluation.nudge != null);
+    assert(evaluation.nudge.nudge_id == "n1");
+    assert(evaluation.nudge.title == "Draft stalled");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.contains("/ai/nudges/evaluate"));
+    assert(transport.last_content_type == "application/json");
+}
+
 private void test_create_update_delete_ai_runner_requests() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(201, "{\"ok\":true,\"data\":{\"runner_id\":\"manual-a\",\"name\":\"Office\",\"kind\":\"ollama\",\"base_url\":\"http://office:11434\",\"source\":\"manual\",\"enabled\":true,\"created_at\":1,\"updated_at\":1,\"runtime\":{\"configured\":true,\"available\":false,\"models\":[],\"pulls\":[]}}}");
@@ -372,6 +638,14 @@ public static int main(string[] args) {
                   test_list_ai_provider_catalog_parses_unwrapped_response);
     Test.add_func("/api_client_ai/list_ai_runners_parses_response",
                   test_list_ai_runners_parses_response);
+    Test.add_func("/api_client_ai/list_ai_messages_parses_response",
+                  test_list_ai_messages_parses_response);
+    Test.add_func("/api_client_ai/runtime_provider_and_local_model_config_endpoints",
+                  test_runtime_provider_and_local_model_config_endpoints);
+    Test.add_func("/api_client_ai/provider_credentials_settings_and_mutations",
+                  test_provider_credentials_settings_and_mutations);
+    Test.add_func("/api_client_ai/nudge_endpoints_cover_query_options_and_payloads",
+                  test_nudge_endpoints_cover_query_options_and_payloads);
     Test.add_func("/api_client_ai/create_update_delete_ai_runner_requests",
                   test_create_update_delete_ai_runner_requests);
 
