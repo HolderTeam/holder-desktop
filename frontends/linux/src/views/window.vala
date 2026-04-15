@@ -218,6 +218,65 @@ private class WindowMainControllerSignalSink : Object, IMainControllerSignalSink
     }
 }
 
+private class WindowMainControllerSignalSource : Object, IMainControllerSignalSource {
+    public WindowMainControllerSignalSource(MainController controller) {
+        controller.status_changed.connect((text) => {
+            status_changed(text);
+        });
+        controller.editor_state_changed.connect((text, editable) => {
+            editor_state_changed(text, editable);
+        });
+        controller.editor_save_state_changed.connect((text) => {
+            editor_save_state_changed(text);
+        });
+        controller.window_title_changed.connect((title_text) => {
+            window_title_changed(title_text);
+        });
+        controller.toast_requested.connect((message) => {
+            toast_requested(message);
+        });
+        controller.error_reported.connect((title_text, details) => {
+            error_reported(title_text, details);
+        });
+        controller.show_editor_requested.connect(() => {
+            show_editor_requested();
+        });
+        controller.show_search_requested.connect(() => {
+            show_search_requested();
+        });
+        controller.search_summary_changed.connect((text) => {
+            search_summary_changed(text);
+        });
+        controller.ai_status_refresh_requested.connect(() => {
+            ai_status_refresh_requested();
+        });
+        controller.project_selection_requested.connect((project_id) => {
+            project_selection_requested(project_id);
+        });
+        controller.card_selection_requested.connect((card_id) => {
+            card_selection_requested(card_id);
+        });
+        controller.search_selection_requested.connect((position) => {
+            search_selection_requested(position);
+        });
+        controller.ai_thread_title_changed.connect((title_text) => {
+            ai_thread_title_changed(title_text);
+        });
+        controller.ai_thread_selection_requested.connect((thread_id) => {
+            ai_thread_selection_requested(thread_id);
+        });
+        controller.api_client_ready.connect((api_client) => {
+            api_client_ready(api_client);
+        });
+        controller.card_trashed.connect((card_id) => {
+            card_trashed(card_id);
+        });
+        controller.activity_requested.connect((kind, message, project_id, card_id, details) => {
+            activity_requested(kind, message, project_id, card_id, details);
+        });
+    }
+}
+
 private class WindowAiPanelEventSink : Object, IAiPanelEventSink {
     private MainWindow owner;
 
@@ -864,7 +923,7 @@ public class MainWindow : Adw.ApplicationWindow {
         root_paned.set_position(last_sidebar_position);
 
         main_controller_signal_binder = new MainControllerSignalBinder(
-            controller,
+            new WindowMainControllerSignalSource(controller),
             new WindowMainControllerSignalSink(this)
         );
         main_controller_signal_binder.bind();

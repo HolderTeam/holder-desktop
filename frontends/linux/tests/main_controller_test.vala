@@ -511,6 +511,36 @@ private void test_create_card_with_parent_uses_untitled_when_parent_missing() {
     assert(api.last_created_content == "# Untitled\n\n");
 }
 
+private void test_create_card_with_parent_returns_base_title_when_children_are_unrelated() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    harness.card_store.append(
+        new HolderLinux.CardSummary("child-x", "p1", "Something else entirely", "child-x.md", 2000.0, "c1", 30, 30)
+    );
+
+    bool saw_toast = false;
+    controller.toast_requested.connect((message) => {
+        if (message == "New card created") {
+            saw_toast = true;
+        }
+    });
+
+    controller.create_card.begin("c1");
+    assert(wait_for_condition(() => saw_toast));
+
+    assert(api.create_card_calls == 1);
+    assert(api.last_created_parent_card_id == "c1");
+    assert(api.last_created_title == "Untitled child of Card 1");
+    assert(api.last_created_content == "# Untitled child of Card 1\n\n");
+}
+
 private void test_reload_ai_threads_error_emits_error() {
     var api = new MainControllerFakeApi();
     api.fail_list_threads = true;
@@ -2255,6 +2285,39 @@ private void test_move_card_by_intent_into_emits_toast() {
     assert(wait_for_condition(() => saw_toast));
 }
 
+private void test_move_card_by_intent_stale_reload_returns_without_reselecting_card() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    int card_selection_requests = 0;
+    controller.card_selection_requested.connect((card_id) => {
+        card_selection_requests++;
+    });
+
+    bool triggered = false;
+    var list_cards_before = api.list_cards_calls;
+    api.list_cards_before_complete_hook = (project_id) => {
+        if (triggered || project_id != "p1") {
+            return;
+        }
+        triggered = true;
+        harness.project_selection.set_selected_index(uint.MAX);
+    };
+
+    controller.move_card_by_intent.begin("c1", "before", "c2", null);
+    assert(wait_for_condition(() => api.list_cards_calls > list_cards_before));
+    assert(wait_for_condition(() => triggered));
+
+    assert(api.update_card_position_calls == 1);
+    assert(card_selection_requests == 0);
+}
+
 private void test_move_card_to_trash_success_emits_toast_and_signal() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -2420,6 +2483,10 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/create_card_with_parent_uses_untitled_when_parent_missing",
         test_create_card_with_parent_uses_untitled_when_parent_missing
+    );
+    Test.add_func(
+        "/main_controller/create_card_with_parent_returns_base_title_when_children_are_unrelated",
+        test_create_card_with_parent_returns_base_title_when_children_are_unrelated
     );
     Test.add_func(
         "/main_controller/reload_ai_threads_error_emits_error",
@@ -2716,6 +2783,10 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/move_card_by_intent_into_emits_toast",
         test_move_card_by_intent_into_emits_toast
+    );
+    Test.add_func(
+        "/main_controller/move_card_by_intent_stale_reload_returns_without_reselecting_card",
+        test_move_card_by_intent_stale_reload_returns_without_reselecting_card
     );
     Test.add_func(
         "/main_controller/move_card_to_trash_success_emits_toast_and_signal",

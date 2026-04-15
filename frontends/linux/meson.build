@@ -1795,6 +1795,38 @@ window_feedback_orchestrator_test_exe = executable(
 
 test('holder-linux-window-feedback-orchestrator-tests', window_feedback_orchestrator_test_exe)
 
+main_signal_binder_test_exe = executable(
+  'holder-linux-main-signal-binder-tests',
+  [
+    'tests/support/ai_run_fakes.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/controllers/main_signal_binder.vala',
+    'tests/main_signal_binder_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-main-signal-binder-tests', main_signal_binder_test_exe)
+
 window_action_binder_test_exe = executable(
   'holder-linux-window-action-binder-tests',
   [

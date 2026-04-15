@@ -1,5 +1,30 @@
 namespace HolderLinux {
 
+internal interface IMainControllerSignalSource : Object {
+    public abstract signal void status_changed(string text);
+    public abstract signal void editor_state_changed(string text, bool editable);
+    public abstract signal void editor_save_state_changed(string text);
+    public abstract signal void window_title_changed(string title_text);
+    public abstract signal void toast_requested(string message);
+    public abstract signal void error_reported(string title_text, string details);
+    public abstract signal void show_editor_requested();
+    public abstract signal void show_search_requested();
+    public abstract signal void search_summary_changed(string text);
+    public abstract signal void ai_status_refresh_requested();
+    public abstract signal void project_selection_requested(string? project_id);
+    public abstract signal void card_selection_requested(string? card_id);
+    public abstract signal void search_selection_requested(int position);
+    public abstract signal void ai_thread_title_changed(string? title_text);
+    public abstract signal void ai_thread_selection_requested(string? thread_id);
+    public abstract signal void api_client_ready(IHolderApi api_client);
+    public abstract signal void card_trashed(string card_id);
+    public abstract signal void activity_requested(string kind,
+                                                  string message,
+                                                  string? project_id,
+                                                  string? card_id,
+                                                  ActivityDetails? details);
+}
+
 internal interface IMainControllerSignalSink : Object {
     public abstract void on_status_changed(string text);
     public abstract void on_editor_state_changed(string text, bool editable);
@@ -26,10 +51,10 @@ internal interface IMainControllerSignalSink : Object {
 }
 
 internal class MainControllerSignalBinder : Object {
-    private MainController controller; // LCOV_EXCL_LINE: field declaration-only coverage artifact
+    private IMainControllerSignalSource controller; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private IMainControllerSignalSink sink; // LCOV_EXCL_LINE: field declaration-only coverage artifact
 
-    public MainControllerSignalBinder(MainController controller,
+    public MainControllerSignalBinder(IMainControllerSignalSource controller,
                                       IMainControllerSignalSink sink) {
         this.controller = controller;
         this.sink = sink;
