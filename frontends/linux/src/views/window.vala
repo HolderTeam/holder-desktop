@@ -802,6 +802,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private PrintService print_service;
     private PrintAdapter print_ui_controller;
     private AiRunController ai_run_controller;
+    private AiNudgeController ai_nudge_controller;
     private AiPanelEventOrchestrator ai_panel_event_orchestrator;
     private FindReplaceController find_replace_controller;
     private FlowboardController flowboard_controller;
@@ -954,6 +955,7 @@ public class MainWindow : Adw.ApplicationWindow {
         recovery_ui_controller = new RecoveryUiController(recovery_controller);
         recovery_dialog_adapter = new RecoveryDialogAdapter(this, recovery_ui_controller);
         ai_run_controller = new AiRunController(controller);
+        ai_nudge_controller = new AiNudgeController(controller);
         find_replace_controller = new FindReplaceController(
             new WindowFindReplaceOps(editor_buffer, editor_view)
         );
@@ -1048,8 +1050,14 @@ public class MainWindow : Adw.ApplicationWindow {
         );
         main_controller_signal_binder.bind();
         ai_panel_event_orchestrator.bind();
+        ai_nudge_controller.debug_log_requested.connect((message) => {
+            log_debug_line(message);
+        });
+        ai_nudge_controller.nudges_refresh_requested.connect((project_id, card_id) => {
+            ai_panel.refresh_nudges(project_id, card_id);
+        });
         ai_panel.title_suggestion_apply_requested.connect((nudge_id, card_id, title_text) => {
-            apply_title_suggestion.begin(nudge_id, card_id, title_text);
+            ai_nudge_controller.apply_title_suggestion.begin(nudge_id, card_id, title_text);
         });
         toolbox_event_orchestrator.bind();
         window_feedback_orchestrator.bind();
@@ -1064,11 +1072,10 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.bind_flowboard_controller(flowboard_controller);
         activity_log_store.entry_added.connect((entry) => {
             foreach (var candidate in activity_reducer.reduce(activity_log_store.snapshot())) {
-                log_nudge_candidate(candidate);
-                evaluate_nudge_candidate.begin(candidate);
+                ai_nudge_controller.evaluate_candidate.begin(candidate);
             }
             if (workspace.is_ai_panel_visible() && entry.kind == "result.card.autosave") {
-                evaluate_title_suggestion_for_current_card.begin();
+                ai_nudge_controller.evaluate_title_suggestion_for_current_card.begin();
             }
         });
         window_flowboard_event_binder.bind();
@@ -1318,7 +1325,7 @@ public class MainWindow : Adw.ApplicationWindow {
         if (visible) {
             ai_panel.refresh_config(controller.selected_project_id());
             ai_panel.refresh_nudges(controller.selected_project_id(), controller.selected_card_id());
-            evaluate_title_suggestion_for_current_card.begin();
+            ai_nudge_controller.evaluate_title_suggestion_for_current_card.begin();
         }
     }
 
@@ -1517,7 +1524,7 @@ public class MainWindow : Adw.ApplicationWindow {
         apply_sidebar_from_state();
         if (workspace.is_ai_panel_visible()) {
             ai_panel.refresh_nudges(app_state_store.selection.project_id, app_state_store.selection.card_id);
-            evaluate_title_suggestion_for_current_card.begin();
+            ai_nudge_controller.evaluate_title_suggestion_for_current_card.begin();
         }
     }
 
@@ -1610,7 +1617,7 @@ public class MainWindow : Adw.ApplicationWindow {
         if (workspace.is_ai_panel_visible()) {
             ai_panel.refresh_config(controller.selected_project_id());
             ai_panel.refresh_nudges(controller.selected_project_id(), controller.selected_card_id());
-            evaluate_title_suggestion_for_current_card.begin();
+            ai_nudge_controller.evaluate_title_suggestion_for_current_card.begin();
         }
         toolbox.set_api_client(api_client);
     }
@@ -1671,182 +1678,6 @@ public class MainWindow : Adw.ApplicationWindow {
             parts.add("prompt_chars=%d".printf(ai_details.prompt_chars));
         }
         parts.add("success=%s".printf(ai_details.success ? "true" : "false"));
-    }
-
-    internal void log_nudge_candidate(NudgeCandidate candidate) {
-        if (toolbox == null) {
-            return;
-        }
-        var parts = new Gee.ArrayList<string>();
-        parts.add("project=%s".printf(candidate.project_id));
-        if (candidate.card_id != null && candidate.card_id.strip().length > 0) {
-            parts.add("card=%s".printf(candidate.card_id));
-        }
-        if (candidate.basis_fingerprint != null && candidate.basis_fingerprint.strip().length > 0) {
-            parts.add("fingerprint=%s".printf(candidate.basis_fingerprint));
-        }
-        if (candidate.basis_commit != null && candidate.basis_commit.strip().length > 0) {
-            parts.add("commit=%s".printf(candidate.basis_commit));
-        }
-        var facts_node = new Json.Node(Json.NodeType.OBJECT);
-        facts_node.set_object(candidate.facts);
-        var generator = new Json.Generator();
-        generator.set_root(facts_node);
-        var facts_json = generator.to_data(null);
-        toolbox.log_debug(
-            "CANDIDATE %s [%s] facts=%s".printf(
-                candidate.kind,
-                string.joinv(", ", parts.to_array()),
-                facts_json
-            )
-        );
-    }
-
-    internal async void evaluate_nudge_candidate(NudgeCandidate candidate) {
-        var api = controller.get_api_client();
-        if (api == null) {
-            return;
-        }
-        try {
-            var result = yield api.evaluate_nudge_candidate(
-                candidate.kind,
-                candidate.project_id,
-                candidate.card_id,
-                candidate.created_at,
-                candidate.facts,
-                candidate.basis_fingerprint,
-                candidate.basis_commit
-            );
-            if (toolbox != null) {
-                toolbox.log_debug(
-                    "NUDGE_EVAL %s accepted=%s should_nudge=%s reason=%s".printf(
-                        result.kind,
-                        result.accepted ? "true" : "false",
-                        result.should_nudge ? "true" : "false",
-                        result.reason
-                    )
-                );
-            }
-            if (result.nudge != null) {
-                ai_panel.refresh_nudges(candidate.project_id, candidate.card_id);
-            }
-        } catch (Error e) {
-            if (toolbox != null) {
-                toolbox.log_debug(
-                    "NUDGE_EVAL_ERROR %s %s".printf(candidate.kind, e.message)
-                );
-            }
-        }
-    }
-
-    internal async void evaluate_title_suggestion_for_current_card() {
-        var candidate = build_title_suggestion_candidate_for_current_card();
-        if (candidate == null) {
-            return;
-        }
-        log_nudge_candidate(((!) candidate));
-        yield evaluate_nudge_candidate(((!) candidate));
-    }
-
-    private NudgeCandidate? build_title_suggestion_candidate_for_current_card() {
-        var card = controller.get_current_card();
-        if (card == null || controller.get_api_client() == null) {
-            return null;
-        }
-        if (controller.selected_card_id() != card.card_id) {
-            return null;
-        }
-        if (!is_placeholder_title(card.title)) {
-            return null;
-        }
-        var body_text = body_text_from_content(card.content);
-        var body_chars = body_text.char_count();
-        if (body_text.strip().length == 0 || body_chars < 40) {
-            return null;
-        }
-
-        var facts = new Json.Object();
-        facts.set_string_member("title", card.title);
-        facts.set_boolean_member("body_empty", false);
-        facts.set_int_member("doc_chars", card.content.char_count());
-        facts.set_int_member("body_chars", body_chars);
-
-        return new NudgeCandidate(
-            "card.title_suggestion",
-            card.project_id,
-            card.card_id,
-            controller.now_epoch_seconds(),
-            facts,
-            short_content_fingerprint(card.content),
-            null
-        );
-    }
-
-    private async void apply_title_suggestion(string nudge_id, string card_id, string title_text) {
-        var api = controller.get_api_client();
-        var card = controller.get_current_card();
-        var title = title_text.strip();
-        if (api == null || card == null || card.card_id != card_id || title.length == 0) {
-            log_debug_line("TITLE_SUGGESTION_APPLY_SKIPPED stale_or_missing_context");
-            return;
-        }
-
-        var updated_content = replace_card_title_line(card.content, title);
-        var updated_at = controller.now_epoch_seconds();
-        try {
-            yield api.update_card(card_id, title, updated_content, updated_at);
-            card.title = title;
-            card.content = updated_content;
-            card.updated_at = updated_at;
-            controller.set_loaded_card_editor_state(card);
-            controller.update_selected_card_summary(title, updated_at);
-            update_window_title(title);
-            set_editor_save_state_text("Saved");
-            yield api.dismiss_ai_nudge(nudge_id);
-            ai_panel.refresh_nudges(controller.selected_project_id(), controller.selected_card_id());
-            log_activity(
-                "result.card.title_suggestion_apply",
-                "Applied title suggestion: %s".printf(title),
-                card.project_id,
-                card.card_id
-            );
-        } catch (Error e) {
-            show_error("Title suggestion failed", e.message);
-            log_debug_line("TITLE_SUGGESTION_APPLY_ERROR %s".printf(e.message));
-        }
-    }
-
-    private static bool is_placeholder_title(string title) {
-        return title.strip().down().has_prefix("untitled");
-    }
-
-    private static string body_text_from_content(string content) {
-        var newline_index = content.index_of_char('\n');
-        if (newline_index < 0 || newline_index + 1 >= content.length) {
-            return "";
-        }
-        return content.substring(newline_index + 1);
-    }
-
-    private static string short_content_fingerprint(string content) {
-        var digest = Checksum.compute_for_string(ChecksumType.SHA256, content);
-        return digest.substring(0, 12);
-    }
-
-    private static string replace_card_title_line(string content, string title) {
-        var lines = content.split("\n");
-        for (int i = 0; i < lines.length; i++) {
-            var line = lines[i].strip();
-            if (line.length == 0) {
-                continue;
-            }
-            if (line.has_prefix("#")) {
-                lines[i] = "# %s".printf(title);
-                return string.joinv("\n", lines);
-            }
-            break;
-        }
-        return "# %s\n\n%s".printf(title, content);
     }
 
     internal void log_status_activity(string text) {

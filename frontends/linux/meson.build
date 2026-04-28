@@ -104,6 +104,7 @@ sources = [
   'src/controllers/window_flowboard_event_binder.vala',
   'src/controllers/ai_threads.vala',
   'src/controllers/ai_run.vala',
+  'src/controllers/ai_nudge.vala',
   'src/controllers/ai_panel_event_orchestrator.vala',
   'src/views/adapters/print_ui.vala',
   'src/controllers/git_sync.vala',
