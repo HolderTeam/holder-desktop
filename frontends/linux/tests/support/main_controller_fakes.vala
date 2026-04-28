@@ -95,6 +95,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int create_project_calls = 0;
     public int list_threads_calls = 0;
     public int list_ai_messages_calls = 0;
+    public int evaluate_nudge_candidate_calls = 0;
+    public int dismiss_ai_nudge_calls = 0;
     public int factory_create_calls = 0;
     public int list_resources_calls = 0;
     public int create_resource_calls = 0;
@@ -122,6 +124,14 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public string last_updated_title = "";
     public string last_updated_content = "";
     public int64 last_updated_at = 0;
+    public string last_nudge_kind = "";
+    public string last_nudge_project_id = "";
+    public string? last_nudge_card_id = null;
+    public int64 last_nudge_created_at = 0;
+    public Json.Object? last_nudge_facts = null;
+    public string? last_nudge_basis_fingerprint = null;
+    public string? last_nudge_basis_commit = null;
+    public string last_dismissed_nudge_id = "";
     public string last_move_card_id = "";
     public string? last_move_parent_card_id = null;
     public double last_move_sort_key = 0.0;
@@ -134,6 +144,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_create_card = false;
     public bool fail_create_project = false;
     public bool fail_list_threads = false;
+    public bool fail_evaluate_nudge_candidate = false;
+    public bool fail_dismiss_ai_nudge = false;
     public bool fail_ai_capabilities = false;
     public bool fail_list_resources = false;
     public bool fail_create_resource = false;
@@ -216,6 +228,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public Gee.ArrayList<HolderLinux.CardLink> card_links = new Gee.ArrayList<HolderLinux.CardLink>();
     public Gee.ArrayList<HolderLinux.CardLink> card_backlinks = new Gee.ArrayList<HolderLinux.CardLink>();
     public Gee.ArrayList<HolderLinux.TrashItem> trash_items = new Gee.ArrayList<HolderLinux.TrashItem>();
+    public HolderLinux.NudgeEvaluationResult? next_nudge_result = null;
     public ListCardsBeforeCompleteHook? list_cards_before_complete_hook = null;
     public HealthBeforeCompleteHook? health_before_complete_hook = null;
     public ListResourcesBeforeCompleteHook? list_resources_before_complete_hook = null;
@@ -743,7 +756,13 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         return new Gee.ArrayList<HolderLinux.AiNudge>();
     }
 
-    public async void dismiss_ai_nudge(string nudge_id) throws Error {}
+    public async void dismiss_ai_nudge(string nudge_id) throws Error {
+        if (fail_dismiss_ai_nudge) {
+            throw new IOError.FAILED("dismiss nudge failed");
+        }
+        dismiss_ai_nudge_calls++;
+        last_dismissed_nudge_id = nudge_id;
+    }
 
     public async HolderLinux.NudgeEvaluationResult evaluate_nudge_candidate(string kind,
                                                                             string project_id,
@@ -752,6 +771,20 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                                                             Json.Object facts,
                                                                             string? basis_fingerprint = null,
                                                                             string? basis_commit = null) throws Error {
+        if (fail_evaluate_nudge_candidate) {
+            throw new IOError.FAILED("evaluate nudge failed");
+        }
+        evaluate_nudge_candidate_calls++;
+        last_nudge_kind = kind;
+        last_nudge_project_id = project_id;
+        last_nudge_card_id = card_id;
+        last_nudge_created_at = created_at;
+        last_nudge_facts = facts;
+        last_nudge_basis_fingerprint = basis_fingerprint;
+        last_nudge_basis_commit = basis_commit;
+        if (next_nudge_result != null) {
+            return (!) next_nudge_result;
+        }
         return new HolderLinux.NudgeEvaluationResult(kind, false, false, "fake_not_implemented");
     }
 

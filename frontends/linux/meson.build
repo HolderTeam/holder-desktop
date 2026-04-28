@@ -214,6 +214,57 @@ ai_controller_test_exe = executable(
 
 test('holder-linux-ai-controller-tests', ai_controller_test_exe)
 
+ai_nudge_controller_test_exe = executable(
+  'holder-linux-ai-nudge-controller-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'tests/support/main_controller_harness.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/editor_recovery_draft_service.vala',
+    'src/state/editor_draft_state.vala',
+    'src/state/activity_log.vala',
+    'src/utils/text_utils.vala',
+    'src/controllers/main.vala',
+    'src/controllers/backend_session.vala',
+    'src/controllers/main_bootstrap.vala',
+    'src/controllers/store_sync.vala',
+    'src/controllers/main_overview.vala',
+    'src/controllers/main_project_flow.vala',
+    'src/controllers/main_card_load.vala',
+    'src/controllers/projects.vala',
+    'src/controllers/cards.vala',
+    'src/controllers/editor_save.vala',
+    'src/controllers/search.vala',
+    'src/controllers/ai_threads.vala',
+    'src/controllers/activity_reducer.vala',
+    'src/controllers/ai_nudge.vala',
+    'tests/ai_nudge_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-ai-nudge-controller-tests', ai_nudge_controller_test_exe)
+
 main_controller_test_exe = executable(
   'holder-linux-main-controller-tests',
   [
@@ -309,6 +360,55 @@ main_extracted_controllers_test_exe = executable(
 )
 
 test('holder-linux-main-extracted-controllers-tests', main_extracted_controllers_test_exe)
+
+selection_controller_test_exe = executable(
+  'holder-linux-selection-controller-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'tests/support/main_controller_harness.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/editor_recovery_draft_service.vala',
+    'src/state/editor_draft_state.vala',
+    'src/utils/text_utils.vala',
+    'src/controllers/main.vala',
+    'src/controllers/backend_session.vala',
+    'src/controllers/main_bootstrap.vala',
+    'src/controllers/store_sync.vala',
+    'src/controllers/main_overview.vala',
+    'src/controllers/main_project_flow.vala',
+    'src/controllers/main_card_load.vala',
+    'src/controllers/projects.vala',
+    'src/controllers/cards.vala',
+    'src/controllers/editor_save.vala',
+    'src/controllers/search.vala',
+    'src/controllers/ai_threads.vala',
+    'src/controllers/selection.vala',
+    'tests/selection_controller_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-selection-controller-tests', selection_controller_test_exe)
 
 editor_recovery_draft_service_test_exe = executable(
   'holder-linux-editor-recovery-draft-service-tests',
