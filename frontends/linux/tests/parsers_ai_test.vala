@@ -455,6 +455,7 @@ private void test_parse_nudge_evaluation_and_nudge_list_paths() {
     assert(evaluation.reason == "good");
     assert(evaluation.nudge != null);
     assert(((!) evaluation.nudge).nudge_id == "n1");
+    assert(((!) evaluation.nudge).suggestions.size == 0);
 
     bool got_missing_eval_data = false;
     try {
@@ -467,14 +468,16 @@ private void test_parse_nudge_evaluation_and_nudge_list_paths() {
     Gee.ArrayList<HolderLinux.AiNudge> nudges;
     try {
         nudges = HolderLinux.ApiParsersAi.parse_ai_nudge_list(parse_json_object(
-            "{\"data\":{\"nudges\":[{\"nudge_id\":\"n2\",\"kind\":\"git.push_failed_repeated\",\"project_id\":\"p2\",\"card_id\":\"\",\"title\":\"Title\",\"body\":\"Body\",\"basis_fingerprint\":\"\",\"basis_commit\":\"\",\"created_at\":12}]}}"
+            "{\"data\":{\"nudges\":[{\"nudge_id\":\"n2\",\"kind\":\"card.title_suggestion\",\"project_id\":\"p2\",\"card_id\":\"c2\",\"title\":\"Suggest a title\",\"body\":\"Body\",\"basis_fingerprint\":\"\",\"basis_commit\":\"\",\"created_at\":12,\"suggestions\":[\"Wetland Nurseries\",\"Frog Habitat Notes\",\"Seasonal Pond Life\"]}]}}"
         ));
     } catch (Error e) {
         assert_not_reached();
     }
     assert(nudges.size == 1);
     assert(nudges[0].nudge_id == "n2");
-    assert(nudges[0].kind == "git.push_failed_repeated");
+    assert(nudges[0].kind == "card.title_suggestion");
+    assert(nudges[0].suggestions.size == 3);
+    assert(nudges[0].suggestions[1] == "Frog Habitat Notes");
 
     bool got_missing_nudges_data = false;
     try {

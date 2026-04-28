@@ -244,6 +244,17 @@ private void test_nudge_models_preserve_constructor_values_and_defaults() {
     assert(nudge.basis_fingerprint == "fp-1");
     assert(nudge.basis_commit == "abc123");
     assert(nudge.created_at == 99);
+    assert(nudge.suggestions.size == 0);
+
+    var suggestions = new Gee.ArrayList<string>();
+    suggestions.add("Wetland Nurseries");
+    suggestions.add("Frog Habitat Notes");
+    suggestions.add("Seasonal Pond Life");
+    var title_nudge = new HolderLinux.AiNudge(
+        "nudge-2", "card.title_suggestion", "proj-1", "card-1", "Suggest a title", "Pick one", "", "", 100, suggestions
+    );
+    assert(title_nudge.suggestions.size == 3);
+    assert(title_nudge.suggestions[0] == "Wetland Nurseries");
 
     var with_nudge = new HolderLinux.NudgeEvaluationResult("accepted", true, true, "good", nudge);
     assert(with_nudge.kind == "accepted");

@@ -424,6 +424,13 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
     }
 
     public static AiNudge parse_ai_nudge(Json.Object data) throws Error {
+        var suggestions = new Gee.ArrayList<string>();
+        if (data.has_member("suggestions")) {
+            var items = data.get_array_member("suggestions");
+            for (uint i = 0; i < items.get_length(); i++) {
+                suggestions.add(items.get_string_element(i));
+            }
+        }
         return new AiNudge(
             ApiParsersCommon.string_member_or_empty(data, "nudge_id"),
             ApiParsersCommon.string_member_or_empty(data, "kind"),
@@ -433,7 +440,8 @@ public class ApiParsersAi { // LCOV_EXCL_LINE: declaration-only coverage artifac
             ApiParsersCommon.string_member_or_empty(data, "body"),
             ApiParsersCommon.string_member_or_empty(data, "basis_fingerprint"),
             ApiParsersCommon.string_member_or_empty(data, "basis_commit"),
-            data.has_member("created_at") ? data.get_int_member("created_at") : 0
+            data.has_member("created_at") ? data.get_int_member("created_at") : 0,
+            suggestions
         );
     }
 

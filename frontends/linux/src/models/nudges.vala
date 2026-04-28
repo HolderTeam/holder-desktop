@@ -10,6 +10,7 @@ public class AiNudge : Object {
     public string basis_fingerprint { get; construct; }
     public string basis_commit { get; construct; }
     public int64 created_at { get; construct; }
+    public Gee.ArrayList<string> suggestions { get; construct; }
 
     public AiNudge(string nudge_id,
                    string kind,
@@ -19,7 +20,8 @@ public class AiNudge : Object {
                    string body,
                    string basis_fingerprint,
                    string basis_commit,
-                   int64 created_at) {
+                   int64 created_at,
+                   Gee.ArrayList<string>? suggestions = null) {
         Object(
             nudge_id: nudge_id,
             kind: kind,
@@ -29,7 +31,8 @@ public class AiNudge : Object {
             body: body,
             basis_fingerprint: basis_fingerprint,
             basis_commit: basis_commit,
-            created_at: created_at
+            created_at: created_at,
+            suggestions: suggestions ?? new Gee.ArrayList<string>()
         );
     }
 }
