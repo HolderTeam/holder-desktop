@@ -324,6 +324,40 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         }
     }
 
+#if RESOURCES_TOOL_VIEW_TEST
+    internal void set_filter_text_for_tests(string text) {
+        resources_search_entry.set_text(text);
+    }
+
+    internal void select_index_for_tests(uint index) {
+        resources_selection.set_selected(index);
+    }
+
+    internal uint item_count_for_tests() {
+        return resources_store.get_n_items();
+    }
+
+    internal string empty_text_for_tests() {
+        return resources_empty_label.get_text();
+    }
+
+    internal bool empty_visible_for_tests() {
+        return resources_empty_label.get_visible();
+    }
+
+    internal bool open_sensitive_for_tests() {
+        return resources_open_btn.get_sensitive();
+    }
+
+    internal bool edit_sensitive_for_tests() {
+        return resources_edit_btn.get_sensitive();
+    }
+
+    internal bool delete_sensitive_for_tests() {
+        return resources_delete_btn.get_sensitive();
+    }
+#endif
+
     private void open_resource_dialog(ProjectResource? existing) {
         var project = project_selection != null
             ? project_selection.get_selected_item() as Project
@@ -501,6 +535,24 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         error_reported(result.error_title, result.error_details);
     }
 
+#if RESOURCES_TOOL_VIEW_TEST
+    internal async void create_resource_for_tests(string project_id,
+                                                  string kind,
+                                                  string uri,
+                                                  string label,
+                                                  string? desc) {
+        yield create_resource(project_id, kind, uri, label, desc);
+    }
+
+    internal async void update_resource_for_tests(string resource_id,
+                                                  string kind,
+                                                  string uri,
+                                                  string label,
+                                                  string? desc) {
+        yield update_resource(resource_id, kind, uri, label, desc);
+    }
+#endif
+
     private void open_selected_resource() {
         var selected = selected_resource();
         if (selected == null) {
@@ -560,6 +612,12 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         }
         error_reported(result.error_title, result.error_details);
     }
+
+#if RESOURCES_TOOL_VIEW_TEST
+    internal async void delete_resource_for_tests(string resource_id) {
+        yield delete_resource(resource_id);
+    }
+#endif
 
     private void open_local_resource_picker(Gtk.Window root_window,
                                             Gtk.Entry uri_entry,

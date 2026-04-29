@@ -96,6 +96,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int list_threads_calls = 0;
     public int list_ai_messages_calls = 0;
     public int evaluate_nudge_candidate_calls = 0;
+    public int list_ai_nudges_calls = 0;
     public int dismiss_ai_nudge_calls = 0;
     public int factory_create_calls = 0;
     public int list_resources_calls = 0;
@@ -145,6 +146,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_create_project = false;
     public bool fail_list_threads = false;
     public bool fail_evaluate_nudge_candidate = false;
+    public bool fail_list_ai_nudges = false;
     public bool fail_dismiss_ai_nudge = false;
     public bool fail_ai_capabilities = false;
     public bool fail_list_resources = false;
@@ -227,7 +229,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public string last_link_to_type = "";
     public Gee.ArrayList<HolderLinux.CardLink> card_links = new Gee.ArrayList<HolderLinux.CardLink>();
     public Gee.ArrayList<HolderLinux.CardLink> card_backlinks = new Gee.ArrayList<HolderLinux.CardLink>();
+    public Gee.ArrayList<HolderLinux.ProjectResource> resources = new Gee.ArrayList<HolderLinux.ProjectResource>();
     public Gee.ArrayList<HolderLinux.TrashItem> trash_items = new Gee.ArrayList<HolderLinux.TrashItem>();
+    public Gee.ArrayList<HolderLinux.AiNudge> ai_nudges = new Gee.ArrayList<HolderLinux.AiNudge>();
     public HolderLinux.NudgeEvaluationResult? next_nudge_result = null;
     public ListCardsBeforeCompleteHook? list_cards_before_complete_hook = null;
     public HealthBeforeCompleteHook? health_before_complete_hook = null;
@@ -497,7 +501,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         }
         list_resources_calls++;
         last_resource_project_id = project_id;
-        return new Gee.ArrayList<HolderLinux.ProjectResource>();
+        return resources;
     }
 
     public async Gee.ArrayList<HolderLinux.TrashItem> list_trash_items(string project_id,
@@ -753,7 +757,13 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
 
     public async Gee.ArrayList<HolderLinux.AiNudge> list_ai_nudges(string project_id,
                                                                    string? card_id = null) throws Error {
-        return new Gee.ArrayList<HolderLinux.AiNudge>();
+        if (fail_list_ai_nudges) {
+            throw new IOError.FAILED("list nudges failed");
+        }
+        list_ai_nudges_calls++;
+        last_nudge_project_id = project_id;
+        last_nudge_card_id = card_id;
+        return ai_nudges;
     }
 
     public async void dismiss_ai_nudge(string nudge_id) throws Error {

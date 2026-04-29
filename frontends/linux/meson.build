@@ -2304,6 +2304,46 @@ trash_tool_view_test_exe = executable(
 
 test('holder-linux-trash-tool-view-tests', trash_tool_view_test_exe)
 
+resources_tool_view_test_exe = executable(
+  'holder-linux-resources-tool-view-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/models/toolbox_nav.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/resources_service.vala',
+    'src/controllers/resources.vala',
+    'src/views/toolbox/tool_adapter.vala',
+    'src/views/toolbox/resources_tool_view.vala',
+    'tests/resources_tool_view_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+    '--define=RESOURCES_TOOL_VIEW_TEST',
+  ],
+  install: false,
+)
+
+test('holder-linux-resources-tool-view-tests', resources_tool_view_test_exe)
+
 trash_controller_test_exe = executable(
   'holder-linux-trash-controller-tests',
   [
@@ -2736,6 +2776,42 @@ tool_shell_test_exe = executable(
 
 test('holder-linux-tool-shell-tests', tool_shell_test_exe)
 
+toolbox_small_views_test_exe = executable(
+  'holder-linux-toolbox-small-views-tests',
+  [
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/models/toolbox_nav.vala',
+    'src/state/activity_log.vala',
+    'src/views/components/navigation_breadcrumbs.vala',
+    'src/views/toolbox/tool_adapter.vala',
+    'src/views/toolbox/debug_tool_view.vala',
+    'src/views/toolbox/recovery_key_tool_view.vala',
+    'src/views/toolbox/sharing_tool_view.vala',
+    'tests/toolbox_small_views_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-toolbox-small-views-tests', toolbox_small_views_test_exe)
+
 preferences_dialog_test_exe = executable(
   'holder-linux-preferences-dialog-tests',
   [
@@ -2790,3 +2866,40 @@ ai_catalog_panel_view_test_exe = executable(
 )
 
 test('holder-linux-ai-catalog-panel-view-tests', ai_catalog_panel_view_test_exe)
+
+ai_panel_view_test_exe = executable(
+  'holder-linux-ai-panel-view-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/views/ai_panel/config.vala',
+    'src/views/ai_panel.vala',
+    'tests/ai_panel_view_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+    '--define=AI_PANEL_VIEW_TEST',
+  ],
+  install: false,
+)
+
+test('holder-linux-ai-panel-view-tests', ai_panel_view_test_exe)
