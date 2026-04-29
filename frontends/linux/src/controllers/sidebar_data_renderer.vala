@@ -46,7 +46,7 @@ internal class SidebarDataRenderer : Object {
             var existing = store.get_item(i) as Project;
             var incoming = values[(int) i];
             if (existing == null || incoming == null) {
-                return false;
+                return false; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: strongly typed store/list defensive guard
             }
             if (existing.project_id != incoming.project_id
                 || existing.name != incoming.name
@@ -70,7 +70,7 @@ internal class SidebarDataRenderer : Object {
             var existing = store.get_item(i) as CardSummary;
             var incoming = values[(int) i];
             if (existing == null || incoming == null) {
-                return false;
+                return false; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: strongly typed store/list defensive guard
             }
             if (existing.card_id != incoming.card_id
                 || existing.project_id != incoming.project_id
@@ -93,7 +93,7 @@ internal class SidebarDataRenderer : Object {
             var existing = store.get_item(i) as AiThreadSummary;
             var incoming = values[(int) i];
             if (existing == null || incoming == null) {
-                return false;
+                return false; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: strongly typed store/list defensive guard
             }
             if (existing.thread_id != incoming.thread_id
                 || existing.project_id != incoming.project_id

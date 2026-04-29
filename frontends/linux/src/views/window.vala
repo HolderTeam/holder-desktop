@@ -218,6 +218,65 @@ private class WindowMainControllerSignalSink : Object, IMainControllerSignalSink
     }
 }
 
+private class WindowMainControllerSignalSource : Object, IMainControllerSignalSource {
+    public WindowMainControllerSignalSource(MainController controller) {
+        controller.status_changed.connect((text) => {
+            status_changed(text);
+        });
+        controller.editor_state_changed.connect((text, editable) => {
+            editor_state_changed(text, editable);
+        });
+        controller.editor_save_state_changed.connect((text) => {
+            editor_save_state_changed(text);
+        });
+        controller.window_title_changed.connect((title_text) => {
+            window_title_changed(title_text);
+        });
+        controller.toast_requested.connect((message) => {
+            toast_requested(message);
+        });
+        controller.error_reported.connect((title_text, details) => {
+            error_reported(title_text, details);
+        });
+        controller.show_editor_requested.connect(() => {
+            show_editor_requested();
+        });
+        controller.show_search_requested.connect(() => {
+            show_search_requested();
+        });
+        controller.search_summary_changed.connect((text) => {
+            search_summary_changed(text);
+        });
+        controller.ai_status_refresh_requested.connect(() => {
+            ai_status_refresh_requested();
+        });
+        controller.project_selection_requested.connect((project_id) => {
+            project_selection_requested(project_id);
+        });
+        controller.card_selection_requested.connect((card_id) => {
+            card_selection_requested(card_id);
+        });
+        controller.search_selection_requested.connect((position) => {
+            search_selection_requested(position);
+        });
+        controller.ai_thread_title_changed.connect((title_text) => {
+            ai_thread_title_changed(title_text);
+        });
+        controller.ai_thread_selection_requested.connect((thread_id) => {
+            ai_thread_selection_requested(thread_id);
+        });
+        controller.api_client_ready.connect((api_client) => {
+            api_client_ready(api_client);
+        });
+        controller.card_trashed.connect((card_id) => {
+            card_trashed(card_id);
+        });
+        controller.activity_requested.connect((kind, message, project_id, card_id, details) => {
+            activity_requested(kind, message, project_id, card_id, details);
+        });
+    }
+}
+
 private class WindowAiPanelEventSink : Object, IAiPanelEventSink {
     private MainWindow owner;
 
@@ -302,6 +361,56 @@ private class WindowToolboxEventSink : Object, IToolboxEventSink {
     }
 }
 
+private class WindowToolboxEventSource : Object, IToolboxEventSource {
+    public WindowToolboxEventSource(ToolboxPane toolbox) {
+        toolbox.error_reported.connect((title_text, details) => {
+            error_reported(title_text, details);
+        });
+        toolbox.toast_requested.connect((message) => {
+            toast_requested(message);
+        });
+        toolbox.breadcrumb_navigation_requested.connect((tool_id, segment_index, project_id, card_id) => {
+            breadcrumb_navigation_requested(tool_id, segment_index, project_id, card_id);
+        });
+        toolbox.flowboard_card_open_requested.connect((card_id) => {
+            flowboard_card_open_requested(card_id);
+        });
+        toolbox.connections_card_open_requested.connect((card_id) => {
+            connections_card_open_requested(card_id);
+        });
+        toolbox.connections_card_create_child_requested.connect((card_id) => {
+            connections_card_create_child_requested(card_id);
+        });
+        toolbox.flowboard_card_move_to_trash_requested.connect((card_id) => {
+            flowboard_card_move_to_trash_requested(card_id);
+        });
+        toolbox.flowboard_move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
+            flowboard_move_intent_requested(card_id, project_id, intent, target_card_id, parent_card_id);
+        });
+        toolbox.flowboard_new_card_requested.connect((parent_card_id) => {
+            flowboard_new_card_requested(parent_card_id);
+        });
+        toolbox.send_card_as_email_requested.connect(() => {
+            send_card_as_email_requested();
+        });
+        toolbox.send_recovery_key_as_email_requested.connect(() => {
+            send_recovery_key_as_email_requested();
+        });
+        toolbox.save_recovery_key_to_usb_requested.connect(() => {
+            save_recovery_key_to_usb_requested();
+        });
+        toolbox.import_recovery_key_requested.connect(() => {
+            import_recovery_key_requested();
+        });
+        toolbox.terminal_copy_to_card_requested.connect((text) => {
+            terminal_copy_to_card_requested(text);
+        });
+        toolbox.activity_requested.connect((kind, message, project_id, card_id, details) => {
+            activity_requested(kind, message, project_id, card_id, details);
+        });
+    }
+}
+
 private class WindowFeedbackSink : Object, IWindowFeedbackSink {
     private MainWindow owner;
 
@@ -382,6 +491,23 @@ private class WindowSidebarEventSink : Object, ISidebarEventSink {
     }
 }
 
+private class WindowSidebarEventSource : Object, ISidebarEventSource {
+    private SidebarPane sidebar;
+
+    public WindowSidebarEventSource(SidebarPane sidebar) {
+        this.sidebar = sidebar;
+        sidebar.card_move_to_trash_requested.connect((card_id) => {
+            card_move_to_trash_requested(card_id);
+        });
+        sidebar.card_context_selection_requested.connect((card_id) => {
+            card_context_selection_requested(card_id);
+        });
+        sidebar.card_create_child_requested.connect((card_id) => {
+            card_create_child_requested(card_id);
+        });
+    }
+}
+
 private class WindowWorkspaceEventSink : Object, IWorkspaceEventSink {
     private MainWindow owner;
 
@@ -447,6 +573,59 @@ private class WindowWorkspaceEventSink : Object, IWorkspaceEventSink {
 
     public void on_workspace_replace_all_requested() {
         owner.on_workspace_replace_all_requested();
+    }
+}
+
+private class WindowWorkspaceEventSource : Object, IWorkspaceEventSource {
+    private WorkspacePane workspace;
+
+    public WindowWorkspaceEventSource(WorkspacePane workspace) {
+        this.workspace = workspace;
+        workspace.refresh_requested.connect(() => {
+            refresh_requested();
+        });
+        workspace.new_project_requested.connect(() => {
+            new_project_requested();
+        });
+        workspace.new_card_requested.connect(() => {
+            new_card_requested();
+        });
+        workspace.explorer_panel_toggled.connect((visible) => {
+            explorer_panel_toggled(visible);
+        });
+        workspace.ai_panel_toggled.connect((visible) => {
+            ai_panel_toggled(visible);
+        });
+        workspace.toolbox_toggled.connect((visible) => {
+            toolbox_toggled(visible);
+        });
+        workspace.open_debug_panel_requested.connect(() => {
+            open_debug_panel_requested();
+        });
+        workspace.search_activated.connect(() => {
+            search_activated();
+        });
+        workspace.search_changed.connect(() => {
+            search_changed();
+        });
+        workspace.search_cleared.connect(() => {
+            search_cleared();
+        });
+        workspace.search_focus_results_requested.connect(() => {
+            search_focus_results_requested();
+        });
+        workspace.search_result_activated.connect((position) => {
+            search_result_activated(position);
+        });
+        workspace.find_next_requested.connect(() => {
+            find_next_requested();
+        });
+        workspace.replace_requested.connect(() => {
+            replace_requested();
+        });
+        workspace.replace_all_requested.connect(() => {
+            replace_all_requested();
+        });
     }
 }
 
@@ -621,8 +800,9 @@ public class MainWindow : Adw.ApplicationWindow {
     private CardActionDialogAdapter card_action_dialog_adapter;
     private ProjectCreateDialogAdapter project_create_dialog_adapter;
     private PrintService print_service;
-    private PrintUiController print_ui_controller;
+    private PrintAdapter print_ui_controller;
     private AiRunController ai_run_controller;
+    private AiNudgeController ai_nudge_controller;
     private AiPanelEventOrchestrator ai_panel_event_orchestrator;
     private FindReplaceController find_replace_controller;
     private FlowboardController flowboard_controller;
@@ -770,11 +950,12 @@ public class MainWindow : Adw.ApplicationWindow {
         card_action_dialog_adapter = new CardActionDialogAdapter(this);
         project_create_dialog_adapter = new ProjectCreateDialogAdapter(this);
         print_service = new PrintService();
-        print_ui_controller = new PrintUiController(print_service);
+        print_ui_controller = new PrintAdapter(print_service);
         recovery_controller = new RecoveryController(new WindowRecoveryContext(controller));
         recovery_ui_controller = new RecoveryUiController(recovery_controller);
         recovery_dialog_adapter = new RecoveryDialogAdapter(this, recovery_ui_controller);
         ai_run_controller = new AiRunController(controller);
+        ai_nudge_controller = new AiNudgeController(controller);
         find_replace_controller = new FindReplaceController(
             new WindowFindReplaceOps(editor_buffer, editor_view)
         );
@@ -807,7 +988,7 @@ public class MainWindow : Adw.ApplicationWindow {
         );
         tool_help_controller = new ToolHelpController();
         toolbox_event_orchestrator = new ToolboxEventOrchestrator(
-            toolbox,
+            new WindowToolboxEventSource(toolbox),
             toolbox_breadcrumb_controller,
             selection_intent_orchestrator,
             controller,
@@ -826,11 +1007,11 @@ public class MainWindow : Adw.ApplicationWindow {
 
         sidebar = new SidebarPane(project_selection, card_selection, ai_thread_selection);
         window_sidebar_event_binder = new WindowSidebarEventBinder(
-            sidebar,
+            new WindowSidebarEventSource(sidebar),
             new WindowSidebarEventSink(this)
         );
         window_workspace_event_binder = new WindowWorkspaceEventBinder(
-            workspace,
+            new WindowWorkspaceEventSource(workspace),
             new WindowWorkspaceEventSink(this)
         );
         window_selection_editor_event_binder = new WindowSelectionEditorEventBinder(
@@ -848,11 +1029,11 @@ public class MainWindow : Adw.ApplicationWindow {
         );
         window_lifecycle_event_binder = new WindowLifecycleEventBinder(
             project_create_controller,
-            this,
+            new GtkWindowCloseRequestSource(this),
             new WindowLifecycleEventSink(this)
         );
         window_state_event_binder = new WindowStateEventBinder(
-            root_paned,
+            new GtkPanedPositionSource(root_paned),
             app_state_store,
             selection_transition_controller,
             new WindowStateEventSink(this)
@@ -864,11 +1045,20 @@ public class MainWindow : Adw.ApplicationWindow {
         root_paned.set_position(last_sidebar_position);
 
         main_controller_signal_binder = new MainControllerSignalBinder(
-            controller,
+            new WindowMainControllerSignalSource(controller),
             new WindowMainControllerSignalSink(this)
         );
         main_controller_signal_binder.bind();
         ai_panel_event_orchestrator.bind();
+        ai_nudge_controller.debug_log_requested.connect((message) => {
+            log_debug_line(message);
+        });
+        ai_nudge_controller.nudges_refresh_requested.connect((project_id, card_id) => {
+            ai_panel.refresh_nudges(project_id, card_id);
+        });
+        ai_panel.title_suggestion_apply_requested.connect((nudge_id, card_id, title_text) => {
+            ai_nudge_controller.apply_title_suggestion.begin(nudge_id, card_id, title_text);
+        });
         toolbox_event_orchestrator.bind();
         window_feedback_orchestrator.bind();
         window_action_binder.bind();
@@ -882,8 +1072,10 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.bind_flowboard_controller(flowboard_controller);
         activity_log_store.entry_added.connect((entry) => {
             foreach (var candidate in activity_reducer.reduce(activity_log_store.snapshot())) {
-                log_nudge_candidate(candidate);
-                evaluate_nudge_candidate.begin(candidate);
+                ai_nudge_controller.evaluate_candidate.begin(candidate);
+            }
+            if (workspace.is_ai_panel_visible() && entry.kind == "result.card.autosave") {
+                ai_nudge_controller.evaluate_title_suggestion_for_current_card.begin();
             }
         });
         window_flowboard_event_binder.bind();
@@ -1132,6 +1324,8 @@ public class MainWindow : Adw.ApplicationWindow {
         ai_run_controller.set_panel_visible(visible);
         if (visible) {
             ai_panel.refresh_config(controller.selected_project_id());
+            ai_panel.refresh_nudges(controller.selected_project_id(), controller.selected_card_id());
+            ai_nudge_controller.evaluate_title_suggestion_for_current_card.begin();
         }
     }
 
@@ -1328,7 +1522,10 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void on_app_state_changed() {
         apply_sidebar_from_state();
-        ai_panel.refresh_nudges(app_state_store.selection.project_id, app_state_store.selection.card_id);
+        if (workspace.is_ai_panel_visible()) {
+            ai_panel.refresh_nudges(app_state_store.selection.project_id, app_state_store.selection.card_id);
+            ai_nudge_controller.evaluate_title_suggestion_for_current_card.begin();
+        }
     }
 
     internal void on_navigation_loading_changed(bool loading) {
@@ -1377,6 +1574,9 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void refresh_ai_status() {
+        if (!workspace.is_ai_panel_visible()) {
+            return;
+        }
         ai_run_controller.refresh_status.begin();
     }
 
@@ -1414,8 +1614,11 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void on_api_client_connected(IHolderApi api_client) {
         ai_panel.set_api_client(api_client);
-        ai_panel.refresh_config(controller.selected_project_id());
-        ai_panel.refresh_nudges(controller.selected_project_id(), controller.selected_card_id());
+        if (workspace.is_ai_panel_visible()) {
+            ai_panel.refresh_config(controller.selected_project_id());
+            ai_panel.refresh_nudges(controller.selected_project_id(), controller.selected_card_id());
+            ai_nudge_controller.evaluate_title_suggestion_for_current_card.begin();
+        }
         toolbox.set_api_client(api_client);
     }
 
@@ -1475,72 +1678,6 @@ public class MainWindow : Adw.ApplicationWindow {
             parts.add("prompt_chars=%d".printf(ai_details.prompt_chars));
         }
         parts.add("success=%s".printf(ai_details.success ? "true" : "false"));
-    }
-
-    internal void log_nudge_candidate(NudgeCandidate candidate) {
-        if (toolbox == null) {
-            return;
-        }
-        var parts = new Gee.ArrayList<string>();
-        parts.add("project=%s".printf(candidate.project_id));
-        if (candidate.card_id != null && candidate.card_id.strip().length > 0) {
-            parts.add("card=%s".printf(candidate.card_id));
-        }
-        if (candidate.basis_fingerprint != null && candidate.basis_fingerprint.strip().length > 0) {
-            parts.add("fingerprint=%s".printf(candidate.basis_fingerprint));
-        }
-        if (candidate.basis_commit != null && candidate.basis_commit.strip().length > 0) {
-            parts.add("commit=%s".printf(candidate.basis_commit));
-        }
-        var facts_node = new Json.Node(Json.NodeType.OBJECT);
-        facts_node.set_object(candidate.facts);
-        var generator = new Json.Generator();
-        generator.set_root(facts_node);
-        var facts_json = generator.to_data(null);
-        toolbox.log_debug(
-            "CANDIDATE %s [%s] facts=%s".printf(
-                candidate.kind,
-                string.joinv(", ", parts.to_array()),
-                facts_json
-            )
-        );
-    }
-
-    internal async void evaluate_nudge_candidate(NudgeCandidate candidate) {
-        var api = controller.get_api_client();
-        if (api == null) {
-            return;
-        }
-        try {
-            var result = yield api.evaluate_nudge_candidate(
-                candidate.kind,
-                candidate.project_id,
-                candidate.card_id,
-                candidate.created_at,
-                candidate.facts,
-                candidate.basis_fingerprint,
-                candidate.basis_commit
-            );
-            if (toolbox != null) {
-                toolbox.log_debug(
-                    "NUDGE_EVAL %s accepted=%s should_nudge=%s reason=%s".printf(
-                        result.kind,
-                        result.accepted ? "true" : "false",
-                        result.should_nudge ? "true" : "false",
-                        result.reason
-                    )
-                );
-            }
-            if (result.nudge != null) {
-                ai_panel.refresh_nudges(candidate.project_id, candidate.card_id);
-            }
-        } catch (Error e) {
-            if (toolbox != null) {
-                toolbox.log_debug(
-                    "NUDGE_EVAL_ERROR %s %s".printf(candidate.kind, e.message)
-                );
-            }
-        }
     }
 
     internal void log_status_activity(string text) {

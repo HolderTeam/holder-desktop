@@ -304,6 +304,80 @@ private void test_resource_flows_ignore_or_error_paths() {
     assert(error_result.error_title == "Failed to update resource");
 }
 
+private void test_resource_create_flow_failure_reports_activity_and_error() {
+    var controller = new HolderLinux.ResourcesController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    api.fail_create_resource = true;
+
+    string activity_kind = "";
+    string activity_message = "";
+    controller.activity_requested.connect((kind, message, project_id, resource_id, details) => {
+        activity_kind = kind;
+        activity_message = message;
+    });
+
+    bool done = false;
+    HolderLinux.ResourcesMutationResult? result = null;
+    controller.create_resource_flow.begin(api, "p1", "url", "https://example.com", "Example", null, (obj, res) => {
+        result = controller.create_resource_flow.end(res);
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(result != null);
+    assert(!result.success);
+    assert(result.error_title == "Failed to create resource");
+    assert(activity_kind == "result.resource.create_failed");
+    assert(activity_message.contains("Failed to create resource:"));
+}
+
+private void test_resource_update_and_delete_ignore_when_api_missing() {
+    var controller = new HolderLinux.ResourcesController();
+
+    bool update_done = false;
+    HolderLinux.ResourcesMutationResult? update_result = null;
+    controller.update_resource_flow.begin(null, "r1", "file", "u", "l", null, (obj, res) => {
+        update_result = controller.update_resource_flow.end(res);
+        update_done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => update_done));
+    assert(update_result != null && update_result.ignored);
+
+    bool delete_done = false;
+    HolderLinux.ResourcesMutationResult? delete_result = null;
+    controller.delete_resource_flow.begin(null, "r1", (obj, res) => {
+        delete_result = controller.delete_resource_flow.end(res);
+        delete_done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => delete_done));
+    assert(delete_result != null && delete_result.ignored);
+}
+
+private void test_resource_delete_flow_failure_reports_activity_and_error() {
+    var controller = new HolderLinux.ResourcesController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    api.fail_delete_resource = true;
+
+    string activity_kind = "";
+    string activity_message = "";
+    controller.activity_requested.connect((kind, message, project_id, resource_id, details) => {
+        activity_kind = kind;
+        activity_message = message;
+    });
+
+    bool done = false;
+    HolderLinux.ResourcesMutationResult? result = null;
+    controller.delete_resource_flow.begin(api, "r1", (obj, res) => {
+        result = controller.delete_resource_flow.end(res);
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(result != null);
+    assert(!result.success);
+    assert(result.error_title == "Failed to delete resource");
+    assert(activity_kind == "result.resource.delete_failed");
+    assert(activity_message.contains("Failed to delete resource:"));
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -341,6 +415,12 @@ int main(string[] args) {
                   test_create_update_delete_resource_flows);
     Test.add_func("/resources_controller/resource_flows_ignore_or_error_paths",
                   test_resource_flows_ignore_or_error_paths);
+    Test.add_func("/resources_controller/resource_create_flow_failure_reports_activity_and_error",
+                  test_resource_create_flow_failure_reports_activity_and_error);
+    Test.add_func("/resources_controller/resource_update_and_delete_ignore_when_api_missing",
+                  test_resource_update_and_delete_ignore_when_api_missing);
+    Test.add_func("/resources_controller/resource_delete_flow_failure_reports_activity_and_error",
+                  test_resource_delete_flow_failure_reports_activity_and_error);
 
     return Test.run();
 }

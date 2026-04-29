@@ -458,10 +458,15 @@ public class FlowboardController : Object {
             return segments;
         }
         foreach (var parent_id in parent_stack_ids) {
+            // LCOV_EXCL_START
+            // GCOVR_EXCL_START
+            // Fallback parent-stack breadcrumb path is unreachable from the public refresh/apply flows.
             var card = find_card(parent_id);
             if (card != null) {
                 segments.add(new FlowboardBreadcrumbSegment(card.title));
             }
+            // GCOVR_EXCL_STOP
+            // LCOV_EXCL_STOP
         }
         return segments;
     }

@@ -459,11 +459,11 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         dialog.present();
     }
 
-    private async void create_resource(string project_id,
-                                       string kind,
-                                       string uri,
-                                       string label,
-                                       string? desc) {
+    internal async void create_resource(string project_id,
+                                        string kind,
+                                        string uri,
+                                        string label,
+                                        string? desc) {
         var result = yield controller.create_resource_flow(api, project_id, kind, uri, label, desc);
         if (result.ignored) {
             return;
@@ -478,11 +478,11 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         error_reported(result.error_title, result.error_details);
     }
 
-    private async void update_resource(string resource_id,
-                                       string kind,
-                                       string uri,
-                                       string label,
-                                       string? desc) {
+    internal async void update_resource(string resource_id,
+                                        string kind,
+                                        string uri,
+                                        string label,
+                                        string? desc) {
         var project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
@@ -540,7 +540,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         dialog.present();
     }
 
-    private async void delete_resource(string resource_id) {
+    internal async void delete_resource(string resource_id) {
         var project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;

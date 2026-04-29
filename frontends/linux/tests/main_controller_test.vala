@@ -452,6 +452,95 @@ private void test_create_card_with_title_empty_emits_error_and_skips_create() {
     assert(api.create_card_calls == 0);
 }
 
+private void test_create_card_with_parent_uses_parent_based_default_title() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    harness.card_store.append(
+        new HolderLinux.CardSummary("child-1", "p1", "Untitled child of Card 1", "child-1.md", 2000.0, "c1", 30, 30)
+    );
+    harness.card_store.append(
+        new HolderLinux.CardSummary("child-2", "p1", "Untitled child of Card 1 4", "child-2.md", 3000.0, "c1", 31, 31)
+    );
+
+    bool saw_toast = false;
+    controller.toast_requested.connect((message) => {
+        if (message == "New card created") {
+            saw_toast = true;
+        }
+    });
+
+    controller.create_card.begin("c1");
+    assert(wait_for_condition(() => saw_toast));
+
+    assert(api.create_card_calls == 1);
+    assert(api.last_created_parent_card_id == "c1");
+    assert(api.last_created_title == "Untitled child of Card 1 5");
+    assert(api.last_created_content == "# Untitled child of Card 1 5\n\n");
+}
+
+private void test_create_card_with_parent_uses_untitled_when_parent_missing() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    bool saw_toast = false;
+    controller.toast_requested.connect((message) => {
+        if (message == "New card created") {
+            saw_toast = true;
+        }
+    });
+
+    controller.create_card.begin("missing-parent");
+    assert(wait_for_condition(() => saw_toast));
+
+    assert(api.create_card_calls == 1);
+    assert(api.last_created_parent_card_id == "missing-parent");
+    assert(api.last_created_title == "Untitled");
+    assert(api.last_created_content == "# Untitled\n\n");
+}
+
+private void test_create_card_with_parent_returns_base_title_when_children_are_unrelated() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    harness.card_store.append(
+        new HolderLinux.CardSummary("child-x", "p1", "Something else entirely", "child-x.md", 2000.0, "c1", 30, 30)
+    );
+
+    bool saw_toast = false;
+    controller.toast_requested.connect((message) => {
+        if (message == "New card created") {
+            saw_toast = true;
+        }
+    });
+
+    controller.create_card.begin("c1");
+    assert(wait_for_condition(() => saw_toast));
+
+    assert(api.create_card_calls == 1);
+    assert(api.last_created_parent_card_id == "c1");
+    assert(api.last_created_title == "Untitled child of Card 1");
+    assert(api.last_created_content == "# Untitled child of Card 1\n\n");
+}
+
 private void test_reload_ai_threads_error_emits_error() {
     var api = new MainControllerFakeApi();
     api.fail_list_threads = true;
@@ -549,6 +638,30 @@ private void test_open_search_result_missing_card_falls_back_to_first_card() {
     assert(prepared == null);
     assert(controller.selected_card_id() == null);
     assert(controller.get_current_card() == null);
+}
+
+private void test_open_search_result_reload_failure_returns_null() {
+    var api = new MainControllerFakeApi();
+    api.include_card2 = false;
+    api.search_returns_card2 = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    search_text.value = "card2";
+    controller.run_search.begin();
+    assert(wait_for_condition(() => api.search_calls == 1));
+
+    var list_cards_before = api.list_cards_calls;
+    api.fail_list_cards_once = true;
+    var prepared = prepare_search_result_card(controller, 0);
+    assert(wait_for_condition(() => api.list_cards_calls > list_cards_before));
+    assert(prepared == null);
 }
 
 private void test_run_search_without_project_emits_error() {
@@ -699,6 +812,53 @@ private void test_selected_ids_and_api_getter() {
 
     assert(controller.selected_project_id() == "p1");
     assert(controller.selected_card_id() == "c1");
+}
+
+private void test_list_ai_messages_without_api_throws_no_api_context() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock, null, null, false);
+    var controller = harness.controller;
+
+    bool done = false;
+    bool got_error = false;
+    controller.list_ai_messages.begin("t1", (obj, res) => {
+        try {
+            controller.list_ai_messages.end(res);
+        } catch (Error e) {
+            got_error = e.message.contains("No API context.");
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(got_error);
+    assert(api.list_ai_messages_calls == 0);
+}
+
+private void test_list_ai_messages_with_api_passthrough() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    bool done = false;
+    Gee.ArrayList<HolderLinux.AiMessage>? messages = null;
+    controller.list_ai_messages.begin("t1", (obj, res) => {
+        try {
+            messages = controller.list_ai_messages.end(res);
+        } catch (Error e) {
+            assert_not_reached();
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(messages != null);
+    assert(messages.size == 0);
+    assert(api.list_ai_messages_calls == 1);
 }
 
 private void test_reload_everything_with_no_api_is_noop() {
@@ -1795,6 +1955,167 @@ private void test_autosave_without_card_is_noop() {
     assert(api.update_card_calls == 0);
 }
 
+private void test_autosave_without_unsaved_changes_is_noop() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    string last_save_state = "unchanged";
+    controller.editor_save_state_changed.connect((text) => {
+        last_save_state = text;
+    });
+
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => true));
+    assert(api.update_card_calls == 0);
+    assert(last_save_state == "unchanged");
+}
+
+private void test_editor_content_changed_without_current_card_clears_save_state() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var search_text = new MutableTextProvider();
+    var editor_text = new MutableTextProvider();
+    var controller = make_controller(api, scheduler, clock, search_text, editor_text);
+
+    string last_save_state = "seed";
+    controller.editor_save_state_changed.connect((text) => {
+        last_save_state = text;
+    });
+
+    controller.on_editor_content_changed();
+    assert(last_save_state == "");
+}
+
+private void test_repeated_autosave_failures_use_backoff_status_and_tiers() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    string last_status = "";
+    controller.status_changed.connect((text) => {
+        last_status = text;
+    });
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+    assert(controller.get_autosave_retry_attempts() == 1);
+
+    scheduler.run_all_once();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+    assert(controller.get_autosave_retry_attempts() == 2);
+    assert(last_status == "Autosave failed, retrying in 2 s");
+
+    scheduler.run_all_once();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+    assert(controller.get_autosave_retry_attempts() == 3);
+    assert(last_status == "Autosave failed, retrying in 5 s");
+
+    scheduler.run_all_once();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+    assert(controller.get_autosave_retry_attempts() == 4);
+    assert(last_status == "Autosave failed, retrying in 10 s");
+}
+
+private void test_repeated_manual_autosave_failure_replaces_existing_retry_timer() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+    assert(controller.get_autosave_retry_attempts() == 1);
+    uint cancel_calls_after_first_failure = scheduler.cancel_calls;
+
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+    assert(controller.get_autosave_retry_attempts() == 2);
+    assert(scheduler.cancel_calls > cancel_calls_after_first_failure);
+}
+
+private void test_clean_editor_state_cancels_pending_retry_when_view_changes() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+
+    controller.show_project_overview.begin();
+    assert(wait_for_condition(() => !controller.has_pending_autosave_retry()));
+    assert(controller.get_autosave_retry_attempts() == 0);
+}
+
+private void test_retry_callback_resets_attempts_when_editor_is_clean() {
+    var api = new MainControllerFakeApi();
+    api.fail_update_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Updated Title\n\nDraft body";
+    controller.on_editor_content_changed();
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.has_pending_autosave_retry()));
+
+    harness.editor_text.value = controller.get_current_card().content;
+    controller.on_editor_content_changed();
+    scheduler.run_all_once();
+    assert(!controller.has_pending_autosave_retry());
+    assert(controller.get_autosave_retry_attempts() == 0);
+}
+
 private void test_update_selected_card_summary_without_current_card_is_noop() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -1841,11 +2162,11 @@ private void test_rebuild_card_summaries_handles_null_and_non_target_cards() {
 private void test_compare_cards_for_sidebar_orders_older_last_and_tiebreaks_by_title() {
     var newer = new HolderLinux.CardSummary("new", "p1", "Zulu", "new.md", 1.0, null, 1, 20);
     var older = new HolderLinux.CardSummary("old", "p1", "Alpha", "old.md", 2.0, null, 2, 10);
-    assert(HolderLinux.MainController.compare_cards_for_sidebar(older, newer) == 1);
+    assert(HolderLinux.StoreSyncController.compare_cards_for_sidebar(older, newer) == 1);
 
     var tie_a = new HolderLinux.CardSummary("a", "p1", "Beta", "a.md", 1.0, null, 1, 50);
     var tie_b = new HolderLinux.CardSummary("b", "p1", "alpha", "b.md", 2.0, null, 2, 50);
-    assert(HolderLinux.MainController.compare_cards_for_sidebar(tie_a, tie_b) > 0);
+    assert(HolderLinux.StoreSyncController.compare_cards_for_sidebar(tie_a, tie_b) > 0);
 }
 
 private void test_create_ai_thread_success() {
@@ -2196,6 +2517,120 @@ private void test_move_card_by_intent_into_emits_toast() {
     assert(wait_for_condition(() => saw_toast));
 }
 
+private void test_move_card_by_intent_stale_reload_returns_without_reselecting_card() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    int card_selection_requests = 0;
+    controller.card_selection_requested.connect((card_id) => {
+        card_selection_requests++;
+    });
+
+    bool triggered = false;
+    var list_cards_before = api.list_cards_calls;
+    api.list_cards_before_complete_hook = (project_id) => {
+        if (triggered || project_id != "p1") {
+            return;
+        }
+        triggered = true;
+        harness.project_selection.set_selected_index(uint.MAX);
+    };
+
+    controller.move_card_by_intent.begin("c1", "before", "c2", null);
+    assert(wait_for_condition(() => api.list_cards_calls > list_cards_before));
+    assert(wait_for_condition(() => triggered));
+
+    assert(api.update_card_position_calls == 1);
+    assert(card_selection_requests == 0);
+}
+
+private void test_move_card_to_trash_success_emits_toast_and_signal() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    bool saw_status = false;
+    bool saw_toast = false;
+    bool saw_trashed = false;
+    controller.status_changed.connect((text) => {
+        if (text == "Moved card to trash") {
+            saw_status = true;
+        }
+    });
+    controller.toast_requested.connect((text) => {
+        if (text == "Moved \"Card 1\" to Trash") {
+            saw_toast = true;
+        }
+    });
+    controller.card_trashed.connect((card_id) => {
+        if (card_id == "c1") {
+            saw_trashed = true;
+        }
+    });
+    var list_cards_before = api.list_cards_calls;
+
+    controller.move_card_to_trash.begin("c1");
+    assert(wait_for_condition(() => saw_status && saw_toast && saw_trashed));
+
+    assert(api.delete_card_calls == 1);
+    assert(api.last_updated_card_id == "c1");
+    assert(api.list_cards_calls > list_cards_before);
+}
+
+private void test_move_card_to_trash_failure_emits_error() {
+    var api = new MainControllerFakeApi();
+    api.fail_delete_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Move to trash failed" && details.contains("delete card failed")) {
+            got_error = true;
+        }
+    });
+
+    controller.move_card_to_trash.begin("c1");
+    assert(wait_for_condition(() => got_error));
+    assert(api.delete_card_calls == 0);
+}
+
+private void test_move_card_to_trash_without_api_emits_unavailable() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock, null, null, false);
+    var controller = harness.controller;
+
+    bool got_error = false;
+    controller.error_reported.connect((title, details) => {
+        if (title == "Move to trash unavailable"
+            && details == "API client is not connected.") {
+            got_error = true;
+        }
+    });
+
+    controller.move_card_to_trash.begin("c1");
+    assert(wait_for_condition(() => got_error));
+    assert(api.delete_card_calls == 0);
+}
+
 private void test_ensure_first_project_without_api_is_noop() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -2274,6 +2709,18 @@ int main(string[] args) {
         test_create_card_with_title_empty_emits_error_and_skips_create
     );
     Test.add_func(
+        "/main_controller/create_card_with_parent_uses_parent_based_default_title",
+        test_create_card_with_parent_uses_parent_based_default_title
+    );
+    Test.add_func(
+        "/main_controller/create_card_with_parent_uses_untitled_when_parent_missing",
+        test_create_card_with_parent_uses_untitled_when_parent_missing
+    );
+    Test.add_func(
+        "/main_controller/create_card_with_parent_returns_base_title_when_children_are_unrelated",
+        test_create_card_with_parent_returns_base_title_when_children_are_unrelated
+    );
+    Test.add_func(
         "/main_controller/reload_ai_threads_error_emits_error",
         test_reload_ai_threads_error_emits_error
     );
@@ -2288,6 +2735,10 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/open_search_result_missing_card_falls_back_to_first_card",
         test_open_search_result_missing_card_falls_back_to_first_card
+    );
+    Test.add_func(
+        "/main_controller/open_search_result_reload_failure_returns_null",
+        test_open_search_result_reload_failure_returns_null
     );
     Test.add_func(
         "/main_controller/run_search_without_project_emits_error",
@@ -2494,6 +2945,30 @@ int main(string[] args) {
         test_autosave_without_card_is_noop
     );
     Test.add_func(
+        "/main_controller/autosave_without_unsaved_changes_is_noop",
+        test_autosave_without_unsaved_changes_is_noop
+    );
+    Test.add_func(
+        "/main_controller/editor_content_changed_without_current_card_clears_save_state",
+        test_editor_content_changed_without_current_card_clears_save_state
+    );
+    Test.add_func(
+        "/main_controller/repeated_autosave_failures_use_backoff_status_and_tiers",
+        test_repeated_autosave_failures_use_backoff_status_and_tiers
+    );
+    Test.add_func(
+        "/main_controller/repeated_manual_autosave_failure_replaces_existing_retry_timer",
+        test_repeated_manual_autosave_failure_replaces_existing_retry_timer
+    );
+    Test.add_func(
+        "/main_controller/clean_editor_state_cancels_pending_retry_when_view_changes",
+        test_clean_editor_state_cancels_pending_retry_when_view_changes
+    );
+    Test.add_func(
+        "/main_controller/retry_callback_resets_attempts_when_editor_is_clean",
+        test_retry_callback_resets_attempts_when_editor_is_clean
+    );
+    Test.add_func(
         "/main_controller/update_selected_card_summary_without_current_card_is_noop",
         test_update_selected_card_summary_without_current_card_is_noop
     );
@@ -2542,6 +3017,14 @@ int main(string[] args) {
         test_bootstrap_success_emits_ready_and_refresh
     );
     Test.add_func(
+        "/main_controller/list_ai_messages_without_api_throws_no_api_context",
+        test_list_ai_messages_without_api_throws_no_api_context
+    );
+    Test.add_func(
+        "/main_controller/list_ai_messages_with_api_passthrough",
+        test_list_ai_messages_with_api_passthrough
+    );
+    Test.add_func(
         "/main_controller/bootstrap_creates_first_project_when_empty_first",
         test_bootstrap_creates_first_project_when_empty_first
     );
@@ -2568,6 +3051,22 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/move_card_by_intent_into_emits_toast",
         test_move_card_by_intent_into_emits_toast
+    );
+    Test.add_func(
+        "/main_controller/move_card_by_intent_stale_reload_returns_without_reselecting_card",
+        test_move_card_by_intent_stale_reload_returns_without_reselecting_card
+    );
+    Test.add_func(
+        "/main_controller/move_card_to_trash_success_emits_toast_and_signal",
+        test_move_card_to_trash_success_emits_toast_and_signal
+    );
+    Test.add_func(
+        "/main_controller/move_card_to_trash_failure_emits_error",
+        test_move_card_to_trash_failure_emits_error
+    );
+    Test.add_func(
+        "/main_controller/move_card_to_trash_without_api_emits_unavailable",
+        test_move_card_to_trash_without_api_emits_unavailable
     );
     Test.add_func(
         "/main_controller/ensure_first_project_without_api_is_noop",

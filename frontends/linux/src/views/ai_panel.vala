@@ -32,6 +32,7 @@ public class AiPanel : Object {
     public signal void pull_model_requested(string model_tag);
     public signal void error_reported(string title, string details);
     public signal void debug_log_requested(string line);
+    public signal void title_suggestion_apply_requested(string nudge_id, string card_id, string title);
 
     public AiPanel() {
         render_state = new AiPanelRenderState();
@@ -373,11 +374,26 @@ public class AiPanel : Object {
         header.append(title);
         header.append(dismiss_btn);
 
-        var body = new Gtk.Label(nudge.body) { xalign = 0.0f };
-        body.set_wrap(true);
-
         box.append(header);
-        box.append(body);
+        if (nudge.kind == "card.title_suggestion" && nudge.suggestions.size > 0) {
+            foreach (var suggestion in nudge.suggestions) {
+                var row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+                var suggestion_label = new Gtk.Label(suggestion) { xalign = 0.0f };
+                suggestion_label.set_wrap(true);
+                suggestion_label.set_hexpand(true);
+                var apply_btn = new Gtk.Button.with_label("Apply");
+                apply_btn.clicked.connect(() => {
+                    title_suggestion_apply_requested(nudge.nudge_id, nudge.card_id, suggestion);
+                });
+                row.append(suggestion_label);
+                row.append(apply_btn);
+                box.append(row);
+            }
+        } else {
+            var body = new Gtk.Label(nudge.body) { xalign = 0.0f };
+            body.set_wrap(true);
+            box.append(body);
+        }
         frame.set_child(box);
         return frame;
     }

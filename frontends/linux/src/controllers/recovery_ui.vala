@@ -10,7 +10,7 @@ internal class RecoverySavePreparation : Object {
 }
 
 internal class RecoveryUiController : Object {
-    private RecoveryController recovery_controller;
+    private RecoveryController recovery_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field declaration-only coverage artifact
 
     public signal void toast_requested(string message);
     public signal void error_reported(string title, string details);

@@ -4,7 +4,6 @@ public class TrashToolView : Object, IToolShellAdapter {
     private TrashController controller;
     private Gtk.Box trash_actions_bar;
     private Gtk.DropDown filter_dropdown;
-    private string scope_text_cache = "Projects / (none) / Trash";
     private Gtk.Label empty_label;
     private Gtk.Button empty_trash_btn;
 
@@ -212,7 +211,7 @@ public class TrashToolView : Object, IToolShellAdapter {
             restore_btn.clicked.connect(() => {
                 var current = item.get_item() as TrashItem;
                 if (current != null) {
-                    controller.restore_item.begin(current);
+                    restore_item.begin(current);
                 }
             });
             box.append(restore_btn);
@@ -234,17 +233,10 @@ public class TrashToolView : Object, IToolShellAdapter {
     }
 
     private void apply_state() {
-        scope_text_cache = controller.scope_text;
         empty_label.set_text(controller.empty_text);
         empty_label.set_visible(controller.empty_visible);
         empty_trash_btn.set_sensitive(controller.empty_trash_sensitive);
     }
-
-#if TRASH_TOOL_VIEW_TEST
-    internal void set_filter_index_for_tests(uint idx) {
-        filter_dropdown.set_selected(idx);
-    }
-#endif
 
     private void confirm_hard_delete(TrashItem item) {
         var root_window = widget.get_root() as Gtk.Window;
@@ -263,22 +255,20 @@ public class TrashToolView : Object, IToolShellAdapter {
         dialog.set_response_appearance(spec.confirm_response_id, Adw.ResponseAppearance.DESTRUCTIVE);
         dialog.response.connect((response) => {
             if (response == spec.confirm_response_id) {
-                controller.hard_delete_item.begin(item);
+                hard_delete_item.begin(item);
             }
             dialog.close();
         });
         dialog.present();
     }
 
-#if TRASH_TOOL_VIEW_TEST
-    internal async void restore_item_for_tests(TrashItem item) {
+    internal async void restore_item(TrashItem item) {
         yield controller.restore_item(item);
     }
 
-    internal async void hard_delete_item_for_tests(TrashItem item) {
+    internal async void hard_delete_item(TrashItem item) {
         yield controller.hard_delete_item(item);
     }
-#endif
 
     private void confirm_empty_trash() {
         var project = controller.selected_project();
@@ -302,38 +292,16 @@ public class TrashToolView : Object, IToolShellAdapter {
         dialog.set_response_appearance(spec.confirm_response_id, Adw.ResponseAppearance.DESTRUCTIVE);
         dialog.response.connect((response) => {
             if (response == spec.confirm_response_id) {
-                controller.empty_trash.begin(project.project_id);
+                empty_trash.begin(project.project_id);
             }
             dialog.close();
         });
         dialog.present();
     }
 
-#if TRASH_TOOL_VIEW_TEST
-    internal async void empty_trash_for_tests(string project_id) {
+    internal async void empty_trash(string project_id) {
         yield controller.empty_trash(project_id);
     }
-
-    internal uint item_count_for_tests() {
-        return controller.items_store.get_n_items();
-    }
-
-    internal string scope_text_for_tests() {
-        return scope_text_cache;
-    }
-
-    internal string empty_text_for_tests() {
-        return empty_label.get_text();
-    }
-
-    internal bool empty_visible_for_tests() {
-        return empty_label.get_visible();
-    }
-
-    internal bool empty_trash_sensitive_for_tests() {
-        return empty_trash_btn.get_sensitive();
-    }
-#endif
 }
 
 }

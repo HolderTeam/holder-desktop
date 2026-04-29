@@ -3,6 +3,10 @@ using GLib;
 namespace HolderLinuxTests {
 
 public delegate void ListCardsBeforeCompleteHook(string project_id);
+public delegate void HealthBeforeCompleteHook();
+public delegate void ListResourcesBeforeCompleteHook(string project_id);
+public delegate void GetCardBeforeCompleteHook(string card_id);
+public delegate void ListTrashBeforeCompleteHook(string project_id, string type);
 
 public class FakeClock : Object, HolderLinux.IClock {
     public int64 now_value = 1000;
@@ -47,11 +51,16 @@ public class MutableTextProvider : Object, HolderLinux.ITextProvider {
 public class FakeEditorRecoveryDraftService : Object, HolderLinux.IEditorRecoveryDraftService {
     public int save_calls = 0;
     public int remove_calls = 0;
+    public bool fail_save = false;
+    public bool fail_remove = false;
     public HolderLinux.EditorRecoveryDraft? last_saved_draft = null;
     public Gee.HashMap<string, HolderLinux.EditorRecoveryDraft> drafts =
         new Gee.HashMap<string, HolderLinux.EditorRecoveryDraft>();
 
     public void save_draft(HolderLinux.EditorRecoveryDraft draft) throws Error {
+        if (fail_save) {
+            throw new IOError.FAILED("save draft failed");
+        }
         save_calls++;
         last_saved_draft = draft;
         drafts.set(draft.card_id, draft);
@@ -62,6 +71,9 @@ public class FakeEditorRecoveryDraftService : Object, HolderLinux.IEditorRecover
     }
 
     public void remove_draft(string card_id) throws Error {
+        if (fail_remove) {
+            throw new IOError.FAILED("remove draft failed");
+        }
         remove_calls++;
         drafts.unset(card_id);
     }
@@ -83,6 +95,21 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int create_project_calls = 0;
     public int list_threads_calls = 0;
     public int list_ai_messages_calls = 0;
+    public int list_ai_runners_calls = 0;
+    public int create_ai_runner_calls = 0;
+    public int update_ai_runner_calls = 0;
+    public int delete_ai_runner_calls = 0;
+    public int list_ai_runtime_providers_calls = 0;
+    public int get_ai_local_model_config_calls = 0;
+    public int set_ai_local_model_config_calls = 0;
+    public int list_ai_provider_credentials_calls = 0;
+    public int list_ai_provider_settings_calls = 0;
+    public int upsert_ai_provider_credential_calls = 0;
+    public int delete_ai_provider_credential_calls = 0;
+    public int set_ai_provider_enabled_calls = 0;
+    public int evaluate_nudge_candidate_calls = 0;
+    public int list_ai_nudges_calls = 0;
+    public int dismiss_ai_nudge_calls = 0;
     public int factory_create_calls = 0;
     public int list_resources_calls = 0;
     public int create_resource_calls = 0;
@@ -110,6 +137,24 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public string last_updated_title = "";
     public string last_updated_content = "";
     public int64 last_updated_at = 0;
+    public string last_nudge_kind = "";
+    public string last_nudge_project_id = "";
+    public string? last_nudge_card_id = null;
+    public int64 last_nudge_created_at = 0;
+    public Json.Object? last_nudge_facts = null;
+    public string? last_nudge_basis_fingerprint = null;
+    public string? last_nudge_basis_commit = null;
+    public string last_dismissed_nudge_id = "";
+    public string last_ai_runner_id = "";
+    public string last_ai_runner_name = "";
+    public string? last_ai_runner_base_url = null;
+    public bool last_ai_runner_enabled = false;
+    public string? last_fast_model = null;
+    public string? last_strong_model = null;
+    public string? last_deep_model = null;
+    public string last_provider_id = "";
+    public string last_provider_api_key = "";
+    public bool last_provider_enabled = false;
     public string last_move_card_id = "";
     public string? last_move_parent_card_id = null;
     public double last_move_sort_key = 0.0;
@@ -118,9 +163,26 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public string last_move_intent = "";
     public string? last_move_target_card_id = null;
     public bool fail_health = false;
+    public int health_failures_remaining = 0;
     public bool fail_create_card = false;
     public bool fail_create_project = false;
     public bool fail_list_threads = false;
+    public bool fail_list_ai_runners = false;
+    public bool fail_create_ai_runner = false;
+    public bool fail_update_ai_runner = false;
+    public bool fail_delete_ai_runner = false;
+    public bool fail_list_ai_runtime_providers = false;
+    public bool fail_get_ai_local_model_config = false;
+    public bool fail_set_ai_local_model_config = false;
+    public bool fail_list_ai_provider_credentials = false;
+    public bool fail_list_ai_provider_settings = false;
+    public bool fail_upsert_ai_provider_credential = false;
+    public bool fail_delete_ai_provider_credential = false;
+    public bool fail_set_ai_provider_enabled = false;
+    public bool fail_evaluate_nudge_candidate = false;
+    public bool fail_list_ai_nudges = false;
+    public bool fail_dismiss_ai_nudge = false;
+    public bool fail_ai_capabilities = false;
     public bool fail_list_resources = false;
     public bool fail_create_resource = false;
     public bool fail_update_resource = false;
@@ -133,6 +195,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool include_home_project = false;
     public bool list_projects_empty_first = false;
     public bool fail_list_projects = false;
+    public bool fail_list_projects_once = false;
+    public bool blank_project_sync_status = false;
+    public bool omit_project_sync_retry_times = false;
     public bool list_cards_empty = false;
     public bool slow_create_card = false;
     public bool list_threads_empty = false;
@@ -142,17 +207,26 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_delete_card = false;
     public bool fail_search = false;
     public bool fail_get_card = false;
+    public bool fail_get_card_once = false;
     public bool slow_get_card = false;
+    public bool slow_health_once = false;
     public bool fail_list_cards = false;
     public bool fail_list_cards_first = false;
     public bool slow_list_cards_first = false;
     public bool fail_list_cards_once = false;
     public bool slow_list_cards_once = false;
+    public bool slow_list_resources_once = false;
     public string fail_list_cards_for_project_id = "";
+    public string health_failure_message = "health failed";
+    public string list_projects_failure_message = "list projects failed";
+    public string list_cards_failure_message = "list cards failed";
+    public string get_card_failure_message = "get card failed";
+    public string list_resources_failure_message = "list resources failed";
     public bool fail_set_project_git_remote = false;
     public bool fail_test_project_git_remote = false;
     public bool fail_push_project_git = false;
     public bool fail_list_trash = false;
+    public bool fail_list_trash_once = false;
     public bool fail_empty_trash = false;
     public bool fail_restore_trash = false;
     public bool fail_hard_delete_trash = false;
@@ -161,6 +235,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_create_card_link = false;
     public bool fail_delete_card_link = false;
     public string test_project_git_remote_status = "reachable";
+    public Gee.ArrayList<string> ai_capability_models = new Gee.ArrayList<string>();
     private int list_projects_index = 0;
     private int list_cards_index = 0;
     public string last_resource_project_id = "";
@@ -188,12 +263,50 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public string last_link_to_type = "";
     public Gee.ArrayList<HolderLinux.CardLink> card_links = new Gee.ArrayList<HolderLinux.CardLink>();
     public Gee.ArrayList<HolderLinux.CardLink> card_backlinks = new Gee.ArrayList<HolderLinux.CardLink>();
+    public Gee.ArrayList<HolderLinux.ProjectResource> resources = new Gee.ArrayList<HolderLinux.ProjectResource>();
     public Gee.ArrayList<HolderLinux.TrashItem> trash_items = new Gee.ArrayList<HolderLinux.TrashItem>();
+    public Gee.ArrayList<HolderLinux.AiRunnerInfo> ai_runners = new Gee.ArrayList<HolderLinux.AiRunnerInfo>();
+    public Gee.ArrayList<HolderLinux.AiRuntimeProvider> ai_runtime_providers = new Gee.ArrayList<HolderLinux.AiRuntimeProvider>();
+    public Gee.ArrayList<HolderLinux.AiProviderCredentialState> ai_provider_credentials =
+        new Gee.ArrayList<HolderLinux.AiProviderCredentialState>();
+    public Gee.ArrayList<HolderLinux.AiProviderSettingState> ai_provider_settings =
+        new Gee.ArrayList<HolderLinux.AiProviderSettingState>();
+    public HolderLinux.AiLocalModelConfigInfo ai_local_model_config =
+        new HolderLinux.AiLocalModelConfigInfo(null, null, null, 0);
+    public Gee.ArrayList<HolderLinux.AiNudge> ai_nudges = new Gee.ArrayList<HolderLinux.AiNudge>();
+    public HolderLinux.NudgeEvaluationResult? next_nudge_result = null;
     public ListCardsBeforeCompleteHook? list_cards_before_complete_hook = null;
+    public HealthBeforeCompleteHook? health_before_complete_hook = null;
+    public ListResourcesBeforeCompleteHook? list_resources_before_complete_hook = null;
+    public GetCardBeforeCompleteHook? get_card_before_complete_hook = null;
+    public ListTrashBeforeCompleteHook? list_trash_before_complete_hook = null;
+    public Gee.ArrayList<string?> health_check_sequence = new Gee.ArrayList<string?>();
 
     public async void health_check() throws Error {
+        if (slow_health_once) {
+            slow_health_once = false;
+            var end = GLib.get_monotonic_time() + 50 * 1000;
+            while (GLib.get_monotonic_time() < end) {
+                while (MainContext.default().iteration(false)) {}
+                Thread.usleep(1000);
+            }
+        }
+        if (health_before_complete_hook != null) {
+            ((!) health_before_complete_hook)();
+        }
+        if (health_check_sequence.size > 0) {
+            var outcome = health_check_sequence[0];
+            health_check_sequence.remove_at(0);
+            if (outcome != null) {
+                throw new IOError.FAILED((!) outcome);
+            }
+        }
+        if (health_failures_remaining > 0) {
+            health_failures_remaining--;
+            throw new IOError.FAILED(health_failure_message);
+        }
         if (fail_health) {
-            throw new IOError.FAILED("health failed");
+            throw new IOError.FAILED(health_failure_message);
         }
     }
 
@@ -205,8 +318,12 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
+        if (fail_list_projects_once) {
+            fail_list_projects_once = false;
+            throw new IOError.FAILED(list_projects_failure_message);
+        }
         if (fail_list_projects) {
-            throw new IOError.FAILED("list projects failed");
+            throw new IOError.FAILED(list_projects_failure_message);
         }
         list_projects_calls++;
         list_projects_index++;
@@ -224,7 +341,30 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
             var created_name = last_created_project_name.length > 0 ? last_created_project_name : "Created Project";
             projects.add(new HolderLinux.Project("p-created", created_name, "encrypted_git", "/tmp/p-created", 12, 12));
         }
-        projects.add(new HolderLinux.Project("p1", "Project 1", "encrypted_git", "/tmp/p1", 10, 10));
+        projects.add(new HolderLinux.Project(
+            "p1",
+            "Project 1",
+            "encrypted_git",
+            "/tmp/p1",
+            10,
+            10,
+            "https://example.com/p1.git",
+            new HolderLinux.ProjectSyncState(
+                0,
+                1710000000,
+                1710000100,
+                2,
+                3,
+                blank_project_sync_status ? "   " : "pushed",
+                "pulled",
+                "last sync failed",
+                null,
+                4,
+                omit_project_sync_retry_times ? (int64?) null : (int64?) 1710000200,
+                5,
+                omit_project_sync_retry_times ? (int64?) null : (int64?) 1710000300
+            )
+        ));
         return projects;
     }
 
@@ -290,17 +430,17 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         }
         if (fail_list_cards_for_project_id != ""
             && project_id == fail_list_cards_for_project_id) {
-            throw new IOError.FAILED("list cards failed");
+            throw new IOError.FAILED(list_cards_failure_message);
         }
         if (fail_list_cards_once) {
             fail_list_cards_once = false;
-            throw new IOError.FAILED("list cards failed");
+            throw new IOError.FAILED(list_cards_failure_message);
         }
         if (fail_list_cards_first && list_cards_index == 1) {
-            throw new IOError.FAILED("list cards failed");
+            throw new IOError.FAILED(list_cards_failure_message);
         }
         if (fail_list_cards) {
-            throw new IOError.FAILED("list cards failed");
+            throw new IOError.FAILED(list_cards_failure_message);
         }
         var cards = new Gee.ArrayList<HolderLinux.CardSummary>();
         if (list_cards_empty) {
@@ -344,8 +484,15 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
             }
         }
         get_card_calls++;
+        if (fail_get_card_once) {
+            fail_get_card_once = false;
+            throw new IOError.FAILED(get_card_failure_message);
+        }
         if (fail_get_card) {
-            throw new IOError.FAILED("get card failed");
+            throw new IOError.FAILED(get_card_failure_message);
+        }
+        if (get_card_before_complete_hook != null) {
+            ((!) get_card_before_complete_hook)(card_id);
         }
         return new HolderLinux.CardDetail(card_id, "p1", "Card 1", "# Card 1\n\nBody", 20);
     }
@@ -380,16 +527,34 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async Gee.ArrayList<HolderLinux.ProjectResource> list_resources(string project_id) throws Error {
+        if (slow_list_resources_once) {
+            slow_list_resources_once = false;
+            var end = GLib.get_monotonic_time() + 50 * 1000;
+            while (GLib.get_monotonic_time() < end) {
+                while (MainContext.default().iteration(false)) {}
+                Thread.usleep(1000);
+            }
+        }
+        if (list_resources_before_complete_hook != null) {
+            ((!) list_resources_before_complete_hook)(project_id);
+        }
         if (fail_list_resources) {
-            throw new IOError.FAILED("list resources failed");
+            throw new IOError.FAILED(list_resources_failure_message);
         }
         list_resources_calls++;
         last_resource_project_id = project_id;
-        return new Gee.ArrayList<HolderLinux.ProjectResource>();
+        return resources;
     }
 
     public async Gee.ArrayList<HolderLinux.TrashItem> list_trash_items(string project_id,
                                                                         string type = "all") throws Error {
+        if (list_trash_before_complete_hook != null) {
+            ((!) list_trash_before_complete_hook)(project_id, type);
+        }
+        if (fail_list_trash_once) {
+            fail_list_trash_once = false;
+            throw new IOError.FAILED("list trash failed");
+        }
         if (fail_list_trash) {
             throw new IOError.FAILED("list trash failed");
         }
@@ -515,8 +680,11 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async HolderLinux.AiCapabilitiesInfo get_ai_capabilities(string? project_id = null) throws Error {
+        if (fail_ai_capabilities) {
+            throw new IOError.FAILED("ai capabilities failed");
+        }
         return new HolderLinux.AiCapabilitiesInfo(
-            true, "", 1, "1.0", "user", new Gee.ArrayList<string>(), new Gee.ArrayList<string>()
+            true, "", 1, "1.0", "user", ai_capability_models, new Gee.ArrayList<string>()
         );
     }
 
@@ -537,12 +705,23 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async Gee.ArrayList<HolderLinux.AiRunnerInfo> list_ai_runners() throws Error {
-        return new Gee.ArrayList<HolderLinux.AiRunnerInfo>();
+        if (fail_list_ai_runners) {
+            throw new IOError.FAILED("list AI runners failed");
+        }
+        list_ai_runners_calls++;
+        return ai_runners;
     }
 
     public async HolderLinux.AiRunnerInfo create_ai_runner(string name,
                                                            string base_url,
                                                            bool enabled = true) throws Error {
+        if (fail_create_ai_runner) {
+            throw new IOError.FAILED("create AI runner failed");
+        }
+        create_ai_runner_calls++;
+        last_ai_runner_name = name;
+        last_ai_runner_base_url = base_url;
+        last_ai_runner_enabled = enabled;
         return new HolderLinux.AiRunnerInfo(
             "manual-created",
             name,
@@ -560,6 +739,14 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                                            string? name = null,
                                                            string? base_url = null,
                                                            bool? enabled = null) throws Error {
+        if (fail_update_ai_runner) {
+            throw new IOError.FAILED("update AI runner failed");
+        }
+        update_ai_runner_calls++;
+        last_ai_runner_id = runner_id;
+        last_ai_runner_name = name ?? "";
+        last_ai_runner_base_url = base_url;
+        last_ai_runner_enabled = enabled ?? false;
         return new HolderLinux.AiRunnerInfo(
             runner_id,
             name ?? "Runner",
@@ -573,7 +760,13 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         );
     }
 
-    public async void delete_ai_runner(string runner_id) throws Error {}
+    public async void delete_ai_runner(string runner_id) throws Error {
+        if (fail_delete_ai_runner) {
+            throw new IOError.FAILED("delete AI runner failed");
+        }
+        delete_ai_runner_calls++;
+        last_ai_runner_id = runner_id;
+    }
 
     public async Gee.ArrayList<HolderLinux.AiThreadSummary> list_ai_threads(string project_id) throws Error {
         if (fail_list_threads) {
@@ -602,39 +795,95 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async Gee.ArrayList<HolderLinux.AiRuntimeProvider> list_ai_runtime_providers() throws Error {
-        return new Gee.ArrayList<HolderLinux.AiRuntimeProvider>();
+        if (fail_list_ai_runtime_providers) {
+            throw new IOError.FAILED("list AI runtime providers failed");
+        }
+        list_ai_runtime_providers_calls++;
+        return ai_runtime_providers;
     }
 
     public async HolderLinux.AiLocalModelConfigInfo get_ai_local_model_config() throws Error {
-        return new HolderLinux.AiLocalModelConfigInfo(null, null, null, 0);
+        if (fail_get_ai_local_model_config) {
+            throw new IOError.FAILED("get local model config failed");
+        }
+        get_ai_local_model_config_calls++;
+        return ai_local_model_config;
     }
 
     public async HolderLinux.AiLocalModelConfigInfo set_ai_local_model_config(string? fast_model,
                                                                               string? strong_model,
                                                                               string? deep_model) throws Error {
-        return new HolderLinux.AiLocalModelConfigInfo(fast_model, strong_model, deep_model, 0);
+        if (fail_set_ai_local_model_config) {
+            throw new IOError.FAILED("set local model config failed");
+        }
+        set_ai_local_model_config_calls++;
+        last_fast_model = fast_model;
+        last_strong_model = strong_model;
+        last_deep_model = deep_model;
+        ai_local_model_config = new HolderLinux.AiLocalModelConfigInfo(fast_model, strong_model, deep_model, 0);
+        return ai_local_model_config;
     }
 
     public async Gee.ArrayList<HolderLinux.AiProviderCredentialState> list_ai_provider_credentials() throws Error {
-        return new Gee.ArrayList<HolderLinux.AiProviderCredentialState>();
+        if (fail_list_ai_provider_credentials) {
+            throw new IOError.FAILED("list provider credentials failed");
+        }
+        list_ai_provider_credentials_calls++;
+        return ai_provider_credentials;
     }
 
     public async Gee.ArrayList<HolderLinux.AiProviderSettingState> list_ai_provider_settings() throws Error {
-        return new Gee.ArrayList<HolderLinux.AiProviderSettingState>();
+        if (fail_list_ai_provider_settings) {
+            throw new IOError.FAILED("list provider settings failed");
+        }
+        list_ai_provider_settings_calls++;
+        return ai_provider_settings;
     }
 
-    public async void upsert_ai_provider_credential(string provider, string api_key) throws Error {}
+    public async void upsert_ai_provider_credential(string provider, string api_key) throws Error {
+        if (fail_upsert_ai_provider_credential) {
+            throw new IOError.FAILED("save provider credential failed");
+        }
+        upsert_ai_provider_credential_calls++;
+        last_provider_id = provider;
+        last_provider_api_key = api_key;
+    }
 
-    public async void delete_ai_provider_credential(string provider) throws Error {}
+    public async void delete_ai_provider_credential(string provider) throws Error {
+        if (fail_delete_ai_provider_credential) {
+            throw new IOError.FAILED("delete provider credential failed");
+        }
+        delete_ai_provider_credential_calls++;
+        last_provider_id = provider;
+    }
 
-    public async void set_ai_provider_enabled(string provider, bool enabled) throws Error {}
+    public async void set_ai_provider_enabled(string provider, bool enabled) throws Error {
+        if (fail_set_ai_provider_enabled) {
+            throw new IOError.FAILED("set provider enabled failed");
+        }
+        set_ai_provider_enabled_calls++;
+        last_provider_id = provider;
+        last_provider_enabled = enabled;
+    }
 
     public async Gee.ArrayList<HolderLinux.AiNudge> list_ai_nudges(string project_id,
                                                                    string? card_id = null) throws Error {
-        return new Gee.ArrayList<HolderLinux.AiNudge>();
+        if (fail_list_ai_nudges) {
+            throw new IOError.FAILED("list nudges failed");
+        }
+        list_ai_nudges_calls++;
+        last_nudge_project_id = project_id;
+        last_nudge_card_id = card_id;
+        return ai_nudges;
     }
 
-    public async void dismiss_ai_nudge(string nudge_id) throws Error {}
+    public async void dismiss_ai_nudge(string nudge_id) throws Error {
+        if (fail_dismiss_ai_nudge) {
+            throw new IOError.FAILED("dismiss nudge failed");
+        }
+        dismiss_ai_nudge_calls++;
+        last_dismissed_nudge_id = nudge_id;
+    }
 
     public async HolderLinux.NudgeEvaluationResult evaluate_nudge_candidate(string kind,
                                                                             string project_id,
@@ -643,6 +892,20 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                                                             Json.Object facts,
                                                                             string? basis_fingerprint = null,
                                                                             string? basis_commit = null) throws Error {
+        if (fail_evaluate_nudge_candidate) {
+            throw new IOError.FAILED("evaluate nudge failed");
+        }
+        evaluate_nudge_candidate_calls++;
+        last_nudge_kind = kind;
+        last_nudge_project_id = project_id;
+        last_nudge_card_id = card_id;
+        last_nudge_created_at = created_at;
+        last_nudge_facts = facts;
+        last_nudge_basis_fingerprint = basis_fingerprint;
+        last_nudge_basis_commit = basis_commit;
+        if (next_nudge_result != null) {
+            return (!) next_nudge_result;
+        }
         return new HolderLinux.NudgeEvaluationResult(kind, false, false, "fake_not_implemented");
     }
 

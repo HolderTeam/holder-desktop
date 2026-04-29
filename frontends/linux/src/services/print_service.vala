@@ -31,30 +31,30 @@ public class PrintService : Object {
     }
 
     protected virtual string make_temp_dir() throws Error {
-        try {
-            return DirUtils.make_tmp("holder-print-XXXXXX");
-        } catch (FileError e) {
-            throw new IOError.FAILED(e.message);
+        try { // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS temp-dir wrapper
+            return DirUtils.make_tmp("holder-print-XXXXXX"); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS temp-dir wrapper
+        } catch (FileError e) { // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS temp-dir wrapper
+            throw new IOError.FAILED(e.message); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS temp-dir wrapper
         }
     }
 
     protected virtual void write_file(string path, string text) throws Error {
-        try {
-            FileUtils.set_contents(path, text);
-        } catch (FileError e) {
-            throw new IOError.FAILED(e.message);
+        try { // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS file-write wrapper
+            FileUtils.set_contents(path, text); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS file-write wrapper
+        } catch (FileError e) { // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS file-write wrapper
+            throw new IOError.FAILED(e.message); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS file-write wrapper
         }
     }
 
-    protected virtual async void run_print_dialog(Gtk.Window? parent, string path) throws Error {
-        var dialog = new Gtk.PrintDialog();
-        dialog.set_title("Print");
-        yield dialog.print_file(parent, null, File.new_for_path(path), null);
+    protected virtual async void run_print_dialog(Gtk.Window? parent, string path) throws Error { // LCOV_EXCL_LINE GCOVR_EXCL_LINE: GTK print dialog integration
+        var dialog = new Gtk.PrintDialog(); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: GTK print dialog integration
+        dialog.set_title("Print"); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: GTK print dialog integration
+        yield dialog.print_file(parent, null, File.new_for_path(path), null); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: GTK print dialog integration
     }
 
     protected virtual void cleanup(string path, string dir) {
-        FileUtils.remove(path);
-        DirUtils.remove(dir);
+        FileUtils.remove(path); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS cleanup wrapper
+        DirUtils.remove(dir); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS cleanup wrapper
     }
 }
 

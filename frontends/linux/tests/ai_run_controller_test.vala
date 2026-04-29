@@ -340,6 +340,168 @@ private void test_refresh_selected_thread_output_includes_provider_and_model_lab
     assert(transcript.contains("You:\nquestion"));
 }
 
+private void test_refresh_selected_thread_output_without_thread_clears_output() {
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    ctx.thread = null;
+    var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
+
+    bool replaced = false;
+    string transcript = "not-cleared";
+    controller.replace_output_requested.connect((text) => {
+        replaced = true;
+        transcript = text;
+    });
+
+    controller.refresh_selected_thread_output.begin();
+    assert(wait_for_condition(() => replaced));
+    assert(transcript == "");
+}
+
+private void test_refresh_selected_thread_output_error_clears_output_and_reports_error() {
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
+    ctx.fail_list_ai_messages = true;
+    var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
+
+    bool replaced = false;
+    bool errored = false;
+    string transcript = "not-cleared";
+    controller.replace_output_requested.connect((text) => {
+        replaced = true;
+        transcript = text;
+    });
+    controller.error_reported.connect((title, details) => {
+        if (title == "Failed to load AI thread" && details.contains("list ai messages failed")) {
+            errored = true;
+        }
+    });
+
+    controller.refresh_selected_thread_output.begin();
+    assert(wait_for_condition(() => replaced && errored));
+    assert(transcript == "");
+}
+
+private void test_refresh_selected_thread_output_discards_stale_success_result() {
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
+    ctx.list_ai_messages_delay_ms = 50;
+    ctx.delayed_list_ai_messages_calls_remaining = 1;
+    ctx.transcript_messages.add(
+        new HolderLinux.AiMessage("m1", "t1", "assistant", "local", null, null, "old", 1)
+    );
+    var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
+
+    string transcript = "";
+    controller.replace_output_requested.connect((text) => {
+        transcript = text;
+    });
+
+    controller.refresh_selected_thread_output.begin();
+    ctx.transcript_messages.clear();
+    ctx.transcript_messages.add(
+        new HolderLinux.AiMessage("m2", "t1", "assistant", "local", null, null, "new", 2)
+    );
+    controller.refresh_selected_thread_output.begin();
+
+    assert(wait_for_condition(() => transcript.contains("new")));
+    var stable = transcript;
+    assert(wait_for_condition(() => true));
+    assert(stable == transcript);
+    assert(!transcript.contains("old"));
+}
+
+private void test_refresh_selected_thread_output_discards_stale_failure_result() {
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
+    ctx.list_ai_messages_delay_ms = 50;
+    ctx.delayed_list_ai_messages_calls_remaining = 1;
+    ctx.fail_list_ai_messages_calls_remaining = 1;
+    ctx.transcript_messages.add(
+        new HolderLinux.AiMessage("m2", "t1", "assistant", "local", null, null, "fresh", 2)
+    );
+    var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
+
+    string transcript = "";
+    bool errored = false;
+    controller.replace_output_requested.connect((text) => {
+        transcript = text;
+    });
+    controller.error_reported.connect((title, details) => {
+        if (title == "Failed to load AI thread") {
+            errored = true;
+        }
+    });
+
+    controller.refresh_selected_thread_output.begin();
+    controller.refresh_selected_thread_output.begin();
+
+    assert(wait_for_condition(() => transcript.contains("fresh")));
+    assert(!errored);
+}
+
+private void test_refresh_selected_thread_output_covers_system_default_and_provider_only_headings() {
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    ctx.thread = new HolderLinux.AiThreadSummary("t1", "p1", "T", 1, 1);
+    ctx.transcript_messages.add(
+        new HolderLinux.AiMessage("m1", "t1", "system", "local", null, null, "system note", 1)
+    );
+    ctx.transcript_messages.add(
+        new HolderLinux.AiMessage("m2", "t1", "tool", "local", null, null, "tool note", 2)
+    );
+    ctx.transcript_messages.add(
+        new HolderLinux.AiMessage("m3", "t1", "assistant", "cloud", "openai", null, "provider only", 3)
+    );
+    var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
+
+    string transcript = "";
+    controller.replace_output_requested.connect((text) => {
+        transcript = text;
+    });
+
+    controller.refresh_selected_thread_output.begin();
+    assert(wait_for_condition(() => transcript.length > 0));
+    assert(transcript.contains("System:\nsystem note"));
+    assert(transcript.contains("tool:\ntool note"));
+    assert(transcript.contains("Assistant (openai):\nprovider only"));
+}
+
+private void test_handle_ai_run_event_formats_runner_targets_without_provider() {
+    var api = new AiRunFakeApi();
+    var ctx = new AiRunFakeContext();
+    ctx.api = api;
+    var controller = new HolderLinux.AiRunController(ctx, new TestScheduler());
+
+    var outputs = new Gee.ArrayList<string>();
+    controller.append_output_requested.connect((role, text) => {
+        outputs.add(text);
+    });
+
+    var runner_model = new Json.Object();
+    runner_model.set_string_member("message", "working");
+    runner_model.set_string_member("runner_id", "manual-a");
+    runner_model.set_string_member("model", "phi4");
+    controller.handle_ai_run_event("progress", runner_model);
+
+    var runner_only = new Json.Object();
+    runner_only.set_string_member("message", "working");
+    runner_only.set_string_member("runner_id", "manual-a");
+    controller.handle_ai_run_event("progress", runner_only);
+
+    assert(outputs.size == 2);
+    assert(outputs[0] == "working (manual-a/phi4)");
+    assert(outputs[1] == "working (manual-a)");
+}
+
 private void test_run_activity_details_capture_stream_metadata() {
     var api = new AiRunFakeApi();
     api.emit_router_result = true;
@@ -792,6 +954,30 @@ int main(string[] args) {
     Test.add_func(
         "/ai_run/refresh_selected_thread_output_includes_provider_and_model_labels",
         test_refresh_selected_thread_output_includes_provider_and_model_labels
+    );
+    Test.add_func(
+        "/ai_run/refresh_selected_thread_output_without_thread_clears_output",
+        test_refresh_selected_thread_output_without_thread_clears_output
+    );
+    Test.add_func(
+        "/ai_run/refresh_selected_thread_output_error_clears_output_and_reports_error",
+        test_refresh_selected_thread_output_error_clears_output_and_reports_error
+    );
+    Test.add_func(
+        "/ai_run/refresh_selected_thread_output_discards_stale_success_result",
+        test_refresh_selected_thread_output_discards_stale_success_result
+    );
+    Test.add_func(
+        "/ai_run/refresh_selected_thread_output_discards_stale_failure_result",
+        test_refresh_selected_thread_output_discards_stale_failure_result
+    );
+    Test.add_func(
+        "/ai_run/refresh_selected_thread_output_covers_system_default_and_provider_only_headings",
+        test_refresh_selected_thread_output_covers_system_default_and_provider_only_headings
+    );
+    Test.add_func(
+        "/ai_run/handle_ai_run_event_formats_runner_targets_without_provider",
+        test_handle_ai_run_event_formats_runner_targets_without_provider
     );
     Test.add_func(
         "/ai_run/run_activity_details_capture_stream_metadata",
