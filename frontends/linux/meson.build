@@ -2297,7 +2297,6 @@ trash_tool_view_test_exe = executable(
   ],
   vala_args: [
     '--target-glib=2.70',
-    '--define=TRASH_TOOL_VIEW_TEST',
   ],
   install: false,
 )
@@ -2337,7 +2336,6 @@ resources_tool_view_test_exe = executable(
   ],
   vala_args: [
     '--target-glib=2.70',
-    '--define=RESOURCES_TOOL_VIEW_TEST',
   ],
   install: false,
 )
@@ -2897,7 +2895,6 @@ ai_panel_view_test_exe = executable(
   ],
   vala_args: [
     '--target-glib=2.70',
-    '--define=AI_PANEL_VIEW_TEST',
   ],
   install: false,
 )

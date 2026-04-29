@@ -52,6 +52,95 @@ private string collect_widget_text(Gtk.Widget widget) {
     return builder.str;
 }
 
+private void collect_text_views(Gtk.Widget root, Gee.ArrayList<Gtk.TextView> views) {
+    if (root is Gtk.TextView) {
+        views.add((Gtk.TextView) root);
+    }
+
+    Gtk.Widget? child = root.get_first_child();
+    while (child != null) {
+        collect_text_views(child, views);
+        child = child.get_next_sibling();
+    }
+}
+
+private Gtk.TextView panel_prompt_view(HolderLinux.AiPanel panel) {
+    var views = new Gee.ArrayList<Gtk.TextView>();
+    collect_text_views(panel.widget, views);
+    foreach (var view in views) {
+        if (view.get_editable()) {
+            return view;
+        }
+    }
+    assert_not_reached();
+}
+
+private Gtk.TextView panel_output_view(HolderLinux.AiPanel panel) {
+    var views = new Gee.ArrayList<Gtk.TextView>();
+    collect_text_views(panel.widget, views);
+    foreach (var view in views) {
+        if (!view.get_editable()) {
+            return view;
+        }
+    }
+    assert_not_reached();
+}
+
+private string text_buffer_contents(Gtk.TextBuffer buffer) {
+    Gtk.TextIter start;
+    Gtk.TextIter end;
+    buffer.get_bounds(out start, out end);
+    return buffer.get_text(start, end, false);
+}
+
+private string output_text(HolderLinux.AiPanel panel) {
+    return text_buffer_contents(panel_output_view(panel).get_buffer());
+}
+
+private Gtk.Label? find_label_with_prefix(Gtk.Widget root, string prefix) {
+    if (root is Gtk.Label) {
+        var label = (Gtk.Label) root;
+        if (label.get_text().has_prefix(prefix)) {
+            return label;
+        }
+    }
+
+    Gtk.Widget? child = root.get_first_child();
+    while (child != null) {
+        var match = find_label_with_prefix(child, prefix);
+        if (match != null) {
+            return match;
+        }
+        child = child.get_next_sibling();
+    }
+    return null;
+}
+
+private void collect_dropdowns(Gtk.Widget root, Gee.ArrayList<Gtk.DropDown> dropdowns) {
+    if (root is Gtk.DropDown) {
+        dropdowns.add((Gtk.DropDown) root);
+    }
+
+    Gtk.Widget? child = root.get_first_child();
+    while (child != null) {
+        collect_dropdowns(child, dropdowns);
+        child = child.get_next_sibling();
+    }
+}
+
+private Gtk.DropDown panel_dropdown(HolderLinux.AiPanel panel, int index) {
+    var dropdowns = new Gee.ArrayList<Gtk.DropDown>();
+    collect_dropdowns(panel.widget, dropdowns);
+    assert(dropdowns.size > index);
+    return dropdowns[index];
+}
+
+private uint dropdown_item_count(Gtk.DropDown dropdown) {
+    var model = dropdown.get_model();
+    assert(model != null);
+    return ((!) model).get_n_items();
+}
+
 private HolderLinux.AiRunnerInfo runner(string id,
                                         string name,
                                         bool available,
@@ -139,31 +228,31 @@ private void test_prompt_output_thread_state_and_buttons() {
         refresh_calls++;
     });
 
-    panel.set_prompt_text_for_tests("hello");
+    panel_prompt_view(panel).get_buffer().set_text("hello", -1);
     assert(panel.get_prompt_text() == "hello");
     panel.clear_prompt();
     assert(panel.get_prompt_text() == "");
 
     panel.set_thread_title(null);
-    assert(panel.thread_label_text_for_tests() == "Thread: none selected");
+    assert(((!) find_label_with_prefix(panel.widget, "Thread:")).get_text() == "Thread: none selected");
     panel.set_thread_title("  ");
-    assert(panel.thread_label_text_for_tests() == "Thread: none selected");
+    assert(((!) find_label_with_prefix(panel.widget, "Thread:")).get_text() == "Thread: none selected");
     panel.set_thread_title("Planning");
-    assert(panel.thread_label_text_for_tests() == "Thread: Planning");
+    assert(((!) find_label_with_prefix(panel.widget, "Thread:")).get_text() == "Thread: Planning");
 
     panel.append_output("user", "First");
     panel.append_output("assistant", "Second");
-    assert(panel.get_output_text_for_tests().contains("user:\nFirst"));
-    assert(panel.get_output_text_for_tests().contains("assistant:\nSecond"));
+    assert(output_text(panel).contains("user:\nFirst"));
+    assert(output_text(panel).contains("assistant:\nSecond"));
     panel.append_output_chunk(" chunk");
-    assert(panel.get_output_text_for_tests().has_suffix(" chunk"));
+    assert(output_text(panel).has_suffix(" chunk"));
     panel.set_output_text("replacement");
-    assert(panel.get_output_text_for_tests() == "replacement");
+    assert(output_text(panel) == "replacement");
 
     panel.set_send_enabled(false);
-    assert(!panel.send_sensitive_for_tests());
+    assert(!((!) find_button_with_label(panel.widget, "Send")).get_sensitive());
     panel.set_send_enabled(true);
-    assert(panel.send_sensitive_for_tests());
+    assert(((!) find_button_with_label(panel.widget, "Send")).get_sensitive());
 
     var send_btn = find_button_with_label(panel.widget, "Send");
     var new_thread_btn = find_button_with_label(panel.widget, "New Thread");
@@ -188,18 +277,20 @@ private void test_render_status_updates_runner_and_model_selection() {
 
     panel.render_status(capabilities(), status(), runners);
 
-    assert(panel.runner_option_count_for_tests() == 2);
-    assert(panel.model_option_count_for_tests() == 3);
+    var runner_dropdown = panel_dropdown(panel, 0);
+    var model_dropdown = panel_dropdown(panel, 1);
+    assert(dropdown_item_count(runner_dropdown) == 2);
+    assert(dropdown_item_count(model_dropdown) == 3);
     assert(panel.get_selected_runner_id() == "r1");
     assert(panel.get_selected_model_name() == null);
 
-    panel.select_model_for_tests(2);
+    model_dropdown.set_selected(2);
     assert(panel.get_selected_model_name() == "llama");
 
-    panel.select_runner_for_tests(1);
+    runner_dropdown.set_selected(1);
     assert(panel.get_selected_runner_id() == "r2");
-    assert(panel.model_option_count_for_tests() == 2);
-    panel.select_model_for_tests(1);
+    assert(dropdown_item_count(model_dropdown) == 2);
+    model_dropdown.set_selected(1);
     assert(panel.get_selected_model_name() == "gpt");
 
     panel.render_status_error("offline");
@@ -209,8 +300,7 @@ private void test_refresh_nudges_without_context_hides_section() {
     var panel = new HolderLinux.AiPanel();
     panel.refresh_nudges(null, null);
 
-    assert(wait_for_condition(() => !panel.nudges_visible_for_tests()));
-    assert(panel.nudge_count_for_tests() == 0);
+    assert(wait_for_condition(() => !collect_widget_text(panel.widget).contains("Suggest a title")));
 }
 
 private void test_title_suggestion_nudge_renders_and_applies() {
@@ -230,8 +320,7 @@ private void test_title_suggestion_nudge_renders_and_applies() {
     });
 
     panel.refresh_nudges("p1", "c1");
-    assert(wait_for_condition(() => panel.nudge_count_for_tests() == 1));
-    assert(panel.nudges_visible_for_tests());
+    assert(wait_for_condition(() => collect_widget_text(panel.widget).contains("Thread Roles in Holder")));
     assert(api.list_ai_nudges_calls == 1);
     assert(api.last_nudge_project_id == "p1");
     assert(api.last_nudge_card_id == "c1");
@@ -257,7 +346,7 @@ private void test_dismiss_nudge_calls_api_and_refreshes() {
     var panel = new HolderLinux.AiPanel();
     panel.set_api_client(api);
     panel.refresh_nudges("p1", "c1");
-    assert(wait_for_condition(() => panel.nudge_count_for_tests() == 1));
+    assert(wait_for_condition(() => collect_widget_text(panel.widget).contains("Thread Roles in Holder")));
 
     var dismiss_btn = find_button_with_label(panel.widget, "Dismiss");
     assert(dismiss_btn != null);
@@ -283,8 +372,7 @@ private void test_refresh_nudges_failure_hides_section_and_logs_debug() {
     panel.refresh_nudges("p1", "c1");
 
     assert(wait_for_condition(() => debug_line.contains("NUDGE_LIST_ERROR")));
-    assert(!panel.nudges_visible_for_tests());
-    assert(panel.nudge_count_for_tests() == 0);
+    assert(!collect_widget_text(panel.widget).contains("Suggest a title"));
 }
 
 public static int main(string[] args) {

@@ -18,15 +18,104 @@ private HolderLinux.ProjectResource resource(string id,
     return new HolderLinux.ProjectResource(id, "p1", kind, uri, label, desc, 1700000000, 1700000100);
 }
 
+private Gtk.ColumnView? find_column_view(Gtk.Widget root) {
+    if (root is Gtk.ColumnView) {
+        return (Gtk.ColumnView) root;
+    }
+
+    Gtk.Widget? child = root.get_first_child();
+    while (child != null) {
+        var match = find_column_view(child);
+        if (match != null) {
+            return match;
+        }
+        child = child.get_next_sibling();
+    }
+    return null;
+}
+
+private Gtk.SearchEntry? find_search_entry(Gtk.Widget root) {
+    if (root is Gtk.SearchEntry) {
+        return (Gtk.SearchEntry) root;
+    }
+
+    Gtk.Widget? child = root.get_first_child();
+    while (child != null) {
+        var match = find_search_entry(child);
+        if (match != null) {
+            return match;
+        }
+        child = child.get_next_sibling();
+    }
+    return null;
+}
+
+private Gtk.Button? find_button_with_label(Gtk.Widget root, string label) {
+    if (root is Gtk.Button) {
+        var button = (Gtk.Button) root;
+        if (button.get_label() == label) {
+            return button;
+        }
+    }
+
+    Gtk.Widget? child = root.get_first_child();
+    while (child != null) {
+        var match = find_button_with_label(child, label);
+        if (match != null) {
+            return match;
+        }
+        child = child.get_next_sibling();
+    }
+    return null;
+}
+
+private Gtk.Label resources_empty_label(HolderLinux.ResourcesToolView view) {
+    var label = view.widget.get_last_child() as Gtk.Label;
+    assert(label != null);
+    return (!) label;
+}
+
+private uint resources_item_count(HolderLinux.ResourcesToolView view) {
+    var column_view = find_column_view(view.widget);
+    assert(column_view != null);
+    var model = ((!) column_view).get_model();
+    assert(model != null);
+    return ((!) model).get_n_items();
+}
+
+private void select_resource_index(HolderLinux.ResourcesToolView view, uint index) {
+    var column_view = find_column_view(view.widget);
+    assert(column_view != null);
+    var selection = ((!) column_view).get_model() as Gtk.SingleSelection;
+    assert(selection != null);
+    ((!) selection).set_selected(index);
+}
+
+private void set_resources_filter_text(HolderLinux.ResourcesToolView view, string text) {
+    var actions = view.get_actions_widget();
+    assert(actions != null);
+    var search = find_search_entry((!) actions);
+    assert(search != null);
+    ((!) search).set_text(text);
+}
+
+private Gtk.Button resources_action_button(HolderLinux.ResourcesToolView view, string label) {
+    var actions = view.get_actions_widget();
+    assert(actions != null);
+    var button = find_button_with_label((!) actions, label);
+    assert(button != null);
+    return (!) button;
+}
+
 private void test_refresh_without_project_shows_select_message() {
     var api = new MainControllerFakeApi();
     var view = new HolderLinux.ResourcesToolView();
     view.set_api_client(api);
 
-    assert(wait_for_condition(() => view.empty_visible_for_tests()));
-    assert(view.empty_text_for_tests() == "Select a project to view resources.");
-    assert(view.item_count_for_tests() == 0);
-    assert(!view.open_sensitive_for_tests());
+    assert(wait_for_condition(() => resources_empty_label(view).get_visible()));
+    assert(resources_empty_label(view).get_text() == "Select a project to view resources.");
+    assert(resources_item_count(view) == 0);
+    assert(!resources_action_button(view, "Open").get_sensitive());
     assert(api.list_resources_calls == 0);
 }
 
@@ -39,15 +128,15 @@ private void test_refresh_with_resources_updates_list_and_selection_actions() {
     view.set_api_client(api);
     view.set_project_selection(project_selection_with_one());
 
-    assert(wait_for_condition(() => view.item_count_for_tests() == 2));
-    assert(!view.empty_visible_for_tests());
+    assert(wait_for_condition(() => resources_item_count(view) == 2));
+    assert(!resources_empty_label(view).get_visible());
     assert(api.last_resource_project_id == "p1");
-    assert(!view.open_sensitive_for_tests());
+    assert(!resources_action_button(view, "Open").get_sensitive());
 
-    view.select_index_for_tests(0);
-    assert(wait_for_condition(() => view.open_sensitive_for_tests()));
-    assert(view.edit_sensitive_for_tests());
-    assert(view.delete_sensitive_for_tests());
+    select_resource_index(view, 0);
+    assert(wait_for_condition(() => resources_action_button(view, "Open").get_sensitive()));
+    assert(resources_action_button(view, "Edit").get_sensitive());
+    assert(resources_action_button(view, "Delete").get_sensitive());
 }
 
 private void test_filter_updates_visible_resources_and_empty_message() {
@@ -58,16 +147,16 @@ private void test_filter_updates_visible_resources_and_empty_message() {
     var view = new HolderLinux.ResourcesToolView();
     view.set_api_client(api);
     view.set_project_selection(project_selection_with_one());
-    assert(wait_for_condition(() => view.item_count_for_tests() == 2));
+    assert(wait_for_condition(() => resources_item_count(view) == 2));
 
-    view.set_filter_text_for_tests("repo");
-    assert(wait_for_condition(() => view.item_count_for_tests() == 1));
-    assert(!view.empty_visible_for_tests());
+    set_resources_filter_text(view, "repo");
+    assert(wait_for_condition(() => resources_item_count(view) == 1));
+    assert(!resources_empty_label(view).get_visible());
 
-    view.set_filter_text_for_tests("missing");
-    assert(wait_for_condition(() => view.empty_visible_for_tests()));
-    assert(view.item_count_for_tests() == 0);
-    assert(view.empty_text_for_tests() == "No resources match this filter.");
+    set_resources_filter_text(view, "missing");
+    assert(wait_for_condition(() => resources_empty_label(view).get_visible()));
+    assert(resources_item_count(view) == 0);
+    assert(resources_empty_label(view).get_text() == "No resources match this filter.");
 }
 
 private void test_refresh_failure_reports_error_and_empty_state() {
@@ -87,9 +176,9 @@ private void test_refresh_failure_reports_error_and_empty_state() {
 
     assert(wait_for_condition(() => error_title == "Resources refresh failed"));
     assert(error_details == "boom");
-    assert(view.empty_visible_for_tests());
-    assert(view.empty_text_for_tests() == "Failed to load resources.");
-    assert(view.item_count_for_tests() == 0);
+    assert(resources_empty_label(view).get_visible());
+    assert(resources_empty_label(view).get_text() == "Failed to load resources.");
+    assert(resources_item_count(view) == 0);
 }
 
 private void test_refresh_failure_after_committed_resources_preserves_visible_list() {
@@ -99,7 +188,7 @@ private void test_refresh_failure_after_committed_resources_preserves_visible_li
     var view = new HolderLinux.ResourcesToolView();
     view.set_api_client(api);
     view.set_project_selection(project_selection_with_one());
-    assert(wait_for_condition(() => view.item_count_for_tests() == 1));
+    assert(wait_for_condition(() => resources_item_count(view) == 1));
 
     string error_title = "";
     view.error_reported.connect((title, details) => {
@@ -114,8 +203,8 @@ private void test_refresh_failure_after_committed_resources_preserves_visible_li
     });
 
     assert(wait_for_condition(() => done && error_title == "Resources refresh failed"));
-    assert(view.item_count_for_tests() == 1);
-    assert(!view.empty_visible_for_tests());
+    assert(resources_item_count(view) == 1);
+    assert(!resources_empty_label(view).get_visible());
 }
 
 private void test_mutations_call_api_emit_feedback_and_refresh() {
@@ -136,8 +225,8 @@ private void test_mutations_call_api_emit_feedback_and_refresh() {
     assert(wait_for_condition(() => api.list_resources_calls > 0));
 
     bool create_done = false;
-    view.create_resource_for_tests.begin("p1", "url", "https://new.test", "New", "desc", (obj, res) => {
-        view.create_resource_for_tests.end(res);
+    view.create_resource.begin("p1", "url", "https://new.test", "New", "desc", (obj, res) => {
+        view.create_resource.end(res);
         create_done = true;
     });
     assert(wait_for_condition(() => create_done));
@@ -151,8 +240,8 @@ private void test_mutations_call_api_emit_feedback_and_refresh() {
     assert(last_activity == "result.resource.create");
 
     bool update_done = false;
-    view.update_resource_for_tests.begin("r1", "repo", "git@example.test:new.git", "Repo", null, (obj, res) => {
-        view.update_resource_for_tests.end(res);
+    view.update_resource.begin("r1", "repo", "git@example.test:new.git", "Repo", null, (obj, res) => {
+        view.update_resource.end(res);
         update_done = true;
     });
     assert(wait_for_condition(() => update_done));
@@ -163,10 +252,10 @@ private void test_mutations_call_api_emit_feedback_and_refresh() {
     assert(last_toast == "Resource updated.");
     assert(last_activity == "result.resource.update");
 
-    view.select_index_for_tests(0);
+    select_resource_index(view, 0);
     bool delete_done = false;
-    view.delete_resource_for_tests.begin("r1", (obj, res) => {
-        view.delete_resource_for_tests.end(res);
+    view.delete_resource.begin("r1", (obj, res) => {
+        view.delete_resource.end(res);
         delete_done = true;
     });
     assert(wait_for_condition(() => delete_done));
@@ -192,8 +281,8 @@ private void test_mutation_failure_reports_error() {
     assert(wait_for_condition(() => api.list_resources_calls > 0));
 
     bool done = false;
-    view.update_resource_for_tests.begin("r1", "url", "https://bad.test", "Bad", null, (obj, res) => {
-        view.update_resource_for_tests.end(res);
+    view.update_resource.begin("r1", "url", "https://bad.test", "Bad", null, (obj, res) => {
+        view.update_resource.end(res);
         done = true;
     });
 

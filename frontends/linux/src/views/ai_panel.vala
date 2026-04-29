@@ -84,57 +84,6 @@ public class AiPanel : Object {
         return buffer.get_text(start, end, false);
     }
 
-#if AI_PANEL_VIEW_TEST
-    internal void set_prompt_text_for_tests(string text) {
-        ai_prompt_view.get_buffer().set_text(text, -1);
-    }
-
-    internal string get_output_text_for_tests() {
-        Gtk.TextIter start;
-        Gtk.TextIter end;
-        ai_output_buffer.get_bounds(out start, out end);
-        return ai_output_buffer.get_text(start, end, false);
-    }
-
-    internal string thread_label_text_for_tests() {
-        return ai_assistant_thread_label.get_text();
-    }
-
-    internal bool send_sensitive_for_tests() {
-        return send_btn.get_sensitive();
-    }
-
-    internal uint runner_option_count_for_tests() {
-        return ai_runner_options.get_n_items();
-    }
-
-    internal uint model_option_count_for_tests() {
-        return ai_model_options.get_n_items();
-    }
-
-    internal void select_runner_for_tests(uint index) {
-        ai_runner_dropdown.set_selected(index);
-    }
-
-    internal void select_model_for_tests(uint index) {
-        ai_model_dropdown.set_selected(index);
-    }
-
-    internal bool nudges_visible_for_tests() {
-        return ai_nudges_section.get_visible();
-    }
-
-    internal uint nudge_count_for_tests() {
-        uint count = 0;
-        Gtk.Widget? child = ai_nudges_box.get_first_child();
-        while (child != null) {
-            count++;
-            child = child.get_next_sibling();
-        }
-        return count;
-    }
-#endif
-
     public string? get_selected_runner_id() {
         if (run_target_runners.size == 0) {
             return null;
