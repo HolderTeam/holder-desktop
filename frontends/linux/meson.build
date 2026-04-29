@@ -2865,6 +2865,41 @@ ai_catalog_panel_view_test_exe = executable(
 
 test('holder-linux-ai-catalog-panel-view-tests', ai_catalog_panel_view_test_exe)
 
+ai_config_panel_view_test_exe = executable(
+  'holder-linux-ai-config-panel-view-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/views/ai_panel/config.vala',
+    'tests/ai_config_panel_view_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-ai-config-panel-view-tests', ai_config_panel_view_test_exe)
+
 ai_panel_view_test_exe = executable(
   'holder-linux-ai-panel-view-tests',
   [

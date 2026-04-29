@@ -62,9 +62,15 @@ coverage() {
     --html-details "${out_dir}/index.html" \
     --html-title "holder-desktop coverage"
 
+  gcovr \
+    "${gcovr_common_flags[@]}" \
+    --json-pretty \
+    --output "${out_dir}/coverage.json"
+
   echo "Coverage line summary:   ${out_dir}/summary-lines.txt"
   echo "Coverage branch summary: ${out_dir}/summary-branches.txt"
-  echo "Coverage HTML:    ${out_dir}/index.html"
+  echo "Coverage JSON:           ${out_dir}/coverage.json"
+  echo "Coverage HTML:           ${out_dir}/index.html"
   cat "${out_dir}/summary-lines.txt"
   cat "${out_dir}/summary-branches.txt"
 }

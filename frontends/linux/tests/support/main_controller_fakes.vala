@@ -95,6 +95,18 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int create_project_calls = 0;
     public int list_threads_calls = 0;
     public int list_ai_messages_calls = 0;
+    public int list_ai_runners_calls = 0;
+    public int create_ai_runner_calls = 0;
+    public int update_ai_runner_calls = 0;
+    public int delete_ai_runner_calls = 0;
+    public int list_ai_runtime_providers_calls = 0;
+    public int get_ai_local_model_config_calls = 0;
+    public int set_ai_local_model_config_calls = 0;
+    public int list_ai_provider_credentials_calls = 0;
+    public int list_ai_provider_settings_calls = 0;
+    public int upsert_ai_provider_credential_calls = 0;
+    public int delete_ai_provider_credential_calls = 0;
+    public int set_ai_provider_enabled_calls = 0;
     public int evaluate_nudge_candidate_calls = 0;
     public int list_ai_nudges_calls = 0;
     public int dismiss_ai_nudge_calls = 0;
@@ -133,6 +145,16 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public string? last_nudge_basis_fingerprint = null;
     public string? last_nudge_basis_commit = null;
     public string last_dismissed_nudge_id = "";
+    public string last_ai_runner_id = "";
+    public string last_ai_runner_name = "";
+    public string? last_ai_runner_base_url = null;
+    public bool last_ai_runner_enabled = false;
+    public string? last_fast_model = null;
+    public string? last_strong_model = null;
+    public string? last_deep_model = null;
+    public string last_provider_id = "";
+    public string last_provider_api_key = "";
+    public bool last_provider_enabled = false;
     public string last_move_card_id = "";
     public string? last_move_parent_card_id = null;
     public double last_move_sort_key = 0.0;
@@ -145,6 +167,18 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool fail_create_card = false;
     public bool fail_create_project = false;
     public bool fail_list_threads = false;
+    public bool fail_list_ai_runners = false;
+    public bool fail_create_ai_runner = false;
+    public bool fail_update_ai_runner = false;
+    public bool fail_delete_ai_runner = false;
+    public bool fail_list_ai_runtime_providers = false;
+    public bool fail_get_ai_local_model_config = false;
+    public bool fail_set_ai_local_model_config = false;
+    public bool fail_list_ai_provider_credentials = false;
+    public bool fail_list_ai_provider_settings = false;
+    public bool fail_upsert_ai_provider_credential = false;
+    public bool fail_delete_ai_provider_credential = false;
+    public bool fail_set_ai_provider_enabled = false;
     public bool fail_evaluate_nudge_candidate = false;
     public bool fail_list_ai_nudges = false;
     public bool fail_dismiss_ai_nudge = false;
@@ -231,6 +265,14 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public Gee.ArrayList<HolderLinux.CardLink> card_backlinks = new Gee.ArrayList<HolderLinux.CardLink>();
     public Gee.ArrayList<HolderLinux.ProjectResource> resources = new Gee.ArrayList<HolderLinux.ProjectResource>();
     public Gee.ArrayList<HolderLinux.TrashItem> trash_items = new Gee.ArrayList<HolderLinux.TrashItem>();
+    public Gee.ArrayList<HolderLinux.AiRunnerInfo> ai_runners = new Gee.ArrayList<HolderLinux.AiRunnerInfo>();
+    public Gee.ArrayList<HolderLinux.AiRuntimeProvider> ai_runtime_providers = new Gee.ArrayList<HolderLinux.AiRuntimeProvider>();
+    public Gee.ArrayList<HolderLinux.AiProviderCredentialState> ai_provider_credentials =
+        new Gee.ArrayList<HolderLinux.AiProviderCredentialState>();
+    public Gee.ArrayList<HolderLinux.AiProviderSettingState> ai_provider_settings =
+        new Gee.ArrayList<HolderLinux.AiProviderSettingState>();
+    public HolderLinux.AiLocalModelConfigInfo ai_local_model_config =
+        new HolderLinux.AiLocalModelConfigInfo(null, null, null, 0);
     public Gee.ArrayList<HolderLinux.AiNudge> ai_nudges = new Gee.ArrayList<HolderLinux.AiNudge>();
     public HolderLinux.NudgeEvaluationResult? next_nudge_result = null;
     public ListCardsBeforeCompleteHook? list_cards_before_complete_hook = null;
@@ -663,12 +705,23 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async Gee.ArrayList<HolderLinux.AiRunnerInfo> list_ai_runners() throws Error {
-        return new Gee.ArrayList<HolderLinux.AiRunnerInfo>();
+        if (fail_list_ai_runners) {
+            throw new IOError.FAILED("list AI runners failed");
+        }
+        list_ai_runners_calls++;
+        return ai_runners;
     }
 
     public async HolderLinux.AiRunnerInfo create_ai_runner(string name,
                                                            string base_url,
                                                            bool enabled = true) throws Error {
+        if (fail_create_ai_runner) {
+            throw new IOError.FAILED("create AI runner failed");
+        }
+        create_ai_runner_calls++;
+        last_ai_runner_name = name;
+        last_ai_runner_base_url = base_url;
+        last_ai_runner_enabled = enabled;
         return new HolderLinux.AiRunnerInfo(
             "manual-created",
             name,
@@ -686,6 +739,14 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                                            string? name = null,
                                                            string? base_url = null,
                                                            bool? enabled = null) throws Error {
+        if (fail_update_ai_runner) {
+            throw new IOError.FAILED("update AI runner failed");
+        }
+        update_ai_runner_calls++;
+        last_ai_runner_id = runner_id;
+        last_ai_runner_name = name ?? "";
+        last_ai_runner_base_url = base_url;
+        last_ai_runner_enabled = enabled ?? false;
         return new HolderLinux.AiRunnerInfo(
             runner_id,
             name ?? "Runner",
@@ -699,7 +760,13 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         );
     }
 
-    public async void delete_ai_runner(string runner_id) throws Error {}
+    public async void delete_ai_runner(string runner_id) throws Error {
+        if (fail_delete_ai_runner) {
+            throw new IOError.FAILED("delete AI runner failed");
+        }
+        delete_ai_runner_calls++;
+        last_ai_runner_id = runner_id;
+    }
 
     public async Gee.ArrayList<HolderLinux.AiThreadSummary> list_ai_threads(string project_id) throws Error {
         if (fail_list_threads) {
@@ -728,32 +795,76 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     }
 
     public async Gee.ArrayList<HolderLinux.AiRuntimeProvider> list_ai_runtime_providers() throws Error {
-        return new Gee.ArrayList<HolderLinux.AiRuntimeProvider>();
+        if (fail_list_ai_runtime_providers) {
+            throw new IOError.FAILED("list AI runtime providers failed");
+        }
+        list_ai_runtime_providers_calls++;
+        return ai_runtime_providers;
     }
 
     public async HolderLinux.AiLocalModelConfigInfo get_ai_local_model_config() throws Error {
-        return new HolderLinux.AiLocalModelConfigInfo(null, null, null, 0);
+        if (fail_get_ai_local_model_config) {
+            throw new IOError.FAILED("get local model config failed");
+        }
+        get_ai_local_model_config_calls++;
+        return ai_local_model_config;
     }
 
     public async HolderLinux.AiLocalModelConfigInfo set_ai_local_model_config(string? fast_model,
                                                                               string? strong_model,
                                                                               string? deep_model) throws Error {
-        return new HolderLinux.AiLocalModelConfigInfo(fast_model, strong_model, deep_model, 0);
+        if (fail_set_ai_local_model_config) {
+            throw new IOError.FAILED("set local model config failed");
+        }
+        set_ai_local_model_config_calls++;
+        last_fast_model = fast_model;
+        last_strong_model = strong_model;
+        last_deep_model = deep_model;
+        ai_local_model_config = new HolderLinux.AiLocalModelConfigInfo(fast_model, strong_model, deep_model, 0);
+        return ai_local_model_config;
     }
 
     public async Gee.ArrayList<HolderLinux.AiProviderCredentialState> list_ai_provider_credentials() throws Error {
-        return new Gee.ArrayList<HolderLinux.AiProviderCredentialState>();
+        if (fail_list_ai_provider_credentials) {
+            throw new IOError.FAILED("list provider credentials failed");
+        }
+        list_ai_provider_credentials_calls++;
+        return ai_provider_credentials;
     }
 
     public async Gee.ArrayList<HolderLinux.AiProviderSettingState> list_ai_provider_settings() throws Error {
-        return new Gee.ArrayList<HolderLinux.AiProviderSettingState>();
+        if (fail_list_ai_provider_settings) {
+            throw new IOError.FAILED("list provider settings failed");
+        }
+        list_ai_provider_settings_calls++;
+        return ai_provider_settings;
     }
 
-    public async void upsert_ai_provider_credential(string provider, string api_key) throws Error {}
+    public async void upsert_ai_provider_credential(string provider, string api_key) throws Error {
+        if (fail_upsert_ai_provider_credential) {
+            throw new IOError.FAILED("save provider credential failed");
+        }
+        upsert_ai_provider_credential_calls++;
+        last_provider_id = provider;
+        last_provider_api_key = api_key;
+    }
 
-    public async void delete_ai_provider_credential(string provider) throws Error {}
+    public async void delete_ai_provider_credential(string provider) throws Error {
+        if (fail_delete_ai_provider_credential) {
+            throw new IOError.FAILED("delete provider credential failed");
+        }
+        delete_ai_provider_credential_calls++;
+        last_provider_id = provider;
+    }
 
-    public async void set_ai_provider_enabled(string provider, bool enabled) throws Error {}
+    public async void set_ai_provider_enabled(string provider, bool enabled) throws Error {
+        if (fail_set_ai_provider_enabled) {
+            throw new IOError.FAILED("set provider enabled failed");
+        }
+        set_ai_provider_enabled_calls++;
+        last_provider_id = provider;
+        last_provider_enabled = enabled;
+    }
 
     public async Gee.ArrayList<HolderLinux.AiNudge> list_ai_nudges(string project_id,
                                                                    string? card_id = null) throws Error {
