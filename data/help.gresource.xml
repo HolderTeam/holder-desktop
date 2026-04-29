@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/io/holder/linux/help">
+    <file alias="toolbox/connections.md">help/toolbox/connections.md</file>
+    <file alias="toolbox/flowboard.md">help/toolbox/flowboard.md</file>
+    <file alias="toolbox/resources.md">help/toolbox/resources.md</file>
+    <file alias="toolbox/sharing.md">help/toolbox/sharing.md</file>
+    <file alias="toolbox/terminals.md">help/toolbox/terminals.md</file>
+    <file alias="toolbox/git.md">help/toolbox/git.md</file>
+    <file alias="toolbox/recovery.md">help/toolbox/recovery.md</file>
+    <file alias="toolbox/trash.md">help/toolbox/trash.md</file>
+    <file alias="toolbox/debug.md">help/toolbox/debug.md</file>
+  </gresource>
+  <gresource prefix="/io/holder/linux/assets">
+    <file alias="holder.jpg">img/holder.jpg</file>
+  </gresource>
+</gresources>

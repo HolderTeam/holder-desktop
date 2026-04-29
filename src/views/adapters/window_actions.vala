@@ -19,7 +19,7 @@ internal class WindowActionsAdapter : Object {
         var dialog = new Adw.MessageDialog(
             parent,
             "Holder 0.1.0",
-            "Holder Linux frontend"
+            "Holder desktop frontend"
         );
         dialog.add_response("close", "Close");
         dialog.set_default_response("close");

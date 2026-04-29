@@ -69,7 +69,7 @@ class Runner:
     def default_app_path(self) -> str:
         return os.environ.get(
             "HOLDER_FRONTEND_APP_PATH",
-            str(self.repo_root / "frontends" / "linux" / "build" / "holder-desktop"),
+            str(self.repo_root / "build" / "holder-desktop"),
         )
 
     def behave_env(self, headless: bool) -> dict[str, str]:

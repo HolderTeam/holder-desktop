@@ -54,7 +54,7 @@ Optional fallback for maintainers who want editable package installs:
 ## Environment
 
 - `HOLDER_FRONTEND_TARGET` (default: `linux`)
-- `HOLDER_FRONTEND_APP_PATH` (default: `../frontends/linux/build/holder-desktop`)
+- `HOLDER_FRONTEND_APP_PATH` (default: `../build/holder-desktop`)
 - `HOLDER_TEST_HEADLESS` (default: `1`; set `0` for headed/visible run)
 
 ## Runner design

@@ -1,7 +1,7 @@
 # Git Sync Wizard Design
 
 ## Status
-Draft design for Linux frontend implementation.
+Draft design for GTK desktop frontend implementation.
 
 ## Goals
 - Provide a simple setup path for users who do not know Git.

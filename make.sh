@@ -8,7 +8,11 @@ MODE="${1:-run}"
 setup_build() {
   local dir="$1"
   shift
-  meson setup "${dir}" --reconfigure "$@"
+  if [[ -f "${dir}/build.ninja" ]]; then
+    meson setup "${dir}" --reconfigure "$@"
+  else
+    meson setup "${dir}" "$@"
+  fi
 }
 
 build() {

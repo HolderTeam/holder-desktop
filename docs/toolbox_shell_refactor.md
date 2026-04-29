@@ -6,7 +6,7 @@ Active refactor tracking now lives in `docs/refactor_todo.md`.
 ## Status
 - This refactor is active and near completion.
 - It is now governed by the global transition architecture in:
-  - `frontends/linux/docs/ui_state_transition_plan.md`
+  - `docs/ui_state_transition_plan.md`
 - Scope remains toolbox-specific; app-wide state migration is tracked in the global doc.
 
 ## Problem
