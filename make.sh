@@ -15,8 +15,15 @@ setup_build() {
   fi
 }
 
+refresh_compiled_schemas() {
+  local dir="$1"
+  # glib-compile-schemas scans the schema directory, so Meson may miss schema renames.
+  rm -f "${dir}/data/gschemas.compiled"
+}
+
 build() {
   setup_build "${BUILD_DIR}"
+  refresh_compiled_schemas "${BUILD_DIR}"
   meson compile -C "${BUILD_DIR}"
 }
 
@@ -32,6 +39,7 @@ run_app() {
 
 coverage() {
   setup_build "${COVERAGE_BUILD_DIR}" -Db_coverage=true
+  refresh_compiled_schemas "${COVERAGE_BUILD_DIR}"
   meson compile -C "${COVERAGE_BUILD_DIR}"
   GSETTINGS_BACKEND=memory meson test -C "${COVERAGE_BUILD_DIR}" --print-errorlogs
 

@@ -101,7 +101,7 @@ class LinuxDogtailDriver(FrontendDriver):
         return hidden is not None
 
     def _find_app(self, tree_module):
-        for app_name in ("Holder", "holder-desktop", "holder-linux", "io.holder.linux"):
+        for app_name in ("Holder", "holder-desktop", "holder-linux", "team.holder.Holder"):
             try:
                 app = tree_module.root.application(app_name)
                 if app is not None:

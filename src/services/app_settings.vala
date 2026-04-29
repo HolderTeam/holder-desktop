@@ -2,7 +2,7 @@ namespace HolderLinux {
 
 public class AppSettings : Object {
     public delegate void WarningSink(string message);
-    public const string SCHEMA_ID = "io.holder.linux";
+    public const string SCHEMA_ID = "team.holder.Holder";
     public const string KEY_STYLE_VARIANT = "style-variant";
     public const string KEY_STYLE_SCHEME_ID = "style-scheme-id";
     public const string KEY_SHOW_LINE_NUMBERS = "show-line-numbers";

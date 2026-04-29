@@ -6,7 +6,7 @@ public class App : Adw.Application {
 
     public App(int startup_width = 0, int startup_height = 0) {
         Object(
-            application_id: "io.holder.linux",
+            application_id: "team.holder.Holder",
             flags: ApplicationFlags.DEFAULT_FLAGS
         );
         this.startup_width = startup_width;

@@ -25,7 +25,7 @@ internal class WindowActionsAdapter : Object {
         dialog.set_default_response("close");
         dialog.set_close_response("close");
 
-        var logo = new Gtk.Picture.for_resource("/io/holder/linux/assets/holder.jpg");
+        var logo = new Gtk.Picture.for_resource("/team/holder/Holder/assets/holder.jpg");
         logo.set_can_shrink(true);
         logo.set_content_fit(Gtk.ContentFit.CONTAIN);
         logo.set_size_request(220, 220);
