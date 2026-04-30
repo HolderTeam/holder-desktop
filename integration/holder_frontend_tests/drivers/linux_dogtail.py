@@ -74,10 +74,17 @@ class LinuxDogtailDriver(FrontendDriver):
 
     def has_card_titled_prefix(self, prefix: str) -> bool:
         window = self._current_window()
-        matches = window.findChildren(
-            lambda node: (getattr(node, "name", "") or "").startswith(prefix)
-        )
-        return len(matches) > 0
+        try:
+            found = self._wait_for(
+                lambda: True if window.findChildren(
+                    lambda node: (getattr(node, "name", "") or "").startswith(prefix)
+                ) else None,
+                timeout=10.0,
+                interval=0.2,
+            )
+            return found is True
+        except RuntimeError:
+            return False
 
     def toggle_toolbox_panel(self) -> None:
         self._click_toolbox_toggle(self._current_window())
