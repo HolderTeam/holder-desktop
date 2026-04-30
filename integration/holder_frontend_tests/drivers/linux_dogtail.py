@@ -315,6 +315,57 @@ class LinuxDogtailDriver(FrontendDriver):
                 interval=0.2,
             )
 
+    def connections_show_parent_relation(self, parent_title: str) -> bool:
+        self.switch_toolbox_tool("Connections")
+        try:
+            return self._wait_for(
+                lambda: True if (
+                    self._visible_text_contains("Project:")
+                    and self._visible_text_contains("Parent:")
+                    and self._visible_text_contains(parent_title)
+                    and self._find_visible_named(self._current_window(), "Outgoing") is not None
+                    and self._find_visible_named(self._current_window(), "Incoming") is not None
+                    and self._find_visible_named(self._current_window(), "Internal") is not None
+                    and self._find_sensitive_named(self._current_window(), "Add graph connection") is not None
+                ) else None,
+                timeout=20.0,
+                interval=0.2,
+            ) is True
+        except RuntimeError:
+            return False
+
+    def add_graph_link_from_selected_card_to(self, target_title: str) -> None:
+        self.switch_toolbox_tool("Connections")
+        self._wait_for(
+            lambda: self._find_sensitive_named(self._current_window(), "Add graph connection"),
+            timeout=20.0,
+            interval=0.2,
+        )
+        self._click_named_control("Add graph connection")
+        dialog = self._wait_for(lambda: self._find_dialog("Add Graph Connection"), timeout=10.0)
+        self._select_dropdown_option(dialog, "Target card", target_title)
+        add = self._wait_for(lambda: self._find_sensitive_named(dialog, "Add"), timeout=10.0)
+        self._click_node(add)
+        self._wait_for(
+            lambda: True if self._find_dialog("Add Graph Connection") is None else None,
+            timeout=10.0,
+            interval=0.2,
+        )
+
+    def connections_graph_link_is_visible(self, target_title: str) -> bool:
+        self.switch_toolbox_tool("Connections")
+        try:
+            return self._wait_for(
+                lambda: True if (
+                    self._visible_text_contains("ref:")
+                    and self._visible_text_contains(target_title)
+                ) else None,
+                timeout=20.0,
+                interval=0.2,
+            ) is True
+        except RuntimeError:
+            return False
+
     def switch_toolbox_tool(self, tool_name: str) -> None:
         self.open_toolbox_panel()
         window = self._current_window()
@@ -595,6 +646,52 @@ class LinuxDogtailDriver(FrontendDriver):
         if not matches:
             return None
         return max(matches, key=self._node_area)
+
+    def _visible_text_contains(self, text: str, scope=None) -> bool:
+        search_scope = scope if scope is not None else self._current_window()
+        matches = search_scope.findChildren(
+            lambda node: (
+                text in (getattr(node, "name", "") or "")
+                and getattr(node, "showing", True)
+                and getattr(node, "visible", True)
+            )
+        )
+        return bool(matches)
+
+    def _select_dropdown_option(self, scope, dropdown_name: str, option_text: str) -> None:
+        dropdown = self._find_named_with_role_containing(scope, dropdown_name, "combo")
+        if dropdown is None:
+            return
+        self._click_node(dropdown)
+        option = self._wait_for(
+            lambda: self._find_visible_text_containing(self._current_app(), option_text),
+            timeout=5.0,
+            interval=0.2,
+        )
+        self._click_node(option)
+
+    @staticmethod
+    def _find_named_with_role_containing(scope, name: str, role_fragment: str):
+        matches = scope.findChildren(
+            lambda node: (
+                getattr(node, "name", "") == name
+                and role_fragment in (getattr(node, "roleName", "") or "").lower()
+            )
+        )
+        return matches[0] if matches else None
+
+    @staticmethod
+    def _find_visible_text_containing(scope, text: str):
+        matches = scope.findChildren(
+            lambda node: (
+                text in (getattr(node, "name", "") or "")
+                and getattr(node, "showing", True)
+                and getattr(node, "visible", True)
+            )
+        )
+        if not matches:
+            return None
+        return max(matches, key=LinuxDogtailDriver._node_area)
 
     @staticmethod
     def _node_x(node) -> int:

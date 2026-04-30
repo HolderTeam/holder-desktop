@@ -258,6 +258,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
 
         connections_add_graph_link_btn = new Gtk.Button.from_icon_name("list-add-symbolic");
         connections_add_graph_link_btn.set_tooltip_text("Add graph connection");
+        connections_add_graph_link_btn.update_property(Gtk.AccessibleProperty.LABEL, "Add graph connection", -1);
         connections_add_graph_link_btn.set_sensitive(false);
         connections_add_graph_link_btn.clicked.connect(() => {
             open_add_graph_link_dialog();
@@ -266,6 +267,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         connections_relations_toggle_btn.add_css_class("flat");
         connections_relations_toggle_btn.set_icon_name("sidebar-show-right-symbolic");
         connections_relations_toggle_btn.set_tooltip_text("Toggle relations panel");
+        connections_relations_toggle_btn.update_property(Gtk.AccessibleProperty.LABEL, "Toggle relations panel", -1);
         connections_relations_toggle_btn.set_active(true);
         connections_relations_toggle_btn.toggled.connect(() => {
             bool visible = connections_relations_toggle_btn.get_active();
@@ -370,6 +372,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         connections_relations_scroller.set_size_request(320, -1);
         connections_relations_scroller.set_hexpand(false);
         connections_relations_scroller.set_vexpand(true);
+        connections_relations_scroller.update_property(Gtk.AccessibleProperty.LABEL, "Relations panel", -1);
         connections_relations_scroller.set_child(connections_relations_column);
         connections_main_pane.set_end_child(connections_relations_scroller);
         queue_apply_default_relations_split();
@@ -453,9 +456,13 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         }
         var escaped = Markup.escape_text(text);
         connections_relations_structure_label.set_markup(escaped);
+        connections_relations_structure_label.update_property(Gtk.AccessibleProperty.LABEL, text, -1);
         connections_relations_outgoing_label.set_markup("None");
+        connections_relations_outgoing_label.update_property(Gtk.AccessibleProperty.LABEL, "None", -1);
         connections_relations_backlinks_label.set_markup("None");
+        connections_relations_backlinks_label.update_property(Gtk.AccessibleProperty.LABEL, "None", -1);
         connections_relations_internal_label.set_markup("None");
+        connections_relations_internal_label.update_property(Gtk.AccessibleProperty.LABEL, "None", -1);
         connections_relations_outgoing_section.set_visible(false);
         connections_relations_backlinks_section.set_visible(false);
         connections_relations_internal_section.set_visible(false);
@@ -468,12 +475,59 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         connections_relations_outgoing_section.set_visible(true);
         connections_relations_backlinks_section.set_visible(true);
         connections_relations_internal_section.set_visible(true);
-        connections_relations_structure_label.set_markup(
-            controller.compact_structure_markup(project, selected_card, snapshot_cards())
+        var structure_markup = controller.compact_structure_markup(project, selected_card, snapshot_cards());
+        connections_relations_structure_label.set_markup(structure_markup);
+        connections_relations_structure_label.update_property(
+            Gtk.AccessibleProperty.LABEL,
+            plain_text_from_markup(structure_markup),
+            -1
         );
-        connections_relations_outgoing_label.set_markup(format_link_lines(outgoing, true));
-        connections_relations_backlinks_label.set_markup(format_link_lines(backlinks, false));
-        connections_relations_internal_label.set_markup(format_internal_lines(project.project_id));
+        var outgoing_markup = format_link_lines(outgoing, true);
+        connections_relations_outgoing_label.set_markup(outgoing_markup);
+        connections_relations_outgoing_label.update_property(
+            Gtk.AccessibleProperty.LABEL,
+            plain_text_from_markup(outgoing_markup),
+            -1
+        );
+        var backlinks_markup = format_link_lines(backlinks, false);
+        connections_relations_backlinks_label.set_markup(backlinks_markup);
+        connections_relations_backlinks_label.update_property(
+            Gtk.AccessibleProperty.LABEL,
+            plain_text_from_markup(backlinks_markup),
+            -1
+        );
+        var internal_markup = format_internal_lines(project.project_id);
+        connections_relations_internal_label.set_markup(internal_markup);
+        connections_relations_internal_label.update_property(
+            Gtk.AccessibleProperty.LABEL,
+            plain_text_from_markup(internal_markup),
+            -1
+        );
+    }
+
+    private string plain_text_from_markup(string markup) {
+        var text = new StringBuilder();
+        bool in_tag = false;
+        for (int i = 0; i < markup.length; i++) {
+            char c = markup[i];
+            if (c == '<') {
+                in_tag = true;
+                continue;
+            }
+            if (c == '>') {
+                in_tag = false;
+                continue;
+            }
+            if (!in_tag) {
+                text.append_c(c);
+            }
+        }
+        return text.str
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&amp;", "&")
+            .replace("&quot;", "\"")
+            .replace("&apos;", "'");
     }
 
     private string format_link_lines(Gee.ArrayList<CardLink> links, bool outgoing) {
@@ -566,6 +620,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
 
         var target_label = new Gtk.Label("Target card") { xalign = 0.0f };
         var target_dropdown = new Gtk.DropDown(target_titles, null);
+        target_dropdown.update_property(Gtk.AccessibleProperty.LABEL, "Target card", -1);
         target_dropdown.set_selected(0);
         content.append(target_label);
         content.append(target_dropdown);
@@ -578,9 +633,11 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         }
         kind_options.append("custom");
         var kind_dropdown = new Gtk.DropDown(kind_options, null);
+        kind_dropdown.update_property(Gtk.AccessibleProperty.LABEL, "Kind", -1);
         kind_dropdown.set_selected(0);
         var custom_kind_entry = new Gtk.Entry();
         custom_kind_entry.set_placeholder_text("custom kind");
+        custom_kind_entry.update_property(Gtk.AccessibleProperty.LABEL, "Custom kind", -1);
         custom_kind_entry.set_visible(false);
         kind_dropdown.notify["selected"].connect(() => {
             var selected = kind_dropdown.get_selected();
@@ -599,6 +656,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         var label_label = new Gtk.Label("Label (optional)") { xalign = 0.0f };
         var label_entry = new Gtk.Entry();
         label_entry.set_placeholder_text("optional note");
+        label_entry.update_property(Gtk.AccessibleProperty.LABEL, "Connection label", -1);
         content.append(label_label);
         content.append(label_entry);
 

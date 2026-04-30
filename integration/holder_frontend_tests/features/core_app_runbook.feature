@@ -91,6 +91,16 @@ Feature: Core app run book
     When I toggle the toolbox panel
     Then I should not see the toolbox panel
 
+  Scenario: Use Connections
+    Given the Holder frontend is running
+    When I open the toolbox panel
+    And I switch to toolbox tool "Connections"
+    Then I should see Connections parent "Runbook Search Card"
+    When I add a graph link from the selected card to "Runbook Search Card"
+    Then I should see a Connections graph link to "Runbook Search Card"
+    When I toggle the toolbox panel
+    Then I should not see the toolbox panel
+
   Scenario: Toggle toolbox panel visibility
     Given the Holder frontend is running
     When I toggle the toolbox panel

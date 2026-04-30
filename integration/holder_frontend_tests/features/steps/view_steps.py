@@ -160,6 +160,25 @@ def step_create_flowboard_child_card(context, parent_title):
     context.driver.create_child_card_from_flowboard(parent_title)
 
 
+@then('I should see Connections parent "{parent_title}"')
+def step_connections_parent_visible(context, parent_title):
+    assert context.driver.connections_show_parent_relation(parent_title), (
+        f"Expected Connections to show parent relation '{parent_title}'"
+    )
+
+
+@when('I add a graph link from the selected card to "{target_title}"')
+def step_add_graph_link(context, target_title):
+    context.driver.add_graph_link_from_selected_card_to(target_title)
+
+
+@then('I should see a Connections graph link to "{target_title}"')
+def step_connections_graph_link_visible(context, target_title):
+    assert context.driver.connections_graph_link_is_visible(target_title), (
+        f"Expected Connections to show a graph link to '{target_title}'"
+    )
+
+
 @when('I switch to toolbox tool "{tool_name}"')
 def step_switch_toolbox_tool(context, tool_name):
     context.driver.switch_toolbox_tool(tool_name)
