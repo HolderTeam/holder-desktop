@@ -10,6 +10,18 @@ Feature: Core app run book
     When I create a new card
     Then I should see a card titled "Untitled"
 
+  Scenario: Edit a card and find it from search
+    Given the Holder frontend is running
+    When I replace the editor text with
+      """
+      # Runbook Search Card
+
+      This card includes runbook-search-token.
+      """
+    Then I should see save state "Saved"
+    When I search cards for "runbook-search-token"
+    Then I should see search result "Runbook Search Card"
+
   Scenario: Use search and AI side panels
     Given the Holder frontend is running
     Then I should see the search panel

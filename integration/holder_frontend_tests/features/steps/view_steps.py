@@ -15,6 +15,30 @@ def step_search_panel_visible(context):
     )
 
 
+@when("I replace the editor text with")
+def step_replace_editor_text(context):
+    context.driver.replace_editor_text(context.text)
+
+
+@then('I should see save state "{text}"')
+def step_save_state_visible(context, text):
+    assert context.driver.save_state_is_visible(text), (
+        f"Expected save state '{text}' to be visible"
+    )
+
+
+@when('I search cards for "{query}"')
+def step_search_cards(context, query):
+    context.driver.search_cards(query)
+
+
+@then('I should see search result "{text}"')
+def step_search_result_visible(context, text):
+    assert context.driver.has_search_result(text), (
+        f"Expected search result '{text}' to be visible"
+    )
+
+
 @when("I toggle the AI panel")
 @step("I toggle the AI panel")
 def step_toggle_ai_panel(context):

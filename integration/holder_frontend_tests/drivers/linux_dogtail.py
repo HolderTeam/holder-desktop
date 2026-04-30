@@ -88,6 +88,21 @@ class LinuxDogtailDriver(FrontendDriver):
         except RuntimeError:
             return False
 
+    def replace_editor_text(self, text: str) -> None:
+        editor = self._wait_for(lambda: self._find_editor_text_node(), timeout=20.0)
+        self._set_text(editor, text)
+
+    def save_state_is_visible(self, text: str) -> bool:
+        return self._has_visible_named(text, timeout=20.0)
+
+    def search_cards(self, query: str) -> None:
+        search_entry = self._wait_for(lambda: self._find_search_entry(), timeout=20.0)
+        self._set_text(search_entry, query)
+        rawinput.pressKey("Enter")
+
+    def has_search_result(self, text: str) -> bool:
+        return self._has_visible_named(text, timeout=20.0)
+
     def can_see_text(self, text: str) -> bool:
         return self._has_visible_named(text, timeout=10.0)
 
@@ -288,10 +303,46 @@ class LinuxDogtailDriver(FrontendDriver):
     def _text_entries(scope):
         return scope.findChildren(
             lambda node: (
-                "text" in (getattr(node, "roleName", "") or "").lower()
+                (
+                    "text" in (getattr(node, "roleName", "") or "").lower()
+                    or (getattr(node, "roleName", "") or "").lower() == "entry"
+                )
                 and "label" not in (getattr(node, "roleName", "") or "").lower()
             )
         )
+
+    def _find_search_entry(self):
+        clear_button = self._find_named(self._current_window(), "Clear search")
+        if clear_button is not None:
+            parent = getattr(clear_button, "parent", None)
+            if parent is not None:
+                entries = self._text_entries(parent)
+                if entries:
+                    return entries[0]
+
+        entries = self._text_entries(self._current_window())
+        if not entries:
+            return None
+        return min(entries, key=self._node_area)
+
+    def _find_editor_text_node(self):
+        window = self._current_window()
+        search_entry = self._find_search_entry()
+        entries = [
+            node for node in self._text_entries(window)
+            if node is not search_entry
+        ]
+        if not entries:
+            return None
+        return max(entries, key=self._node_area)
+
+    @staticmethod
+    def _node_area(node) -> int:
+        try:
+            width, height = node.size
+            return int(width) * int(height)
+        except Exception:
+            return 0
 
     @staticmethod
     def _set_text(node, text: str) -> None:

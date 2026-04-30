@@ -23,6 +23,22 @@ class FrontendDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def replace_editor_text(self, text: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_state_is_visible(self, text: str) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def search_cards(self, query: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def has_search_result(self, text: str) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
     def can_see_text(self, text: str) -> bool:
         raise NotImplementedError
 
