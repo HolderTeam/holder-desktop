@@ -101,6 +101,13 @@ public class FlowboardToolView : Object, IToolShellAdapter {
         flowboard_controller.navigate_to_breadcrumb_index(1);
     }
 
+    public void request_create_card_here() {
+        if (flowboard_controller == null) {
+            return;
+        }
+        flowboard_controller.request_create_card_here();
+    }
+
     public bool is_showing_projects_root() {
         return flowboard_controller != null && flowboard_controller.is_showing_projects_root();
     }

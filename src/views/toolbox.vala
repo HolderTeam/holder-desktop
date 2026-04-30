@@ -398,6 +398,23 @@ public class ToolboxPane : Object {
         apply_shell_state();
     }
 
+    public bool is_showing_tool(string tool_id) {
+        return current_tool_id() == tool_id;
+    }
+
+    public void request_flowboard_child_or_current_level_card() {
+        var selected_card = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary
+            : null;
+        if (selected_card != null) {
+            flowboard_new_card_requested(selected_card.card_id);
+            return;
+        }
+        if (flowboard_tool != null) {
+            flowboard_tool.request_create_card_here();
+        }
+    }
+
     private Gtk.Widget build_sharing_tab() {
         sharing_tool = new SharingToolView();
         tool_adapters.set("sharing", sharing_tool);

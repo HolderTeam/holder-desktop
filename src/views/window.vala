@@ -446,6 +446,10 @@ private class WindowActionSink : Object, IWindowActionSink {
         owner.handle_new_card_action();
     }
 
+    public void on_flowboard_new_child_card_requested() {
+        owner.handle_flowboard_new_child_card_action();
+    }
+
     public void on_toggle_toolbox_requested() {
         owner.handle_toggle_toolbox_action();
     }
@@ -1245,6 +1249,20 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void handle_new_card_action() {
         controller.create_card.begin();
+    }
+
+    internal void handle_flowboard_new_child_card_action() {
+        var selected_card_id = controller.selected_card_id();
+        if (selected_card_id == null || selected_card_id.strip().length == 0) {
+            return;
+        }
+        log_activity(
+            "intent.card.create_child",
+            "Create child card requested from Flowboard shortcut",
+            controller.selected_project_id(),
+            selected_card_id
+        );
+        controller.create_card.begin(selected_card_id);
     }
 
     internal void handle_toggle_toolbox_action() {

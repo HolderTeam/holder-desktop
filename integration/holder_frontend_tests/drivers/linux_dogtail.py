@@ -295,23 +295,25 @@ class LinuxDogtailDriver(FrontendDriver):
 
     def create_child_card_from_flowboard(self, parent_title: str) -> None:
         self.switch_toolbox_tool("Flowboard")
-        parent = self._wait_for(
+        self._wait_for(
             lambda: self._find_flowboard_card_title(parent_title),
             timeout=20.0,
             interval=0.2,
         )
-        self._right_click_node(parent)
-        create_child = self._wait_for(
-            lambda: self._find_sensitive_named(self._current_app(), "Create Child Card"),
-            timeout=10.0,
-            interval=0.2,
-        )
-        self._click_node(create_child)
-        self._wait_for(
-            lambda: True if self._find_named(self._current_window(), "Untitled") is not None else None,
-            timeout=20.0,
-            interval=0.2,
-        )
+        rawinput.keyCombo("<Control><Alt>n")
+        try:
+            self._wait_for(
+                lambda: True if self._editor_text().lstrip().startswith("# Untitled") else None,
+                timeout=3.0,
+                interval=0.2,
+            )
+        except RuntimeError:
+            self._activate_window_action("flowboard-new-child-card")
+            self._wait_for(
+                lambda: True if self._editor_text().lstrip().startswith("# Untitled") else None,
+                timeout=20.0,
+                interval=0.2,
+            )
 
     def switch_toolbox_tool(self, tool_name: str) -> None:
         self.open_toolbox_panel()
@@ -573,6 +575,16 @@ class LinuxDogtailDriver(FrontendDriver):
 
     def _find_flowboard_card_title(self, title: str):
         window = self._current_window()
+        cells = window.findChildren(
+            lambda node: (
+                (getattr(node, "name", "") or "").startswith(title)
+                and getattr(node, "roleName", "") == "table cell"
+                and getattr(node, "showing", True)
+                and getattr(node, "visible", True)
+            )
+        )
+        if cells:
+            return max(cells, key=self._node_area)
         matches = window.findChildren(
             lambda node: (
                 getattr(node, "name", "") == title
@@ -736,12 +748,6 @@ class LinuxDogtailDriver(FrontendDriver):
         except Exception:
             pass
         raise RuntimeError(f"Cannot click node: {getattr(node, 'name', '<unnamed>')}")
-
-    @staticmethod
-    def _right_click_node(node) -> None:
-        x, y = node.position
-        width, height = node.size
-        rawinput.click(int(x + width / 2), int(y + height / 2), button=3)
 
     def _click_toolbox_toggle(self, window) -> None:
         buttons = window.findChildren(

@@ -79,7 +79,15 @@ Feature: Core app run book
     And I switch to toolbox tool "Flowboard"
     Then I should see flowboard card "Runbook Search Card"
     When I create a child card from flowboard card "Runbook Search Card"
-    Then I should see a card titled "Untitled"
+    And I replace the editor text with
+      """
+      # Flowboard Child Card
+
+      This child was created from the Flowboard shortcut.
+      """
+    Then I should see save state "Saved"
+    And I should see a card titled "Flowboard Child Card"
+    And I should see flowboard card "Runbook Search Card"
     When I toggle the toolbox panel
     Then I should not see the toolbox panel
 

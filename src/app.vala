@@ -20,6 +20,7 @@ public class App : Adw.Application {
 
         set_accels_for_action("win.new-card", {"<Primary>n"});
         set_accels_for_action("win.new-project", {"<Primary><Shift>n"});
+        set_accels_for_action("win.flowboard-new-child-card", {"<Primary><Alt>n"});
         set_accels_for_action("win.find-replace", {"<Primary>f", "<Primary>h"});
         set_accels_for_action("win.print", {"<Primary>p"});
         set_accels_for_action("win.refresh", {"<Primary>r"});
