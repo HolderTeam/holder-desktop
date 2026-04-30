@@ -387,7 +387,7 @@ public class WorkspacePane : Object {
 
         var main_menu_btn = new Gtk.MenuButton();
         main_menu_btn.set_icon_name("open-menu-symbolic");
-        main_menu_btn.set_tooltip_text("Main Menu");
+        main_menu_btn.set_tooltip_text("Open app menu");
         main_menu_btn.set_menu_model(main_menu);
 
         header.pack_start(refresh_btn);

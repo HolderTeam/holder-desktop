@@ -99,6 +99,30 @@ def step_find_replace_hidden(context):
     )
 
 
+@when("I open preferences")
+def step_open_preferences(context):
+    context.driver.open_preferences()
+
+
+@then("I should see preferences options")
+def step_preferences_options_visible(context):
+    assert context.driver.preferences_options_are_visible(), (
+        "Expected Preferences dialog to show Appearance and Editor options"
+    )
+
+
+@when("I close preferences")
+def step_close_preferences(context):
+    context.driver.close_preferences()
+
+
+@then("I should not see preferences")
+def step_preferences_closed(context):
+    assert context.driver.preferences_are_closed(), (
+        "Expected Preferences dialog to be closed"
+    )
+
+
 @when("I toggle the AI panel")
 @step("I toggle the AI panel")
 def step_toggle_ai_panel(context):

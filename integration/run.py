@@ -123,6 +123,16 @@ class Runner:
             env.pop("SWAYSOCK", None)
         return env
 
+    def write_gtk4_test_css(self, config_dir: Path) -> None:
+        gtk4_dir = config_dir / "gtk-4.0"
+        gtk4_dir.mkdir(parents=True, exist_ok=True)
+        (gtk4_dir / "gtk.css").write_text(
+            "window, .popover, .tooltip {\n"
+            "    box-shadow: none;\n"
+            "}\n",
+            encoding="utf-8",
+        )
+
     def run_with_isolated_backend(self, command: list[str], env: dict[str, str]) -> None:
         self.require_cmd("mktemp", "Install coreutils from your package manager.")
         holder_dir = Path(
@@ -144,6 +154,7 @@ class Runner:
             data.mkdir(parents=True, exist_ok=True)
             config.mkdir(parents=True, exist_ok=True)
             cache.mkdir(parents=True, exist_ok=True)
+            self.write_gtk4_test_css(config)
             os.chmod(xdg_root_path, 0o700)
 
             run_env = env.copy()

@@ -194,6 +194,52 @@ class LinuxDogtailDriver(FrontendDriver):
         except RuntimeError:
             return False
 
+    def open_preferences(self) -> None:
+        try:
+            self._click_named_control("Open app menu")
+            self._click_app_named_control("Preferences", timeout=3.0)
+        except RuntimeError:
+            self._activate_window_action("show-preferences")
+        self._wait_for(lambda: self._find_dialog("Preferences"), timeout=10.0)
+
+    def preferences_options_are_visible(self) -> bool:
+        dialog = self._find_dialog("Preferences")
+        if dialog is None:
+            return False
+        expected = (
+            "Appearance",
+            "Style Variant",
+            "Editor Theme",
+            "Editor",
+            "Show line numbers",
+            "Show spell checking",
+        )
+        return all(self._find_named(dialog, name) is not None for name in expected)
+
+    def close_preferences(self) -> None:
+        dialog = self._wait_for(lambda: self._find_dialog("Preferences"), timeout=10.0)
+        close = self._find_sensitive_named(dialog, "Close")
+        if close is None:
+            close = self._find_named(dialog, "Close")
+        if close is None:
+            raise RuntimeError("Preferences dialog did not expose a Close control")
+        self._click_node(close)
+        self._wait_for(
+            lambda: True if self._find_dialog("Preferences") is None else None,
+            timeout=10.0,
+            interval=0.2,
+        )
+
+    def preferences_are_closed(self) -> bool:
+        try:
+            return self._wait_for(
+                lambda: True if self._find_dialog("Preferences") is None else None,
+                timeout=5.0,
+                interval=0.2,
+            ) is True
+        except RuntimeError:
+            return False
+
     def can_see_text(self, text: str) -> bool:
         return self._has_visible_named(text, timeout=10.0)
 
@@ -393,6 +439,17 @@ class LinuxDogtailDriver(FrontendDriver):
             if (getattr(node, "roleName", "") or "") in action_roles
         ]
         candidates = actionable if actionable else matches
+        visible_candidates = [
+            node for node in candidates
+            if (
+                getattr(node, "sensitive", True)
+                and getattr(node, "showing", True)
+                and getattr(node, "visible", True)
+                and LinuxDogtailDriver._node_area(node) > 0
+            )
+        ]
+        if visible_candidates:
+            candidates = visible_candidates
         for node in candidates:
             if getattr(node, "sensitive", True):
                 return node
@@ -535,6 +592,50 @@ class LinuxDogtailDriver(FrontendDriver):
             interval=0.2,
         )
         self._click_node(node)
+
+    def _click_app_named_control(self, name: str, timeout: float = 20.0) -> None:
+        node = self._wait_for(
+            lambda: self._find_sensitive_named(self._current_app(), name),
+            timeout=timeout,
+            interval=0.2,
+        )
+        self._click_node(node)
+
+    def _activate_window_action(self, action_name: str) -> None:
+        candidates = (
+            "/team/holder/Holder/window/1",
+            "/team/holder/Holder/window/0",
+            "/team/holder/Holder",
+        )
+        errors = []
+        for object_path in candidates:
+            proc = subprocess.run(
+                [
+                    "gdbus",
+                    "call",
+                    "--session",
+                    "--dest",
+                    "team.holder.Holder",
+                    "--object-path",
+                    object_path,
+                    "--method",
+                    "org.gtk.Actions.Activate",
+                    action_name,
+                    "[]",
+                    "{}",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+            if proc.returncode == 0:
+                return
+            errors.append(f"{object_path}: {proc.stderr.strip()}")
+        raise RuntimeError(
+            "Could not activate GTK action '%s': %s"
+            % (action_name, "; ".join(errors))
+        )
 
     @staticmethod
     def _click_center(node) -> None:

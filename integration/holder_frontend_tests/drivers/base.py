@@ -79,6 +79,22 @@ class FrontendDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def open_preferences(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def preferences_options_are_visible(self) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def close_preferences(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def preferences_are_closed(self) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
     def can_see_text(self, text: str) -> bool:
         raise NotImplementedError
 

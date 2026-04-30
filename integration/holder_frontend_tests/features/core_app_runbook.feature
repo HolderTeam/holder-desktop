@@ -51,6 +51,13 @@ Feature: Core app run book
     When I toggle find and replace
     Then I should see the find and replace panel
 
+  Scenario: Open preferences
+    Given the Holder frontend is running
+    When I open preferences
+    Then I should see preferences options
+    When I close preferences
+    Then I should not see preferences
+
   Scenario: Use search and AI side panels
     Given the Holder frontend is running
     Then I should see the search panel
