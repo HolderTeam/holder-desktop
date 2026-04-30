@@ -115,6 +115,14 @@ class FrontendDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def flowboard_has_card(self, title: str) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_child_card_from_flowboard(self, parent_title: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
     def switch_toolbox_tool(self, tool_name: str) -> None:
         raise NotImplementedError
 

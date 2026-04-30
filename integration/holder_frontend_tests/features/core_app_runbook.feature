@@ -73,6 +73,16 @@ Feature: Core app run book
     When I toggle the toolbox panel
     Then I should not see the toolbox panel
 
+  Scenario: Use Flowboard
+    Given the Holder frontend is running
+    When I open the toolbox panel
+    And I switch to toolbox tool "Flowboard"
+    Then I should see flowboard card "Runbook Search Card"
+    When I create a child card from flowboard card "Runbook Search Card"
+    Then I should see a card titled "Untitled"
+    When I toggle the toolbox panel
+    Then I should not see the toolbox panel
+
   Scenario: Toggle toolbox panel visibility
     Given the Holder frontend is running
     When I toggle the toolbox panel

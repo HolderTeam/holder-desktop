@@ -282,6 +282,37 @@ class LinuxDogtailDriver(FrontendDriver):
         )
         return tabs_visible and len(flowboard_occurrences) >= 2
 
+    def flowboard_has_card(self, title: str) -> bool:
+        self.switch_toolbox_tool("Flowboard")
+        try:
+            return self._wait_for(
+                lambda: True if self._find_flowboard_card_title(title) is not None else None,
+                timeout=20.0,
+                interval=0.2,
+            ) is True
+        except RuntimeError:
+            return False
+
+    def create_child_card_from_flowboard(self, parent_title: str) -> None:
+        self.switch_toolbox_tool("Flowboard")
+        parent = self._wait_for(
+            lambda: self._find_flowboard_card_title(parent_title),
+            timeout=20.0,
+            interval=0.2,
+        )
+        self._right_click_node(parent)
+        create_child = self._wait_for(
+            lambda: self._find_sensitive_named(self._current_app(), "Create Child Card"),
+            timeout=10.0,
+            interval=0.2,
+        )
+        self._click_node(create_child)
+        self._wait_for(
+            lambda: True if self._find_named(self._current_window(), "Untitled") is not None else None,
+            timeout=20.0,
+            interval=0.2,
+        )
+
     def switch_toolbox_tool(self, tool_name: str) -> None:
         self.open_toolbox_panel()
         window = self._current_window()
@@ -540,6 +571,19 @@ class LinuxDogtailDriver(FrontendDriver):
             raise RuntimeError("Find/Replace bar did not expose find and replace entries")
         return entries[0], entries[1]
 
+    def _find_flowboard_card_title(self, title: str):
+        window = self._current_window()
+        matches = window.findChildren(
+            lambda node: (
+                getattr(node, "name", "") == title
+                and getattr(node, "showing", True)
+                and getattr(node, "visible", True)
+            )
+        )
+        if not matches:
+            return None
+        return max(matches, key=self._node_area)
+
     @staticmethod
     def _node_x(node) -> int:
         try:
@@ -692,6 +736,12 @@ class LinuxDogtailDriver(FrontendDriver):
         except Exception:
             pass
         raise RuntimeError(f"Cannot click node: {getattr(node, 'name', '<unnamed>')}")
+
+    @staticmethod
+    def _right_click_node(node) -> None:
+        x, y = node.position
+        width, height = node.size
+        rawinput.click(int(x + width / 2), int(y + height / 2), button=3)
 
     def _click_toolbox_toggle(self, window) -> None:
         buttons = window.findChildren(

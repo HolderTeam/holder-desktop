@@ -148,6 +148,18 @@ def step_toolbox_shell_visible(context):
     )
 
 
+@then('I should see flowboard card "{title}"')
+def step_flowboard_card_visible(context, title):
+    assert context.driver.flowboard_has_card(title), (
+        f"Expected flowboard to show card '{title}'"
+    )
+
+
+@when('I create a child card from flowboard card "{parent_title}"')
+def step_create_flowboard_child_card(context, parent_title):
+    context.driver.create_child_card_from_flowboard(parent_title)
+
+
 @when('I switch to toolbox tool "{tool_name}"')
 def step_switch_toolbox_tool(context, tool_name):
     context.driver.switch_toolbox_tool(tool_name)
