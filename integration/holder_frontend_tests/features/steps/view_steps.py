@@ -39,6 +39,11 @@ def step_search_result_visible(context, text):
     )
 
 
+@when('I replace all "{find_text}" with "{replace_text}"')
+def step_replace_all_in_editor(context, find_text, replace_text):
+    context.driver.replace_all_in_editor(find_text, replace_text)
+
+
 @when("I toggle the AI panel")
 @step("I toggle the AI panel")
 def step_toggle_ai_panel(context):

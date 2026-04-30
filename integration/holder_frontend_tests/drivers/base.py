@@ -39,6 +39,10 @@ class FrontendDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def replace_all_in_editor(self, find_text: str, replace_text: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
     def can_see_text(self, text: str) -> bool:
         raise NotImplementedError
 

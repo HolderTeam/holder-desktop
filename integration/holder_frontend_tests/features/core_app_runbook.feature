@@ -22,6 +22,13 @@ Feature: Core app run book
     When I search cards for "runbook-search-token"
     Then I should see search result "Runbook Search Card"
 
+  Scenario: Use find and replace in the editor
+    Given the Holder frontend is running
+    When I replace all "runbook-search-token" with "runbook-replaced-token"
+    Then I should see save state "Saved"
+    When I search cards for "runbook-replaced-token"
+    Then I should see search result "Runbook Search Card"
+
   Scenario: Use search and AI side panels
     Given the Holder frontend is running
     Then I should see the search panel

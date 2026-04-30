@@ -103,6 +103,24 @@ class LinuxDogtailDriver(FrontendDriver):
     def has_search_result(self, text: str) -> bool:
         return self._has_visible_named(text, timeout=20.0)
 
+    def replace_all_in_editor(self, find_text: str, replace_text: str) -> None:
+        search_entry = self._wait_for(lambda: self._find_search_entry(), timeout=20.0)
+        self._set_text(search_entry, "")
+        rawinput.pressKey("Enter")
+        self._wait_for(lambda: self._find_editor_text_node(), timeout=20.0)
+        self._click_rightmost_named_control("Main Menu")
+        self._click_any_named_control("Find/Replace")
+        self._wait_for(lambda: self._find_named(self._current_window(), "Replace All"), timeout=10.0)
+        find_entry, replace_entry = self._find_replace_entries()
+        self._set_text(find_entry, find_text)
+        self._set_text(replace_entry, replace_text)
+        self._click_named_control("Replace All")
+        self._wait_for(
+            lambda: True if self._find_named(self._current_window(), "Replaced 1 matches.") is not None else None,
+            timeout=10.0,
+            interval=0.2,
+        )
+
     def can_see_text(self, text: str) -> bool:
         return self._has_visible_named(text, timeout=10.0)
 
@@ -336,6 +354,39 @@ class LinuxDogtailDriver(FrontendDriver):
             return None
         return max(entries, key=self._node_area)
 
+    def _find_replace_entries(self):
+        search_entry = self._find_search_entry()
+        entries = [
+            node for node in self._entry_nodes(self._current_window())
+            if node is not search_entry
+        ]
+        entries.sort(key=lambda node: (self._node_y(node), self._node_x(node)))
+        if len(entries) < 2:
+            raise RuntimeError("Find/Replace bar did not expose find and replace entries")
+        return entries[0], entries[1]
+
+    @staticmethod
+    def _entry_nodes(scope):
+        return scope.findChildren(
+            lambda node: (getattr(node, "roleName", "") or "").lower() == "entry"
+        )
+
+    @staticmethod
+    def _node_x(node) -> int:
+        try:
+            x, _y = node.position
+            return int(x)
+        except Exception:
+            return 0
+
+    @staticmethod
+    def _node_y(node) -> int:
+        try:
+            _x, y = node.position
+            return int(y)
+        except Exception:
+            return 0
+
     @staticmethod
     def _node_area(node) -> int:
         try:
@@ -389,6 +440,32 @@ class LinuxDogtailDriver(FrontendDriver):
             interval=0.2,
         )
         self._click_node(node)
+
+    def _click_any_named_control(self, name: str) -> None:
+        node = self._wait_for(
+            lambda: self._find_sensitive_named(self._current_app(), name),
+            timeout=20.0,
+            interval=0.2,
+        )
+        self._click_node(node)
+
+    def _click_rightmost_named_control(self, name: str) -> None:
+        window = self._current_window()
+        candidates = window.findChildren(lambda node: getattr(node, "name", "") == name)
+        candidates = [
+            node for node in candidates
+            if getattr(node, "sensitive", True)
+            and (getattr(node, "roleName", "") or "") in ("push button", "button", "toggle button")
+        ]
+        if not candidates:
+            raise RuntimeError(f"Could not find control: {name}")
+        self._click_center(max(candidates, key=self._node_x))
+
+    @staticmethod
+    def _click_center(node) -> None:
+        x, y = node.position
+        width, height = node.size
+        rawinput.click(int(x + width / 2), int(y + height / 2))
 
     def _has_visible_named(self, name: str, timeout: float = 10.0) -> bool:
         window = self._current_window()
