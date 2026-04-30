@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-  <schema id="io.holder.linux" path="/io/holder/linux/">
+  <schema id="team.holder.Holder" path="/team/holder/Holder/">
     <key name="style-variant" type="s">
       <default>'default'</default>
       <summary>Preferred application style variant</summary>

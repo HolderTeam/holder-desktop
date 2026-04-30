@@ -2,7 +2,7 @@
 Feature: Cards
   As a Holder user
   I want to create cards from the frontend
-  So that I can capture notes quickly
+  So that I can capture cards quickly
 
   Scenario: Create a card from the toolbar
     Given the Holder frontend is running

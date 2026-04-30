@@ -18,7 +18,7 @@ internal class ToolHelpController : Object {
     public ToolHelpContent load(string tool_id) {
         var title = title_for_tool(tool_id);
         string markdown;
-        string resource_path = "/io/holder/linux/help/toolbox/%s.md".printf(tool_id);
+        string resource_path = "/team/holder/Holder/help/toolbox/%s.md".printf(tool_id);
         try {
             var bytes = resources_lookup_data(resource_path, ResourceLookupFlags.NONE);
             markdown = (string) bytes.get_data();

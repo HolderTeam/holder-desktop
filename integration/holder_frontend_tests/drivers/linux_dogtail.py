@@ -15,8 +15,14 @@ class LinuxDogtailDriver(FrontendDriver):
     def __init__(self, app_path: str) -> None:
         self.app_path = app_path
         self.proc: Optional[subprocess.Popen] = None
+        self._app = None
+        self._window = None
 
     def launch(self) -> None:
+        if self.proc is not None and self.proc.poll() is None:
+            self._current_window()
+            return
+
         if not os.path.exists(self.app_path):
             raise RuntimeError(f"App not found: {self.app_path}")
 
@@ -25,14 +31,24 @@ class LinuxDogtailDriver(FrontendDriver):
         env.setdefault("GTK_A11Y", "atspi")
         env.setdefault("GSETTINGS_BACKEND", "memory")
         env.setdefault("GTK_USE_PORTAL", "0")
+        schema_dir = os.path.join(os.path.dirname(self.app_path), "data")
+        if os.path.exists(os.path.join(schema_dir, "gschemas.compiled")):
+            env.setdefault("GSETTINGS_SCHEMA_DIR", schema_dir)
 
-        self.proc = subprocess.Popen([self.app_path], env=env)
+        self.proc = subprocess.Popen(
+            [self.app_path],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
         # Lazy import so non-linux clients can still import package safely.
         from dogtail import tree  # pylint: disable=import-outside-toplevel
 
-        app = self._wait_for(lambda: self._find_app(tree), timeout=40.0)
-        self._wait_for(lambda: self._find_window(app), timeout=30.0)
+        app = self._wait_for(lambda: self._find_launched_app(tree), timeout=40.0)
+        window = self._wait_for(lambda: self._find_window(app), timeout=30.0)
+        self._app = app
+        self._window = window
 
     def shutdown(self) -> None:
         if self.proc is None:
@@ -45,13 +61,11 @@ class LinuxDogtailDriver(FrontendDriver):
                 self.proc.kill()
                 self.proc.wait(timeout=5)
         self.proc = None
+        self._app = None
+        self._window = None
 
     def create_card(self) -> None:
-        from dogtail import tree  # pylint: disable=import-outside-toplevel
-
-        app = self._wait_for(lambda: self._find_app(tree), timeout=20.0)
-        window = self._wait_for(lambda: self._find_window(app), timeout=20.0)
-
+        window = self._current_window()
         button = self._wait_for(
             lambda: self._find_named(window, "Create a new card"),
             timeout=20.0,
@@ -59,28 +73,17 @@ class LinuxDogtailDriver(FrontendDriver):
         self._click_node(button)
 
     def has_card_titled_prefix(self, prefix: str) -> bool:
-        from dogtail import tree  # pylint: disable=import-outside-toplevel
-
-        app = self._wait_for(lambda: self._find_app(tree), timeout=20.0)
-        window = self._wait_for(lambda: self._find_window(app), timeout=20.0)
-
+        window = self._current_window()
         matches = window.findChildren(
             lambda node: (getattr(node, "name", "") or "").startswith(prefix)
         )
         return len(matches) > 0
 
     def toggle_toolbox_panel(self) -> None:
-        from dogtail import tree  # pylint: disable=import-outside-toplevel
-
-        app = self._wait_for(lambda: self._find_app(tree), timeout=20.0)
-        window = self._wait_for(lambda: self._find_window(app), timeout=20.0)
-        self._click_toolbox_toggle(window)
+        self._click_toolbox_toggle(self._current_window())
 
     def toolbox_panel_is_visible(self) -> bool:
-        from dogtail import tree  # pylint: disable=import-outside-toplevel
-
-        app = self._wait_for(lambda: self._find_app(tree), timeout=20.0)
-        window = self._wait_for(lambda: self._find_window(app), timeout=20.0)
+        window = self._current_window()
         visible = self._wait_for(
             lambda: window if self._has_toolbox_label(window) else None,
             timeout=10.0,
@@ -89,10 +92,7 @@ class LinuxDogtailDriver(FrontendDriver):
         return visible is not None
 
     def toolbox_panel_is_hidden(self) -> bool:
-        from dogtail import tree  # pylint: disable=import-outside-toplevel
-
-        app = self._wait_for(lambda: self._find_app(tree), timeout=20.0)
-        window = self._wait_for(lambda: self._find_window(app), timeout=20.0)
+        window = self._current_window()
         hidden = self._wait_for(
             lambda: window if not self._has_toolbox_label(window) else None,
             timeout=10.0,
@@ -100,8 +100,25 @@ class LinuxDogtailDriver(FrontendDriver):
         )
         return hidden is not None
 
+    def _current_app(self):
+        if self._app is not None:
+            return self._app
+
+        from dogtail import tree  # pylint: disable=import-outside-toplevel
+
+        self._app = self._wait_for(lambda: self._find_launched_app(tree), timeout=20.0)
+        return self._app
+
+    def _current_window(self):
+        if self._window is not None:
+            return self._window
+
+        app = self._current_app()
+        self._window = self._wait_for(lambda: self._find_window(app), timeout=20.0)
+        return self._window
+
     def _find_app(self, tree_module):
-        for app_name in ("Holder", "holder-desktop", "holder-linux", "io.holder.linux"):
+        for app_name in ("team.holder.Holder", "Holder", "holder-desktop", "holder-linux"):
             try:
                 app = tree_module.root.application(app_name)
                 if app is not None:
@@ -116,6 +133,16 @@ class LinuxDogtailDriver(FrontendDriver):
             except Exception:
                 pass
         return None
+
+    def _find_launched_app(self, tree_module):
+        if self.proc is not None:
+            exit_code = self.proc.poll()
+            if exit_code is not None:
+                raise RuntimeError(
+                    f"App exited before appearing in accessibility tree: "
+                    f"{self.app_path} exited with code {exit_code}"
+                )
+        return self._find_app(tree_module)
 
     @staticmethod
     def _find_window(app):

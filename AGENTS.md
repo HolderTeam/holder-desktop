@@ -273,25 +273,23 @@ Last updated: February 17, 2026
 
 ### Repo + Build Conventions
 
-* Git repo root for Linux client work: `frontends/linux`
-* Build directory: `frontends/linux/build`
-* One-command build script: `frontends/linux/make.sh`
+* Git repo root for desktop client work: `.`
+* Build directory: `build`
+* One-command build script: `make.sh`
 
 Build command:
 
 ```bash
-cd frontends/linux
 ./make.sh
 ```
 
 Binary path:
 
-* `frontends/linux/build/holder-desktop`
+* `build/holder-desktop`
 
 Run command:
 
 ```bash
-cd frontends/linux
 ./build/holder-desktop
 ```
 
@@ -313,17 +311,17 @@ Core packages currently used by the client:
 
 Source layout:
 
-* `frontends/linux/main.vala` - thin entrypoint
-* `frontends/linux/src/app.vala` - `Adw.Application`
-* `frontends/linux/src/views/window.vala` - main window composition
-* `frontends/linux/src/views/workspace_pane.vala` - editor/toolbox shell
-* `frontends/linux/src/views/ai_panel*.vala` - AI panel UI
-* `frontends/linux/src/views/toolbox*.vala` - toolbox shell and tools
-* `frontends/linux/src/controllers/*.vala` - orchestration, transitions, feature controllers
-* `frontends/linux/src/services/api_client/*.vala` - authenticated Holder API client surface
-* `frontends/linux/src/services/discovery.vala` - backend discovery via `holder.json`
-* `frontends/linux/src/models/*.vala` - typed app models
-* `frontends/linux/src/state/*.vala` - app state and activity state
+* `main.vala` - thin entrypoint
+* `src/app.vala` - `Adw.Application`
+* `src/views/window.vala` - main window composition
+* `src/views/workspace_pane.vala` - editor/toolbox shell
+* `src/views/ai_panel*.vala` - AI panel UI
+* `src/views/toolbox*.vala` - toolbox shell and tools
+* `src/controllers/*.vala` - orchestration, transitions, feature controllers
+* `src/services/api_client/*.vala` - authenticated Holder API client surface
+* `src/services/discovery.vala` - backend discovery via `holder.json`
+* `src/models/*.vala` - typed app models
+* `src/state/*.vala` - app state and activity state
 
 ### Backend Discovery + Auth
 
@@ -398,5 +396,5 @@ All requests use:
   * `holder/docs/CLIENTS.md`
   * `holder/docs/SWAGGER_TUTORIAL.md`
 * Active frontend work tracking:
-  * `frontends/linux/docs/FEATURE_PLAN.md`
-  * `frontends/linux/docs/refactor_todo.md`
+  * `docs/FEATURE_PLAN.md`
+  * `docs/refactor_todo.md`

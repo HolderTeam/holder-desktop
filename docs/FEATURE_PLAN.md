@@ -1,7 +1,7 @@
-# Holder Linux Frontend Feature Plan
+# Holder GTK Frontend Feature Plan
 
 Date: February 19, 2026
-Scope: `frontends/linux` client using backend contracts in `holder/openapi.yaml` and `holder/docs/CLIENTS.md`.
+Scope: GTK desktop client using backend contracts in `holder/openapi.yaml` and `holder/docs/CLIENTS.md`.
 
 Planning note:
 
