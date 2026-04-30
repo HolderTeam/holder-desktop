@@ -25,6 +25,8 @@ Feature: Core app run book
   Scenario: Use find and replace in the editor
     Given the Holder frontend is running
     When I replace all "runbook-search-token" with "runbook-replaced-token"
+    Then the editor should contain "runbook-replaced-token"
+    And the editor should not contain "runbook-search-token"
     Then I should see save state "Saved"
     When I search cards for "runbook-replaced-token"
     Then I should see search result "Runbook Search Card"

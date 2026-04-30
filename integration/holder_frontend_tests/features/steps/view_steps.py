@@ -44,6 +44,20 @@ def step_replace_all_in_editor(context, find_text, replace_text):
     context.driver.replace_all_in_editor(find_text, replace_text)
 
 
+@then('the editor should contain "{text}"')
+def step_editor_contains(context, text):
+    assert context.driver.editor_text_contains(text), (
+        f"Expected editor text to contain '{text}'"
+    )
+
+
+@then('the editor should not contain "{text}"')
+def step_editor_excludes(context, text):
+    assert context.driver.editor_text_excludes(text), (
+        f"Expected editor text not to contain '{text}'"
+    )
+
+
 @when("I open find and replace")
 def step_open_find_replace(context):
     context.driver.open_find_replace_panel()

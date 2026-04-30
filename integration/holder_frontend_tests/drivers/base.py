@@ -43,6 +43,14 @@ class FrontendDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def editor_text_contains(self, text: str) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def editor_text_excludes(self, text: str) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
     def open_find_replace_panel(self) -> None:
         raise NotImplementedError
 

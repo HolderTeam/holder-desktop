@@ -119,6 +119,26 @@ class LinuxDogtailDriver(FrontendDriver):
             interval=0.2,
         )
 
+    def editor_text_contains(self, text: str) -> bool:
+        try:
+            return self._wait_for(
+                lambda: True if text in self._editor_text() else None,
+                timeout=10.0,
+                interval=0.2,
+            ) is True
+        except RuntimeError:
+            return False
+
+    def editor_text_excludes(self, text: str) -> bool:
+        try:
+            return self._wait_for(
+                lambda: True if text not in self._editor_text() else None,
+                timeout=10.0,
+                interval=0.2,
+            ) is True
+        except RuntimeError:
+            return False
+
     def open_find_replace_panel(self) -> None:
         if not self.find_replace_panel_is_visible():
             self.toggle_find_replace_panel()
@@ -391,6 +411,19 @@ class LinuxDogtailDriver(FrontendDriver):
         if not entries:
             return None
         return max(entries, key=self._node_area)
+
+    def _editor_text(self) -> str:
+        editor = self._find_editor_text_node()
+        if editor is None:
+            return ""
+        try:
+            return editor.text
+        except Exception:
+            pass
+        try:
+            return editor.queryText().getText(0, -1)
+        except Exception:
+            return ""
 
     def _find_replace_entries(self):
         window = self._current_window()
