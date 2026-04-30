@@ -111,6 +111,10 @@ class FrontendDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def toolbox_shell_is_visible(self) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
     def switch_toolbox_tool(self, tool_name: str) -> None:
         raise NotImplementedError
 

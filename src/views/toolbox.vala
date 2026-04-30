@@ -199,6 +199,7 @@ public class ToolboxPane : Object {
 
     private Gtk.Widget build_ui() {
         var frame = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        frame.update_property(Gtk.AccessibleProperty.LABEL, "Toolbox", -1);
         frame.set_margin_top(6);
         frame.set_margin_bottom(6);
         frame.set_margin_start(6);
@@ -206,6 +207,7 @@ public class ToolboxPane : Object {
         frame.add_css_class("toolbar");
 
         var switcher = new Gtk.StackSwitcher();
+        switcher.update_property(Gtk.AccessibleProperty.LABEL, "Toolbox tool switcher", -1);
         header_breadcrumbs = new NavigationBreadcrumbs();
         header_breadcrumbs.segment_activated.connect((index) => {
             on_header_breadcrumb_clicked(index);

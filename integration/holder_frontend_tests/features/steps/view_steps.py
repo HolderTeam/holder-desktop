@@ -141,6 +141,13 @@ def step_open_toolbox_panel(context):
     context.driver.open_toolbox_panel()
 
 
+@then("I should see the toolbox shell")
+def step_toolbox_shell_visible(context):
+    assert context.driver.toolbox_shell_is_visible(), (
+        "Expected ToolboxPane, ToolShell, breadcrumbs, and tool switcher to be visible"
+    )
+
+
 @when('I switch to toolbox tool "{tool_name}"')
 def step_switch_toolbox_tool(context, tool_name):
     context.driver.switch_toolbox_tool(tool_name)

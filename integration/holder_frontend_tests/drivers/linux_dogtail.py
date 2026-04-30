@@ -265,6 +265,23 @@ class LinuxDogtailDriver(FrontendDriver):
             interval=0.2,
         )
 
+    def toolbox_shell_is_visible(self) -> bool:
+        self.open_toolbox_panel()
+        window = self._current_window()
+        expected_tabs = ("Flowboard", "Connections", "Resources", "Debug")
+        tabs_visible = all(
+            self._find_named_with_role(window, tab, "page tab") is not None
+            for tab in expected_tabs
+        )
+        flowboard_occurrences = window.findChildren(
+            lambda node: (
+                getattr(node, "name", "") == "Flowboard"
+                and getattr(node, "showing", True)
+                and getattr(node, "visible", True)
+            )
+        )
+        return tabs_visible and len(flowboard_occurrences) >= 2
+
     def switch_toolbox_tool(self, tool_name: str) -> None:
         self.open_toolbox_panel()
         window = self._current_window()

@@ -8,6 +8,7 @@ public class NavigationBreadcrumbs : Object {
 
     public NavigationBreadcrumbs() {
         breadcrumb_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        breadcrumb_bar.update_property(Gtk.AccessibleProperty.LABEL, "Toolbox breadcrumbs", -1);
         breadcrumb_bar.set_hexpand(true);
         widget = breadcrumb_bar;
     }

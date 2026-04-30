@@ -65,6 +65,14 @@ Feature: Core app run book
     Then I should see the AI panel
     And I toggle the AI panel
 
+  Scenario: Open toolbox
+    Given the Holder frontend is running
+    When I open the toolbox panel
+    Then I should see the toolbox shell
+    And I should see toolbox content "Flowboard"
+    When I toggle the toolbox panel
+    Then I should not see the toolbox panel
+
   Scenario: Toggle toolbox panel visibility
     Given the Holder frontend is running
     When I toggle the toolbox panel
