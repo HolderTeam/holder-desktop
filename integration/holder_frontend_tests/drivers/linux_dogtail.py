@@ -6,6 +6,8 @@ import subprocess
 import time
 from typing import Callable, Optional
 
+from dogtail import rawinput
+
 from .base import FrontendDriver
 
 
@@ -113,7 +115,51 @@ class LinuxDogtailDriver(FrontendDriver):
 
     def switch_toolbox_tool(self, tool_name: str) -> None:
         self.open_toolbox_panel()
-        self._click_named_control(tool_name)
+        window = self._current_window()
+        tab = self._wait_for(
+            lambda: self._find_named_with_role(window, tool_name, "page tab"),
+            timeout=20.0,
+            interval=0.2,
+        )
+        self._click_node(tab)
+
+    def add_url_resource(self, label: str, uri: str) -> None:
+        self.switch_toolbox_tool("Resources")
+        self._click_named_control("Add resource")
+        dialog = self._wait_for(lambda: self._find_dialog("Add Resource"), timeout=10.0)
+        entries = self._text_entries(dialog)
+        if len(entries) < 2:
+            raise RuntimeError("Add Resource dialog did not expose URI and Label entries")
+        self._set_text(entries[0], uri)
+        self._set_text(entries[1], label)
+        save = self._wait_for(lambda: self._find_named(dialog, "Save"), timeout=10.0)
+        self._click_node(save)
+        self._wait_for(
+            lambda: True if self._find_named(self._current_window(), label) is not None else None,
+            timeout=10.0,
+            interval=0.2,
+        )
+
+    def filter_resources(self, query: str) -> None:
+        self.switch_toolbox_tool("Resources")
+        entries = self._text_entries(self._current_window())
+        if not entries:
+            raise RuntimeError("Resources view did not expose a filter entry")
+        self._set_text(entries[0], query)
+
+    def delete_resource(self, label: str) -> None:
+        self.switch_toolbox_tool("Resources")
+        resource = self._wait_for(lambda: self._find_named(self._current_window(), label), timeout=10.0)
+        self._click_resource_row(resource)
+        self._click_named_control("Delete")
+        dialog = self._wait_for(lambda: self._find_dialog("Delete Resource"), timeout=10.0)
+        delete = self._wait_for(lambda: self._find_named(dialog, "Delete"), timeout=10.0)
+        self._click_node(delete)
+        self._wait_for(
+            lambda: True if self._find_named(self._current_window(), "No resources in this project.") is not None else None,
+            timeout=10.0,
+            interval=0.2,
+        )
 
     def toggle_ai_panel(self) -> None:
         self._click_named_control("Toggle AI panel")
@@ -160,6 +206,19 @@ class LinuxDogtailDriver(FrontendDriver):
         self._window = self._wait_for(lambda: self._find_window(app), timeout=20.0)
         return self._window
 
+    def _find_dialog(self, title: str):
+        app = self._current_app()
+        for child in app.children:
+            try:
+                name = getattr(child, "name", "") or ""
+                role = getattr(child, "roleName", "") or ""
+                if title in name and role in ("dialog", "frame", "window", "alert"):
+                    return child
+            except Exception:
+                pass
+        matches = app.findChildren(lambda node: title in (getattr(node, "name", "") or ""))
+        return matches[0] if matches else None
+
     def _find_app(self, tree_module):
         for app_name in ("team.holder.Holder", "Holder", "holder-desktop", "holder-linux"):
             try:
@@ -199,10 +258,82 @@ class LinuxDogtailDriver(FrontendDriver):
         matches = scope.findChildren(lambda node: getattr(node, "name", "") == name)
         return matches[0] if matches else None
 
+    @staticmethod
+    def _find_named_with_role(scope, name: str, role_name: str):
+        matches = scope.findChildren(
+            lambda node: (
+                getattr(node, "name", "") == name
+                and getattr(node, "roleName", "") == role_name
+            )
+        )
+        return matches[0] if matches else None
+
+    @staticmethod
+    def _find_sensitive_named(scope, name: str):
+        matches = scope.findChildren(lambda node: getattr(node, "name", "") == name)
+        if not matches:
+            return None
+        action_roles = ("push button", "button", "toggle button", "page tab", "menu item")
+        actionable = [
+            node for node in matches
+            if (getattr(node, "roleName", "") or "") in action_roles
+        ]
+        candidates = actionable if actionable else matches
+        for node in candidates:
+            if getattr(node, "sensitive", True):
+                return node
+        return candidates[0]
+
+    @staticmethod
+    def _text_entries(scope):
+        return scope.findChildren(
+            lambda node: (
+                "text" in (getattr(node, "roleName", "") or "").lower()
+                and "label" not in (getattr(node, "roleName", "") or "").lower()
+            )
+        )
+
+    @staticmethod
+    def _set_text(node, text: str) -> None:
+        try:
+            node.text = ""
+            node.text = text
+            return
+        except Exception:
+            pass
+        node.grabFocus()
+        rawinput.keyCombo("<Control>a")
+        rawinput.pressKey("BackSpace")
+        rawinput.typeText(text)
+
+    def _click_resource_row(self, node) -> None:
+        try:
+            self._click_node(node)
+            return
+        except Exception:
+            pass
+
+        current = node
+        for _ in range(6):
+            role = (getattr(current, "roleName", "") or "").lower()
+            if role in ("table row", "row", "list item"):
+                for action_name in ("select", "click", "press", "activate"):
+                    try:
+                        current.doActionNamed(action_name)
+                        return
+                    except Exception:
+                        pass
+                self._click_node(current)
+                return
+            current = getattr(current, "parent", None)
+            if current is None:
+                break
+        self._click_node(node)
+
     def _click_named_control(self, name: str) -> None:
         window = self._current_window()
         node = self._wait_for(
-            lambda: self._find_named(window, name),
+            lambda: self._find_sensitive_named(window, name),
             timeout=20.0,
             interval=0.2,
         )
@@ -228,6 +359,17 @@ class LinuxDogtailDriver(FrontendDriver):
                 return
             except Exception:
                 pass
+        try:
+            node.click()
+            return
+        except Exception:
+            pass
+        try:
+            node.grabFocus()
+            rawinput.pressKey("space")
+            return
+        except Exception:
+            pass
         raise RuntimeError(f"Cannot click node: {getattr(node, 'name', '<unnamed>')}")
 
     def _click_toolbox_toggle(self, window) -> None:

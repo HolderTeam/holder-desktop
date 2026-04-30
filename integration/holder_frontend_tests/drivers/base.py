@@ -43,6 +43,18 @@ class FrontendDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def add_url_resource(self, label: str, uri: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def filter_resources(self, query: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_resource(self, label: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
     def toggle_ai_panel(self) -> None:
         raise NotImplementedError
 

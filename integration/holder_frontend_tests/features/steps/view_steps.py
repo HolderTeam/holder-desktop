@@ -43,3 +43,18 @@ def step_toolbox_content_visible(context, text):
     assert context.driver.can_see_text(text), (
         f"Expected toolbox content '{text}' to be visible"
     )
+
+
+@when('I add URL resource "{label}" with URI "{uri}"')
+def step_add_url_resource(context, label, uri):
+    context.driver.add_url_resource(label, uri)
+
+
+@when('I filter resources for "{query}"')
+def step_filter_resources(context, query):
+    context.driver.filter_resources(query)
+
+
+@when('I delete resource "{label}"')
+def step_delete_resource(context, label):
+    context.driver.delete_resource(label)

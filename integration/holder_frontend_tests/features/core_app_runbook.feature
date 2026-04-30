@@ -44,3 +44,13 @@ Feature: Core app run book
     Then I should see toolbox content "No deleted items in this project."
     When I switch to toolbox tool "Debug"
     Then I should see toolbox content "Clear"
+
+  Scenario: Add, filter, and delete a project resource
+    Given the Holder frontend is running
+    When I open the toolbox panel
+    And I add URL resource "Runbook Resource" with URI "https://holder.team/runbook"
+    Then I should see toolbox content "Runbook Resource"
+    When I filter resources for "Runbook"
+    Then I should see toolbox content "Runbook Resource"
+    When I delete resource "Runbook Resource"
+    Then I should see toolbox content "No resources in this project."
