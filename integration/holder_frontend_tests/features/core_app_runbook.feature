@@ -4,9 +4,17 @@ Feature: Core app run book
   I want the core app flows to work in one session
   So that the integration suite follows real usage rather than restarting per check
 
-  Scenario: Create a card from the toolbar
+  Scenario: Arrive in the app shell
     Given the Holder frontend is running
     Then I should see the app shell
+
+  Scenario: Create a project
+    Given the Holder frontend is running
+    When I create project "Runbook Project"
+    Then I should see project "Runbook Project"
+
+  Scenario: Create a card from the toolbar
+    Given the Holder frontend is running
     When I create a new card
     Then I should see a card titled "Untitled"
 
@@ -19,8 +27,11 @@ Feature: Core app run book
       This card includes runbook-search-token.
       """
     Then I should see save state "Saved"
+    And I should see a card titled "Runbook Search Card"
     When I search cards for "runbook-search-token"
     Then I should see search result "Runbook Search Card"
+    When I open search result "Runbook Search Card"
+    Then the editor should contain "runbook-search-token"
 
   Scenario: Use find and replace in the editor
     Given the Holder frontend is running

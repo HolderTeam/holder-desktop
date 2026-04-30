@@ -15,6 +15,18 @@ def step_search_panel_visible(context):
     )
 
 
+@when('I create project "{name}"')
+def step_create_project(context, name):
+    context.driver.create_project(name)
+
+
+@then('I should see project "{name}"')
+def step_project_visible(context, name):
+    assert context.driver.has_project_named(name), (
+        f"Expected project '{name}' to be visible"
+    )
+
+
 @when("I replace the editor text with")
 def step_replace_editor_text(context):
     context.driver.replace_editor_text(context.text)
@@ -37,6 +49,11 @@ def step_search_result_visible(context, text):
     assert context.driver.has_search_result(text), (
         f"Expected search result '{text}' to be visible"
     )
+
+
+@when('I open search result "{text}"')
+def step_open_search_result(context, text):
+    context.driver.open_search_result(text)
 
 
 @when('I replace all "{find_text}" with "{replace_text}"')

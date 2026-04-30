@@ -74,6 +74,24 @@ class LinuxDogtailDriver(FrontendDriver):
         )
         self._click_node(button)
 
+    def create_project(self, name: str) -> None:
+        self._click_named_control("Create a new project")
+        dialog = self._wait_for(lambda: self._find_dialog("New Project"), timeout=10.0)
+        entries = self._text_entries(dialog)
+        if not entries:
+            raise RuntimeError("New Project dialog did not expose a project name entry")
+        self._set_text(entries[0], name)
+        create = self._wait_for(lambda: self._find_named(dialog, "Create"), timeout=10.0)
+        self._click_node(create)
+        self._wait_for(
+            lambda: True if self._find_named(self._current_window(), name) is not None else None,
+            timeout=20.0,
+            interval=0.2,
+        )
+
+    def has_project_named(self, name: str) -> bool:
+        return self._has_visible_named(name, timeout=10.0)
+
     def has_card_titled_prefix(self, prefix: str) -> bool:
         window = self._current_window()
         try:
@@ -102,6 +120,11 @@ class LinuxDogtailDriver(FrontendDriver):
 
     def has_search_result(self, text: str) -> bool:
         return self._has_visible_named(text, timeout=20.0)
+
+    def open_search_result(self, text: str) -> None:
+        result = self._wait_for(lambda: self._find_named(self._current_window(), text), timeout=20.0)
+        self._click_node(result)
+        self._wait_for(lambda: self._find_editor_text_node(), timeout=20.0)
 
     def replace_all_in_editor(self, find_text: str, replace_text: str) -> None:
         search_entry = self._wait_for(lambda: self._find_search_entry(), timeout=20.0)

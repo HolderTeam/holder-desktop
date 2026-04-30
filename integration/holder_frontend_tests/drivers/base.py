@@ -19,6 +19,14 @@ class FrontendDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def create_project(self, name: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def has_project_named(self, name: str) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
     def has_card_titled_prefix(self, prefix: str) -> bool:
         raise NotImplementedError
 
@@ -36,6 +44,10 @@ class FrontendDriver(ABC):
 
     @abstractmethod
     def has_search_result(self, text: str) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def open_search_result(self, text: str) -> None:
         raise NotImplementedError
 
     @abstractmethod
