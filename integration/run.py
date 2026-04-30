@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import shutil
@@ -75,6 +76,20 @@ class Runner:
                 print("\nSuppressed noisy lines (tail):", file=sys.stderr)
                 for line in suppressed[-30:]:
                     print(line, file=sys.stderr)
+                suppressed_text = "\n".join(suppressed)
+                if "AT-SPI" in suppressed_text or "accessibility bus" in suppressed_text:
+                    print(
+                        "\nHeaded mode could not use the desktop AT-SPI accessibility bus.",
+                        file=sys.stderr,
+                    )
+                    print(
+                        "Try: systemctl --user restart at-spi-dbus-bus.service",
+                        file=sys.stderr,
+                    )
+                    print(
+                        "Or use ./make.sh linux for the isolated headless runner.",
+                        file=sys.stderr,
+                    )
             raise subprocess.CalledProcessError(rc, cmd)
 
     def default_app_path(self) -> str:
@@ -82,6 +97,16 @@ class Runner:
             "HOLDER_FRONTEND_APP_PATH",
             str(self.repo_root / "build" / "holder-desktop"),
         )
+
+    def require_headed_session(self, env: dict[str, str]) -> None:
+        if not env.get("DISPLAY") and not env.get("WAYLAND_DISPLAY"):
+            print("Headed mode needs DISPLAY or WAYLAND_DISPLAY.", file=sys.stderr)
+            print("Use ./make.sh linux for the headless xvfb runner.", file=sys.stderr)
+            raise SystemExit(1)
+        if not env.get("DBUS_SESSION_BUS_ADDRESS"):
+            print("Headed mode needs DBUS_SESSION_BUS_ADDRESS for dogtail/AT-SPI.", file=sys.stderr)
+            print("Use ./make.sh linux for the headless xvfb runner.", file=sys.stderr)
+            raise SystemExit(1)
 
     def behave_env(self, headless: bool) -> dict[str, str]:
         env = os.environ.copy()
@@ -200,9 +225,10 @@ class Runner:
             finally:
                 stop_backend()
 
-    def run_linux(self) -> None:
+    def run_linux(self, headless: bool | None = None) -> None:
         self.require_cmd("behave", "Ubuntu: sudo apt install python3-behave")
-        headless = os.environ.get("HOLDER_TEST_HEADLESS", "1") != "0"
+        if headless is None:
+            headless = os.environ.get("HOLDER_TEST_HEADLESS", "1") != "0"
         app_path = self.default_app_path()
         self.require_file(
             app_path,
@@ -231,30 +257,61 @@ class Runner:
                 "-screen 0 1920x1080x24",
             ] + behave_cmd
         else:
+            self.require_headed_session(self.behave_env(headless=False))
             print("Mode: headed (visible desktop session)")
 
         self.run_with_isolated_backend(behave_cmd, env=self.behave_env(headless=headless))
 
 
 def print_usage() -> None:
-    print("Usage: ./make.sh [linux|deps-ubuntu|install-dev]")
+    print("Usage: ./make.sh [linux [--headless|--headed]|deps-ubuntu|install-dev]")
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="./make.sh",
+        description="Run Holder frontend integration tests.",
+    )
+    parser.add_argument(
+        "mode",
+        nargs="?",
+        default="linux",
+        choices=("linux", "deps-ubuntu", "install-dev"),
+    )
+    display = parser.add_mutually_exclusive_group()
+    display.add_argument(
+        "--headless",
+        action="store_true",
+        help="Run under xvfb and a private dbus session. This is the default.",
+    )
+    display.add_argument(
+        "--headed",
+        action="store_true",
+        help="Run against the current desktop session for faster local feedback.",
+    )
+    return parser.parse_args(argv)
 
 
 def main() -> int:
     runner = Runner()
-    mode = sys.argv[1] if len(sys.argv) > 1 else "linux"
-    if mode == "deps-ubuntu":
+    args = parse_args(sys.argv[1:])
+    if args.mode == "deps-ubuntu":
         print("sudo apt update")
         print(
             "sudo apt install -y python3-behave python3-dogtail xvfb at-spi2-core dbus-x11 x11-utils"
         )
         return 0
-    if mode == "install-dev":
+    if args.mode == "install-dev":
         runner.require_cmd("python3", "Install Python 3 from your package manager.")
         runner.run_checked(["python3", "-m", "pip", "install", "-e", ".[linux]"])
         return 0
-    if mode == "linux":
-        runner.run_linux()
+    if args.mode == "linux":
+        headless = None
+        if args.headless:
+            headless = True
+        if args.headed:
+            headless = False
+        runner.run_linux(headless=headless)
         return 0
 
     print_usage()
@@ -263,4 +320,7 @@ def main() -> int:
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal.SIG_DFL)
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except subprocess.CalledProcessError as exc:
+        raise SystemExit(exc.returncode)
