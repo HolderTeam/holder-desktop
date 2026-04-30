@@ -23,7 +23,35 @@ class FrontendDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def can_see_text(self, text: str) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def has_app_shell(self) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
     def toggle_toolbox_panel(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def open_toolbox_panel(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def switch_toolbox_tool(self, tool_name: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def toggle_ai_panel(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def search_panel_is_visible(self) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def ai_panel_is_visible(self) -> bool:
         raise NotImplementedError
 
     @abstractmethod

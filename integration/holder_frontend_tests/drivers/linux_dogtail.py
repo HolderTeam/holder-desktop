@@ -86,8 +86,44 @@ class LinuxDogtailDriver(FrontendDriver):
         except RuntimeError:
             return False
 
+    def can_see_text(self, text: str) -> bool:
+        return self._has_visible_named(text, timeout=10.0)
+
+    def has_app_shell(self) -> bool:
+        expected = (
+            "Holder",
+            "Projects",
+            "Cards",
+            "Create a new card",
+            "Clear search",
+        )
+        return all(self._has_visible_named(name, timeout=10.0) for name in expected)
+
     def toggle_toolbox_panel(self) -> None:
         self._click_toolbox_toggle(self._current_window())
+
+    def open_toolbox_panel(self) -> None:
+        if not self._has_toolbox_label(self._current_window()):
+            self.toggle_toolbox_panel()
+        self._wait_for(
+            lambda: self._current_window() if self._has_toolbox_label(self._current_window()) else None,
+            timeout=10.0,
+            interval=0.2,
+        )
+
+    def switch_toolbox_tool(self, tool_name: str) -> None:
+        self.open_toolbox_panel()
+        self._click_named_control(tool_name)
+
+    def toggle_ai_panel(self) -> None:
+        self._click_named_control("Toggle AI panel")
+
+    def search_panel_is_visible(self) -> bool:
+        return self._has_visible_named("Clear search", timeout=10.0)
+
+    def ai_panel_is_visible(self) -> bool:
+        expected = ("AI", "Assistant", "Config", "Send", "New Thread")
+        return all(self._has_visible_named(name, timeout=10.0) for name in expected)
 
     def toolbox_panel_is_visible(self) -> bool:
         window = self._current_window()
@@ -162,6 +198,27 @@ class LinuxDogtailDriver(FrontendDriver):
     def _find_named(scope, name: str):
         matches = scope.findChildren(lambda node: getattr(node, "name", "") == name)
         return matches[0] if matches else None
+
+    def _click_named_control(self, name: str) -> None:
+        window = self._current_window()
+        node = self._wait_for(
+            lambda: self._find_named(window, name),
+            timeout=20.0,
+            interval=0.2,
+        )
+        self._click_node(node)
+
+    def _has_visible_named(self, name: str, timeout: float = 10.0) -> bool:
+        window = self._current_window()
+        try:
+            found = self._wait_for(
+                lambda: True if self._find_named(window, name) is not None else None,
+                timeout=timeout,
+                interval=0.2,
+            )
+            return found is True
+        except RuntimeError:
+            return False
 
     @staticmethod
     def _click_node(node) -> None:
