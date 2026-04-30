@@ -1252,7 +1252,7 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void handle_find_replace_action() {
-        workspace.show_find_replace_bar(true);
+        workspace.toggle_find_replace_bar(true);
     }
 
     internal void handle_print_action() {

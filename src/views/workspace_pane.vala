@@ -118,6 +118,14 @@ public class WorkspacePane : Object {
         find_entry.select_region(0, -1);
     }
 
+    public void toggle_find_replace_bar(bool show_replace) {
+        if (find_revealer.get_reveal_child()) {
+            hide_find_replace_bar();
+            return;
+        }
+        show_find_replace_bar(show_replace);
+    }
+
     public void hide_find_replace_bar() {
         find_revealer.set_reveal_child(false);
     }
@@ -344,6 +352,12 @@ public class WorkspacePane : Object {
             }
         });
 
+        var find_replace_btn = new Gtk.Button.from_icon_name("edit-find-replace-symbolic");
+        find_replace_btn.set_tooltip_text("Find and replace");
+        find_replace_btn.clicked.connect(() => {
+            toggle_find_replace_bar(true);
+        });
+
         var ai_toggle_btn = new Gtk.ToggleButton();
         ai_toggle_btn.set_icon_name("preferences-desktop-keyboard-symbolic");
         ai_toggle_btn.set_tooltip_text("Toggle AI panel");
@@ -381,6 +395,7 @@ public class WorkspacePane : Object {
         header.pack_end(toolbox_toggle_btn);
         header.pack_end(ai_toggle_btn);
         header.pack_end(editor_toggle_btn);
+        header.pack_end(find_replace_btn);
         header.pack_end(search_toggle_btn);
         header.pack_end(explorer_toggle_btn);
         header.pack_end(new_project_btn);
@@ -582,6 +597,7 @@ public class WorkspacePane : Object {
         find_entry = new Gtk.Entry();
         find_entry.set_hexpand(true);
         find_entry.set_placeholder_text("Search text");
+        find_entry.update_property(Gtk.AccessibleProperty.LABEL, "Find text", -1);
         find_entry.activate.connect(() => {
             find_next_requested();
         });
@@ -605,6 +621,7 @@ public class WorkspacePane : Object {
         replace_entry = new Gtk.Entry();
         replace_entry.set_hexpand(true);
         replace_entry.set_placeholder_text("Replacement text");
+        replace_entry.update_property(Gtk.AccessibleProperty.LABEL, "Replacement text", -1);
         replace_entry.activate.connect(() => {
             replace_requested();
         });

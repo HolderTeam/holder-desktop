@@ -108,8 +108,7 @@ class LinuxDogtailDriver(FrontendDriver):
         self._set_text(search_entry, "")
         rawinput.pressKey("Enter")
         self._wait_for(lambda: self._find_editor_text_node(), timeout=20.0)
-        self._click_rightmost_named_control("Main Menu")
-        self._click_any_named_control("Find/Replace")
+        self._click_named_control("Find and replace")
         self._wait_for(lambda: self._find_named(self._current_window(), "Replace All"), timeout=10.0)
         find_entry, replace_entry = self._find_replace_entries()
         self._set_text(find_entry, find_text)
@@ -355,21 +354,22 @@ class LinuxDogtailDriver(FrontendDriver):
         return max(entries, key=self._node_area)
 
     def _find_replace_entries(self):
+        window = self._current_window()
+        named_find = self._find_named(window, "Find text")
+        named_replace = self._find_named(window, "Replacement text")
+        if named_find is not None and named_replace is not None:
+            return named_find, named_replace
+
         search_entry = self._find_search_entry()
+        editor = self._find_editor_text_node()
         entries = [
-            node for node in self._entry_nodes(self._current_window())
-            if node is not search_entry
+            node for node in self._text_entries(window)
+            if node is not search_entry and node is not editor
         ]
         entries.sort(key=lambda node: (self._node_y(node), self._node_x(node)))
         if len(entries) < 2:
             raise RuntimeError("Find/Replace bar did not expose find and replace entries")
         return entries[0], entries[1]
-
-    @staticmethod
-    def _entry_nodes(scope):
-        return scope.findChildren(
-            lambda node: (getattr(node, "roleName", "") or "").lower() == "entry"
-        )
 
     @staticmethod
     def _node_x(node) -> int:
@@ -440,26 +440,6 @@ class LinuxDogtailDriver(FrontendDriver):
             interval=0.2,
         )
         self._click_node(node)
-
-    def _click_any_named_control(self, name: str) -> None:
-        node = self._wait_for(
-            lambda: self._find_sensitive_named(self._current_app(), name),
-            timeout=20.0,
-            interval=0.2,
-        )
-        self._click_node(node)
-
-    def _click_rightmost_named_control(self, name: str) -> None:
-        window = self._current_window()
-        candidates = window.findChildren(lambda node: getattr(node, "name", "") == name)
-        candidates = [
-            node for node in candidates
-            if getattr(node, "sensitive", True)
-            and (getattr(node, "roleName", "") or "") in ("push button", "button", "toggle button")
-        ]
-        if not candidates:
-            raise RuntimeError(f"Could not find control: {name}")
-        self._click_center(max(candidates, key=self._node_x))
 
     @staticmethod
     def _click_center(node) -> None:
