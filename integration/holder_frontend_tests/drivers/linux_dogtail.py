@@ -108,8 +108,7 @@ class LinuxDogtailDriver(FrontendDriver):
         self._set_text(search_entry, "")
         rawinput.pressKey("Enter")
         self._wait_for(lambda: self._find_editor_text_node(), timeout=20.0)
-        self._click_named_control("Find and replace")
-        self._wait_for(lambda: self._find_named(self._current_window(), "Replace All"), timeout=10.0)
+        self.open_find_replace_panel()
         find_entry, replace_entry = self._find_replace_entries()
         self._set_text(find_entry, find_text)
         self._set_text(replace_entry, replace_text)
@@ -119,6 +118,38 @@ class LinuxDogtailDriver(FrontendDriver):
             timeout=10.0,
             interval=0.2,
         )
+
+    def open_find_replace_panel(self) -> None:
+        if not self.find_replace_panel_is_visible():
+            self.toggle_find_replace_panel()
+        self._wait_for(
+            lambda: True if self._find_visible_named(self._current_window(), "Replace All") is not None else None,
+            timeout=10.0,
+            interval=0.2,
+        )
+
+    def toggle_find_replace_panel(self) -> None:
+        self._click_named_control("Find and replace")
+
+    def find_replace_panel_is_visible(self) -> bool:
+        try:
+            return self._wait_for(
+                lambda: True if self._find_visible_named(self._current_window(), "Replace All") is not None else None,
+                timeout=5.0,
+                interval=0.2,
+            ) is True
+        except RuntimeError:
+            return False
+
+    def find_replace_panel_is_hidden(self) -> bool:
+        try:
+            return self._wait_for(
+                lambda: True if self._find_visible_named(self._current_window(), "Replace All") is None else None,
+                timeout=5.0,
+                interval=0.2,
+            ) is True
+        except RuntimeError:
+            return False
 
     def can_see_text(self, text: str) -> bool:
         return self._has_visible_named(text, timeout=10.0)
@@ -289,6 +320,14 @@ class LinuxDogtailDriver(FrontendDriver):
     def _find_named(scope, name: str):
         matches = scope.findChildren(lambda node: getattr(node, "name", "") == name)
         return matches[0] if matches else None
+
+    @staticmethod
+    def _find_visible_named(scope, name: str):
+        matches = scope.findChildren(lambda node: getattr(node, "name", "") == name)
+        for node in matches:
+            if getattr(node, "showing", True) and getattr(node, "visible", True):
+                return node
+        return None
 
     @staticmethod
     def _find_named_with_role(scope, name: str, role_name: str):

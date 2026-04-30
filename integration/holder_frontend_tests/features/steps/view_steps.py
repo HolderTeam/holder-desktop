@@ -44,6 +44,30 @@ def step_replace_all_in_editor(context, find_text, replace_text):
     context.driver.replace_all_in_editor(find_text, replace_text)
 
 
+@when("I open find and replace")
+def step_open_find_replace(context):
+    context.driver.open_find_replace_panel()
+
+
+@when("I toggle find and replace")
+def step_toggle_find_replace(context):
+    context.driver.toggle_find_replace_panel()
+
+
+@then("I should see the find and replace panel")
+def step_find_replace_visible(context):
+    assert context.driver.find_replace_panel_is_visible(), (
+        "Expected Find/Replace panel to be visible"
+    )
+
+
+@then("I should not see the find and replace panel")
+def step_find_replace_hidden(context):
+    assert context.driver.find_replace_panel_is_hidden(), (
+        "Expected Find/Replace panel to be hidden"
+    )
+
+
 @when("I toggle the AI panel")
 @step("I toggle the AI panel")
 def step_toggle_ai_panel(context):

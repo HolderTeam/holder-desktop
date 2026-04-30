@@ -29,6 +29,15 @@ Feature: Core app run book
     When I search cards for "runbook-replaced-token"
     Then I should see search result "Runbook Search Card"
 
+  Scenario: Toggle find and replace panel visibility
+    Given the Holder frontend is running
+    When I open find and replace
+    Then I should see the find and replace panel
+    When I toggle find and replace
+    Then I should not see the find and replace panel
+    When I toggle find and replace
+    Then I should see the find and replace panel
+
   Scenario: Use search and AI side panels
     Given the Holder frontend is running
     Then I should see the search panel

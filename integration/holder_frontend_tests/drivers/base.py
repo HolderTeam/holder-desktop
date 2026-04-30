@@ -43,6 +43,22 @@ class FrontendDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def open_find_replace_panel(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def toggle_find_replace_panel(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def find_replace_panel_is_visible(self) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def find_replace_panel_is_hidden(self) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
     def can_see_text(self, text: str) -> bool:
         raise NotImplementedError
 
