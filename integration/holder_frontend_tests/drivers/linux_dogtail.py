@@ -25,13 +25,16 @@ class LinuxDogtailDriver(FrontendDriver):
         env.setdefault("GTK_A11Y", "atspi")
         env.setdefault("GSETTINGS_BACKEND", "memory")
         env.setdefault("GTK_USE_PORTAL", "0")
+        schema_dir = os.path.join(os.path.dirname(self.app_path), "data")
+        if os.path.exists(os.path.join(schema_dir, "gschemas.compiled")):
+            env.setdefault("GSETTINGS_SCHEMA_DIR", schema_dir)
 
         self.proc = subprocess.Popen([self.app_path], env=env)
 
         # Lazy import so non-linux clients can still import package safely.
         from dogtail import tree  # pylint: disable=import-outside-toplevel
 
-        app = self._wait_for(lambda: self._find_app(tree), timeout=40.0)
+        app = self._wait_for(lambda: self._find_launched_app(tree), timeout=40.0)
         self._wait_for(lambda: self._find_window(app), timeout=30.0)
 
     def shutdown(self) -> None:
@@ -101,7 +104,7 @@ class LinuxDogtailDriver(FrontendDriver):
         return hidden is not None
 
     def _find_app(self, tree_module):
-        for app_name in ("Holder", "holder-desktop", "holder-linux", "team.holder.Holder"):
+        for app_name in ("team.holder.Holder", "Holder", "holder-desktop", "holder-linux"):
             try:
                 app = tree_module.root.application(app_name)
                 if app is not None:
@@ -116,6 +119,16 @@ class LinuxDogtailDriver(FrontendDriver):
             except Exception:
                 pass
         return None
+
+    def _find_launched_app(self, tree_module):
+        if self.proc is not None:
+            exit_code = self.proc.poll()
+            if exit_code is not None:
+                raise RuntimeError(
+                    f"App exited before appearing in accessibility tree: "
+                    f"{self.app_path} exited with code {exit_code}"
+                )
+        return self._find_app(tree_module)
 
     @staticmethod
     def _find_window(app):

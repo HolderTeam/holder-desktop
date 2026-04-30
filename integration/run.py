@@ -23,6 +23,17 @@ class Runner:
             print(hint, file=sys.stderr)
             raise SystemExit(1)
 
+    def require_file(self, path: str, hint: str) -> None:
+        candidate = Path(path)
+        if not candidate.exists():
+            print(f"Missing file: {candidate}", file=sys.stderr)
+            print(hint, file=sys.stderr)
+            raise SystemExit(1)
+        if not os.access(candidate, os.X_OK):
+            print(f"File is not executable: {candidate}", file=sys.stderr)
+            print(hint, file=sys.stderr)
+            raise SystemExit(1)
+
     def _is_noise_line(self, line: str) -> bool:
         noisy_markers = (
             "dbus-daemon[",
@@ -90,10 +101,10 @@ class Runner:
     def run_with_isolated_backend(self, command: list[str], env: dict[str, str]) -> None:
         self.require_cmd("mktemp", "Install coreutils from your package manager.")
         holder_dir = Path(
-            os.environ.get("HOLDER_DIR", str(self.repo_root.parent / "holder"))
+            os.environ.get("HOLDER_DIR", str(self.repo_root.parent / "holder-daemon"))
         ).resolve()
         holder_backend_bin = Path(
-            os.environ.get("HOLDER_BACKEND_BIN", str(holder_dir / "build" / "holder"))
+            os.environ.get("HOLDER_BACKEND_BIN", str(holder_dir / "build" / "holderd"))
         ).resolve()
         if not holder_backend_bin.exists():
             print(f"Missing Holder backend binary: {holder_backend_bin}", file=sys.stderr)
@@ -192,12 +203,18 @@ class Runner:
     def run_linux(self) -> None:
         self.require_cmd("behave", "Ubuntu: sudo apt install python3-behave")
         headless = os.environ.get("HOLDER_TEST_HEADLESS", "1") != "0"
+        app_path = self.default_app_path()
+        self.require_file(
+            app_path,
+            "Build the frontend first from holder-desktop with: ./make.sh build "
+            "or set HOLDER_FRONTEND_APP_PATH.",
+        )
 
         behave_cmd = [
             "behave",
             "holder_frontend_tests/features",
             "-D",
-            f"app_path={self.default_app_path()}",
+            f"app_path={app_path}",
             "--tags=@linux",
         ]
 
