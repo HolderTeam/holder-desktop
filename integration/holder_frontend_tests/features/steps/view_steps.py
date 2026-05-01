@@ -204,3 +204,20 @@ def step_filter_resources(context, query):
 @when('I delete resource "{label}"')
 def step_delete_resource(context, label):
     context.driver.delete_resource(label)
+
+
+@when('I move card "{title}" to Trash')
+def step_move_card_to_trash(context, title):
+    context.driver.move_card_to_trash(title)
+
+
+@then('I should see trashed card "{title}"')
+def step_trashed_card_visible(context, title):
+    assert context.driver.trash_has_card(title), (
+        f"Expected Trash to show card '{title}'"
+    )
+
+
+@when('I restore card "{title}" from Trash')
+def step_restore_card_from_trash(context, title):
+    context.driver.restore_card_from_trash(title)

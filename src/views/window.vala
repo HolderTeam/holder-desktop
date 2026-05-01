@@ -306,6 +306,9 @@ private class WindowAiPanelEventSink : Object, IAiPanelEventSink {
                              string? card_id,
                              ActivityDetails? details) {
         owner.log_activity(kind, message, project_id, card_id, details);
+        if (kind == "result.trash.restore") {
+            owner.on_trash_item_restored.begin(card_id);
+        }
     }
 }
 
@@ -448,6 +451,10 @@ private class WindowActionSink : Object, IWindowActionSink {
 
     public void on_flowboard_new_child_card_requested() {
         owner.handle_flowboard_new_child_card_action();
+    }
+
+    public void on_move_selected_card_to_trash_requested() {
+        owner.handle_move_selected_card_to_trash_action();
     }
 
     public void on_toggle_toolbox_requested() {
@@ -1265,6 +1272,14 @@ public class MainWindow : Adw.ApplicationWindow {
         controller.create_card.begin(selected_card_id);
     }
 
+    internal void handle_move_selected_card_to_trash_action() {
+        var selected_card_id = controller.selected_card_id();
+        if (selected_card_id == null || selected_card_id.strip().length == 0) {
+            return;
+        }
+        confirm_move_card_to_trash(selected_card_id);
+    }
+
     internal void handle_toggle_toolbox_action() {
         workspace.toggle_toolbox();
     }
@@ -1642,6 +1657,15 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void refresh_trash_tool() {
         toolbox.refresh_trash();
+    }
+
+    internal async void on_trash_item_restored(string? card_id) {
+        if (!(yield controller.reload_selected_project_cards_data())) {
+            return;
+        }
+        if (card_id != null && card_id.strip().length > 0 && controller.has_card_summary(card_id)) {
+            controller.card_selection_requested(card_id);
+        }
     }
 
     internal void log_debug_line(string message) {

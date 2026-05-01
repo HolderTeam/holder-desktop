@@ -414,6 +414,60 @@ class LinuxDogtailDriver(FrontendDriver):
             interval=0.2,
         )
 
+    def move_card_to_trash(self, title: str) -> None:
+        if not self.has_card_titled_prefix(title):
+            raise RuntimeError(f"Card is not visible before moving to Trash: {title}")
+        self._activate_window_action("move-selected-card-to-trash")
+        dialog = self._wait_for(lambda: self._find_dialog("Move to Trash"), timeout=10.0)
+        confirm = self._wait_for(lambda: self._find_sensitive_named(dialog, "Move to Trash"), timeout=10.0)
+        self._click_node(confirm)
+        self._wait_for(
+            lambda: True if self._find_dialog("Move to Trash") is None else None,
+            timeout=10.0,
+            interval=0.2,
+        )
+        self._wait_for(
+            lambda: True if self._visible_text_contains("Moved", scope=self._current_window()) else None,
+            timeout=20.0,
+            interval=0.2,
+        )
+
+    def trash_has_card(self, title: str) -> bool:
+        self.switch_toolbox_tool("Trash")
+        try:
+            return self._wait_for(
+                lambda: True if (
+                    self._visible_text_contains("Card")
+                    and self._visible_text_contains(title)
+                    and self._find_sensitive_named(self._current_window(), "Restore") is not None
+                ) else None,
+                timeout=20.0,
+                interval=0.2,
+            ) is True
+        except RuntimeError:
+            return False
+
+    def restore_card_from_trash(self, title: str) -> None:
+        self.switch_toolbox_tool("Trash")
+        self._wait_for(
+            lambda: True if self._visible_text_contains(title) else None,
+            timeout=20.0,
+            interval=0.2,
+        )
+        restore = self._wait_for(lambda: self._find_sensitive_named(self._current_window(), "Restore"), timeout=10.0)
+        self._click_node(restore)
+        self._wait_for(
+            lambda: True if self._find_named(self._current_window(), "No deleted items in this project.") is not None else None,
+            timeout=20.0,
+            interval=0.2,
+        )
+        self._activate_window_action("refresh")
+        self._wait_for(
+            lambda: True if self.has_card_titled_prefix(title) else None,
+            timeout=20.0,
+            interval=0.2,
+        )
+
     def toggle_ai_panel(self) -> None:
         self._click_named_control("Toggle AI panel")
 

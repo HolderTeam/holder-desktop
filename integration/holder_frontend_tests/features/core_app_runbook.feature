@@ -138,3 +138,13 @@ Feature: Core app run book
     Then I should see toolbox content "Runbook Resource"
     When I delete resource "Runbook Resource"
     Then I should see toolbox content "No resources in this project."
+
+  Scenario: Move a card to Trash and restore it
+    Given the Holder frontend is running
+    When I move card "Flowboard Child Card" to Trash
+    And I open the toolbox panel
+    And I switch to toolbox tool "Trash"
+    Then I should see trashed card "Flowboard Child Card"
+    When I restore card "Flowboard Child Card" from Trash
+    Then I should see toolbox content "No deleted items in this project."
+    And I should see flowboard card "Flowboard Child Card"

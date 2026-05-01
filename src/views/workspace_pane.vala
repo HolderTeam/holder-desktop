@@ -375,6 +375,7 @@ public class WorkspacePane : Object {
         var main_menu = new GLib.Menu();
         var editing_section = new GLib.Menu();
         editing_section.append("Find/Replace", "win.find-replace");
+        editing_section.append("Move Card to Trash", "win.move-selected-card-to-trash");
         editing_section.append("Print", "win.print");
         var local_section = new GLib.Menu();
         local_section.append("Local info", "win.show-local-info");
