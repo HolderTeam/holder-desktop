@@ -55,6 +55,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     private bool git_gh_available = false;
     private bool git_gh_authenticated = false;
     private string git_gh_login = "";
+    private bool auto_check_github_cli;
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id {
@@ -72,7 +73,8 @@ public class GitSyncToolView : Object, IToolShellAdapter {
                                           string? card_id,
                                           ActivityDetails? details);
 
-    public GitSyncToolView() {
+    public GitSyncToolView(bool auto_check_github_cli = true) {
+        this.auto_check_github_cli = auto_check_github_cli;
         controller = new GitSyncController();
         controller.activity_requested.connect((kind, message, project_id, card_id, details) => {
             activity_requested(kind, message, project_id, card_id, details);
@@ -276,7 +278,9 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         git_manual_status_label.add_css_class("dim-label");
         box.append(git_manual_status_label);
 
-        check_github_cli_state.begin();
+        if (auto_check_github_cli) {
+            check_github_cli_state.begin();
+        }
 
         return box;
     }

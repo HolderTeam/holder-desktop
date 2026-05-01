@@ -15,6 +15,15 @@ private void test_index_to_color_scheme_value_maps_unknown_to_default() {
     assert(HolderLinux.PreferencesDialog.index_to_color_scheme_value(99) == Adw.ColorScheme.DEFAULT);
 }
 
+private void test_preferences_dialog_constructs_appearance_page() {
+    var buffer = new GtkSource.Buffer(null);
+    var view = new GtkSource.View.with_buffer(buffer);
+    view.set_show_line_numbers(true);
+
+    var dialog = new HolderLinux.PreferencesDialog(buffer, view, null, null);
+    assert(dialog.get_title() == "Preferences");
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     if (!Gtk.init_check()) {
@@ -27,6 +36,8 @@ public static int main(string[] args) {
                   test_color_scheme_to_index_value_maps_all_supported_variants);
     Test.add_func("/preferences_dialog/index_to_color_scheme_value_maps_unknown_to_default",
                   test_index_to_color_scheme_value_maps_unknown_to_default);
+    Test.add_func("/preferences_dialog/constructs_appearance_page",
+                  test_preferences_dialog_constructs_appearance_page);
 
     return Test.run();
 }
