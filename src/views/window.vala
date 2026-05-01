@@ -3,16 +3,6 @@ namespace HolderLinux {
 public class MainWindow : Adw.ApplicationWindow {
     private delegate void StateApplyFunc();
 
-    private class EditorRenderState : Object {
-        public string text = "";
-        public bool editable = false;
-        public bool show_search = false;
-        public string window_title = "Holder";
-        public string save_state = "";
-        public string search_summary = "";
-        public string? ai_thread_title = null;
-    }
-
     private const int DEFAULT_WINDOW_WIDTH = 1200;
     private const int DEFAULT_WINDOW_HEIGHT = 800;
     private const int DEFAULT_SIDEBAR_WIDTH = 280;
@@ -70,12 +60,14 @@ public class MainWindow : Adw.ApplicationWindow {
     private RecoveryController recovery_controller;
     private RecoveryUiController recovery_ui_controller;
     private RecoveryDialogAdapter recovery_dialog_adapter;
-    private InternalLinkController internal_link_controller;
+    private WindowInternalLinkNavigator internal_link_navigator;
     private LocalInfoController local_info_controller;
     private LocalInfoFlowController local_info_flow_controller;
     private LocalInfoPresenter local_info_presenter;
     private LocalInfoViewAdapter local_info_view_adapter;
     private LocalInfoUiController local_info_ui_controller;
+    private WindowEditorRenderer editor_renderer;
+    private WindowActivityFeedback activity_feedback;
     private WindowActionsAdapter window_actions_adapter;
     private CardActionDialogAdapter card_action_dialog_adapter;
     private ProjectCreateDialogAdapter project_create_dialog_adapter;
@@ -99,10 +91,8 @@ public class MainWindow : Adw.ApplicationWindow {
     private bool sidebar_visible = true;
     private int last_sidebar_position = DEFAULT_SIDEBAR_WIDTH;
 
-    private bool suppress_editor_events = false;
     private uint applying_state_depth = 0;
     private uint rendered_sidebar_data_version = uint.MAX;
-    private EditorRenderState editor_render_state;
 
     public MainWindow(Adw.Application app, int startup_width = 0, int startup_height = 0) {
         var boot_settings = AppSettings.open_or_null();
@@ -158,9 +148,11 @@ public class MainWindow : Adw.ApplicationWindow {
         search_list = workspace.search_list;
         ai_panel = workspace.ai_panel;
         toolbox = workspace.toolbox;
-        internal_link_controller = new InternalLinkController();
-        editor_render_state = new EditorRenderState();
-        apply_editor_from_state();
+        editor_renderer = new WindowEditorRenderer(this, workspace, search_summary_label, ai_panel);
+        editor_renderer.content_rendered.connect(() => {
+            refresh_connections_internal_links_from_editor();
+        });
+        editor_renderer.apply();
         local_info_controller = new LocalInfoController(new WindowLocalInfoLogger(toolbox));
         local_info_presenter = new LocalInfoPresenter();
         app_state_store = new AppStateStore();
@@ -189,6 +181,13 @@ public class MainWindow : Adw.ApplicationWindow {
             app_state_store
         );
         activity_log_controller = new ActivityLogController(activity_log_store, controller);
+        activity_feedback = new WindowActivityFeedback(
+            workspace,
+            toolbox,
+            toast_overlay,
+            activity_log_controller,
+            controller
+        );
         project_create_controller = new ProjectCreateController();
         explorer_selection_controller = new ExplorerSelectionController(
             project_store,
@@ -256,6 +255,17 @@ public class MainWindow : Adw.ApplicationWindow {
             (kind, message, project_id, card_id) => {
                 log_activity(kind, message, project_id, card_id, null);
             }
+        );
+        internal_link_navigator = new WindowInternalLinkNavigator(
+            new InternalLinkController(),
+            editor_buffer,
+            editor_view,
+            card_store,
+            controller,
+            selection_intent_orchestrator,
+            card_action_dialog_adapter,
+            toolbox,
+            toast_overlay
         );
         toolbox_breadcrumb_controller = new ToolboxBreadcrumbController(
             selection_intent_orchestrator,
@@ -734,7 +744,7 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void on_editor_buffer_changed() {
-        if (suppress_editor_events || controller.get_current_card() == null) {
+        if (editor_renderer.is_applying_content || controller.get_current_card() == null) {
             return;
         }
         refresh_connections_internal_links_from_editor();
@@ -746,46 +756,15 @@ public class MainWindow : Adw.ApplicationWindow {
                                                  int n_press,
                                                  double x,
                                                  double y) {
-        if (n_press != 1) {
-            return;
-        }
-        var sequence = gesture.get_current_sequence();
-        var event = gesture.get_last_event(sequence);
-        if (event == null) {
-            return;
-        }
-        if ((event.get_modifier_state() & Gdk.ModifierType.CONTROL_MASK) == 0) {
-            return;
-        }
-
-        int buffer_x;
-        int buffer_y;
-        editor_view.window_to_buffer_coords(
-            Gtk.TextWindowType.WIDGET,
-            (int) x,
-            (int) y,
-            out buffer_x,
-            out buffer_y
-        );
-        Gtk.TextIter iter;
-        if (!editor_view.get_iter_at_location(out iter, buffer_x, buffer_y)) {
-            return;
-        }
-        if (navigate_internal_link_at_iter(iter)) {
-            gesture.set_state(Gtk.EventSequenceState.CLAIMED);
+        if (internal_link_navigator != null) {
+            internal_link_navigator.handle_click(gesture, n_press, x, y);
         }
     }
 
     internal bool on_internal_link_key_pressed(uint keyval, uint keycode, Gdk.ModifierType state) {
-        if ((state & Gdk.ModifierType.CONTROL_MASK) == 0) {
-            return false;
-        }
-        if (keyval != Gdk.Key.Return && keyval != Gdk.Key.KP_Enter) {
-            return false;
-        }
-        Gtk.TextIter cursor;
-        editor_buffer.get_iter_at_mark(out cursor, editor_buffer.get_insert());
-        return navigate_internal_link_at_iter(cursor);
+        return internal_link_navigator != null
+            ? internal_link_navigator.handle_key(keyval, keycode, state)
+            : false;
     }
 
     internal void on_card_store_items_changed(uint position, uint removed, uint added) {
@@ -835,44 +814,23 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void set_status(string text) {
-        if (workspace != null) {
-            workspace.set_app_message(is_serious_status(text) ? text : null);
-        }
-        if (toolbox != null) {
-            toolbox.log_debug("STATUS: %s".printf(text));
-        }
-    }
-
-    private bool is_serious_status(string text) {
-        var lower = text.down();
-        return lower.contains("connecting") ||
-               lower.contains("disconnected") ||
-               lower.contains("failed") ||
-               lower.contains("error") ||
-               lower.contains("unavailable") ||
-               lower.contains("timeout");
+        activity_feedback.set_status(text);
     }
 
     internal void set_editor_state(string text, bool editable) {
-        editor_render_state.text = text;
-        editor_render_state.editable = editable;
-        apply_editor_content_state();
-        apply_editor_chrome_state();
+        editor_renderer.set_editor_state(text, editable);
     }
 
     internal void update_window_title(string title_text) {
-        editor_render_state.window_title = title_text;
-        apply_editor_chrome_state();
+        editor_renderer.update_window_title(title_text);
     }
 
     internal void set_editor_save_state_text(string text) {
-        editor_render_state.save_state = text;
-        apply_editor_chrome_state();
+        editor_renderer.set_save_state_text(text);
     }
 
     internal void set_search_summary_text(string text) {
-        editor_render_state.search_summary = text;
-        apply_editor_chrome_state();
+        editor_renderer.set_search_summary_text(text);
     }
 
     internal void refresh_ai_status() {
@@ -903,8 +861,7 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void set_ai_thread_title(string? title_text) {
-        editor_render_state.ai_thread_title = title_text;
-        apply_editor_chrome_state();
+        editor_renderer.set_ai_thread_title(title_text);
     }
 
     internal void request_ai_thread_selection(string? thread_id) {
@@ -938,9 +895,7 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void log_debug_line(string message) {
-        if (toolbox != null) {
-            toolbox.log_debug(message);
-        }
+        activity_feedback.log_debug_line(message);
     }
 
     internal void log_activity(string kind,
@@ -948,96 +903,35 @@ public class MainWindow : Adw.ApplicationWindow {
                                string? project_id = null,
                                string? card_id = null,
                                ActivityDetails? details = null) {
-        activity_log_controller.log(kind, message, project_id, card_id, details);
-        if (toolbox != null) {
-            var parts = new Gee.ArrayList<string>();
-            if (project_id != null && project_id.strip().length > 0) {
-                parts.add("project=%s".printf(project_id));
-            }
-            if (card_id != null && card_id.strip().length > 0) {
-                parts.add("card=%s".printf(card_id));
-            }
-            append_activity_details(parts, details);
-            var scope = parts.size > 0
-                ? " [%s]".printf(string.joinv(", ", parts.to_array()))
-                : "";
-            toolbox.log_debug("ACTIVITY %s %s%s".printf(kind, message, scope));
-        }
-    }
-
-    private void append_activity_details(Gee.ArrayList<string> parts, ActivityDetails? details) {
-        var ai_details = details as AiRunDetails;
-        if (ai_details == null) {
-            return;
-        }
-        if (ai_details.thread_id.strip().length > 0) {
-            parts.add("thread=%s".printf(ai_details.thread_id));
-        }
-        if (ai_details.run_id.strip().length > 0) {
-            parts.add("run=%s".printf(ai_details.run_id));
-        }
-        if (ai_details.provider.strip().length > 0) {
-            parts.add("provider=%s".printf(ai_details.provider));
-        }
-        if (ai_details.model.strip().length > 0) {
-            parts.add("model=%s".printf(ai_details.model));
-        }
-        if (ai_details.router_model.strip().length > 0) {
-            parts.add("router=%s".printf(ai_details.router_model));
-        }
-        if (ai_details.prompt_chars > 0) {
-            parts.add("prompt_chars=%d".printf(ai_details.prompt_chars));
-        }
-        parts.add("success=%s".printf(ai_details.success ? "true" : "false"));
+        activity_feedback.log_activity(kind, message, project_id, card_id, details);
     }
 
     internal void log_status_activity(string text) {
-        log_activity(
-            "feedback.status",
-            text,
-            controller.selected_project_id(),
-            controller.selected_card_id()
-        );
+        activity_feedback.log_status_activity(text);
     }
 
     internal void log_toast_activity(string message) {
-        log_activity(
-            "feedback.toast",
-            message,
-            controller.selected_project_id(),
-            controller.selected_card_id()
-        );
+        activity_feedback.log_toast_activity(message);
     }
 
     internal void log_error_activity(string title_text, string details) {
-        log_activity(
-            "feedback.error",
-            "%s: %s".printf(title_text, details),
-            controller.selected_project_id(),
-            controller.selected_card_id()
-        );
+        activity_feedback.log_error_activity(title_text, details);
     }
 
     internal void add_toast(string msg) {
-        toast_overlay.add_toast(new Adw.Toast(msg));
+        activity_feedback.add_toast(msg);
     }
 
     internal void show_error(string title_text, string details) {
-        set_status("%s: %s".printf(title_text, details));
-        add_toast("%s".printf(title_text));
-        if (toolbox != null) {
-            toolbox.log_debug("ERROR: %s | %s".printf(title_text, details));
-        }
+        activity_feedback.show_error(title_text, details);
     }
 
     internal void show_editor_mode() {
-        editor_render_state.show_search = false;
-        apply_editor_chrome_state();
+        editor_renderer.show_editor_mode();
     }
 
     internal void show_search_mode() {
-        editor_render_state.show_search = true;
-        apply_editor_chrome_state();
+        editor_renderer.show_search_mode();
     }
 
     private void apply_persisted_preferences() {
@@ -1066,10 +960,6 @@ public class MainWindow : Adw.ApplicationWindow {
 
     }
 
-    internal void open_card_from_flowboard(string card_id) {
-        selection_intent_orchestrator.open_card_with_transition.begin(card_id, "tool-card-open");
-    }
-
     private bool is_applying_state() {
         return applying_state_depth > 0;
     }
@@ -1082,32 +972,6 @@ public class MainWindow : Adw.ApplicationWindow {
             if (applying_state_depth > 0) {
                 applying_state_depth--;
             }
-        }
-    }
-
-    private void apply_editor_from_state() {
-        apply_editor_content_state();
-        apply_editor_chrome_state();
-    }
-
-    private void apply_editor_content_state() {
-        suppress_editor_events = true;
-        workspace.set_editor_state(editor_render_state.text, editor_render_state.editable);
-        suppress_editor_events = false;
-        refresh_connections_internal_links_from_editor();
-    }
-
-    private void apply_editor_chrome_state() {
-        workspace.set_window_title_text(editor_render_state.window_title);
-        workspace.set_save_state_text(editor_render_state.save_state);
-        title = editor_render_state.window_title;
-        search_summary_label.set_text(editor_render_state.search_summary);
-        ai_panel.set_thread_title(editor_render_state.ai_thread_title);
-
-        if (editor_render_state.show_search) {
-            workspace.show_search_mode();
-        } else {
-            workspace.show_editor_mode();
         }
     }
 
@@ -1138,67 +1002,6 @@ public class MainWindow : Adw.ApplicationWindow {
         card_action_dialog_adapter.confirm_move_to_trash(title_text, () => {
             controller.move_card_to_trash.begin(card_id);
         });
-    }
-
-    private string? internal_link_target_at_iter(Gtk.TextIter iter) {
-        Gtk.TextIter line_start = iter;
-        line_start.set_line_offset(0);
-        Gtk.TextIter line_end = line_start;
-        line_end.forward_to_line_end();
-
-        var line_text = editor_buffer.get_text(line_start, line_end, false);
-        if (line_text == null || line_text.length == 0) {
-            return null;
-        }
-
-        var before_cursor = editor_buffer.get_text(line_start, iter, false);
-        var cursor_byte_offset = before_cursor.length;
-        return internal_link_controller.extract_target_from_line(line_text, cursor_byte_offset);
-    }
-
-    private Gee.ArrayList<CardSummary> project_cards_for_selected_project() {
-        var project_cards = new Gee.ArrayList<CardSummary>();
-        var project_id = controller.selected_project_id();
-        if (project_id == null) {
-            return project_cards;
-        }
-
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
-            if (card != null && card.project_id == project_id) {
-                project_cards.add(card);
-            }
-        }
-        return project_cards;
-    }
-
-    private bool navigate_internal_link_at_iter(Gtk.TextIter iter) {
-        var decision = internal_link_controller.decide_navigation(
-            internal_link_target_at_iter(iter),
-            project_cards_for_selected_project()
-        );
-        if (!decision.handled) {
-            return false;
-        }
-
-        if (decision.open_card_id == null) {
-            if (decision.toast_message != null) {
-                add_toast(decision.toast_message);
-            }
-            var target_copy = decision.create_target;
-            Idle.add(() => {
-                if (target_copy != null) {
-                    card_action_dialog_adapter.confirm_create_linked_card(target_copy, () => {
-                        controller.create_card_with_title.begin(target_copy);
-                    });
-                }
-                return Source.REMOVE;
-            });
-            return true;
-        }
-
-        open_card_from_flowboard((!) decision.open_card_id);
-        return true;
     }
 
     private void show_preferences_dialog() {
@@ -1308,15 +1111,10 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void refresh_connections_internal_links_from_editor() {
-        if (internal_link_controller == null || toolbox == null) {
+        if (internal_link_navigator == null) {
             return;
         }
-        Gtk.TextIter start;
-        Gtk.TextIter end;
-        editor_buffer.get_bounds(out start, out end);
-        var text = editor_buffer.get_text(start, end, false);
-        var links = internal_link_controller.extract_internal_links(text);
-        toolbox.set_connections_internal_links(links);
+        internal_link_navigator.refresh_connections_from_editor();
     }
 
     protected override void dispose() {
