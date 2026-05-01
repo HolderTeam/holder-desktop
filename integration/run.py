@@ -108,6 +108,23 @@ class Runner:
             print("Use ./make.sh linux for the headless xvfb runner.", file=sys.stderr)
             raise SystemExit(1)
 
+    def restart_headed_accessibility_bus(self) -> None:
+        self.require_cmd("systemctl", "Install systemd tools or use ./make.sh linux for headless mode.")
+        cmd = ["systemctl", "--user", "restart", "at-spi-dbus-bus.service"]
+        print("Restarting desktop accessibility bus:", " ".join(cmd), flush=True)
+        proc = subprocess.run(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            print("Failed to restart AT-SPI accessibility bus.", file=sys.stderr)
+            if proc.stderr.strip():
+                print(proc.stderr.strip(), file=sys.stderr)
+            raise SystemExit(proc.returncode)
+
     def behave_env(self, headless: bool) -> dict[str, str]:
         env = os.environ.copy()
         env["HOLDER_FRONTEND_TARGET"] = "linux"
@@ -268,7 +285,9 @@ class Runner:
                 "-screen 0 1920x1080x24",
             ] + behave_cmd
         else:
-            self.require_headed_session(self.behave_env(headless=False))
+            headed_env = self.behave_env(headless=False)
+            self.require_headed_session(headed_env)
+            self.restart_headed_accessibility_bus()
             print("Mode: headed (visible desktop session)")
 
         self.run_with_isolated_backend(behave_cmd, env=self.behave_env(headless=headless))

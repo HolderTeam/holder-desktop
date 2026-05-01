@@ -195,11 +195,7 @@ class LinuxDogtailDriver(FrontendDriver):
             return False
 
     def open_preferences(self) -> None:
-        try:
-            self._click_named_control("Open app menu")
-            self._click_app_named_control("Preferences", timeout=3.0)
-        except RuntimeError:
-            self._activate_window_action("show-preferences")
+        self._activate_window_action("show-preferences")
         self._wait_for(lambda: self._find_dialog("Preferences"), timeout=10.0)
 
     def preferences_options_are_visible(self) -> bool:
@@ -402,9 +398,18 @@ class LinuxDogtailDriver(FrontendDriver):
 
     def delete_resource(self, label: str) -> None:
         self.switch_toolbox_tool("Resources")
-        resource = self._wait_for(lambda: self._find_named(self._current_window(), label), timeout=10.0)
-        self._click_resource_row(resource)
-        self._click_named_control("Delete")
+        self.filter_resources(label)
+        self._wait_for(
+            lambda: True if self._find_named(self._current_window(), label) is not None else None,
+            timeout=10.0,
+            interval=0.2,
+        )
+        delete_button = self._wait_for(
+            lambda: self._find_sensitive_named(self._current_window(), "Delete"),
+            timeout=10.0,
+            interval=0.2,
+        )
+        self._click_node(delete_button)
         dialog = self._wait_for(lambda: self._find_dialog("Delete Resource"), timeout=10.0)
         delete = self._wait_for(lambda: self._find_named(dialog, "Delete"), timeout=10.0)
         self._click_node(delete)
@@ -783,30 +788,6 @@ class LinuxDogtailDriver(FrontendDriver):
         rawinput.keyCombo("<Control>a")
         rawinput.pressKey("BackSpace")
         rawinput.typeText(text)
-
-    def _click_resource_row(self, node) -> None:
-        try:
-            self._click_node(node)
-            return
-        except Exception:
-            pass
-
-        current = node
-        for _ in range(6):
-            role = (getattr(current, "roleName", "") or "").lower()
-            if role in ("table row", "row", "list item"):
-                for action_name in ("select", "click", "press", "activate"):
-                    try:
-                        current.doActionNamed(action_name)
-                        return
-                    except Exception:
-                        pass
-                self._click_node(current)
-                return
-            current = getattr(current, "parent", None)
-            if current is None:
-                break
-        self._click_node(node)
 
     def _click_named_control(self, name: str) -> None:
         window = self._current_window()
