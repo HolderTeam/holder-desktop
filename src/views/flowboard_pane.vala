@@ -120,40 +120,20 @@ public class FlowboardPane : Object {
             if (folder_tab == null || header == null || title == null || meta == null) {
                 return;
             }
-            if (tile == null) {
-                title.set_text("");
-                meta.set_text("");
-                folder_tab.set_visible(false);
-                header.set_margin_top(0);
-                card.remove_css_class("flowboard-branch");
-                return;
-            }
-            if (tile.is_container) {
+            var presentation = FlowboardPresenter.tile(tile, new DateTime.now_utc().to_unix());
+            title.set_text(presentation.title);
+            meta.set_text(presentation.meta_text);
+            folder_tab.set_visible(presentation.folder_tab_visible);
+            header.set_margin_top(presentation.header_margin_top);
+            if (presentation.branch_css) {
                 card.add_css_class("flowboard-branch");
-                folder_tab.set_visible(true);
-                header.set_margin_top(0);
-                title.set_text(tile.title);
-                meta.set_text("%d %s | %s".printf(
-                    tile.child_count,
-                    tile.child_count == 1 ? "item" : "items",
-                    TextUtils.format_relative_time(new DateTime.now_utc().to_unix(), tile.updated_at)
-                ));
             } else {
                 card.remove_css_class("flowboard-branch");
-                folder_tab.set_visible(false);
-                header.set_margin_top(15);
-                title.set_text(tile.title);
-                meta.set_text(TextUtils.format_relative_time(new DateTime.now_utc().to_unix(), tile.updated_at));
             }
-
-            if (tile.card_id != null) {
-                card.set_data<string>("flowboard-card-id", tile.card_id);
-            } else {
-                card.set_data<string>("flowboard-card-id", "");
-            }
-            card.set_data<string>("flowboard-parent-card-id", tile.parent_card_id ?? "");
-            card.set_data<int>("flowboard-sibling-count", tile.sibling_count);
-            card.set_data<int>("flowboard-sibling-index", tile.sibling_index);
+            card.set_data<string>("flowboard-card-id", presentation.card_id);
+            card.set_data<string>("flowboard-parent-card-id", presentation.parent_card_id);
+            card.set_data<int>("flowboard-sibling-count", presentation.sibling_count);
+            card.set_data<int>("flowboard-sibling-index", presentation.sibling_index);
         });
 
         grid_view = new Gtk.GridView(selection, factory);
@@ -317,16 +297,7 @@ public class FlowboardPane : Object {
                 grid_view.remove_css_class(DRAG_ACTIVE_CLASS);
                 return false;
             }
-            var width = row_widget.get_width();
-            double x_fraction = 0.5;
-            if (width > 0) {
-                x_fraction = x / (double) width;
-            }
-            if (x_fraction < 0.0) {
-                x_fraction = 0.0;
-            } else if (x_fraction > 1.0) {
-                x_fraction = 1.0;
-            }
+            var x_fraction = FlowboardPresenter.drop_fraction(x, row_widget.get_width());
             clear_drop_hint(row_widget);
             grid_view.remove_css_class(DRAG_ACTIVE_CLASS);
             card_drop_requested(source_card_id, target_card_id, x_fraction);
@@ -425,20 +396,17 @@ public class FlowboardPane : Object {
     private void update_drop_hint(Gtk.Widget row_widget, double x) {
         ensure_drop_css();
         clear_drop_hint(row_widget);
-        var width = row_widget.get_width();
-        double x_fraction = 0.5;
-        if (width > 0) {
-            x_fraction = x / (double) width;
-        }
-        if (x_fraction < 0.25) {
+        switch (FlowboardPresenter.drop_hint(x, row_widget.get_width())) {
+        case FlowboardDropHint.BEFORE:
             row_widget.add_css_class(DROP_BEFORE_CLASS);
             return;
-        }
-        if (x_fraction > 0.75) {
+        case FlowboardDropHint.AFTER:
             row_widget.add_css_class(DROP_AFTER_CLASS);
             return;
+        case FlowboardDropHint.INTO:
+            row_widget.add_css_class(DROP_INTO_CLASS);
+            return;
         }
-        row_widget.add_css_class(DROP_INTO_CLASS);
     }
 
     private void show_background_menu_at(double x, double y) {
@@ -492,7 +460,7 @@ public class FlowboardPane : Object {
         var move_up_btn = new Gtk.Button.with_label("Move Up a Level");
         move_up_btn.add_css_class("flat");
         var parent_card_id = row_widget.get_data<string>("flowboard-parent-card-id");
-        move_up_btn.set_sensitive(parent_card_id != null && parent_card_id.strip().length > 0);
+        move_up_btn.set_sensitive(FlowboardPresenter.move_up_sensitive(parent_card_id));
         move_up_btn.clicked.connect(() => {
             popover.popdown();
             card_move_up_level_requested(card_id);
@@ -509,11 +477,10 @@ public class FlowboardPane : Object {
 
         var sibling_count = row_widget.get_data<int>("flowboard-sibling-count");
         var sibling_index = row_widget.get_data<int>("flowboard-sibling-index");
-        var can_reorder = sibling_count > 1;
 
         var move_left_btn = new Gtk.Button.with_label("Move Left");
         move_left_btn.add_css_class("flat");
-        move_left_btn.set_sensitive(can_reorder && sibling_index > 0);
+        move_left_btn.set_sensitive(FlowboardPresenter.move_left_sensitive(sibling_count, sibling_index));
         move_left_btn.clicked.connect(() => {
             popover.popdown();
             card_move_left_requested(card_id);
@@ -522,7 +489,7 @@ public class FlowboardPane : Object {
 
         var move_right_btn = new Gtk.Button.with_label("Move Right");
         move_right_btn.add_css_class("flat");
-        move_right_btn.set_sensitive(can_reorder && sibling_index < sibling_count - 1);
+        move_right_btn.set_sensitive(FlowboardPresenter.move_right_sensitive(sibling_count, sibling_index));
         move_right_btn.clicked.connect(() => {
             popover.popdown();
             card_move_right_requested(card_id);
@@ -531,7 +498,7 @@ public class FlowboardPane : Object {
 
         var move_start_btn = new Gtk.Button.with_label("Move to Start");
         move_start_btn.add_css_class("flat");
-        move_start_btn.set_sensitive(can_reorder);
+        move_start_btn.set_sensitive(FlowboardPresenter.move_to_boundary_sensitive(sibling_count));
         move_start_btn.clicked.connect(() => {
             popover.popdown();
             card_move_to_start_requested(card_id);
@@ -540,7 +507,7 @@ public class FlowboardPane : Object {
 
         var move_end_btn = new Gtk.Button.with_label("Move to End");
         move_end_btn.add_css_class("flat");
-        move_end_btn.set_sensitive(can_reorder);
+        move_end_btn.set_sensitive(FlowboardPresenter.move_to_boundary_sensitive(sibling_count));
         move_end_btn.clicked.connect(() => {
             popover.popdown();
             card_move_to_end_requested(card_id);

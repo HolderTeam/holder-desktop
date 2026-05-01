@@ -48,6 +48,13 @@ sources = [
   'src/views/components/navigation_breadcrumbs.vala',
   'src/views/components/tool_action_bar.vala',
   'src/views/adapters/local_info.vala',
+  'src/views/adapters/window_local_info.vala',
+  'src/views/adapters/window_recovery_context.vala',
+  'src/views/adapters/window_find_replace_ops.vala',
+  'src/views/adapters/window_event_endpoints.vala',
+  'src/views/adapters/window_internal_link_navigator.vala',
+  'src/views/adapters/window_editor_renderer.vala',
+  'src/views/adapters/window_activity_feedback.vala',
   'src/views/adapters/window_actions.vala',
   'src/views/adapters/card_action_dialog.vala',
   'src/views/adapters/project_create_dialog.vala',
@@ -89,6 +96,7 @@ sources = [
   'src/controllers/search_selection.vala',
   'src/controllers/activity_log.vala',
   'src/controllers/activity_reducer.vala',
+  'src/controllers/window_feedback_format.vala',
   'src/controllers/selection_request.vala',
   'src/controllers/selection_intent.vala',
   'src/controllers/selection_intent_orchestrator.vala',
@@ -97,6 +105,9 @@ sources = [
   'src/controllers/sidebar_selection_renderer.vala',
   'src/controllers/selection.vala',
   'src/controllers/selection_transition.vala',
+  'src/controllers/window_geometry.vala',
+  'src/controllers/workspace_layout.vala',
+  'src/controllers/flowboard_presenter.vala',
   'src/controllers/toolbox_breadcrumb.vala',
   'src/controllers/toolbox_event_orchestrator.vala',
   'src/controllers/window_feedback_orchestrator.vala',
@@ -106,7 +117,9 @@ sources = [
   'src/controllers/ai_run.vala',
   'src/controllers/ai_nudge.vala',
   'src/controllers/ai_panel_event_orchestrator.vala',
+  'src/services/uri_launcher.vala',
   'src/views/adapters/print_ui.vala',
+  'src/controllers/git_sync_presenter.vala',
   'src/controllers/git_sync.vala',
   'src/controllers/resources.vala',
   'src/controllers/connections.vala',
@@ -464,6 +477,25 @@ git_sync_controller_test_exe = executable(
 )
 
 test('holder-linux-git-sync-controller-tests', git_sync_controller_test_exe)
+
+git_sync_presenter_test_exe = executable(
+  'holder-linux-git-sync-presenter-tests',
+  [
+    'src/models/activity_details.vala',
+    'src/models/git.vala',
+    'src/controllers/git_sync_presenter.vala',
+    'tests/git_sync_presenter_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-git-sync-presenter-tests', git_sync_presenter_test_exe)
 
 resources_controller_test_exe = executable(
   'holder-linux-resources-controller-tests',
@@ -1569,6 +1601,78 @@ app_settings_test_exe = executable(
 
 test('holder-linux-app-settings-tests', app_settings_test_exe)
 
+window_geometry_test_exe = executable(
+  'holder-linux-window-geometry-tests',
+  [
+    'src/controllers/window_geometry.vala',
+    'tests/window_geometry_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-window-geometry-tests', window_geometry_test_exe)
+
+workspace_layout_test_exe = executable(
+  'holder-linux-workspace-layout-tests',
+  [
+    'src/controllers/workspace_layout.vala',
+    'tests/workspace_layout_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-workspace-layout-tests', workspace_layout_test_exe)
+
+flowboard_presenter_test_exe = executable(
+  'holder-linux-flowboard-presenter-tests',
+  [
+    'src/models/flowboard.vala',
+    'src/utils/text_utils.vala',
+    'src/controllers/flowboard_presenter.vala',
+    'tests/flowboard_presenter_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-flowboard-presenter-tests', flowboard_presenter_test_exe)
+
+window_feedback_format_test_exe = executable(
+  'holder-linux-window-feedback-format-tests',
+  [
+    'src/models/activity_details.vala',
+    'src/controllers/window_feedback_format.vala',
+    'tests/window_feedback_format_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-window-feedback-format-tests', window_feedback_format_test_exe)
+
 app_transition_test_exe = executable(
   'holder-linux-app-transition-tests',
   [
@@ -1906,6 +2010,7 @@ test('holder-linux-selection-request-tests', selection_request_test_exe)
 share_controller_test_exe = executable(
   'holder-linux-share-controller-tests',
   [
+    'src/services/uri_launcher.vala',
     'src/controllers/share.vala',
     'tests/share_controller_test.vala',
   ],
@@ -2341,6 +2446,48 @@ resources_tool_view_test_exe = executable(
 )
 
 test('holder-linux-resources-tool-view-tests', resources_tool_view_test_exe)
+
+git_sync_tool_view_test_exe = executable(
+  'holder-linux-git-sync-tool-view-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/models/toolbox_nav.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/app_settings.vala',
+    'src/services/git_sync_service.vala',
+    'src/controllers/git_sync_presenter.vala',
+    'src/controllers/git_sync.vala',
+    'src/views/toolbox/tool_adapter.vala',
+    'src/views/toolbox/git_sync_tool_view.vala',
+    'tests/git_sync_tool_view_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-git-sync-tool-view-tests', git_sync_tool_view_test_exe)
 
 trash_controller_test_exe = executable(
   'holder-linux-trash-controller-tests',
@@ -2810,6 +2957,52 @@ toolbox_small_views_test_exe = executable(
 
 test('holder-linux-toolbox-small-views-tests', toolbox_small_views_test_exe)
 
+flowboard_pane_test_exe = executable(
+  'holder-linux-flowboard-pane-tests',
+  [
+    'src/models/flowboard.vala',
+    'src/utils/text_utils.vala',
+    'src/controllers/flowboard_presenter.vala',
+    'src/views/flowboard_pane.vala',
+    'tests/flowboard_pane_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-flowboard-pane-tests', flowboard_pane_test_exe)
+
+sidebar_pane_test_exe = executable(
+  'holder-linux-sidebar-pane-tests',
+  [
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/ai.vala',
+    'src/utils/text_utils.vala',
+    'src/views/sidebar.vala',
+    'tests/sidebar_pane_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-sidebar-pane-tests', sidebar_pane_test_exe)
+
 preferences_dialog_test_exe = executable(
   'holder-linux-preferences-dialog-tests',
   [
@@ -2882,6 +3075,7 @@ ai_config_panel_view_test_exe = executable(
     'src/models/activity_details.vala',
     'src/models/nudges.vala',
     'src/services/core_interfaces.vala',
+    'src/services/uri_launcher.vala',
     'src/views/ai_panel/config.vala',
     'tests/ai_config_panel_view_test.vala',
   ],
@@ -2917,6 +3111,7 @@ ai_panel_view_test_exe = executable(
     'src/models/activity_details.vala',
     'src/models/nudges.vala',
     'src/services/core_interfaces.vala',
+    'src/services/uri_launcher.vala',
     'src/views/ai_panel/config.vala',
     'src/views/ai_panel.vala',
     'tests/ai_panel_view_test.vala',

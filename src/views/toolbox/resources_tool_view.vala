@@ -135,7 +135,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
 
         resources_store = new GLib.ListStore(typeof(ProjectResource));
         resources_selection = new Gtk.SingleSelection(resources_store);
-        resources_selection.set_autoselect(false);
+        resources_selection.set_autoselect(true);
         resources_selection.notify["selected-item"].connect(() => {
             refresh_resource_action_state();
         });

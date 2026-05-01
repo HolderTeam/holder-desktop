@@ -1,10 +1,6 @@
 namespace HolderLinux {
 
 public class WorkspacePane : Object {
-    private const double DEFAULT_TOOLBOX_FRACTION = 0.5;
-    private const int MIN_AI_PANEL_WIDTH = 360;
-    private const int MAX_AI_PANEL_WIDTH = 720;
-    private const double DEFAULT_AI_PANEL_FRACTION = 0.38;
     private Gtk.Label title_label;
     private Gtk.ToggleButton explorer_toggle_btn;
     private Gtk.ToggleButton search_toggle_btn;
@@ -118,6 +114,14 @@ public class WorkspacePane : Object {
         find_entry.select_region(0, -1);
     }
 
+    public void toggle_find_replace_bar(bool show_replace) {
+        if (find_revealer.get_reveal_child()) {
+            hide_find_replace_bar();
+            return;
+        }
+        show_find_replace_bar(show_replace);
+    }
+
     public void hide_find_replace_bar() {
         find_revealer.set_reveal_child(false);
     }
@@ -163,7 +167,7 @@ public class WorkspacePane : Object {
 
     public void set_ai_panel_width(int width) {
         if (width > 0) {
-            last_ai_panel_width = clamp_ai_panel_width(width);
+            last_ai_panel_width = WorkspaceLayout.clamp_ai_panel_width(width);
             ai_panel_width_user_set = true;
         } else {
             last_ai_panel_width = -1;
@@ -175,7 +179,7 @@ public class WorkspacePane : Object {
         if (!ai_panel_width_user_set || last_ai_panel_width <= 0) {
             return 0;
         }
-        return clamp_ai_panel_width(last_ai_panel_width);
+        return WorkspaceLayout.clamp_ai_panel_width(last_ai_panel_width);
     }
 
     private void apply_initial_toolbox_position(bool allow_defer) {
@@ -190,18 +194,11 @@ public class WorkspacePane : Object {
             return;
         }
 
-        var target_top = (int) ((double) paned_height * (1.0 - DEFAULT_TOOLBOX_FRACTION));
-        var min_top = content_paned.min_position;
-        var max_top = content_paned.max_position;
-        if (max_top < min_top) {
-            max_top = min_top;
-        }
-        if (target_top < min_top) {
-            target_top = min_top;
-        } else if (target_top > max_top) {
-            target_top = max_top;
-        }
-        content_paned.set_position(target_top);
+        content_paned.set_position(WorkspaceLayout.initial_toolbox_position(
+            paned_height,
+            content_paned.min_position,
+            content_paned.max_position
+        ));
     }
 
     private void apply_initial_ai_panel_position(bool allow_defer) {
@@ -216,41 +213,19 @@ public class WorkspacePane : Object {
             return;
         }
 
-        var desired_width = ai_panel_width_user_set && last_ai_panel_width > 0
-            ? clamp_ai_panel_width(last_ai_panel_width)
-            : default_ai_panel_width(split_width);
-        var target_start = split_width - desired_width;
-        var min_start = ai_split.min_position;
-        var max_start = ai_split.max_position;
-        if (max_start < min_start) {
-            max_start = min_start;
-        }
-        if (target_start < min_start) {
-            target_start = min_start;
-        } else if (target_start > max_start) {
-            target_start = max_start;
-        }
+        var target_start = WorkspaceLayout.initial_ai_panel_position(
+            split_width,
+            last_ai_panel_width,
+            ai_panel_width_user_set,
+            ai_split.min_position,
+            ai_split.max_position
+        );
         suppress_ai_position_persist = true;
         ai_split.set_position(target_start);
         Idle.add(() => {
             suppress_ai_position_persist = false;
             return Source.REMOVE;
         });
-    }
-
-    private int default_ai_panel_width(int split_width) {
-        var width = (int) ((double) split_width * DEFAULT_AI_PANEL_FRACTION);
-        return clamp_ai_panel_width(width);
-    }
-
-    private static int clamp_ai_panel_width(int width) {
-        if (width < MIN_AI_PANEL_WIDTH) {
-            return MIN_AI_PANEL_WIDTH;
-        }
-        if (width > MAX_AI_PANEL_WIDTH) {
-            return MAX_AI_PANEL_WIDTH;
-        }
-        return width;
     }
 
     private void maybe_move_cursor_for_context_menu(Gtk.GestureClick click, int n_press, double x, double y) {
@@ -344,6 +319,12 @@ public class WorkspacePane : Object {
             }
         });
 
+        var find_replace_btn = new Gtk.Button.from_icon_name("edit-find-replace-symbolic");
+        find_replace_btn.set_tooltip_text("Find and replace");
+        find_replace_btn.clicked.connect(() => {
+            toggle_find_replace_bar(true);
+        });
+
         var ai_toggle_btn = new Gtk.ToggleButton();
         ai_toggle_btn.set_icon_name("preferences-desktop-keyboard-symbolic");
         ai_toggle_btn.set_tooltip_text("Toggle AI panel");
@@ -361,6 +342,7 @@ public class WorkspacePane : Object {
         var main_menu = new GLib.Menu();
         var editing_section = new GLib.Menu();
         editing_section.append("Find/Replace", "win.find-replace");
+        editing_section.append("Move Card to Trash", "win.move-selected-card-to-trash");
         editing_section.append("Print", "win.print");
         var local_section = new GLib.Menu();
         local_section.append("Local info", "win.show-local-info");
@@ -373,7 +355,7 @@ public class WorkspacePane : Object {
 
         var main_menu_btn = new Gtk.MenuButton();
         main_menu_btn.set_icon_name("open-menu-symbolic");
-        main_menu_btn.set_tooltip_text("Main Menu");
+        main_menu_btn.set_tooltip_text("Open app menu");
         main_menu_btn.set_menu_model(main_menu);
 
         header.pack_start(refresh_btn);
@@ -381,6 +363,7 @@ public class WorkspacePane : Object {
         header.pack_end(toolbox_toggle_btn);
         header.pack_end(ai_toggle_btn);
         header.pack_end(editor_toggle_btn);
+        header.pack_end(find_replace_btn);
         header.pack_end(search_toggle_btn);
         header.pack_end(explorer_toggle_btn);
         header.pack_end(new_project_btn);
@@ -550,7 +533,7 @@ public class WorkspacePane : Object {
             if (panel_width <= 0) {
                 return;
             }
-            last_ai_panel_width = clamp_ai_panel_width(panel_width);
+            last_ai_panel_width = WorkspaceLayout.clamp_ai_panel_width(panel_width);
             ai_panel_width_user_set = true;
         });
 
@@ -582,6 +565,7 @@ public class WorkspacePane : Object {
         find_entry = new Gtk.Entry();
         find_entry.set_hexpand(true);
         find_entry.set_placeholder_text("Search text");
+        find_entry.update_property(Gtk.AccessibleProperty.LABEL, "Find text", -1);
         find_entry.activate.connect(() => {
             find_next_requested();
         });
@@ -605,6 +589,7 @@ public class WorkspacePane : Object {
         replace_entry = new Gtk.Entry();
         replace_entry.set_hexpand(true);
         replace_entry.set_placeholder_text("Replacement text");
+        replace_entry.update_property(Gtk.AccessibleProperty.LABEL, "Replacement text", -1);
         replace_entry.activate.connect(() => {
             replace_requested();
         });

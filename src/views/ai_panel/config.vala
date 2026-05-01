@@ -2,6 +2,7 @@ namespace HolderLinux {
 
 public class AiConfigPanelView : Object {
     private IHolderApi? api_client = null;
+    private IUriLauncher uri_launcher;
 
     private Gtk.Label status_label;
     private Gtk.ListBox runners_list;
@@ -45,7 +46,8 @@ public class AiConfigPanelView : Object {
     public signal void debug_log_requested(string line);
     public signal void pull_model_requested(string model_tag);
 
-    public AiConfigPanelView() {
+    public AiConfigPanelView(IUriLauncher? uri_launcher = null) {
+        this.uri_launcher = uri_launcher ?? new AppInfoUriLauncher();
         widget = build_ui();
         set_idle_state("Connect to holderd to configure AI.");
     }
@@ -806,12 +808,12 @@ public class AiConfigPanelView : Object {
         }
     }
 
-    private void open_provider_link(string link) {
+    internal void open_provider_link(string link) {
         if (link.strip().length == 0) {
             return;
         }
         try {
-            AppInfo.launch_default_for_uri(link, null);
+            uri_launcher.launch(link);
         } catch (Error e) {
             error_reported("AI Config", e.message);
         }

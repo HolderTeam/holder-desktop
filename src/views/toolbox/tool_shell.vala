@@ -10,6 +10,7 @@ public class ToolShell : Object {
 
     public ToolShell(NavigationBreadcrumbs breadcrumbs, Gtk.Widget switcher) {
         root = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        root.update_property(Gtk.AccessibleProperty.LABEL, "Toolbox shell", -1);
 
         header_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         breadcrumbs.widget.set_hexpand(true);

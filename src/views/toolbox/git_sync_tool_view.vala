@@ -55,6 +55,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     private bool git_gh_available = false;
     private bool git_gh_authenticated = false;
     private string git_gh_login = "";
+    private bool auto_check_github_cli;
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id {
@@ -72,7 +73,8 @@ public class GitSyncToolView : Object, IToolShellAdapter {
                                           string? card_id,
                                           ActivityDetails? details);
 
-    public GitSyncToolView() {
+    public GitSyncToolView(bool auto_check_github_cli = true) {
+        this.auto_check_github_cli = auto_check_github_cli;
         controller = new GitSyncController();
         controller.activity_requested.connect((kind, message, project_id, card_id, details) => {
             activity_requested(kind, message, project_id, card_id, details);
@@ -276,7 +278,9 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         git_manual_status_label.add_css_class("dim-label");
         box.append(git_manual_status_label);
 
-        check_github_cli_state.begin();
+        if (auto_check_github_cli) {
+            check_github_cli_state.begin();
+        }
 
         return box;
     }
@@ -422,76 +426,37 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     }
 
     private void refresh_git_cli_controls() {
+        var presentation = GitSyncPresenter.git_cli_controls(
+            git_gh_available,
+            git_gh_authenticated,
+            git_gh_login
+        );
         if (git_guided_repo_mode_label != null) {
-            if (git_gh_authenticated && git_gh_login.strip().length > 0) {
-                git_guided_repo_mode_label.set_text(
-                    "Recommended on this device: create the private repository with GitHub CLI."
-                );
-            } else {
-                git_guided_repo_mode_label.set_text(
-                    "Create a private repository for this project."
-                );
-            }
+            git_guided_repo_mode_label.set_text(presentation.repo_mode_text);
         }
         if (git_guided_repo_manual_label != null) {
-            git_guided_repo_manual_label.set_text(
-                (git_gh_authenticated && git_gh_login.strip().length > 0)
-                    ? "Browser fallback:"
-                    : "Create a new repository:"
-            );
+            git_guided_repo_manual_label.set_text(presentation.repo_manual_label);
         }
         if (git_guided_repo_manual_instructions_label != null) {
-            if (git_gh_authenticated && git_gh_login.strip().length > 0) {
-                git_guided_repo_manual_instructions_label.set_markup(
-                    "If you prefer the browser route, create it manually at GitHub:\n\n" +
-                    "<b>Under 2. Configuration\n" +
-                    "there is \"Choose visibility *\"\n" +
-                    "Change the drop down to 🔒Private</b>\n\n" +
-                    "Leave README/.gitignore/license unset so the remote starts empty."
-                );
-            } else {
-                git_guided_repo_manual_instructions_label.set_markup(
-                    "Fill in the repository name, and you need to tell us the same name below.\n\n" +
-                    "You can leave the description blank.\n\n" +
-                    "<b>Under 2. Configuration\n" +
-                    "there is \"Choose visibility *\"\n" +
-                    "Change the drop down to 🔒Private</b>\n\n" +
-                    "We want the external repository to be empty, so leave the next three options alone.\n\n" +
-                    "So under \"Add README\", leave it \"Off\"\n" +
-                    "Under \"Add .gitignore\", leave it at \"No .gitignore\"\n" +
-                    "Under \"Add license\", leave it at \"No licence\"\n\n" +
-                    "Click the green button called \"Create repository\""
-                );
-            }
+            git_guided_repo_manual_instructions_label.set_markup(
+                presentation.repo_manual_instructions_markup
+            );
         }
 
         if (git_gh_cli_status_label != null) {
-            if (!git_gh_available) {
-                git_gh_cli_status_label.set_text(
-                    "GitHub CLI not detected. Install `gh` to enable automatic username and repo creation."
-                );
-            } else if (!git_gh_authenticated) {
-                git_gh_cli_status_label.set_text(
-                    "GitHub CLI detected, but not authenticated. Run `gh auth login` in a terminal to enable automation."
-                );
-            } else {
-                git_gh_cli_status_label.set_text(
-                    "GitHub CLI authenticated as `%s`. Use the automatic button above to create repo, set remote, and push."
-                        .printf(git_gh_login)
-                );
-            }
+            git_gh_cli_status_label.set_text(presentation.cli_status_text);
         }
         if (git_gh_cli_auto_btn != null) {
-            git_gh_cli_auto_btn.set_visible(git_gh_available);
-            git_gh_cli_auto_btn.set_sensitive(git_gh_authenticated && git_gh_login.strip().length > 0);
+            git_gh_cli_auto_btn.set_visible(presentation.cli_buttons_visible);
+            git_gh_cli_auto_btn.set_sensitive(presentation.cli_buttons_sensitive);
         }
         if (git_gh_cli_guided_btn != null) {
-            git_gh_cli_guided_btn.set_visible(git_gh_available);
-            git_gh_cli_guided_btn.set_sensitive(git_gh_authenticated && git_gh_login.strip().length > 0);
+            git_gh_cli_guided_btn.set_visible(presentation.cli_buttons_visible);
+            git_gh_cli_guided_btn.set_sensitive(presentation.cli_buttons_sensitive);
         }
         if (git_guided_create_repo_cli_btn != null) {
-            git_guided_create_repo_cli_btn.set_visible(git_gh_authenticated && git_gh_login.strip().length > 0);
-            git_guided_create_repo_cli_btn.set_sensitive(git_gh_authenticated && git_gh_login.strip().length > 0);
+            git_guided_create_repo_cli_btn.set_visible(presentation.cli_buttons_sensitive);
+            git_guided_create_repo_cli_btn.set_sensitive(presentation.cli_buttons_sensitive);
         }
     }
 
@@ -1110,34 +1075,22 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         var host_value = git_provider_host_entry != null
             ? git_provider_host_entry.get_text().strip()
             : "";
-        var transport = selected_provider_transport();
-        var template_text = transport == "https" ? provider.https_example : provider.ssh_example;
-        if (template_text.strip().length == 0) {
-            template_text = transport == "https"
-                ? "https://{host}/{owner}/{repo}.git"
-                : "git@{host}:{owner}/{repo}.git";
-        }
-        if (host_value.length == 0) {
-            if (provider.id == "github") host_value = "github.com";
-            else if (provider.id == "gitlab") host_value = "gitlab.com";
-            else if (provider.id == "bitbucket") host_value = "bitbucket.org";
-            else if (provider.id == "codeberg") host_value = "codeberg.org";
-            else if (provider.id == "sourcehut") host_value = "git.sr.ht";
-        }
-
-        var remote_url = controller.fill_remote_template(template_text, namespace_value, repo_value, host_value);
+        var preview = GitSyncPresenter.provider_remote_preview(
+            provider,
+            selected_provider_transport(),
+            namespace_value,
+            repo_value,
+            host_value
+        );
         if (git_provider_host_row != null) {
-            var needs_host = template_text.contains("{host}") || template_text.contains("{region}");
-            git_provider_host_row.set_visible(needs_host);
-            if (!needs_host) {
+            git_provider_host_row.set_visible(preview.needs_host);
+            if (preview.clear_host) {
                 git_provider_host_entry.set_text("");
             }
         }
-        git_provider_remote_entry.set_text(remote_url);
+        git_provider_remote_entry.set_text(preview.remote_url);
         if (git_provider_template_label != null) {
-            git_provider_template_label.set_text(
-                "Template: %s\nYou can edit Remote URL directly before saving.".printf(template_text)
-            );
+            git_provider_template_label.set_text(preview.template_label);
         }
     }
 
@@ -1278,19 +1231,22 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     }
 
     private void set_guided_key_ui_visibility(bool has_key) {
+        var presentation = GitSyncPresenter.guided_ssh_key_ui(
+            has_key,
+            git_guided_github_authenticated,
+            git_guided_public_key
+        );
         if (git_guided_missing_key_box != null) {
-            git_guided_missing_key_box.set_visible(!has_key);
+            git_guided_missing_key_box.set_visible(presentation.missing_key_visible);
         }
         if (git_guided_key_ready_box != null) {
-            git_guided_key_ready_box.set_visible(has_key && !git_guided_github_authenticated);
+            git_guided_key_ready_box.set_visible(presentation.key_ready_visible);
         }
         if (git_guided_copy_key_btn != null) {
-            git_guided_copy_key_btn.set_sensitive(has_key &&
-                                                  !git_guided_github_authenticated &&
-                                                  git_guided_public_key.strip().length > 0);
+            git_guided_copy_key_btn.set_sensitive(presentation.copy_key_sensitive);
         }
         if (git_guided_open_keys_btn != null) {
-            git_guided_open_keys_btn.set_visible(!git_guided_github_authenticated);
+            git_guided_open_keys_btn.set_visible(presentation.open_keys_visible);
         }
     }
 
@@ -1342,29 +1298,12 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         git_guided_pubkey_view.buffer.set_text(git_guided_public_key, -1);
         set_guided_key_ui_visibility(git_guided_public_key.length > 0);
 
-        var probe_plain = (yield controller.probe_github_ssh()).strip();
-        var probe = probe_plain.down();
-        if (probe.contains("successfully authenticated")) {
-            git_guided_github_authenticated = true;
-            set_guided_key_ui_visibility(true);
-            git_guided_ssh_status_label.set_text("SSH key found and authenticated with GitHub. You're all set.");
-        } else if (probe.contains("permission denied")) {
-            git_guided_github_authenticated = false;
-            set_guided_key_ui_visibility(true);
-            git_guided_ssh_status_label.set_text(
-                "SSH key found locally, but GitHub rejected authentication. Copy this key and add it at GitHub SSH settings."
-            );
-        } else if (probe_plain.strip().length > 0) {
-            git_guided_github_authenticated = false;
-            set_guided_key_ui_visibility(true);
-            git_guided_ssh_status_label.set_text(
-                "SSH key found locally. GitHub verification result: %s".printf(probe_plain.strip())
-            );
-        } else {
-            git_guided_github_authenticated = false;
-            set_guided_key_ui_visibility(true);
-            git_guided_ssh_status_label.set_text("SSH key found locally. Could not verify with GitHub.");
-        }
+        var probe_result = GitSyncPresenter.guided_ssh_probe_status(
+            yield controller.probe_github_ssh()
+        );
+        git_guided_github_authenticated = probe_result.authenticated;
+        set_guided_key_ui_visibility(true);
+        git_guided_ssh_status_label.set_text(probe_result.status_text);
         git_guided_check_running = false;
     }
 

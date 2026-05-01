@@ -108,6 +108,23 @@ class Runner:
             print("Use ./make.sh linux for the headless xvfb runner.", file=sys.stderr)
             raise SystemExit(1)
 
+    def restart_headed_accessibility_bus(self) -> None:
+        self.require_cmd("systemctl", "Install systemd tools or use ./make.sh linux for headless mode.")
+        cmd = ["systemctl", "--user", "restart", "at-spi-dbus-bus.service"]
+        print("Restarting desktop accessibility bus:", " ".join(cmd), flush=True)
+        proc = subprocess.run(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            print("Failed to restart AT-SPI accessibility bus.", file=sys.stderr)
+            if proc.stderr.strip():
+                print(proc.stderr.strip(), file=sys.stderr)
+            raise SystemExit(proc.returncode)
+
     def behave_env(self, headless: bool) -> dict[str, str]:
         env = os.environ.copy()
         env["HOLDER_FRONTEND_TARGET"] = "linux"
@@ -122,6 +139,16 @@ class Runner:
             env.pop("WAYLAND_DISPLAY", None)
             env.pop("SWAYSOCK", None)
         return env
+
+    def write_gtk4_test_css(self, config_dir: Path) -> None:
+        gtk4_dir = config_dir / "gtk-4.0"
+        gtk4_dir.mkdir(parents=True, exist_ok=True)
+        (gtk4_dir / "gtk.css").write_text(
+            "window, .popover, .tooltip {\n"
+            "    box-shadow: none;\n"
+            "}\n",
+            encoding="utf-8",
+        )
 
     def run_with_isolated_backend(self, command: list[str], env: dict[str, str]) -> None:
         self.require_cmd("mktemp", "Install coreutils from your package manager.")
@@ -144,6 +171,7 @@ class Runner:
             data.mkdir(parents=True, exist_ok=True)
             config.mkdir(parents=True, exist_ok=True)
             cache.mkdir(parents=True, exist_ok=True)
+            self.write_gtk4_test_css(config)
             os.chmod(xdg_root_path, 0o700)
 
             run_env = env.copy()
@@ -257,14 +285,16 @@ class Runner:
                 "-screen 0 1920x1080x24",
             ] + behave_cmd
         else:
-            self.require_headed_session(self.behave_env(headless=False))
+            headed_env = self.behave_env(headless=False)
+            self.require_headed_session(headed_env)
+            self.restart_headed_accessibility_bus()
             print("Mode: headed (visible desktop session)")
 
         self.run_with_isolated_backend(behave_cmd, env=self.behave_env(headless=headless))
 
 
 def print_usage() -> None:
-    print("Usage: ./make.sh [linux [--headless|--headed]|deps-ubuntu|install-dev]")
+    print("Usage: ./make.sh [[linux] [--headless|--headed]|deps-ubuntu|install-dev]")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -292,9 +322,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def normalize_args(argv: list[str]) -> list[str]:
+    if argv and argv[0].startswith("--"):
+        return ["linux"] + argv
+    return argv
+
+
 def main() -> int:
     runner = Runner()
-    args = parse_args(sys.argv[1:])
+    args = parse_args(normalize_args(sys.argv[1:]))
     if args.mode == "deps-ubuntu":
         print("sudo apt update")
         print(

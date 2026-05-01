@@ -2,6 +2,20 @@ using GLib;
 
 namespace HolderLinuxTests {
 
+private class FakeUriLauncher : Object, HolderLinux.IUriLauncher {
+    public int launch_calls = 0;
+    public string last_uri = "";
+    public bool fail_launch = false;
+
+    public void launch(string uri) throws Error {
+        if (fail_launch) {
+            throw new IOError.FAILED("launch failed");
+        }
+        launch_calls++;
+        last_uri = uri;
+    }
+}
+
 private string collect_widget_text(Gtk.Widget widget) {
     if (widget is Gtk.Label) {
         return ((Gtk.Label) widget).get_text();
@@ -173,6 +187,21 @@ private void test_idle_and_refresh_without_api() {
     assert(collect_widget_text(view.widget).contains("Connect to holderd to configure AI."));
 }
 
+private void test_set_api_client_null_resets_state() {
+    var api = new MainControllerFakeApi();
+    api.ai_runners.add(runner("r1", "Local Ollama", "manual", true, "http://localhost:11434", {"llama"}));
+
+    var view = new HolderLinux.AiConfigPanelView();
+    view.set_api_client(api);
+    refresh_view(view);
+    assert(collect_widget_text(view.widget).contains("Local Ollama"));
+
+    view.set_api_client(null);
+    var text = collect_widget_text(view.widget);
+    assert(text.contains("Connect to holderd to configure AI."));
+    assert(!text.contains("Local Ollama"));
+}
+
 private void test_render_local_models_and_install_signal() {
     var view = new HolderLinux.AiConfigPanelView();
     var recommended = strings({"llama3.2", "mistral"});
@@ -257,6 +286,59 @@ private void test_refresh_renders_runners_providers_and_model_config() {
     assert(dropdown_item_count(dropdowns[2]) == 4);
 }
 
+private void test_local_model_refresh_cancels_pending_save() {
+    var api = new MainControllerFakeApi();
+    api.ai_runners.add(runner("r1", "Local Ollama", "manual", true, "http://localhost:11434", {"llama3.2"}));
+
+    var view = new HolderLinux.AiConfigPanelView();
+    view.set_api_client(api);
+    refresh_view(view);
+
+    string debug_line = "";
+    view.debug_log_requested.connect((line) => {
+        debug_line = line;
+    });
+
+    var dropdowns = new Gee.ArrayList<Gtk.DropDown>();
+    collect_dropdowns(view.widget, dropdowns);
+    assert(dropdowns.size == 3);
+    dropdowns[0].set_selected(1);
+    assert(debug_line == "Saving local model preferences...");
+
+    refresh_view(view);
+    assert(wait_for_condition(() => api.set_ai_local_model_config_calls == 0, 700));
+}
+
+private void test_local_model_save_failure_reports_error() {
+    var api = new MainControllerFakeApi();
+    api.fail_set_ai_local_model_config = true;
+    api.ai_runners.add(runner("r1", "Local Ollama", "manual", true, "http://localhost:11434", {"llama3.2"}));
+
+    var view = new HolderLinux.AiConfigPanelView();
+    view.set_api_client(api);
+    refresh_view(view);
+
+    string error_title = "";
+    string error_details = "";
+    string debug_line = "";
+    view.error_reported.connect((title, details) => {
+        error_title = title;
+        error_details = details;
+    });
+    view.debug_log_requested.connect((line) => {
+        debug_line = line;
+    });
+
+    var dropdowns = new Gee.ArrayList<Gtk.DropDown>();
+    collect_dropdowns(view.widget, dropdowns);
+    assert(dropdowns.size == 3);
+    dropdowns[0].set_selected(1);
+
+    assert(wait_for_condition(() => debug_line.has_prefix("Save local model config failed:"), 1500));
+    assert(error_title == "AI Config");
+    assert(error_details == "set local model config failed");
+}
+
 private void test_refresh_failure_reports_error() {
     var api = new MainControllerFakeApi();
     api.fail_list_ai_runtime_providers = true;
@@ -280,6 +362,67 @@ private void test_refresh_failure_reports_error() {
     assert(error_title == "AI Config");
     assert(error_details == "list AI runtime providers failed");
     assert(debug_line == "AI Config load failed: list AI runtime providers failed");
+}
+
+private void test_manual_runner_validation_failure_and_switch_update() {
+    var api = new MainControllerFakeApi();
+    api.ai_runners.add(runner("r1", "Runner One", "manual", true, "http://old:11434", {"llama"}));
+
+    var view = new HolderLinux.AiConfigPanelView();
+    view.set_api_client(api);
+    refresh_view(view);
+
+    string error_title = "";
+    string error_details = "";
+    string debug_line = "";
+    view.error_reported.connect((title, details) => {
+        error_title = title;
+        error_details = details;
+    });
+    view.debug_log_requested.connect((line) => {
+        debug_line = line;
+    });
+
+    ((!) find_button_with_label(view.widget, "Add Runner")).clicked();
+    assert(error_title == "AI Config");
+    assert(error_details == "Runner name and base URL are required.");
+
+    var add_name_entry = find_entry_with_placeholder(view.widget, "Runner name");
+    var add_url_entry = find_entry_with_placeholder(view.widget, "http://host:11434");
+    assert(add_name_entry != null);
+    assert(add_url_entry != null);
+    ((!) add_name_entry).set_text("Runner Fail");
+    ((!) add_url_entry).set_text("http://fail:11434");
+    api.fail_create_ai_runner = true;
+    ((!) find_button_with_label(view.widget, "Add Runner")).clicked();
+    assert(wait_for_condition(() => debug_line.has_prefix("Create runner failed:"), 1500));
+    assert(error_details == "create AI runner failed");
+
+    var edit_name_entry = find_entry_with_text(view.widget, "Runner One");
+    assert(edit_name_entry != null);
+    ((!) edit_name_entry).set_text(" ");
+    ((!) find_button_with_label(view.widget, "Save")).clicked();
+    assert(error_details == "Runner name and base URL are required.");
+
+    ((!) edit_name_entry).set_text("Runner Two");
+    api.fail_update_ai_runner = true;
+    ((!) find_button_with_label(view.widget, "Save")).clicked();
+    assert(wait_for_condition(() => debug_line.has_prefix("Update runner failed (r1):"), 1500));
+    assert(error_details == "update AI runner failed");
+
+    api.fail_update_ai_runner = false;
+    var switches = new Gee.ArrayList<Gtk.Switch>();
+    collect_switches(view.widget, switches);
+    assert(switches.size == 1);
+    switches[0].set_active(false);
+    assert(wait_for_condition(() => api.update_ai_runner_calls == 1));
+    assert(api.last_ai_runner_id == "r1");
+    assert(!api.last_ai_runner_enabled);
+
+    api.fail_delete_ai_runner = true;
+    ((!) find_button_with_label(view.widget, "Delete")).clicked();
+    assert(wait_for_condition(() => debug_line.has_prefix("Delete runner failed (r1):"), 1500));
+    assert(error_details == "delete AI runner failed");
 }
 
 private void test_manual_runner_create_update_delete() {
@@ -327,6 +470,112 @@ private void test_manual_runner_create_update_delete() {
     assert(wait_for_condition(() => api.delete_ai_runner_calls == 1));
     assert(api.last_ai_runner_id == "r1");
     assert(debug_line == "Deleted AI runner: r1");
+}
+
+private void test_provider_fallback_rendering_and_empty_key_validation() {
+    var api = new MainControllerFakeApi();
+    api.ai_runtime_providers.add(new HolderLinux.AiRuntimeProvider(
+        "anthropic",
+        "",
+        true,
+        false,
+        "",
+        ""
+    ));
+
+    var view = new HolderLinux.AiConfigPanelView();
+    view.set_api_client(api);
+    refresh_view(view);
+
+    var text = collect_widget_text(view.widget);
+    assert(text.contains("anthropic"));
+    assert(text.contains("Configured: no"));
+    assert(find_entry_with_placeholder(view.widget, "Paste API key") != null);
+
+    string error_details = "";
+    view.error_reported.connect((title, details) => {
+        error_details = details;
+    });
+    ((!) find_button_with_label(view.widget, "Save Key")).clicked();
+    assert(error_details == "API key cannot be empty.");
+}
+
+private void test_provider_failure_paths_report_errors() {
+    var api = new MainControllerFakeApi();
+    api.ai_runtime_providers.add(provider("openai", "OpenAI", true, true));
+    api.ai_provider_credentials.add(new HolderLinux.AiProviderCredentialState("openai", true, "sk-...1234", 1));
+    api.ai_provider_settings.add(new HolderLinux.AiProviderSettingState("openai", true, 1));
+
+    var view = new HolderLinux.AiConfigPanelView();
+    view.set_api_client(api);
+    refresh_view(view);
+
+    string error_details = "";
+    string debug_line = "";
+    view.error_reported.connect((title, details) => {
+        error_details = details;
+    });
+    view.debug_log_requested.connect((line) => {
+        debug_line = line;
+    });
+
+    var key_entry = find_entry_with_placeholder(view.widget, "Saved: sk-...1234");
+    assert(key_entry != null);
+    ((!) key_entry).set_text("sk-live");
+    api.fail_upsert_ai_provider_credential = true;
+    ((!) find_button_with_label(view.widget, "Save Key")).clicked();
+    assert(wait_for_condition(() => debug_line.has_prefix("Save key failed (openai):"), 1500));
+    assert(error_details == "save provider credential failed");
+
+    api.fail_delete_ai_provider_credential = true;
+    ((!) find_button_with_label(view.widget, "Remove Key")).clicked();
+    assert(wait_for_condition(() => debug_line.has_prefix("Remove key failed (openai):"), 1500));
+    assert(error_details == "delete provider credential failed");
+
+    api.fail_set_ai_provider_enabled = true;
+    var switches = new Gee.ArrayList<Gtk.Switch>();
+    collect_switches(view.widget, switches);
+    assert(switches.size == 1);
+    switches[0].set_active(false);
+    assert(wait_for_condition(() => debug_line.has_prefix("Set enabled failed (openai):"), 1500));
+    assert(error_details == "set provider enabled failed");
+}
+
+private void test_provider_setup_and_docs_links_use_uri_launcher() {
+    var api = new MainControllerFakeApi();
+    api.ai_runtime_providers.add(provider("openai", "OpenAI", true, false));
+    var launcher = new FakeUriLauncher();
+
+    var view = new HolderLinux.AiConfigPanelView(launcher);
+    view.set_api_client(api);
+    refresh_view(view);
+
+    ((!) find_button_with_label(view.widget, "Setup")).clicked();
+    assert(launcher.launch_calls == 1);
+    assert(launcher.last_uri == "https://setup.example/openai");
+
+    ((!) find_button_with_label(view.widget, "Docs")).clicked();
+    assert(launcher.launch_calls == 2);
+    assert(launcher.last_uri == "https://docs.example/openai");
+}
+
+private void test_provider_link_blank_and_failure_paths() {
+    var launcher = new FakeUriLauncher();
+    var view = new HolderLinux.AiConfigPanelView(launcher);
+
+    view.open_provider_link("   ");
+    assert(launcher.launch_calls == 0);
+
+    string error_title = "";
+    string error_details = "";
+    view.error_reported.connect((title, details) => {
+        error_title = title;
+        error_details = details;
+    });
+    launcher.fail_launch = true;
+    view.open_provider_link("https://setup.example/openai");
+    assert(error_title == "AI Config");
+    assert(error_details == "launch failed");
 }
 
 private void test_provider_key_and_enabled_actions() {
@@ -380,11 +629,11 @@ private void test_local_model_dropdown_saves_preferences() {
     assert(dropdowns.size == 3);
     dropdowns[0].set_selected(1);
 
-    assert(wait_for_condition(() => api.set_ai_local_model_config_calls == 1, 1500));
+    assert(wait_for_condition(() => debug_line == "Saved local model preferences.", 1500));
+    assert(api.set_ai_local_model_config_calls == 1);
     assert(api.last_fast_model == "r1::llama3.2");
     assert(api.last_strong_model == null);
     assert(api.last_deep_model == null);
-    assert(debug_line == "Saved local model preferences.");
 }
 
 public static int main(string[] args) {
@@ -396,10 +645,18 @@ public static int main(string[] args) {
     Adw.init();
 
     Test.add_func("/ai_config_panel_view/idle_and_refresh_without_api", test_idle_and_refresh_without_api);
+    Test.add_func("/ai_config_panel_view/set_api_client_null_resets_state", test_set_api_client_null_resets_state);
     Test.add_func("/ai_config_panel_view/render_local_models_and_install_signal", test_render_local_models_and_install_signal);
     Test.add_func("/ai_config_panel_view/refresh_renders_runners_providers_and_model_config", test_refresh_renders_runners_providers_and_model_config);
+    Test.add_func("/ai_config_panel_view/local_model_refresh_cancels_pending_save", test_local_model_refresh_cancels_pending_save);
+    Test.add_func("/ai_config_panel_view/local_model_save_failure_reports_error", test_local_model_save_failure_reports_error);
     Test.add_func("/ai_config_panel_view/refresh_failure_reports_error", test_refresh_failure_reports_error);
+    Test.add_func("/ai_config_panel_view/manual_runner_validation_failure_and_switch_update", test_manual_runner_validation_failure_and_switch_update);
     Test.add_func("/ai_config_panel_view/manual_runner_create_update_delete", test_manual_runner_create_update_delete);
+    Test.add_func("/ai_config_panel_view/provider_fallback_rendering_and_empty_key_validation", test_provider_fallback_rendering_and_empty_key_validation);
+    Test.add_func("/ai_config_panel_view/provider_failure_paths_report_errors", test_provider_failure_paths_report_errors);
+    Test.add_func("/ai_config_panel_view/provider_setup_and_docs_links_use_uri_launcher", test_provider_setup_and_docs_links_use_uri_launcher);
+    Test.add_func("/ai_config_panel_view/provider_link_blank_and_failure_paths", test_provider_link_blank_and_failure_paths);
     Test.add_func("/ai_config_panel_view/provider_key_and_enabled_actions", test_provider_key_and_enabled_actions);
     Test.add_func("/ai_config_panel_view/local_model_dropdown_saves_preferences", test_local_model_dropdown_saves_preferences);
     return Test.run();

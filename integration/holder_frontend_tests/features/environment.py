@@ -27,6 +27,21 @@ def before_all(context):
         )
 
 
+def _has_tag(scenario, tag: str) -> bool:
+    tags = getattr(scenario, "effective_tags", scenario.tags)
+    return tag in tags
+
+
+def before_scenario(context, scenario):
+    if _has_tag(scenario, "isolated") and hasattr(context, "driver"):
+        context.driver.shutdown()
+
+
 def after_scenario(context, scenario):
+    if _has_tag(scenario, "isolated") and hasattr(context, "driver"):
+        context.driver.shutdown()
+
+
+def after_all(context):
     if hasattr(context, "driver"):
         context.driver.shutdown()

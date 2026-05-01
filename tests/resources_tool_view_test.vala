@@ -131,9 +131,6 @@ private void test_refresh_with_resources_updates_list_and_selection_actions() {
     assert(wait_for_condition(() => resources_item_count(view) == 2));
     assert(!resources_empty_label(view).get_visible());
     assert(api.last_resource_project_id == "p1");
-    assert(!resources_action_button(view, "Open").get_sensitive());
-
-    select_resource_index(view, 0);
     assert(wait_for_condition(() => resources_action_button(view, "Open").get_sensitive()));
     assert(resources_action_button(view, "Edit").get_sensitive());
     assert(resources_action_button(view, "Delete").get_sensitive());

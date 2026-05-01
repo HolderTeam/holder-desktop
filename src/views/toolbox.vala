@@ -199,6 +199,7 @@ public class ToolboxPane : Object {
 
     private Gtk.Widget build_ui() {
         var frame = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        frame.update_property(Gtk.AccessibleProperty.LABEL, "Toolbox", -1);
         frame.set_margin_top(6);
         frame.set_margin_bottom(6);
         frame.set_margin_start(6);
@@ -206,6 +207,7 @@ public class ToolboxPane : Object {
         frame.add_css_class("toolbar");
 
         var switcher = new Gtk.StackSwitcher();
+        switcher.update_property(Gtk.AccessibleProperty.LABEL, "Toolbox tool switcher", -1);
         header_breadcrumbs = new NavigationBreadcrumbs();
         header_breadcrumbs.segment_activated.connect((index) => {
             on_header_breadcrumb_clicked(index);
@@ -394,6 +396,23 @@ public class ToolboxPane : Object {
         }
         ((!) toolbox_stack).set_visible_child_name(tool_id);
         apply_shell_state();
+    }
+
+    public bool is_showing_tool(string tool_id) {
+        return current_tool_id() == tool_id;
+    }
+
+    public void request_flowboard_child_or_current_level_card() {
+        var selected_card = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary
+            : null;
+        if (selected_card != null) {
+            flowboard_new_card_requested(selected_card.card_id);
+            return;
+        }
+        if (flowboard_tool != null) {
+            flowboard_tool.request_create_card_here();
+        }
     }
 
     private Gtk.Widget build_sharing_tab() {

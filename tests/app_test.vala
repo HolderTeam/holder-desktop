@@ -55,10 +55,18 @@ private void test_constructor_registers_expected_accels() {
     assert(new_card.length == 1);
     assert(contains_strv(new_card, "<Primary>n") || contains_strv(new_card, "<Control>n"));
 
+    var flowboard_child = app.get_accels_for_action("win.flowboard-new-child-card");
+    assert(flowboard_child.length == 1);
+    assert(contains_strv(flowboard_child, "<Primary><Alt>n") || contains_strv(flowboard_child, "<Control><Alt>n"));
+
     var find_replace = app.get_accels_for_action("win.find-replace");
     assert(find_replace.length == 2);
     assert(contains_strv(find_replace, "<Primary>f") || contains_strv(find_replace, "<Control>f"));
     assert(contains_strv(find_replace, "<Primary>h") || contains_strv(find_replace, "<Control>h"));
+
+    var preferences = app.get_accels_for_action("win.show-preferences");
+    assert(preferences.length == 1);
+    assert(contains_strv(preferences, "<Primary>comma") || contains_strv(preferences, "<Control>comma"));
 }
 
 private void test_activate_creates_main_window_once() {

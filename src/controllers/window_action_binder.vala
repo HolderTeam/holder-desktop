@@ -6,6 +6,8 @@ internal interface IWindowActionSink : Object {
     public abstract void on_refresh_requested();
     public abstract void on_new_project_requested();
     public abstract void on_new_card_requested();
+    public abstract void on_flowboard_new_child_card_requested();
+    public abstract void on_move_selected_card_to_trash_requested();
     public abstract void on_toggle_toolbox_requested();
     public abstract void on_find_replace_requested();
     public abstract void on_print_requested();
@@ -32,6 +34,12 @@ internal class WindowActionBinder : Object {
         });
         bind_action("new-card", () => {
             sink.on_new_card_requested();
+        });
+        bind_action("flowboard-new-child-card", () => {
+            sink.on_flowboard_new_child_card_requested();
+        });
+        bind_action("move-selected-card-to-trash", () => {
+            sink.on_move_selected_card_to_trash_requested();
         });
         bind_action("toggle-toolbox", () => {
             sink.on_toggle_toolbox_requested();

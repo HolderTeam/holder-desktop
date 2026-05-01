@@ -1,0 +1,150 @@
+@linux
+Feature: Core app run book
+  As a Holder user
+  I want the app to start and support the main card workflows
+  So that I can create, organise, find, connect, and recover my cards
+
+  Scenario: Arrive in the app shell
+    Given the Holder frontend is running
+    Then I should see the app shell
+
+  Scenario: Create a project
+    Given the Holder frontend is running
+    When I create project "Runbook Project"
+    Then I should see project "Runbook Project"
+
+  Scenario: Create a card from the toolbar
+    Given the Holder frontend is running
+    When I create a new card
+    Then I should see a card titled "Untitled"
+
+  Scenario: Edit a card and find it from search
+    Given the Holder frontend is running
+    When I replace the editor text with
+      """
+      # Runbook Search Card
+
+      This card includes runbook-search-token.
+      """
+    Then I should see save state "Saved"
+    And I should see a card titled "Runbook Search Card"
+    When I search cards for "runbook-search-token"
+    Then I should see search result "Runbook Search Card"
+    When I open search result "Runbook Search Card"
+    Then the editor should contain "runbook-search-token"
+
+  Scenario: Use find and replace in the editor
+    Given the Holder frontend is running
+    When I replace all "runbook-search-token" with "runbook-replaced-token"
+    Then the editor should contain "runbook-replaced-token"
+    And the editor should not contain "runbook-search-token"
+    Then I should see save state "Saved"
+    When I search cards for "runbook-replaced-token"
+    Then I should see search result "Runbook Search Card"
+
+  Scenario: Toggle find and replace panel visibility
+    Given the Holder frontend is running
+    When I open find and replace
+    Then I should see the find and replace panel
+    When I toggle find and replace
+    Then I should not see the find and replace panel
+    When I toggle find and replace
+    Then I should see the find and replace panel
+
+  Scenario: Open preferences
+    Given the Holder frontend is running
+    When I open preferences
+    Then I should see preferences options
+    When I close preferences
+    Then I should not see preferences
+
+  Scenario: Use search and AI side panels
+    Given the Holder frontend is running
+    Then I should see the search panel
+    When I toggle the AI panel
+    Then I should see the AI panel
+    And I toggle the AI panel
+
+  Scenario: Open toolbox
+    Given the Holder frontend is running
+    When I open the toolbox panel
+    Then I should see the toolbox shell
+    And I should see toolbox content "Flowboard"
+    When I toggle the toolbox panel
+    Then I should not see the toolbox panel
+
+  Scenario: Use Flowboard
+    Given the Holder frontend is running
+    When I open the toolbox panel
+    And I switch to toolbox tool "Flowboard"
+    Then I should see flowboard card "Runbook Search Card"
+    When I create a child card from flowboard card "Runbook Search Card"
+    And I replace the editor text with
+      """
+      # Flowboard Child Card
+
+      This child was created from the Flowboard shortcut.
+      """
+    Then I should see save state "Saved"
+    And I should see a card titled "Flowboard Child Card"
+    And I should see flowboard card "Runbook Search Card"
+    When I toggle the toolbox panel
+    Then I should not see the toolbox panel
+
+  Scenario: Use Connections
+    Given the Holder frontend is running
+    When I open the toolbox panel
+    And I switch to toolbox tool "Connections"
+    Then I should see Connections parent "Runbook Search Card"
+    When I add a graph link from the selected card to "Runbook Search Card"
+    Then I should see a Connections graph link to "Runbook Search Card"
+    When I toggle the toolbox panel
+    Then I should not see the toolbox panel
+
+  Scenario: Toggle toolbox panel visibility
+    Given the Holder frontend is running
+    When I toggle the toolbox panel
+    Then I should see the toolbox panel
+    And I toggle the toolbox panel
+    Then I should not see the toolbox panel
+
+  Scenario: Walk toolbox views
+    Given the Holder frontend is running
+    When I open the toolbox panel
+    Then I should see toolbox content "Flowboard"
+    When I switch to toolbox tool "Connections"
+    Then I should see toolbox content "Add graph connection"
+    When I switch to toolbox tool "Resources"
+    Then I should see toolbox content "No resources in this project."
+    When I switch to toolbox tool "Sharing"
+    Then I should see toolbox content "Send card as email"
+    When I switch to toolbox tool "Terminals"
+    Then I should see toolbox content "New Terminal"
+    When I switch to toolbox tool "Git Sync"
+    Then I should see toolbox content "Guided (I'm new to this)"
+    When I switch to toolbox tool "Recovery Key"
+    Then I should see toolbox content "Email Recovery Key"
+    When I switch to toolbox tool "Trash"
+    Then I should see toolbox content "No deleted items in this project."
+    When I switch to toolbox tool "Debug"
+    Then I should see toolbox content "Clear"
+
+  Scenario: Add, filter, and delete a project resource
+    Given the Holder frontend is running
+    When I open the toolbox panel
+    And I add URL resource "Runbook Resource" with URI "https://holder.team/runbook"
+    Then I should see toolbox content "Runbook Resource"
+    When I filter resources for "Runbook"
+    Then I should see toolbox content "Runbook Resource"
+    When I delete resource "Runbook Resource"
+    Then I should see toolbox content "No resources in this project."
+
+  Scenario: Move a card to Trash and restore it
+    Given the Holder frontend is running
+    When I move card "Flowboard Child Card" to Trash
+    And I open the toolbox panel
+    And I switch to toolbox tool "Trash"
+    Then I should see trashed card "Flowboard Child Card"
+    When I restore card "Flowboard Child Card" from Trash
+    Then I should see toolbox content "No deleted items in this project."
+    And I should see flowboard card "Flowboard Child Card"
