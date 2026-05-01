@@ -1,8 +1,8 @@
 @linux
 Feature: Core app run book
   As a Holder user
-  I want the core app flows to work in one session
-  So that the integration suite follows real usage rather than restarting per check
+  I want the app to start and support the main card workflows
+  So that I can create, organise, find, connect, and recover my cards
 
   Scenario: Arrive in the app shell
     Given the Holder frontend is running

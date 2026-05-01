@@ -294,7 +294,7 @@ class Runner:
 
 
 def print_usage() -> None:
-    print("Usage: ./make.sh [linux [--headless|--headed]|deps-ubuntu|install-dev]")
+    print("Usage: ./make.sh [[linux] [--headless|--headed]|deps-ubuntu|install-dev]")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -322,9 +322,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def normalize_args(argv: list[str]) -> list[str]:
+    if argv and argv[0].startswith("--"):
+        return ["linux"] + argv
+    return argv
+
+
 def main() -> int:
     runner = Runner()
-    args = parse_args(sys.argv[1:])
+    args = parse_args(normalize_args(sys.argv[1:]))
     if args.mode == "deps-ubuntu":
         print("sudo apt update")
         print(

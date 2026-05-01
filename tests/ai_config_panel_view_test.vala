@@ -380,11 +380,11 @@ private void test_local_model_dropdown_saves_preferences() {
     assert(dropdowns.size == 3);
     dropdowns[0].set_selected(1);
 
-    assert(wait_for_condition(() => api.set_ai_local_model_config_calls == 1, 1500));
+    assert(wait_for_condition(() => debug_line == "Saved local model preferences.", 1500));
+    assert(api.set_ai_local_model_config_calls == 1);
     assert(api.last_fast_model == "r1::llama3.2");
     assert(api.last_strong_model == null);
     assert(api.last_deep_model == null);
-    assert(debug_line == "Saved local model preferences.");
 }
 
 public static int main(string[] args) {
