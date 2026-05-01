@@ -122,8 +122,8 @@ class LinuxDogtailDriver(FrontendDriver):
         return self._has_visible_named(text, timeout=20.0)
 
     def open_search_result(self, text: str) -> None:
-        result = self._wait_for(lambda: self._find_named(self._current_window(), text), timeout=20.0)
-        self._click_node(result)
+        result = self._wait_for(lambda: self._find_search_result_title(text), timeout=20.0)
+        self._activate_list_item_for_child(result)
         self._wait_for(lambda: self._find_editor_text_node(), timeout=20.0)
 
     def replace_all_in_editor(self, find_text: str, replace_text: str) -> None:
@@ -705,6 +705,47 @@ class LinuxDogtailDriver(FrontendDriver):
         if not matches:
             return None
         return max(matches, key=self._node_area)
+
+    def _find_search_result_title(self, title: str):
+        window = self._current_window()
+        matches = window.findChildren(
+            lambda node: (
+                getattr(node, "name", "") == title
+                and getattr(node, "roleName", "") == "label"
+                and getattr(node, "showing", True)
+                and getattr(node, "visible", True)
+            )
+        )
+        for node in matches:
+            if self._ancestor_with_role(node, ("list item",)) is not None:
+                return node
+        return None
+
+    def _activate_list_item_for_child(self, node) -> None:
+        list_item = self._ancestor_with_role(node, ("list item",))
+        if list_item is not None:
+            for action_name in ("activate", "click", "press", "select"):
+                try:
+                    list_item.doActionNamed(action_name)
+                    return
+                except Exception:
+                    pass
+            self._click_node(list_item)
+            return
+        self._click_node(node)
+
+    @staticmethod
+    def _ancestor_with_role(node, role_names: tuple[str, ...]):
+        current = node
+        wanted = {role.lower() for role in role_names}
+        for _ in range(8):
+            role = (getattr(current, "roleName", "") or "").lower()
+            if role in wanted:
+                return current
+            current = getattr(current, "parent", None)
+            if current is None:
+                break
+        return None
 
     def _visible_text_contains(self, text: str, scope=None) -> bool:
         search_scope = scope if scope is not None else self._current_window()
