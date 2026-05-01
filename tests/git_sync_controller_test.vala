@@ -644,6 +644,28 @@ private void test_run_github_guided_sync_flow_builds_status_and_toast() {
     assert(out_result.toast_message == "Git sync setup completed.");
 }
 
+private void test_run_github_guided_sync_flow_reports_never_for_missing_last_push() {
+    var service = new FakeGitSyncService();
+    var controller = new HolderLinux.GitSyncController(service);
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    api.include_home_project = true;
+    var project = new HolderLinux.Project("p-home", "Home", "standard", "/tmp/home", 1, 1);
+
+    bool done = false;
+    HolderLinux.GitHubGuidedSyncFlowResult? out_result = null;
+    controller.run_github_guided_sync_flow.begin(api, project, "zeth", "home", (obj, res) => {
+        try {
+            out_result = controller.run_github_guided_sync_flow.end(res);
+        } catch (Error e) {
+            assert_not_reached();
+        }
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(out_result != null);
+    assert(out_result.status_text.contains("Last push: never"));
+}
+
 private void test_run_github_cli_auto_sync_flow_appends_remote_error_and_handles_push_not_run() {
     var service = new FakeGitSyncService();
     service.repo_create = new HolderLinux.GitRepoCreateResult(true, true, "ok");
@@ -904,6 +926,8 @@ int main(string[] args) {
                   test_run_github_cli_auto_sync_flow_appends_remote_error_and_handles_push_not_run);
     Test.add_func("/git_sync_controller/run_github_guided_sync_flow_builds_status_and_toast",
                   test_run_github_guided_sync_flow_builds_status_and_toast);
+    Test.add_func("/git_sync_controller/run_github_guided_sync_flow_reports_never_for_missing_last_push",
+                  test_run_github_guided_sync_flow_reports_never_for_missing_last_push);
     Test.add_func("/git_sync_controller/run_github_guided_sync_flow_handles_test_and_push_not_run",
                   test_run_github_guided_sync_flow_handles_test_and_push_not_run);
     Test.add_func("/git_sync_controller/run_github_guided_sync_flow_appends_push_error_and_next_action",

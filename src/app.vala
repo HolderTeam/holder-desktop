@@ -27,7 +27,7 @@ public class App : Adw.Application {
         set_accels_for_action("win.toggle-toolbox", {"<Primary>b"});
         set_accels_for_action("win.show-preferences", {"<Primary>comma"});
         set_accels_for_action("app.quit", {"<Primary>q"}); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: accelerator normalization branch artifact
-    }
+    } // LCOV_EXCL_LINE GCOVR_EXCL_LINE: Vala constructor closing brace coverage artifact
 
     protected override void activate() { // LCOV_EXCL_LINE GCOVR_EXCL_LINE: requires display-backed windowing environment
         var window = this.active_window as MainWindow; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: requires display-backed windowing environment
