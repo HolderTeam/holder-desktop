@@ -96,6 +96,7 @@ sources = [
   'src/controllers/search_selection.vala',
   'src/controllers/activity_log.vala',
   'src/controllers/activity_reducer.vala',
+  'src/controllers/window_feedback_format.vala',
   'src/controllers/selection_request.vala',
   'src/controllers/selection_intent.vala',
   'src/controllers/selection_intent_orchestrator.vala',
@@ -104,6 +105,9 @@ sources = [
   'src/controllers/sidebar_selection_renderer.vala',
   'src/controllers/selection.vala',
   'src/controllers/selection_transition.vala',
+  'src/controllers/window_geometry.vala',
+  'src/controllers/workspace_layout.vala',
+  'src/controllers/flowboard_presenter.vala',
   'src/controllers/toolbox_breadcrumb.vala',
   'src/controllers/toolbox_event_orchestrator.vala',
   'src/controllers/window_feedback_orchestrator.vala',
@@ -115,6 +119,7 @@ sources = [
   'src/controllers/ai_panel_event_orchestrator.vala',
   'src/services/uri_launcher.vala',
   'src/views/adapters/print_ui.vala',
+  'src/controllers/git_sync_presenter.vala',
   'src/controllers/git_sync.vala',
   'src/controllers/resources.vala',
   'src/controllers/connections.vala',
@@ -472,6 +477,25 @@ git_sync_controller_test_exe = executable(
 )
 
 test('holder-linux-git-sync-controller-tests', git_sync_controller_test_exe)
+
+git_sync_presenter_test_exe = executable(
+  'holder-linux-git-sync-presenter-tests',
+  [
+    'src/models/activity_details.vala',
+    'src/models/git.vala',
+    'src/controllers/git_sync_presenter.vala',
+    'tests/git_sync_presenter_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-git-sync-presenter-tests', git_sync_presenter_test_exe)
 
 resources_controller_test_exe = executable(
   'holder-linux-resources-controller-tests',
@@ -1576,6 +1600,78 @@ app_settings_test_exe = executable(
 )
 
 test('holder-linux-app-settings-tests', app_settings_test_exe)
+
+window_geometry_test_exe = executable(
+  'holder-linux-window-geometry-tests',
+  [
+    'src/controllers/window_geometry.vala',
+    'tests/window_geometry_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-window-geometry-tests', window_geometry_test_exe)
+
+workspace_layout_test_exe = executable(
+  'holder-linux-workspace-layout-tests',
+  [
+    'src/controllers/workspace_layout.vala',
+    'tests/workspace_layout_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-workspace-layout-tests', workspace_layout_test_exe)
+
+flowboard_presenter_test_exe = executable(
+  'holder-linux-flowboard-presenter-tests',
+  [
+    'src/models/flowboard.vala',
+    'src/utils/text_utils.vala',
+    'src/controllers/flowboard_presenter.vala',
+    'tests/flowboard_presenter_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-flowboard-presenter-tests', flowboard_presenter_test_exe)
+
+window_feedback_format_test_exe = executable(
+  'holder-linux-window-feedback-format-tests',
+  [
+    'src/models/activity_details.vala',
+    'src/controllers/window_feedback_format.vala',
+    'tests/window_feedback_format_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-window-feedback-format-tests', window_feedback_format_test_exe)
 
 app_transition_test_exe = executable(
   'holder-linux-app-transition-tests',

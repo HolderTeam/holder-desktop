@@ -3,15 +3,6 @@ namespace HolderLinux {
 public class MainWindow : Adw.ApplicationWindow {
     private delegate void StateApplyFunc();
 
-    private const int DEFAULT_WINDOW_WIDTH = 1200;
-    private const int DEFAULT_WINDOW_HEIGHT = 800;
-    private const int DEFAULT_SIDEBAR_WIDTH = 280;
-    private const int MIN_SIDEBAR_WIDTH = 180;
-    private const int MAX_SIDEBAR_WIDTH = 700;
-    private const int MIN_RESTORE_WIDTH = 690;
-    private const int MIN_RESTORE_HEIGHT = 590;
-    private const int TINY_CLOSE_STRIKE_LIMIT = 3;
-
     private Adw.ToastOverlay toast_overlay;
 
     private GLib.ListStore project_store;
@@ -89,28 +80,22 @@ public class MainWindow : Adw.ApplicationWindow {
     private Settings? settings;
     private uint flowboard_refresh_idle_id = 0;
     private bool sidebar_visible = true;
-    private int last_sidebar_position = DEFAULT_SIDEBAR_WIDTH;
+    private int last_sidebar_position = WindowGeometry.DEFAULT_SIDEBAR_WIDTH;
 
     private uint applying_state_depth = 0;
     private uint rendered_sidebar_data_version = uint.MAX;
 
     public MainWindow(Adw.Application app, int startup_width = 0, int startup_height = 0) {
         var boot_settings = AppSettings.open_or_null();
-        int initial_width;
-        int initial_height;
-        bool start_maximized;
-        resolve_startup_window_state(
+        var startup_geometry = resolve_startup_window_state(
             boot_settings,
             startup_width,
-            startup_height,
-            out initial_width,
-            out initial_height,
-            out start_maximized
+            startup_height
         );
         Object(
             application: app,
-            default_width: initial_width,
-            default_height: initial_height,
+            default_width: startup_geometry.width,
+            default_height: startup_geometry.height,
             title: "Holder"
         );
 
@@ -136,7 +121,7 @@ public class MainWindow : Adw.ApplicationWindow {
         spelling_adapter = workspace.spelling_adapter;
         settings = boot_settings;
         if (settings != null) {
-            last_sidebar_position = clamp_sidebar_width(
+            last_sidebar_position = WindowGeometry.clamp_sidebar_width(
                 settings.get_int(AppSettings.KEY_SIDEBAR_WIDTH)
             );
             workspace.set_ai_panel_width(settings.get_int(AppSettings.KEY_AI_PANEL_WIDTH));
@@ -372,7 +357,7 @@ public class MainWindow : Adw.ApplicationWindow {
         window_lifecycle_event_binder.bind();
         window_state_event_binder.bind();
 
-        if (start_maximized) {
+        if (startup_geometry.start_maximized) {
             maximize();
         }
 
@@ -431,43 +416,24 @@ public class MainWindow : Adw.ApplicationWindow {
         });
     }
 
-    private static void resolve_startup_window_state(
+    private static WindowStartupGeometry resolve_startup_window_state(
         Settings? settings,
         int startup_width,
-        int startup_height,
-        out int width,
-        out int height,
-        out bool start_maximized
+        int startup_height
     ) {
-        if (startup_width > 0 || startup_height > 0) {
-            width = startup_width > 0 ? startup_width : DEFAULT_WINDOW_WIDTH;
-            height = startup_height > 0 ? startup_height : DEFAULT_WINDOW_HEIGHT;
-            start_maximized = false;
-            return;
-        }
-
-        width = DEFAULT_WINDOW_WIDTH;
-        height = DEFAULT_WINDOW_HEIGHT;
-        start_maximized = false;
         if (settings == null) {
-            return;
+            return WindowGeometry.resolve_startup_geometry(startup_width, startup_height, false);
         }
 
-        var saved_width = settings.get_int(AppSettings.KEY_WINDOW_WIDTH);
-        var saved_height = settings.get_int(AppSettings.KEY_WINDOW_HEIGHT);
-        var saved_tiny = is_tiny_size(saved_width, saved_height);
-        var streak = settings.get_int(AppSettings.KEY_TINY_CLOSE_STREAK);
-
-        if (!saved_tiny || streak >= TINY_CLOSE_STRIKE_LIMIT) {
-            width = saved_width;
-            height = saved_height;
-        }
-
-        start_maximized = settings.get_boolean(AppSettings.KEY_WINDOW_MAXIMIZED);
-    }
-
-    private static bool is_tiny_size(int width, int height) {
-        return width < MIN_RESTORE_WIDTH || height < MIN_RESTORE_HEIGHT;
+        return WindowGeometry.resolve_startup_geometry(
+            startup_width,
+            startup_height,
+            true,
+            settings.get_int(AppSettings.KEY_WINDOW_WIDTH),
+            settings.get_int(AppSettings.KEY_WINDOW_HEIGHT),
+            settings.get_boolean(AppSettings.KEY_WINDOW_MAXIMIZED),
+            settings.get_int(AppSettings.KEY_TINY_CLOSE_STREAK)
+        );
     }
 
     private void persist_window_state() {
@@ -477,7 +443,7 @@ public class MainWindow : Adw.ApplicationWindow {
 
         settings.set_int(
             AppSettings.KEY_SIDEBAR_WIDTH,
-            clamp_sidebar_width(last_sidebar_position)
+            WindowGeometry.clamp_sidebar_width(last_sidebar_position)
         );
         settings.set_int(
             AppSettings.KEY_AI_PANEL_WIDTH,
@@ -493,26 +459,19 @@ public class MainWindow : Adw.ApplicationWindow {
             settings.set_int(AppSettings.KEY_WINDOW_WIDTH, width);
             settings.set_int(AppSettings.KEY_WINDOW_HEIGHT, height);
 
-            if (is_tiny_size(width, height)) {
-                var streak = settings.get_int(AppSettings.KEY_TINY_CLOSE_STREAK);
-                settings.set_int(AppSettings.KEY_TINY_CLOSE_STREAK, streak + 1);
-            } else {
-                settings.set_int(AppSettings.KEY_TINY_CLOSE_STREAK, 0);
-            }
+            settings.set_int(
+                AppSettings.KEY_TINY_CLOSE_STREAK,
+                WindowGeometry.next_tiny_close_streak(
+                    false,
+                    width,
+                    height,
+                    settings.get_int(AppSettings.KEY_TINY_CLOSE_STREAK)
+                )
+            );
             return;
         }
 
         settings.set_int(AppSettings.KEY_TINY_CLOSE_STREAK, 0);
-    }
-
-    private static int clamp_sidebar_width(int width) {
-        if (width < MIN_SIDEBAR_WIDTH) {
-            return MIN_SIDEBAR_WIDTH;
-        }
-        if (width > MAX_SIDEBAR_WIDTH) {
-            return MAX_SIDEBAR_WIDTH;
-        }
-        return width;
     }
 
     private void show_new_project_dialog() {
@@ -622,11 +581,11 @@ public class MainWindow : Adw.ApplicationWindow {
         sidebar_visible = visible;
         if (visible) {
             root_paned.set_start_child(sidebar.widget);
-            root_paned.set_position(clamp_sidebar_width(last_sidebar_position));
+            root_paned.set_position(WindowGeometry.clamp_sidebar_width(last_sidebar_position));
             return;
         }
         if (root_paned.get_position() > 0) {
-            last_sidebar_position = clamp_sidebar_width(root_paned.get_position());
+            last_sidebar_position = WindowGeometry.clamp_sidebar_width(root_paned.get_position());
         }
         root_paned.set_start_child(null);
     }
@@ -797,7 +756,7 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void on_root_paned_position_changed(int position) {
         if (sidebar_visible && position > 0) {
-            last_sidebar_position = clamp_sidebar_width(position);
+            last_sidebar_position = WindowGeometry.clamp_sidebar_width(position);
         }
     }
 
