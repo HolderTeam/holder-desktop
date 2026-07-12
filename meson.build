@@ -1,7 +1,16 @@
-project('holder-linux', 'vala', version: '0.1.6')
+project('holder-linux', 'vala', version: run_command('cat', 'VERSION', check: true).stdout().strip())
 
 gnome = import('gnome')
 datadir = get_option('datadir')
+
+config_data = configuration_data()
+config_data.set('HOLDER_VERSION', meson.project_version())
+
+holder_config = configure_file(
+  input: 'src/config.vala.in',
+  output: 'config.vala',
+  configuration: config_data,
+)
 
 subdir('data')
 
@@ -36,6 +45,7 @@ deps = [
 ]
 
 sources = [
+  holder_config,
   'main.vala',
   'src/app.vala',
   'src/models/server.vala',

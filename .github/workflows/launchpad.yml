@@ -8,8 +8,7 @@ on:
     inputs:
       version:
         description: "Upstream version, for example 0.1.0"
-        required: true
-        default: "0.1.6"
+        required: false
 
 jobs:
   upload:
@@ -80,20 +79,8 @@ jobs:
           cp -a packaging/linux/debian ./debian
 
           VERSION="$(tr -d '[:space:]' < VERSION)"
-          MESON_VERSION="$(python3 - <<'PY'
-          import re
-          from pathlib import Path
-          text = Path("meson.build").read_text()
-          match = re.search(r"project\('holder-linux', 'vala', version: '([^']+)'\)", text)
-          print(match.group(1) if match else "")
-          PY
-          )"
           if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "VERSION must contain a semantic version like 0.1.0; got '$VERSION'" >&2
-            exit 1
-          fi
-          if [ "$MESON_VERSION" != "$VERSION" ]; then
-            echo "meson.build version '$MESON_VERSION' does not match VERSION '$VERSION'" >&2
             exit 1
           fi
 
