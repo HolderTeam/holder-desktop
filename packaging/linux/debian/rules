@@ -1,0 +1,14 @@
+#!/usr/bin/make -f
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+override_dh_auto_configure:
+	dh_auto_configure --buildsystem=meson -- \
+		-Dtests=false \
+		--buildtype=release
+
+override_dh_auto_test:
+	# Tests are covered by CI; package builds disable tests.
+
+%:
+	dh $@ --buildsystem=meson

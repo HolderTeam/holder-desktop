@@ -1,0 +1,130 @@
+name: Upload holder-desktop to Launchpad
+
+on:
+  push:
+    tags:
+      - "holder-desktop-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Upstream version, for example 0.1.0"
+        required: true
+        default: "0.1.6"
+
+jobs:
+  upload:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        series:
+          - noble
+          - resolute
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Debian packaging tools
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            devscripts \
+            debhelper \
+            dput \
+            gnupg \
+            meson \
+            ninja-build \
+            pkgconf \
+            valac \
+            libgtk-4-dev \
+            libadwaita-1-dev \
+            libgtksourceview-5-dev \
+            libspelling-1-dev \
+            libgee-0.8-dev \
+            libsoup-3.0-dev \
+            libjson-glib-dev \
+            libvte-2.91-gtk4-dev
+
+      - name: Import GPG key
+        env:
+          PPA_GPG_PRIVATE_KEY: ${{ secrets.PPA_GPG_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+
+          echo "$PPA_GPG_PRIVATE_KEY" | gpg --batch --import
+
+          KEYID="$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')"
+          echo "DEBSIGN_KEYID=$KEYID" >> "$GITHUB_ENV"
+          echo "Using GPG key: $KEYID"
+
+          cat > ~/.gnupg/gpg.conf <<EOF
+          batch
+          yes
+          pinentry-mode loopback
+          EOF
+
+          cat > ~/.gnupg/gpg-agent.conf <<EOF
+          allow-loopback-pinentry
+          EOF
+
+          gpgconf --kill gpg-agent
+
+      - name: Prepare Debian directory
+        env:
+          SERIES: ${{ matrix.series }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          rm -rf debian build
+          cp -a packaging/linux/debian ./debian
+
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          MESON_VERSION="$(python3 - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path("meson.build").read_text()
+          match = re.search(r"project\('holder-linux', 'vala', version: '([^']+)'\)", text)
+          print(match.group(1) if match else "")
+          PY
+          )"
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "VERSION must contain a semantic version like 0.1.0; got '$VERSION'" >&2
+            exit 1
+          fi
+          if [ "$MESON_VERSION" != "$VERSION" ]; then
+            echo "meson.build version '$MESON_VERSION' does not match VERSION '$VERSION'" >&2
+            exit 1
+          fi
+
+          if [ -n "$INPUT_VERSION" ]; then
+            if [ "$INPUT_VERSION" != "$VERSION" ]; then
+              echo "workflow input version '$INPUT_VERSION' does not match VERSION '$VERSION'" >&2
+              exit 1
+            fi
+          elif [ "$EVENT_NAME" = "push" ]; then
+            TAG_VERSION="${GITHUB_REF_NAME#holder-desktop-v}"
+            if [ "$TAG_VERSION" != "$VERSION" ]; then
+              echo "tag version '$TAG_VERSION' does not match VERSION '$VERSION'" >&2
+              exit 1
+            fi
+          fi
+
+          cat > debian/changelog <<EOF
+          holder-desktop (${VERSION}~${SERIES}1) ${SERIES}; urgency=medium
+
+            * Build for ${SERIES}
+
+           -- Holder Team <holdercardteam@gmail.com>  $(date -R)
+          EOF
+
+      - name: Build signed source package
+        env:
+          DEBFULLNAME: "Holder Team"
+          DEBEMAIL: "holdercardteam@gmail.com"
+        run: |
+          debuild -S -d -k"$DEBSIGN_KEYID"
+
+      - name: Upload to Launchpad PPA
+        run: |
+          dput ppa:holderteam/holder ../*_source.changes

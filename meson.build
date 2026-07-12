@@ -1,8 +1,27 @@
-project('holder-linux', 'vala', version: '0.1.0')
+project('holder-linux', 'vala', version: '0.1.6')
 
 gnome = import('gnome')
+datadir = get_option('datadir')
 
 subdir('data')
+
+install_data(
+  'data/team.holder.Holder.desktop',
+  install_dir: join_paths(datadir, 'applications'),
+)
+
+install_data(
+  'data/team.holder.Holder.metainfo.xml',
+  install_dir: join_paths(datadir, 'metainfo'),
+)
+
+install_data(
+  'img/holder.jpg',
+  install_dir: join_paths(datadir, 'holder-desktop'),
+  rename: 'holder.jpg',
+)
+
+install_man('man/holder-desktop.1')
 
 deps = [
   dependency('gtk4'),
@@ -171,9 +190,10 @@ executable(
   vala_args: [
     '--target-glib=2.70',
   ],
-  install: false,
+  install: true,
 )
 
+if get_option('tests')
 test_exe = executable(
   'holder-linux-tests',
   [
@@ -3130,3 +3150,4 @@ ai_panel_view_test_exe = executable(
 )
 
 test('holder-linux-ai-panel-view-tests', ai_panel_view_test_exe)
+endif
