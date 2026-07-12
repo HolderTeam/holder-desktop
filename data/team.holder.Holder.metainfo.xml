@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>team.holder.Holder</id>
+  <name>Holder</name>
+  <summary>Local-first workspace for cards, search, sync, and AI</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <description>
+    <p>
+      Holder is a local-first desktop workspace backed by a local daemon. It stores projects,
+      cards, search indexes, resources, git sync state, and AI workflow state on the user's
+      machine.
+    </p>
+  </description>
+  <launchable type="desktop-id">team.holder.Holder.desktop</launchable>
+  <url type="homepage">https://holder.team/</url>
+  <provides>
+    <binary>holder-desktop</binary>
+  </provides>
+</component>

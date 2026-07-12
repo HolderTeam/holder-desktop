@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Holder
+Comment=Local-first workspace for cards, search, sync, and AI
+Exec=holder-desktop
+Icon=/usr/share/holder-desktop/holder.jpg
+Terminal=false
+Categories=Office;GTK;
+StartupNotify=true
+DBusActivatable=false

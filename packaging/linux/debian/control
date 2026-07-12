@@ -1,0 +1,34 @@
+Source: holder-desktop
+Section: utils
+Priority: optional
+Maintainer: Holder Team <holdercardteam@gmail.com>
+Build-Depends: debhelper-compat (= 13),
+ meson,
+ ninja-build,
+ pkgconf,
+ valac,
+ libgtk-4-dev,
+ libadwaita-1-dev,
+ libgtksourceview-5-dev,
+ libspelling-1-dev,
+ libgee-0.8-dev,
+ libsoup-3.0-dev,
+ libjson-glib-dev,
+ libvte-2.91-gtk4-dev
+Standards-Version: 4.6.2
+Homepage: https://holder.team/
+Rules-Requires-Root: no
+
+Package: holder
+Architecture: all
+Depends: holder-desktop (= ${binary:Version}), ${misc:Depends}
+Description: Local-first workspace for cards, search, sync, and AI
+ Holder installs the desktop app and local backend daemon.
+
+Package: holder-desktop
+Architecture: any
+Depends: holder-daemon (>= 0.1.6), ${shlibs:Depends}, ${misc:Depends}
+Description: GTK desktop frontend for Holder
+ Holder Desktop is the GTK frontend for the Holder local-first workspace.
+ It connects to the local Holder daemon to manage projects, cards, search,
+ resources, git sync, and AI workflows.
