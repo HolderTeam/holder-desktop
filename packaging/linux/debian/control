@@ -27,7 +27,7 @@ Description: Local-first workspace for cards, search, sync, and AI
 
 Package: holder-desktop
 Architecture: any
-Depends: holder-daemon (>= 0.1.7), ${shlibs:Depends}, ${misc:Depends}
+Depends: holder-daemon (>= 0.1.7~), ${shlibs:Depends}, ${misc:Depends}
 Description: GTK desktop frontend for Holder
  Holder Desktop is the GTK frontend for the Holder local-first workspace.
  It connects to the local Holder daemon to manage projects, cards, search,
