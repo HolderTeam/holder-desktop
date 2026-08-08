@@ -41,8 +41,11 @@ deps = [
   dependency('gee-0.8'),
   dependency('libsoup-3.0'),
   dependency('json-glib-1.0'),
-  dependency('vte-2.91-gtk4'),
 ]
+
+if get_option('terminal')
+  deps += dependency('vte-2.91-gtk4')
+endif
 
 sources = [
   holder_config,
@@ -104,7 +107,6 @@ sources = [
   'src/views/toolbox/recovery_key_tool_view.vala',
   'src/views/toolbox/resources_tool_view.vala',
   'src/views/toolbox/sharing_tool_view.vala',
-  'src/views/toolbox/terminal_tool_view.vala',
   'src/views/toolbox/trash_tool_view.vala',
   'src/services/ui_adapters.vala',
   'src/views/workspace_pane.vala',
@@ -192,6 +194,12 @@ sources = [
   'src/services/api_client/git.vala',
   'src/views/window.vala',
 ]
+
+if get_option('terminal')
+  sources += 'src/views/toolbox/terminal_tool_view.vala'
+else
+  sources += 'src/views/toolbox/terminal_tool_view_disabled.vala'
+endif
 
 executable(
   'holder-desktop',

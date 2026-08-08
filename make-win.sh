@@ -3,6 +3,9 @@ set -euo pipefail
 
 BUILD_DIR="${BUILD_DIR:-build-win}"
 MODE="${1:-test}"
+MESON_SETUP_ARGS=(
+  -Dterminal=false
+)
 
 packages=(
   git
@@ -18,18 +21,17 @@ packages=(
   mingw-w64-ucrt-x86_64-libgee
   mingw-w64-ucrt-x86_64-libsoup3
   mingw-w64-ucrt-x86_64-json-glib
-  mingw-w64-ucrt-x86_64-vte4
 )
 
 setup_build() {
   local ninja_file="${BUILD_DIR}/build.ninja"
 
   if [[ ! -f "${ninja_file}" ]]; then
-    meson setup "${BUILD_DIR}"
+    meson setup "${BUILD_DIR}" "${MESON_SETUP_ARGS[@]}"
     return
   fi
 
-  meson setup "${BUILD_DIR}" --reconfigure
+  meson setup "${BUILD_DIR}" --reconfigure "${MESON_SETUP_ARGS[@]}"
 }
 
 refresh_compiled_schemas() {
