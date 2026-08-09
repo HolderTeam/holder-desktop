@@ -24,6 +24,10 @@ private string holder_info_path_for_current_env() {
 
 private void write_holder_json(string text) {
     var path = holder_info_path_for_current_env();
+    write_holder_json_at_path(path, text);
+}
+
+private void write_holder_json_at_path(string path, string text) {
     var dir = Path.get_dirname(path);
     DirUtils.create_with_parents(dir, 0755);
     try {
@@ -165,6 +169,68 @@ private void test_discover_server_success() {
     assert(info.auth_token == "token");
 }
 
+private void test_discover_server_uses_windows_xdg_home_fallback() {
+    setup_temp_data_home();
+    FileUtils.remove(holder_info_path_for_current_env());
+
+    string temp_home = "";
+    try {
+        temp_home = DirUtils.make_tmp("holder-linux-discovery-windows-home-XXXXXX");
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+
+    var old_home = Environment.get_variable("HOME");
+    var old_user_profile = Environment.get_variable("USERPROFILE");
+    Environment.set_variable("HOME", temp_home, true);
+    Environment.set_variable("USERPROFILE", temp_home, true);
+    HolderLinux.Discovery.force_windows_path_fallback_for_tests = true;
+
+    var legacy_path = Path.build_filename(
+        temp_home,
+        ".local",
+        "share",
+        "holder",
+        "server",
+        "holder.json"
+    );
+    write_holder_json_at_path(
+        legacy_path,
+        "{" +
+        "\"pid\":2468," +
+        "\"bind\":\"127.0.0.1\"," +
+        "\"port\":11499," +
+        "\"started_at\":200," +
+        "\"api_version\":\"0.1\"," +
+        "\"server_version\":\"1.0.0\"," +
+        "\"auth_token\":\"windows-token\"" +
+        "}"
+    );
+
+    HolderLinux.ServerInfo? info = null;
+    try {
+        info = HolderLinux.Discovery.discover_server();
+    } catch (Error e) {
+        info = null;
+    }
+
+    HolderLinux.Discovery.force_windows_path_fallback_for_tests = false;
+    if (old_home == null) {
+        Environment.unset_variable("HOME");
+    } else {
+        Environment.set_variable("HOME", old_home, true);
+    }
+    if (old_user_profile == null) {
+        Environment.unset_variable("USERPROFILE");
+    } else {
+        Environment.set_variable("USERPROFILE", old_user_profile, true);
+    }
+
+    assert(info != null);
+    assert(info.port == 11499);
+    assert(info.auth_token == "windows-token");
+}
+
 private void test_file_server_discovery_delegates() {
     setup_temp_data_home();
     write_holder_json(
@@ -204,6 +270,8 @@ int main(string[] args) {
     Test.add_func("/discovery/discover_server_read_failure_when_path_is_directory",
                   test_discover_server_read_failure_when_path_is_directory);
     Test.add_func("/discovery/discover_server_success", test_discover_server_success);
+    Test.add_func("/discovery/discover_server_uses_windows_xdg_home_fallback",
+                  test_discover_server_uses_windows_xdg_home_fallback);
     Test.add_func("/discovery/file_server_discovery_delegates", test_file_server_discovery_delegates);
 
     return Test.run();
