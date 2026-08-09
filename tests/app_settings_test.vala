@@ -175,17 +175,20 @@ private void test_has_compiled_schema_in_dir_true_when_file_exists() {
 
 private void test_open_or_null_for_invalid_executable_emits_warning_and_returns_null() {
     string warning_text = "";
+    HolderLinux.AppSettings.skip_default_schema_lookup_for_tests = true;
     HolderLinux.AppSettings.set_warning_sink((message) => {
         warning_text = message;
     });
     var settings = HolderLinux.AppSettings.open_or_null_for_executable_path("/tmp/holder-invalid-exe");
     HolderLinux.AppSettings.set_warning_sink(null);
+    HolderLinux.AppSettings.skip_default_schema_lookup_for_tests = false;
     assert(settings == null);
     assert(warning_text.contains("GSettings schema"));
 }
 
 private void test_emit_warning_without_sink_logs_warning() {
     HolderLinux.AppSettings.set_warning_sink(null);
+    HolderLinux.AppSettings.skip_default_schema_lookup_for_tests = true;
     var previous_schema_dir = Environment.get_variable("GSETTINGS_SCHEMA_DIR");
     Environment.set_variable("GSETTINGS_SCHEMA_DIR", "/tmp/holder-missing-schema-dir", true);
     Test.expect_message(null, LogLevelFlags.LEVEL_WARNING, "*GSettings schema*not found*");
@@ -197,6 +200,7 @@ private void test_emit_warning_without_sink_logs_warning() {
     } else {
         Environment.set_variable("GSETTINGS_SCHEMA_DIR", previous_schema_dir, true);
     }
+    HolderLinux.AppSettings.skip_default_schema_lookup_for_tests = false;
 }
 
 private void test_open_or_null_uses_default_schema_lookup_when_available_subprocess() {
@@ -261,11 +265,13 @@ private void test_open_or_null_for_bad_local_schema_dir_emits_warning_and_return
     }
 
     string warning_text = "";
+    HolderLinux.AppSettings.skip_default_schema_lookup_for_tests = true;
     HolderLinux.AppSettings.set_warning_sink((message) => {
         warning_text = message;
     });
     var settings = HolderLinux.AppSettings.open_or_null_for_executable_path(fake_exe);
     HolderLinux.AppSettings.set_warning_sink(null);
+    HolderLinux.AppSettings.skip_default_schema_lookup_for_tests = false;
 
     assert(settings == null);
     assert(warning_text.contains("Failed to load schema dir") || warning_text.contains("GSettings schema"));
@@ -319,11 +325,13 @@ private void test_open_or_null_when_local_schema_missing_emits_specific_warning(
     assert(status == 0);
 
     string warning_text = "";
+    HolderLinux.AppSettings.skip_default_schema_lookup_for_tests = true;
     HolderLinux.AppSettings.set_warning_sink((message) => {
         warning_text = message;
     });
     var settings = HolderLinux.AppSettings.open_or_null_for_executable_path(fake_exe);
     HolderLinux.AppSettings.set_warning_sink(null);
+    HolderLinux.AppSettings.skip_default_schema_lookup_for_tests = false;
 
     assert(settings == null);
     assert(warning_text.contains("missing from local schema directory"));
