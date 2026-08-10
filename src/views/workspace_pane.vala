@@ -1,6 +1,16 @@
 namespace HolderLinux {
 
 public class WorkspacePane : Object {
+    private const string WINDOWS_MONOSPACE_CLASS = "holder-windows-monospace";
+    private static bool windows_monospace_css_installed = false;
+
+    [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
+    private static extern void gtk_style_context_add_provider_for_display(
+        Gdk.Display display,
+        Gtk.StyleProvider provider,
+        uint priority
+    );
+
     private Gtk.Label title_label;
     private Gtk.ToggleButton explorer_toggle_btn;
     private Gtk.ToggleButton search_toggle_btn;
@@ -461,7 +471,7 @@ public class WorkspacePane : Object {
         }
 
         editor_view = new GtkSource.View.with_buffer(editor_buffer);
-        editor_view.set_monospace(true);
+        configure_monospace(editor_view);
         editor_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
         editor_view.set_show_line_numbers(true);
         editor_view.set_vexpand(true);
@@ -688,6 +698,40 @@ public class WorkspacePane : Object {
         box.append(scroll);
 
         return box;
+    }
+
+    private static void configure_monospace(GtkSource.View view) {
+        if (Path.DIR_SEPARATOR_S != "\\") {
+            view.set_monospace(true);
+            return;
+        }
+
+        ensure_windows_monospace_css();
+        view.add_css_class(WINDOWS_MONOSPACE_CLASS);
+    }
+
+    private static void ensure_windows_monospace_css() {
+        if (windows_monospace_css_installed) {
+            return;
+        }
+        var display = Gdk.Display.get_default();
+        if (display == null) {
+            return;
+        }
+
+        var provider = new Gtk.CssProvider();
+        provider.load_from_string("""
+.holder-windows-monospace,
+.holder-windows-monospace text {
+  font-family: "Cascadia Mono", "Consolas", monospace;
+}
+""");
+        gtk_style_context_add_provider_for_display(
+            display,
+            provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
+        windows_monospace_css_installed = true;
     }
 }
 
