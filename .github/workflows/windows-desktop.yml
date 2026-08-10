@@ -114,6 +114,8 @@ jobs:
           copy_tree_if_exists /ucrt64/share/libadwaita
           copy_tree_if_exists /ucrt64/share/locale
 
+          find "${stage_dir}" -type f -name '*.dll.a' -delete
+
           glib-compile-schemas "${stage_dir}/share/glib-2.0/schemas"
 
           if [ -d "${stage_dir}/lib/gio/modules" ]; then
