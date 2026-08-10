@@ -211,6 +211,8 @@ private void test_stale_project_graph_refresh_result_is_dropped_when_generation_
     card_store.append(card("p1-card", "p1", "P1 Unique Node", 10));
     card_store.append(card("p2-card", "p2", "P2 Unique Node", 10));
     var card_selection = new Gtk.SingleSelection(card_store);
+    card_selection.set_autoselect(false);
+    card_selection.set_can_unselect(true);
     card_selection.set_selected(Gtk.INVALID_LIST_POSITION);
 
     view.set_api_client(api);
@@ -226,13 +228,10 @@ private void test_stale_project_graph_refresh_result_is_dropped_when_generation_
     spin_main_loop_briefly(130);
     project_selection.set_selected(1);
 
-    spin_main_loop_briefly(120);
-    assert(widget_tree_contains_label_text(view.get_content_widget(), "P2 Unique Node"));
-    assert(!widget_tree_contains_label_text(view.get_content_widget(), "P1 Unique Node"));
-
     assert(wait_until_true(() => {
         return api.list_card_links_calls == 3
-            && widget_tree_contains_label_text(view.get_content_widget(), "P2 Unique Node");
+            && widget_tree_contains_label_text(view.get_content_widget(), "P2 Unique Node")
+            && !widget_tree_contains_label_text(view.get_content_widget(), "P1 Unique Node");
     }, 3000));
 }
 

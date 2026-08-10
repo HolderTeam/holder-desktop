@@ -24,6 +24,7 @@ private void test_single_selection_state_reflects_cleared_selection() {
     store.append(new HolderLinux.Project("p1", "One", "encrypted_git", "/tmp/one", 1, 1));
 
     var selection = new Gtk.SingleSelection(store);
+    selection.set_autoselect(false);
     selection.set_can_unselect(true);
     var state = new HolderLinux.GtkSingleSelectionState(selection);
 

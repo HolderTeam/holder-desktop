@@ -80,14 +80,7 @@ private class FakeGitSyncService : HolderLinux.GitSyncService {
 }
 
 private Settings make_test_settings() {
-    string exe_path;
-    try {
-        exe_path = FileUtils.read_link("/proc/self/exe");
-    } catch (Error e) {
-        assert_not_reached();
-    }
-
-    var settings = HolderLinux.AppSettings.open_or_null_for_executable_path(exe_path);
+    var settings = HolderLinux.AppSettings.open_or_null();
     assert(settings != null);
     return settings;
 }

@@ -51,7 +51,10 @@ build() {
 
 test_only() {
   build
-  GSETTINGS_BACKEND=memory meson test -C "${BUILD_DIR}" --print-errorlogs
+  local schema_dir="${PWD}/${BUILD_DIR}/data"
+
+  GSETTINGS_BACKEND=memory GSETTINGS_SCHEMA_DIR="${schema_dir}" \
+    meson test -C "${BUILD_DIR}" --print-errorlogs
 }
 
 run_app() {

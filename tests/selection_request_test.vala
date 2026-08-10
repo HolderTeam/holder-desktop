@@ -34,7 +34,10 @@ private Gtk.SingleSelection selection_with_two_items() {
     var store = new GLib.ListStore(typeof(Object));
     store.append(new Object());
     store.append(new Object());
-    return new Gtk.SingleSelection(store);
+    var selection = new Gtk.SingleSelection(store);
+    selection.set_autoselect(false);
+    selection.set_can_unselect(true);
+    return selection;
 }
 
 private void test_request_project_applies_lookup_result() {

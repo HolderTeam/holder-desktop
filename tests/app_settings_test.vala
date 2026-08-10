@@ -210,16 +210,20 @@ private void test_open_or_null_uses_default_schema_lookup_when_available_subproc
         return;
     }
 
-    string exe_path;
-    try {
-        exe_path = FileUtils.read_link("/proc/self/exe");
-    } catch (Error e) {
-        assert_not_reached();
+    var previous_schema_dir = Environment.get_variable("GSETTINGS_SCHEMA_DIR");
+    var data_dir = previous_schema_dir;
+    if (data_dir == null) {
+        string exe_path;
+        try {
+            exe_path = FileUtils.read_link("/proc/self/exe");
+        } catch (Error e) {
+            assert_not_reached();
+        }
+        data_dir = HolderLinux.AppSettings.schema_candidate_dir_for_executable_path(exe_path);
     }
-    var data_dir = HolderLinux.AppSettings.schema_candidate_dir_for_executable_path(exe_path);
+    assert(data_dir != null);
     assert(HolderLinux.AppSettings.has_compiled_schema_in_dir(data_dir));
 
-    var previous_schema_dir = Environment.get_variable("GSETTINGS_SCHEMA_DIR");
     Environment.set_variable("GSETTINGS_BACKEND", "memory", true);
     Environment.set_variable("GSETTINGS_SCHEMA_DIR", data_dir, true);
     HolderLinux.AppSettings.skip_default_schema_lookup_for_tests = false;
