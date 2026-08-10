@@ -105,6 +105,7 @@ jobs:
             "bin\holderctl.exe",
             "share\glib-2.0\schemas\gschemas.compiled",
             "share\glib-2.0\schemas\team.holder.Holder.gschema.xml",
+            "share\gtksourceview-5\language-specs\markdown.lang",
             "lib\gio\modules\giomodule.cache",
             "lib\gdk-pixbuf-2.0\2.10.0\loaders.cache",
             "schema\schema.sql",

@@ -112,6 +112,7 @@ jobs:
           copy_tree_if_exists /ucrt64/share/themes
           copy_tree_if_exists /ucrt64/share/gtk-4.0
           copy_tree_if_exists /ucrt64/share/libadwaita
+          copy_tree_if_exists /ucrt64/share/gtksourceview-5
           copy_tree_if_exists /ucrt64/share/locale
 
           find "${stage_dir}" -type f -name '*.dll.a' -delete
@@ -170,6 +171,7 @@ jobs:
           test -d out/artifacts/windows-desktop/lib/gdk-pixbuf-2.0
           test -f out/artifacts/windows-desktop/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
           test -d out/artifacts/windows-desktop/share/icons
+          test -f out/artifacts/windows-desktop/share/gtksourceview-5/language-specs/markdown.lang
           test -f out/artifacts/windows-desktop/manifest.txt
           ! grep -F "$(cygpath -m "$(pwd)/out/artifacts/windows-desktop")" \
             out/artifacts/windows-desktop/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
