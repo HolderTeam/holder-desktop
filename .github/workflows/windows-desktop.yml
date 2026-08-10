@@ -171,7 +171,7 @@ jobs:
           test -d out/artifacts/windows-desktop/lib/gdk-pixbuf-2.0
           test -f out/artifacts/windows-desktop/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
           test -d out/artifacts/windows-desktop/share/icons
-          test -f out/artifacts/windows-desktop/share/gtksourceview-5/language-specs/markdown.lang
+          test -f out/artifacts/windows-desktop/share/gtksourceview-5/language-specs/language2.rng
           test -f out/artifacts/windows-desktop/manifest.txt
           ! grep -F "$(cygpath -m "$(pwd)/out/artifacts/windows-desktop")" \
             out/artifacts/windows-desktop/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
