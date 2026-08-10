@@ -2373,7 +2373,7 @@ private void test_soup_api_http_transport_send_and_read_uses_status_and_bytes() 
         return;
     }
 
-    var transport = new HolderLinux.SoupApiHttpTransport(new Soup.Session());
+    var transport = new HolderLinux.SoupApiHttpTransport();
     var message = new Soup.Message("GET", base_url + "/bytes");
 
     bool done = false;
@@ -2416,7 +2416,7 @@ private void test_soup_api_http_transport_send_returns_stream_and_status() {
         return;
     }
 
-    var transport = new HolderLinux.SoupApiHttpTransport(new Soup.Session());
+    var transport = new HolderLinux.SoupApiHttpTransport();
     var message = new Soup.Message("GET", base_url + "/stream");
 
     bool done = false;

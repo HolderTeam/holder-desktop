@@ -33,7 +33,10 @@ internal class SelectionRequestController : Object {
             return;
         }
         if (target == Gtk.INVALID_LIST_POSITION) {
+            selection.set_autoselect(false);
             selection.set_can_unselect(true);
+            selection.unselect_item(selection.get_selected());
+            return;
         }
         selection.set_selected(target);
     }

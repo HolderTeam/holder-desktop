@@ -35,6 +35,7 @@ private Gtk.SingleSelection selection_with_two_items() {
     store.append(new Object());
     store.append(new Object());
     var selection = new Gtk.SingleSelection(store);
+    selection.set_autoselect(false);
     selection.set_can_unselect(true);
     return selection;
 }

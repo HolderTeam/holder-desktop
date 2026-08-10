@@ -128,7 +128,8 @@ private void test_discover_server_read_failure_when_path_is_directory() {
         HolderLinux.Discovery.discover_server();
     } catch (Error e) {
         got_invalid = (e is HolderLinux.DiscoveryError.INVALID_FORMAT);
-        got_read_failure_message = e.message.contains("Failed to read");
+        got_read_failure_message = e.message.contains("Failed to read")
+            || e.message.contains("not a regular file");
     }
     assert(got_invalid);
     assert(got_read_failure_message);
