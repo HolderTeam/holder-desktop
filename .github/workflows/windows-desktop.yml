@@ -1,0 +1,97 @@
+name: Windows desktop
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Check out holder-desktop
+        uses: actions/checkout@v4
+
+      - name: Set up MSYS2 UCRT64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            git
+            base-devel
+            mingw-w64-ucrt-x86_64-meson
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-vala
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-libadwaita
+            mingw-w64-ucrt-x86_64-gtksourceview5
+            mingw-w64-ucrt-x86_64-libspelling
+            mingw-w64-ucrt-x86_64-libgee
+            mingw-w64-ucrt-x86_64-libsoup3
+            mingw-w64-ucrt-x86_64-json-glib
+
+      - name: Build and test
+        run: bash ./make-win.sh test
+
+      - name: Stage desktop artifact
+        run: |
+          set -euo pipefail
+
+          build_dir="build-win"
+          stage_dir="out/artifacts/windows-desktop"
+
+          rm -rf "${stage_dir}"
+          mkdir -p \
+            "${stage_dir}/bin" \
+            "${stage_dir}/share/applications" \
+            "${stage_dir}/share/glib-2.0/schemas" \
+            "${stage_dir}/share/holder-desktop" \
+            "${stage_dir}/share/metainfo"
+
+          cp "${build_dir}/holder-desktop.exe" "${stage_dir}/bin/"
+          cp "${build_dir}/data/gschemas.compiled" "${stage_dir}/share/glib-2.0/schemas/"
+          cp data/team.holder.Holder.gschema.xml "${stage_dir}/share/glib-2.0/schemas/"
+          cp data/team.holder.Holder.desktop "${stage_dir}/share/applications/"
+          cp data/team.holder.Holder.metainfo.xml "${stage_dir}/share/metainfo/"
+          cp img/holder.jpg "${stage_dir}/share/holder-desktop/"
+
+          ldd "${build_dir}/holder-desktop.exe" \
+            | awk '/=>/ { print $3 } /^[[:space:]]*\/ucrt64\// { print $1 }' \
+            | sort -u \
+            | while read -r dll; do
+                case "${dll}" in
+                  /ucrt64/bin/*.dll)
+                    cp -f "${dll}" "${stage_dir}/bin/"
+                    ;;
+                esac
+              done
+
+          find "${stage_dir}" -maxdepth 4 -type f | sort
+
+      - name: Smoke-test staged desktop artifact
+        run: |
+          set -euo pipefail
+
+          test -f out/artifacts/windows-desktop/bin/holder-desktop.exe
+          test -f out/artifacts/windows-desktop/share/glib-2.0/schemas/gschemas.compiled
+          test -f out/artifacts/windows-desktop/share/glib-2.0/schemas/team.holder.Holder.gschema.xml
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: holder-desktop-windows
+          path: out/artifacts/windows-desktop/**
+          if-no-files-found: error
+          retention-days: 7
