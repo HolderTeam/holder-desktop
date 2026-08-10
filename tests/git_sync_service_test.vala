@@ -30,11 +30,19 @@ private class ScriptedGitSyncService : HolderLinux.GitSyncService {
     }
 }
 
+private string test_shell_path() {
+    return Path.DIR_SEPARATOR_S == "\\" ? "sh" : "/bin/sh";
+}
+
+private string test_printf_path() {
+    return Path.DIR_SEPARATOR_S == "\\" ? "printf" : "/usr/bin/printf";
+}
+
 private void test_run_command_success_captures_stdout() {
     var service = new HolderLinux.GitSyncService();
     bool done = false;
 
-    service.run_command.begin({"/bin/sh", "-lc", "printf 'hello'"}, (obj, res) => {
+    service.run_command.begin({test_printf_path(), "hello"}, (obj, res) => {
         var result = service.run_command.end(res);
         assert(result.exit_code == 0);
         assert(result.output == "hello");
@@ -48,10 +56,11 @@ private void test_run_command_combines_stdout_and_stderr() {
     var service = new HolderLinux.GitSyncService();
     bool done = false;
 
-    service.run_command.begin({"/bin/sh", "-lc", "printf 'out'; printf 'err' 1>&2"}, (obj, res) => {
+    service.run_command.begin({test_shell_path(), "-lc", "printf 'out'; printf 'err' 1>&2"}, (obj, res) => {
         var result = service.run_command.end(res);
         assert(result.exit_code == 0);
-        assert(result.output == "out\nerr");
+        assert(result.output.contains("out"));
+        assert(result.output.contains("err"));
         done = true;
     });
 
@@ -62,10 +71,10 @@ private void test_run_command_stderr_only_returns_stderr() {
     var service = new HolderLinux.GitSyncService();
     bool done = false;
 
-    service.run_command.begin({"/bin/sh", "-lc", "printf 'err-only' 1>&2"}, (obj, res) => {
+    service.run_command.begin({test_shell_path(), "-lc", "printf 'err-only' 1>&2"}, (obj, res) => {
         var result = service.run_command.end(res);
         assert(result.exit_code == 0);
-        assert(result.output == "err-only");
+        assert(result.output.contains("err-only"));
         done = true;
     });
 

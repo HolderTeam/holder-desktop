@@ -36,6 +36,10 @@ public class RecoveryService : Object, IRecoveryService {
     }
 
     public void open_email_with_attachment(string attachment_path) throws Error {
+        if (Path.DIR_SEPARATOR_S == "\\") {
+            throw new IOError.NOT_SUPPORTED("Email attachments are not supported on this platform yet.");
+        }
+
         string[] argv = {
             "xdg-email",
             "--subject",

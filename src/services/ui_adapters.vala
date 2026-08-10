@@ -16,6 +16,9 @@ public class GtkSingleSelectionState : Object, ISelectionState {
     }
 
     public void set_selected_index(uint index) {
+        if (index == Gtk.INVALID_LIST_POSITION) {
+            selection.set_can_unselect(true);
+        }
         selection.set_selected(index);
     }
 }

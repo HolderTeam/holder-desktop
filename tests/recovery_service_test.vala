@@ -76,6 +76,10 @@ private void test_write_payload_to_temp_attachment_rejects_empty_payload() {
 }
 
 private void test_open_email_with_attachment_uses_xdg_email() {
+    if (Path.DIR_SEPARATOR_S == "\\") {
+        return;
+    }
+
     var service = new HolderLinux.RecoveryService();
     var temp_dir = make_temp_dir();
     var script_path = Path.build_filename(temp_dir, "xdg-email");

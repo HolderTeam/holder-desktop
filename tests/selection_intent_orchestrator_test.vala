@@ -202,9 +202,11 @@ private HolderLinux.SelectionIntentOrchestrator make_orchestrator(
 
     card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
     card_selection = new Gtk.SingleSelection(card_store);
+    card_selection.set_can_unselect(true);
 
     var ai_thread_store = new GLib.ListStore(typeof(HolderLinux.AiThreadSummary));
     ai_thread_selection = new Gtk.SingleSelection(ai_thread_store);
+    ai_thread_selection.set_can_unselect(true);
 
     var search_store = new GLib.ListStore(typeof(Object));
     search_selection = new Gtk.SingleSelection(search_store);
@@ -567,8 +569,10 @@ private void test_project_selection_changed_emits_activity_logger() {
     var project_selection = new Gtk.SingleSelection(project_store);
     var card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
     var card_selection = new Gtk.SingleSelection(card_store);
+    card_selection.set_can_unselect(true);
     var ai_thread_store = new GLib.ListStore(typeof(HolderLinux.AiThreadSummary));
     var ai_thread_selection = new Gtk.SingleSelection(ai_thread_store);
+    ai_thread_selection.set_can_unselect(true);
     var search_store = new GLib.ListStore(typeof(Object));
     var search_selection = new Gtk.SingleSelection(search_store);
     var search_selection_controller = new HolderLinux.SearchSelectionController();

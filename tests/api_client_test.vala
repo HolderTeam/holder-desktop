@@ -2343,7 +2343,8 @@ private string start_local_soup_server_with_handler(Soup.Server server, string p
         );
     });
 
-    bool listened = server.listen_local(0, (Soup.ServerListenOptions) 0);
+    var loopback = new InetSocketAddress(new InetAddress.from_string("127.0.0.1"), 0);
+    bool listened = server.listen(loopback, (Soup.ServerListenOptions) 0);
     assert(listened);
 
     var uris = server.get_uris();

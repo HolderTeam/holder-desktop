@@ -10,6 +10,8 @@ private string setup_temp_data_home() {
         assert_not_reached();
     }
     Environment.set_variable("XDG_DATA_HOME", dir, true);
+    Environment.set_variable("HOME", dir, true);
+    Environment.set_variable("USERPROFILE", dir, true);
     return dir;
 }
 

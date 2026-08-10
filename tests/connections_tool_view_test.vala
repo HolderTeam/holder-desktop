@@ -211,6 +211,7 @@ private void test_stale_project_graph_refresh_result_is_dropped_when_generation_
     card_store.append(card("p1-card", "p1", "P1 Unique Node", 10));
     card_store.append(card("p2-card", "p2", "P2 Unique Node", 10));
     var card_selection = new Gtk.SingleSelection(card_store);
+    card_selection.set_can_unselect(true);
     card_selection.set_selected(Gtk.INVALID_LIST_POSITION);
 
     view.set_api_client(api);
