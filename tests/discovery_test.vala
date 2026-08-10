@@ -256,7 +256,7 @@ private void test_file_server_discovery_delegates() {
     }
 
     assert(info != null);
-    assert(discovery.holder_info_path().has_suffix("holder/server/holder.json"));
+    assert(discovery.holder_info_path() == holder_info_path_for_current_env());
     assert(info.port == 9090);
 }
 
