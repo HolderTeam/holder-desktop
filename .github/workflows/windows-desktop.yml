@@ -127,11 +127,31 @@ jobs:
                 gdk-pixbuf-query-loaders lib/gdk-pixbuf-2.0/2.10.0/loaders/*.dll \
                 > lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
             )
+
+            stage_dir_win="$(cygpath -m "$(pwd)/${stage_dir}")"
+            awk -v prefix="${stage_dir_win}/" '
+              {
+                while ((pos = index($0, prefix)) > 0) {
+                  $0 = substr($0, 1, pos - 1) substr($0, pos + length(prefix))
+                }
+                print
+              }
+            ' "${stage_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache" \
+              > "${stage_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache.tmp"
+            mv \
+              "${stage_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache.tmp" \
+              "${stage_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
           fi
 
           copy_msys2_dll_deps
 
-          find "${stage_dir}" -type f | sort > "${stage_dir}/manifest.txt"
+          (
+            cd "${stage_dir}"
+            find . -type f \
+              | sed 's#^\./##' \
+              | sort \
+              > manifest.txt
+          )
           du -sh "${stage_dir}"
 
           find "${stage_dir}" -maxdepth 4 -type f | sort
@@ -149,6 +169,10 @@ jobs:
           test -f out/artifacts/windows-desktop/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
           test -d out/artifacts/windows-desktop/share/icons
           test -f out/artifacts/windows-desktop/manifest.txt
+          ! grep -F "$(cygpath -m "$(pwd)/out/artifacts/windows-desktop")" \
+            out/artifacts/windows-desktop/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
+          ! grep -F "out/artifacts/windows-desktop" \
+            out/artifacts/windows-desktop/manifest.txt
 
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v4
