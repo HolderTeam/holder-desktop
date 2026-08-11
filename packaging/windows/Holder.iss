@@ -112,35 +112,28 @@ end;
 procedure RemoveHolderFromUserPath();
 var
   CurrentPath: string;
-  NewPath: string;
   Entry: string;
-  Parts: TArrayOfString;
-  I: Integer;
 begin
   Entry := HolderBinDir();
   if not RegQueryStringValue(HKCU, EnvironmentKey, PathValueName, CurrentPath) then
     exit;
 
-  StringChangeEx(CurrentPath, Entry + ';', '', True);
-  StringChangeEx(CurrentPath, ';' + Entry, '', True);
-
   if Lowercase(CurrentPath) = Lowercase(Entry) then
     CurrentPath := '';
 
-  NewPath := '';
-  StringChangeEx(CurrentPath, ';;', ';', True);
-  StringChangeEx(CurrentPath, ';', #13#10, True);
-  Parts := SplitString(CurrentPath, #13#10);
-  for I := 0 to GetArrayLength(Parts) - 1 do begin
-    if (Parts[I] <> '') and (Lowercase(Parts[I]) <> Lowercase(Entry)) then begin
-      if NewPath = '' then
-        NewPath := Parts[I]
-      else
-        NewPath := NewPath + ';' + Parts[I];
-    end;
-  end;
+  StringChangeEx(CurrentPath, Entry + ';', '', True);
+  StringChangeEx(CurrentPath, ';' + Entry, '', True);
 
-  RegWriteStringValue(HKCU, EnvironmentKey, PathValueName, NewPath);
+  StringChangeEx(CurrentPath, ';;', ';', True);
+
+  if CurrentPath = ';' then
+    CurrentPath := '';
+  if (Length(CurrentPath) > 0) and (Copy(CurrentPath, 1, 1) = ';') then
+    Delete(CurrentPath, 1, 1);
+  if (Length(CurrentPath) > 0) and (Copy(CurrentPath, Length(CurrentPath), 1) = ';') then
+    Delete(CurrentPath, Length(CurrentPath), 1);
+
+  RegWriteStringValue(HKCU, EnvironmentKey, PathValueName, CurrentPath);
   NotifyEnvironmentChanged();
 end;
 

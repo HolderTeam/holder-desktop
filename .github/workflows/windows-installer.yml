@@ -57,6 +57,9 @@ jobs:
             "/DAppVersion=$version" `
             "/O$outputDir" `
             "packaging\windows\Holder.iss"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup compiler exited with code $LASTEXITCODE"
+          }
 
           $setupExe = Join-Path $outputDir "Holder-$version-Setup.exe"
           if (!(Test-Path $setupExe)) {
