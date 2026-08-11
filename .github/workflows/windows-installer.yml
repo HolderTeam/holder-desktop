@@ -98,6 +98,8 @@ jobs:
             & $signtool sign `
               -f $pfxPath `
               -fd SHA256 `
+              -tr http://timestamp.digicert.com `
+              -td SHA256 `
               -p $env:WINDOWS_SIGNING_PFX_PASSWORD `
               $env:SETUP_EXE
             if ($LASTEXITCODE -ne 0) {
