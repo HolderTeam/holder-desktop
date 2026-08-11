@@ -208,6 +208,7 @@ executable(
   vala_args: [
     '--target-glib=2.70',
   ],
+  gui_app: true,
   install: true,
 )
 
