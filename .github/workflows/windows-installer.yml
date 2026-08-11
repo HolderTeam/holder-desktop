@@ -20,6 +20,7 @@ permissions:
 jobs:
   installer:
     runs-on: windows-latest
+    environment: windows-release
 
     steps:
       - name: Check out holder-desktop
@@ -68,6 +69,43 @@ jobs:
 
           "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
           "SETUP_EXE=$setupExe" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Sign installer
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_PFX: ${{ secrets.WINDOWS_SIGNING_PFX }}
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          if (!(Test-Path $env:SETUP_EXE)) {
+            throw "Cannot sign missing installer: $env:SETUP_EXE"
+          }
+
+          $pfxPath = Join-Path $env:RUNNER_TEMP "holder-release-2026.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX))
+
+          try {
+            $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+              Where-Object { $_.FullName -match "\\x64\\signtool\.exe$" } |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1 -ExpandProperty FullName
+
+            if (!$signtool) {
+              throw "Microsoft signtool.exe not found"
+            }
+
+            & $signtool sign `
+              -f $pfxPath `
+              -fd SHA256 `
+              -p $env:WINDOWS_SIGNING_PFX_PASSWORD `
+              $env:SETUP_EXE
+            if ($LASTEXITCODE -ne 0) {
+              throw "signtool failed for $env:SETUP_EXE with code $LASTEXITCODE"
+            }
+          } finally {
+            Remove-Item $pfxPath -Force -ErrorAction SilentlyContinue
+          }
 
       - name: Smoke-test installer
         shell: pwsh

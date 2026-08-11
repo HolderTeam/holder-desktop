@@ -29,6 +29,7 @@ permissions:
 jobs:
   stage:
     runs-on: windows-latest
+    environment: windows-release
 
     steps:
       - name: Download desktop artifact
@@ -92,6 +93,51 @@ jobs:
           Get-ChildItem $stageDir -Recurse -File |
             Select-Object FullName, Length |
             Sort-Object FullName
+
+      - name: Sign Holder executables
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_PFX: ${{ secrets.WINDOWS_SIGNING_PFX }}
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $pfxPath = Join-Path $env:RUNNER_TEMP "holder-release-2026.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX))
+
+          try {
+            $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+              Where-Object { $_.FullName -match "\\x64\\signtool\.exe$" } |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1 -ExpandProperty FullName
+
+            if (!$signtool) {
+              throw "Microsoft signtool.exe not found"
+            }
+
+            $files = @(
+              "out\artifacts\Holder-windows-staged\bin\holder-desktop.exe",
+              "out\artifacts\Holder-windows-staged\bin\holderd.exe",
+              "out\artifacts\Holder-windows-staged\bin\holderctl.exe"
+            )
+
+            foreach ($file in $files) {
+              if (!(Test-Path $file)) {
+                throw "Cannot sign missing file: $file"
+              }
+
+              & $signtool sign `
+                -f $pfxPath `
+                -fd SHA256 `
+                -p $env:WINDOWS_SIGNING_PFX_PASSWORD `
+                $file
+              if ($LASTEXITCODE -ne 0) {
+                throw "signtool failed for $file with code $LASTEXITCODE"
+              }
+            }
+          } finally {
+            Remove-Item $pfxPath -Force -ErrorAction SilentlyContinue
+          }
 
       - name: Smoke-test staged package
         shell: pwsh
