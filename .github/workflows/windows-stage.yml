@@ -11,6 +11,10 @@ on:
         description: GitHub Actions run ID that uploaded holder-daemon-windows-backend
         required: true
         type: string
+      launcher_run_id:
+        description: GitHub Actions run ID that uploaded holder-launcher-windows
+        required: true
+        type: string
       desktop_repository:
         description: Repository containing the desktop artifact
         required: true
@@ -21,6 +25,11 @@ on:
         required: true
         type: string
         default: HolderTeam/holder-daemon
+      launcher_repository:
+        description: Repository containing the launcher artifact
+        required: true
+        type: string
+        default: HolderTeam/holder-launcher
 
 permissions:
   actions: read
@@ -50,6 +59,15 @@ jobs:
           repository: ${{ inputs.backend_repository }}
           run-id: ${{ inputs.backend_run_id }}
 
+      - name: Download launcher artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: holder-launcher-windows
+          path: downloads/launcher
+          github-token: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
+          repository: ${{ inputs.launcher_repository }}
+          run-id: ${{ inputs.launcher_run_id }}
+
       - name: Assemble staged package
         shell: pwsh
         run: |
@@ -57,6 +75,7 @@ jobs:
 
           $desktopDir = "downloads\desktop"
           $backendDir = "downloads\backend"
+          $launcherDir = "downloads\launcher"
           $stageDir = "out\artifacts\Holder-windows-staged"
 
           if (Test-Path $stageDir) {
@@ -65,6 +84,7 @@ jobs:
 
           New-Item -ItemType Directory -Force $stageDir | Out-Null
           Copy-Item "$desktopDir\*" -Destination $stageDir -Recurse -Force
+          Copy-Item "$launcherDir\Holder.exe" -Destination $stageDir -Force
 
           $binDir = Join-Path $stageDir "bin"
           New-Item -ItemType Directory -Force $binDir | Out-Null
@@ -116,6 +136,7 @@ jobs:
             }
 
             $files = @(
+              "out\artifacts\Holder-windows-staged\Holder.exe",
               "out\artifacts\Holder-windows-staged\bin\holder-desktop.exe",
               "out\artifacts\Holder-windows-staged\bin\holderd.exe",
               "out\artifacts\Holder-windows-staged\bin\holderctl.exe"
@@ -148,6 +169,7 @@ jobs:
 
           $stageDir = "out\artifacts\Holder-windows-staged"
           $requiredFiles = @(
+            "Holder.exe",
             "bin\holder-desktop.exe",
             "bin\holderd.exe",
             "bin\holderctl.exe",

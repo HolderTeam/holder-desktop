@@ -135,6 +135,7 @@ jobs:
           }
 
           $requiredFiles = @(
+            "Holder.exe",
             "bin\holder-desktop.exe",
             "bin\holderd.exe",
             "bin\holderctl.exe",
