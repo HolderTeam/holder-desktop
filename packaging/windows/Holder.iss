@@ -23,7 +23,7 @@ OutputBaseFilename=Holder-{#AppVersion}-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-UninstallDisplayIcon={app}\bin\holder-desktop.exe
+UninstallDisplayIcon={app}\Holder.exe
 ChangesEnvironment=yes
 SetupLogging=yes
 
@@ -35,13 +35,13 @@ Name: "addtopath"; Description: "Add Holder command-line tools to PATH"; GroupDe
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Holder"; Filename: "{app}\bin\holder-desktop.exe"; WorkingDir: "{app}\bin"
+Name: "{group}\Holder"; Filename: "{app}\Holder.exe"; WorkingDir: "{app}"
 Name: "{group}\Holder Backend"; Filename: "{app}\bin\holderd.exe"; WorkingDir: "{app}\bin"
 Name: "{group}\Uninstall Holder"; Filename: "{uninstallexe}"
-Name: "{userdesktop}\Holder"; Filename: "{app}\bin\holder-desktop.exe"; WorkingDir: "{app}\bin"; Tasks: desktopicon
+Name: "{userdesktop}\Holder"; Filename: "{app}\Holder.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\bin\holder-desktop.exe"; Description: "Launch Holder"; Flags: nowait postinstall skipifsilent unchecked
+Filename: "{app}\Holder.exe"; Description: "Launch Holder"; Flags: nowait postinstall skipifsilent unchecked
 
 [Code]
 const
