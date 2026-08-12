@@ -382,7 +382,7 @@ jobs:
           codesign --force --sign - "${resources_dir}/bin/holder-desktop"
           codesign --force --sign - "${resources_dir}/bin/holderd"
           codesign --force --sign - "${resources_dir}/bin/holderctl"
-          codesign --force --deep --sign - "${app_dir}"
+          codesign --force --sign - "${app_dir}"
 
           find "${app_dir}" -maxdepth 5 -type f | sort
 
@@ -476,7 +476,19 @@ jobs:
             fi
           done < <(find "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders" -maxdepth 1 -type f -name '*.so' | sort)
 
-          codesign --verify --deep --strict --verbose=2 "${app_dir}"
+          codesign --verify --strict --verbose=2 "${app_dir}"
+
+          for binary in \
+            "${app_dir}/Contents/MacOS/Holder" \
+            "${resources_dir}/bin/holder-desktop" \
+            "${resources_dir}/bin/holderd" \
+            "${resources_dir}/bin/holderctl"; do
+            codesign --verify --strict --verbose=2 "${binary}"
+          done
+
+          while IFS= read -r signed_file; do
+            codesign --verify --strict --verbose=2 "${signed_file}"
+          done < <(find "${resources_dir}/lib" -type f \( -name '*.dylib' -o -name '*.so' \) | sort)
 
           echo "Running staged holderd --version"
           "${resources_dir}/bin/holderd" --version
