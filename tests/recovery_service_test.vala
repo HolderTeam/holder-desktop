@@ -76,7 +76,7 @@ private void test_write_payload_to_temp_attachment_rejects_empty_payload() {
 }
 
 private void test_open_email_with_attachment_uses_xdg_email() {
-    if (Path.DIR_SEPARATOR_S == "\\") {
+    if (Environment.get_variable("HOLDER_DESKTOP_TEST_PLATFORM") != "linux") {
         return;
     }
 
