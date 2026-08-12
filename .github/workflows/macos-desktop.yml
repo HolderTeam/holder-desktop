@@ -1,0 +1,110 @@
+name: macOS desktop
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - name: Check out holder-desktop
+        uses: actions/checkout@v4
+
+      - name: Install MacPorts
+        run: |
+          set -euo pipefail
+
+          os_major="$(sw_vers -productVersion | awk -F. '{ print $1 }')"
+          case "${os_major}" in
+            15) os_version="15-Sequoia" ;;
+            14) os_version="14-Sonoma" ;;
+            13) os_version="13-Ventura" ;;
+            *) echo "Unsupported macOS major version: ${os_major}" >&2; exit 1 ;;
+          esac
+          macports_version="2.11.5"
+          pkg="MacPorts-${macports_version}-${os_version}.pkg"
+          url="https://github.com/macports/macports-base/releases/download/v${macports_version}/${pkg}"
+
+          curl -L -o "${pkg}" "${url}"
+          sudo installer -pkg "${pkg}" -target /
+
+          {
+            echo "/opt/local/bin"
+            echo "/opt/local/sbin"
+          } >> "${GITHUB_PATH}"
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+
+          sudo /opt/local/bin/port -N selfupdate
+          sudo /opt/local/bin/port -N install \
+            git \
+            meson \
+            ninja \
+            pkgconfig \
+            vala \
+            gtk4 \
+            libadwaita \
+            gtksourceview5 \
+            libspelling \
+            libgee \
+            libsoup3 \
+            json-glib
+
+      - name: Build and test
+        run: |
+          set -euo pipefail
+
+          meson setup build-macos \
+            --prefix=/ \
+            -Dterminal=false
+          meson compile -C build-macos
+          meson test -C build-macos --print-errorlogs
+
+      - name: Stage desktop artifact
+        run: |
+          set -euo pipefail
+
+          stage_dir="${PWD}/out/artifacts/macos-desktop"
+          rm -rf "${stage_dir}"
+          mkdir -p "${stage_dir}"
+
+          DESTDIR="${stage_dir}" meson install -C build-macos
+
+          (
+            cd "${stage_dir}"
+            find . -type f \
+              | sed 's#^\./##' \
+              | sort \
+              > manifest.txt
+          )
+
+          find "${stage_dir}" -maxdepth 5 -type f | sort
+
+      - name: Smoke-test staged desktop artifact
+        run: |
+          set -euo pipefail
+
+          test -f out/artifacts/macos-desktop/bin/holder-desktop
+          test -f out/artifacts/macos-desktop/share/glib-2.0/schemas/team.holder.Holder.gschema.xml
+          test -f out/artifacts/macos-desktop/share/holder-desktop/holder.jpg
+          test -f out/artifacts/macos-desktop/share/applications/team.holder.Holder.desktop
+          test -f out/artifacts/macos-desktop/manifest.txt
+          grep -qx 'bin/holder-desktop' out/artifacts/macos-desktop/manifest.txt
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: holder-desktop-macos
+          path: out/artifacts/macos-desktop/**
+          if-no-files-found: error
+          retention-days: 7
