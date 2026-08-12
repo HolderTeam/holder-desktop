@@ -77,6 +77,7 @@ jobs:
           brew update
           brew install \
             dylibbundler \
+            adwaita-icon-theme \
             gtk4 \
             libadwaita \
             gtksourceview5 \
@@ -160,6 +161,7 @@ jobs:
           cp downloads/desktop/share/glib-2.0/schemas/team.holder.Holder.gschema.xml \
             "${resources_dir}/share/glib-2.0/schemas/"
           copy_tree_dereference_if_exists "${homebrew_prefix}/share/icons" "${resources_dir}/share/icons"
+          copy_tree_dereference_if_exists "$(brew --prefix adwaita-icon-theme)/share/icons" "${resources_dir}/share/icons"
           copy_tree_dereference_if_exists "${homebrew_prefix}/share/themes" "${resources_dir}/share/themes"
           copy_tree_dereference_if_exists "${homebrew_prefix}/share/gtk-4.0" "${resources_dir}/share/gtk-4.0"
           copy_tree_dereference_if_exists "${homebrew_prefix}/share/libadwaita" "${resources_dir}/share/libadwaita"
@@ -440,6 +442,11 @@ jobs:
           check_file "${resources_dir}/openapi.yaml"
           check_file "${resources_dir}/share/glib-2.0/schemas/gschemas.compiled"
           check_file "${resources_dir}/share/gtksourceview-5/language-specs/language2.rng"
+          check_file "${resources_dir}/share/icons/Adwaita/symbolic/actions/view-refresh-symbolic.svg"
+          check_file "${resources_dir}/share/icons/Adwaita/symbolic/actions/list-add-symbolic.svg"
+          check_file "${resources_dir}/share/icons/Adwaita/symbolic/actions/edit-find-replace-symbolic.svg"
+          check_file "${resources_dir}/share/icons/Adwaita/symbolic/actions/open-menu-symbolic.svg"
+          check_file "${resources_dir}/share/icons/Adwaita/symbolic/places/user-trash-symbolic.svg"
           check_file "${resources_dir}/manifest.txt"
 
           check_file "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
