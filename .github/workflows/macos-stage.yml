@@ -348,11 +348,17 @@ jobs:
                 exit 1
               fi
 
-              GDK_PIXBUF_MODULEDIR="lib/gdk-pixbuf-2.0/2.10.0/loaders" \
-                gdk-pixbuf-query-loaders lib/gdk-pixbuf-2.0/2.10.0/loaders/*.so \
-                > "lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+              loader_dir="lib/gdk-pixbuf-2.0/2.10.0/loaders"
+              loader_cache="lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
 
-              if ! grep -F "libpixbufloader" "lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"; then
+              GDK_PIXBUF_MODULEDIR="${loader_dir}" \
+                gdk-pixbuf-query-loaders "${loader_dir}"/*.so \
+                > "${loader_cache}"
+
+              loader_dir_abs="$(pwd)/${loader_dir}"
+              perl -0pi -e 's#\Q'"${loader_dir_abs}"'\E#'"${loader_dir}"'#g' "${loader_cache}"
+
+              if ! grep -F "libpixbufloader" "${loader_cache}"; then
                 echo "gdk-pixbuf loader cache contains no loader modules"
                 exit 1
               fi
