@@ -100,6 +100,7 @@ jobs:
 
           version="$(tr -d '[:space:]' < VERSION)"
           homebrew_prefix="$(brew --prefix)"
+          homebrew_gtksourceview_prefix="$(brew --prefix gtksourceview5)"
           homebrew_openssl_prefix="$(brew --prefix openssl@3)"
           app_dir="out/artifacts/Holder.app"
           contents_dir="${app_dir}/Contents"
@@ -136,8 +137,8 @@ jobs:
             local source_dir="$1"
             local target_dir="$2"
             if [ -d "${source_dir}" ]; then
-              mkdir -p "$(dirname "${target_dir}")"
-              cp -a "${source_dir}" "${target_dir}"
+              mkdir -p "${target_dir}"
+              cp -a "${source_dir}/." "${target_dir}/"
             fi
           }
 
@@ -148,6 +149,7 @@ jobs:
           copy_tree_if_exists "${homebrew_prefix}/share/themes" "${resources_dir}/share/themes"
           copy_tree_if_exists "${homebrew_prefix}/share/gtk-4.0" "${resources_dir}/share/gtk-4.0"
           copy_tree_if_exists "${homebrew_prefix}/share/libadwaita" "${resources_dir}/share/libadwaita"
+          copy_tree_if_exists "${homebrew_gtksourceview_prefix}/share/gtksourceview-5" "${resources_dir}/share/gtksourceview-5"
           copy_tree_if_exists "${homebrew_prefix}/share/gtksourceview-5" "${resources_dir}/share/gtksourceview-5"
           copy_tree_if_exists "${homebrew_prefix}/share/enchant-2" "${resources_dir}/share/enchant-2"
           copy_tree_if_exists "${homebrew_prefix}/share/locale" "${resources_dir}/share/locale"
