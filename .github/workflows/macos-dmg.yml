@@ -1,0 +1,234 @@
+name: macOS DMG
+
+on:
+  workflow_dispatch:
+    inputs:
+      staged_run_id:
+        description: GitHub Actions run ID that uploaded Holder-macos-staged
+        required: true
+        type: string
+      staged_repository:
+        description: Repository containing the staged app artifact
+        required: true
+        type: string
+        default: HolderTeam/holder-desktop
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  dmg:
+    runs-on: macos-15
+    environment: macos-release
+
+    steps:
+      - name: Check out holder-desktop
+        uses: actions/checkout@v4
+
+      - name: Download staged app
+        uses: actions/download-artifact@v4
+        with:
+          name: Holder-macos-staged
+          path: downloads/Holder.app
+          github-token: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
+          repository: ${{ inputs.staged_repository }}
+          run-id: ${{ inputs.staged_run_id }}
+
+      - name: Import signing certificate
+        shell: bash
+        env:
+          MACOS_DEVELOPER_ID_APPLICATION_CERT: ${{ secrets.MACOS_DEVELOPER_ID_APPLICATION_CERT }}
+          MACOS_DEVELOPER_ID_APPLICATION_CERT_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_APPLICATION_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${MACOS_DEVELOPER_ID_APPLICATION_CERT}" ]; then
+            echo "MACOS_DEVELOPER_ID_APPLICATION_CERT is not set"
+            exit 1
+          fi
+          if [ -z "${MACOS_DEVELOPER_ID_APPLICATION_CERT_PASSWORD}" ]; then
+            echo "MACOS_DEVELOPER_ID_APPLICATION_CERT_PASSWORD is not set"
+            exit 1
+          fi
+
+          keychain_password="$(uuidgen)"
+          keychain_path="${RUNNER_TEMP}/holder-signing.keychain-db"
+          cert_path="${RUNNER_TEMP}/holder-developer-id-application.p12"
+
+          printf '%s' "${MACOS_DEVELOPER_ID_APPLICATION_CERT}" | base64 -D > "${cert_path}"
+
+          security create-keychain -p "${keychain_password}" "${keychain_path}"
+          security set-keychain-settings -lut 21600 "${keychain_path}"
+          security unlock-keychain -p "${keychain_password}" "${keychain_path}"
+          security import "${cert_path}" \
+            -k "${keychain_path}" \
+            -P "${MACOS_DEVELOPER_ID_APPLICATION_CERT_PASSWORD}" \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "${keychain_password}" \
+            "${keychain_path}"
+
+          identity="$(
+            security find-identity -v -p codesigning "${keychain_path}" \
+              | sed -n 's/.*"\(Developer ID Application:.*\)".*/\1/p' \
+              | head -n 1
+          )"
+
+          if [ -z "${identity}" ]; then
+            security find-identity -v -p codesigning "${keychain_path}"
+            echo "Developer ID Application signing identity was not found"
+            exit 1
+          fi
+
+          {
+            echo "SIGNING_KEYCHAIN=${keychain_path}"
+            echo "CODESIGN_IDENTITY=${identity}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Sign Holder.app
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -d "downloads/Holder.app/Contents" ]; then
+            app_dir="downloads/Holder.app"
+          elif [ -d "downloads/Holder.app/Holder.app/Contents" ]; then
+            app_dir="downloads/Holder.app/Holder.app"
+          else
+            echo "Downloaded staged artifact does not contain Holder.app"
+            find downloads -maxdepth 4 -type d -print | sort
+            exit 1
+          fi
+          entitlements="packaging/macos/Holder.entitlements"
+
+          find "${app_dir}" -type f \( -name '*.dylib' -o -name '*.so' \) -print0 \
+            | while IFS= read -r -d '' file; do
+                codesign \
+                  --force \
+                  --options runtime \
+                  --timestamp \
+                  --sign "${CODESIGN_IDENTITY}" \
+                  "${file}"
+              done
+
+          find "${app_dir}/Contents/Resources/bin" "${app_dir}/Contents/MacOS" -type f -perm -111 -print0 \
+            | while IFS= read -r -d '' file; do
+                codesign \
+                  --force \
+                  --options runtime \
+                  --timestamp \
+                  --entitlements "${entitlements}" \
+                  --sign "${CODESIGN_IDENTITY}" \
+                  "${file}"
+              done
+
+          codesign \
+            --force \
+            --deep \
+            --strict \
+            --options runtime \
+            --timestamp \
+            --entitlements "${entitlements}" \
+            --sign "${CODESIGN_IDENTITY}" \
+            "${app_dir}"
+
+          codesign --verify --deep --strict --verbose=2 "${app_dir}"
+          echo "SIGNED_APP_DIR=${app_dir}" >> "${GITHUB_ENV}"
+
+      - name: Create DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$(tr -d '[:space:]' < VERSION)"
+          output_dir="out/artifacts/macos-dmg"
+          dmg_root="out/dmg-root"
+          dmg_path="${output_dir}/Holder-${version}-macOS-arm64.dmg"
+
+          rm -rf "${output_dir}" "${dmg_root}"
+          mkdir -p "${output_dir}" "${dmg_root}"
+          cp -a "${SIGNED_APP_DIR}" "${dmg_root}/Holder.app"
+          ln -s /Applications "${dmg_root}/Applications"
+
+          hdiutil create \
+            -volname "Holder" \
+            -srcfolder "${dmg_root}" \
+            -ov \
+            -format UDZO \
+            "${dmg_path}"
+
+          {
+            echo "APP_VERSION=${version}"
+            echo "DMG_PATH=${dmg_path}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Sign DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          codesign \
+            --force \
+            --timestamp \
+            --sign "${CODESIGN_IDENTITY}" \
+            "${DMG_PATH}"
+
+          codesign --verify --verbose=2 "${DMG_PATH}"
+
+      - name: Notarize and staple DMG
+        shell: bash
+        env:
+          MACOS_NOTARY_API_KEY: ${{ secrets.MACOS_NOTARY_API_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${MACOS_NOTARY_API_KEY}" ]; then
+            echo "MACOS_NOTARY_API_KEY is not set"
+            exit 1
+          fi
+          if [ -z "${MACOS_NOTARY_KEY_ID}" ]; then
+            echo "MACOS_NOTARY_KEY_ID is not set"
+            exit 1
+          fi
+          if [ -z "${MACOS_NOTARY_ISSUER_ID}" ]; then
+            echo "MACOS_NOTARY_ISSUER_ID is not set"
+            exit 1
+          fi
+
+          key_dir="${RUNNER_TEMP}/private_keys"
+          key_path="${key_dir}/AuthKey_${MACOS_NOTARY_KEY_ID}.p8"
+          mkdir -p "${key_dir}"
+          printf '%s' "${MACOS_NOTARY_API_KEY}" > "${key_path}"
+          chmod 600 "${key_path}"
+
+          xcrun notarytool submit "${DMG_PATH}" \
+            --key "${key_path}" \
+            --key-id "${MACOS_NOTARY_KEY_ID}" \
+            --issuer "${MACOS_NOTARY_ISSUER_ID}" \
+            --wait
+
+          xcrun stapler staple "${DMG_PATH}"
+          xcrun stapler validate "${DMG_PATH}"
+
+      - name: Smoke-test DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f "${DMG_PATH}"
+          test -s "${DMG_PATH}"
+          hdiutil verify "${DMG_PATH}"
+          spctl --assess --type open --context context:primary-signature --verbose "${DMG_PATH}"
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Holder-macos-dmg
+          path: out/artifacts/macos-dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 7

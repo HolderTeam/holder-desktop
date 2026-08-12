@@ -1,0 +1,248 @@
+name: macOS staged app
+
+on:
+  workflow_dispatch:
+    inputs:
+      desktop_run_id:
+        description: GitHub Actions run ID that uploaded holder-desktop-macos
+        required: true
+        type: string
+      backend_run_id:
+        description: GitHub Actions run ID that uploaded holder-daemon-macos-backend
+        required: true
+        type: string
+      launcher_run_id:
+        description: GitHub Actions run ID that uploaded holder-launcher-macos
+        required: true
+        type: string
+      desktop_repository:
+        description: Repository containing the desktop artifact
+        required: true
+        type: string
+        default: HolderTeam/holder-desktop
+      backend_repository:
+        description: Repository containing the backend artifact
+        required: true
+        type: string
+        default: HolderTeam/holder-daemon
+      launcher_repository:
+        description: Repository containing the launcher artifact
+        required: true
+        type: string
+        default: HolderTeam/holder-launcher
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  stage:
+    runs-on: macos-15
+
+    steps:
+      - name: Check out holder-desktop
+        uses: actions/checkout@v4
+
+      - name: Download desktop artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: holder-desktop-macos
+          path: downloads/desktop
+          github-token: ${{ github.token }}
+          repository: ${{ inputs.desktop_repository }}
+          run-id: ${{ inputs.desktop_run_id }}
+
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: holder-daemon-macos-backend
+          path: downloads/backend
+          github-token: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
+          repository: ${{ inputs.backend_repository }}
+          run-id: ${{ inputs.backend_run_id }}
+
+      - name: Download launcher artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: holder-launcher-macos
+          path: downloads/launcher
+          github-token: ${{ secrets.HOLDER_CI_ARTIFACT_TOKEN || github.token }}
+          repository: ${{ inputs.launcher_repository }}
+          run-id: ${{ inputs.launcher_run_id }}
+
+      - name: Install MacPorts runtime tools
+        run: |
+          set -euo pipefail
+
+          os_major="$(sw_vers -productVersion | awk -F. '{ print $1 }')"
+          case "${os_major}" in
+            15) os_version="15-Sequoia" ;;
+            14) os_version="14-Sonoma" ;;
+            13) os_version="13-Ventura" ;;
+            *) echo "Unsupported macOS major version: ${os_major}" >&2; exit 1 ;;
+          esac
+          macports_version="2.11.5"
+          pkg="MacPorts-${macports_version}-${os_version}.pkg"
+          url="https://github.com/macports/macports-base/releases/download/v${macports_version}/${pkg}"
+
+          curl -L -o "${pkg}" "${url}"
+          sudo installer -pkg "${pkg}" -target /
+
+          {
+            echo "/opt/local/bin"
+            echo "/opt/local/sbin"
+          } >> "${GITHUB_PATH}"
+
+          sudo /opt/local/bin/port -N selfupdate
+          sudo /opt/local/bin/port -N install \
+            dylibbundler \
+            gtk4 \
+            libadwaita \
+            gtksourceview5 \
+            libspelling \
+            libgee \
+            libsoup3 \
+            json-glib \
+            sqlite3 \
+            libsodium \
+            libgit2 \
+            md4c \
+            openssl3 \
+            boost \
+            yaml-cpp \
+            spdlog
+
+      - name: Assemble Holder.app
+        run: |
+          set -euo pipefail
+
+          version="$(tr -d '[:space:]' < VERSION)"
+          app_dir="out/artifacts/Holder.app"
+          contents_dir="${app_dir}/Contents"
+          resources_dir="${contents_dir}/Resources"
+
+          rm -rf "${app_dir}"
+          mkdir -p \
+            "${contents_dir}/MacOS" \
+            "${resources_dir}/bin" \
+            "${resources_dir}/lib" \
+            "${resources_dir}/share"
+
+          sed "s/@HOLDER_VERSION@/${version}/g" \
+            packaging/macos/Info.plist.in \
+            > "${contents_dir}/Info.plist"
+
+          cp downloads/launcher/Holder "${contents_dir}/MacOS/Holder"
+          cp downloads/desktop/bin/holder-desktop "${resources_dir}/bin/holder-desktop"
+          cp downloads/backend/bin/holderd "${resources_dir}/bin/holderd"
+          cp downloads/backend/bin/holderctl "${resources_dir}/bin/holderctl"
+          chmod +x \
+            "${contents_dir}/MacOS/Holder" \
+            "${resources_dir}/bin/holder-desktop" \
+            "${resources_dir}/bin/holderd" \
+            "${resources_dir}/bin/holderctl"
+
+          cp -a downloads/desktop/share/. "${resources_dir}/share/"
+          cp -a downloads/backend/schema "${resources_dir}/schema"
+          cp -a downloads/backend/config "${resources_dir}/config"
+          cp -a downloads/backend/assets "${resources_dir}/assets"
+          cp downloads/backend/openapi.yaml "${resources_dir}/openapi.yaml"
+
+          copy_tree_if_exists() {
+            local source_dir="$1"
+            local target_dir="$2"
+            if [ -d "${source_dir}" ]; then
+              mkdir -p "$(dirname "${target_dir}")"
+              cp -a "${source_dir}" "${target_dir}"
+            fi
+          }
+
+          copy_tree_if_exists /opt/local/share/glib-2.0 "${resources_dir}/share/glib-2.0"
+          cp downloads/desktop/share/glib-2.0/schemas/team.holder.Holder.gschema.xml \
+            "${resources_dir}/share/glib-2.0/schemas/"
+          copy_tree_if_exists /opt/local/share/icons "${resources_dir}/share/icons"
+          copy_tree_if_exists /opt/local/share/themes "${resources_dir}/share/themes"
+          copy_tree_if_exists /opt/local/share/gtk-4.0 "${resources_dir}/share/gtk-4.0"
+          copy_tree_if_exists /opt/local/share/libadwaita "${resources_dir}/share/libadwaita"
+          copy_tree_if_exists /opt/local/share/gtksourceview-5 "${resources_dir}/share/gtksourceview-5"
+          copy_tree_if_exists /opt/local/share/locale "${resources_dir}/share/locale"
+          copy_tree_if_exists /opt/local/lib/gio "${resources_dir}/lib/gio"
+          copy_tree_if_exists /opt/local/lib/gdk-pixbuf-2.0 "${resources_dir}/lib/gdk-pixbuf-2.0"
+          copy_tree_if_exists /opt/local/lib/gtk-4.0 "${resources_dir}/lib/gtk-4.0"
+
+          find "${resources_dir}" -type f \( -name '*.a' -o -name '*.la' -o -name '*.h' \) -delete
+
+          glib-compile-schemas "${resources_dir}/share/glib-2.0/schemas"
+
+          if [ -d "${resources_dir}/lib/gio/modules" ]; then
+            gio-querymodules "${resources_dir}/lib/gio/modules"
+          fi
+
+          if [ -d "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders" ]; then
+            GDK_PIXBUF_MODULEDIR="${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders" \
+              gdk-pixbuf-query-loaders "${resources_dir}"/lib/gdk-pixbuf-2.0/2.10.0/loaders/*.so \
+              > "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+          fi
+
+          bundle_binary() {
+            local binary="$1"
+            local prefix="$2"
+
+            dylibbundler \
+              -od \
+              -b \
+              -x "${binary}" \
+              -d "${resources_dir}/lib" \
+              -p "${prefix}" \
+              -s /opt/local/lib
+          }
+
+          bundle_binary "${contents_dir}/MacOS/Holder" "@executable_path/../Resources/lib"
+          bundle_binary "${resources_dir}/bin/holder-desktop" "@executable_path/../lib"
+          bundle_binary "${resources_dir}/bin/holderd" "@executable_path/../lib"
+          bundle_binary "${resources_dir}/bin/holderctl" "@executable_path/../lib"
+
+          find "${resources_dir}" -type f -name '*.dylib' -exec chmod u+w {} \;
+
+          (
+            cd "out/artifacts"
+            find Holder.app -type f \
+              | sort \
+              > Holder.app/Contents/Resources/manifest.txt
+          )
+
+          find "${app_dir}" -maxdepth 5 -type f | sort
+
+      - name: Smoke-test Holder.app
+        run: |
+          set -euo pipefail
+
+          app_dir="out/artifacts/Holder.app"
+          resources_dir="${app_dir}/Contents/Resources"
+
+          test -f "${app_dir}/Contents/Info.plist"
+          test -x "${app_dir}/Contents/MacOS/Holder"
+          test -x "${resources_dir}/bin/holder-desktop"
+          test -x "${resources_dir}/bin/holderd"
+          test -x "${resources_dir}/bin/holderctl"
+          test -f "${resources_dir}/schema/schema.sql"
+          test -f "${resources_dir}/openapi.yaml"
+          test -f "${resources_dir}/share/glib-2.0/schemas/gschemas.compiled"
+          test -f "${resources_dir}/share/gtksourceview-5/language-specs/language2.rng"
+          test -f "${resources_dir}/manifest.txt"
+
+          if otool -L "${resources_dir}/bin/holder-desktop" | grep -F '/opt/local/'; then
+            echo "holder-desktop still links to MacPorts paths"
+            exit 1
+          fi
+
+          "${resources_dir}/bin/holderd" --version
+          "${resources_dir}/bin/holderctl" --help
+
+      - name: Upload staged app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Holder-macos-staged
+          path: out/artifacts/Holder.app
+          if-no-files-found: error
+          retention-days: 7
