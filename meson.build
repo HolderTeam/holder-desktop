@@ -14,6 +14,17 @@ holder_config = configure_file(
 
 subdir('data')
 
+test_env = environment()
+test_home_dir = meson.current_build_dir() / 'test-home'
+test_env.set('GSETTINGS_BACKEND', 'memory')
+test_env.set('GSETTINGS_SCHEMA_DIR', meson.current_build_dir() / 'data')
+test_env.set('HOLDER_DESKTOP_TEST_PLATFORM', host_machine.system())
+test_env.set('XDG_CACHE_HOME', test_home_dir / 'cache')
+test_env.set('XDG_CONFIG_HOME', test_home_dir / 'config')
+test_env.set('XDG_DATA_HOME', test_home_dir / 'data')
+test_env.set('XDG_STATE_HOME', test_home_dir / 'state')
+add_test_setup('default', env: test_env, is_default: true)
+
 install_data(
   'data/team.holder.Holder.desktop',
   install_dir: join_paths(datadir, 'applications'),

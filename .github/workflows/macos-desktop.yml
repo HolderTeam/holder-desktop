@@ -18,46 +18,23 @@ jobs:
       - name: Check out holder-desktop
         uses: actions/checkout@v4
 
-      - name: Install MacPorts
-        run: |
-          set -euo pipefail
-
-          os_major="$(sw_vers -productVersion | awk -F. '{ print $1 }')"
-          case "${os_major}" in
-            15) os_version="15-Sequoia" ;;
-            14) os_version="14-Sonoma" ;;
-            13) os_version="13-Ventura" ;;
-            *) echo "Unsupported macOS major version: ${os_major}" >&2; exit 1 ;;
-          esac
-          macports_version="2.11.5"
-          pkg="MacPorts-${macports_version}-${os_version}.pkg"
-          url="https://github.com/macports/macports-base/releases/download/v${macports_version}/${pkg}"
-
-          curl -L -o "${pkg}" "${url}"
-          sudo installer -pkg "${pkg}" -target /
-
-          {
-            echo "/opt/local/bin"
-            echo "/opt/local/sbin"
-          } >> "${GITHUB_PATH}"
-
       - name: Install dependencies
         run: |
           set -euo pipefail
 
-          sudo /opt/local/bin/port -N selfupdate
-          sudo /opt/local/bin/port -N install \
+          brew update
+          brew install \
             git \
             meson \
             ninja \
-            pkgconfig \
+            pkgconf \
             vala \
             gtk4 \
             libadwaita \
             gtksourceview5 \
             libspelling \
             libgee \
-            libsoup3 \
+            libsoup \
             json-glib
 
       - name: Build and test
