@@ -216,25 +216,50 @@ jobs:
           resources_dir="${app_dir}/Contents/Resources"
           homebrew_prefix="$(brew --prefix)"
 
-          test -f "${app_dir}/Contents/Info.plist"
-          test -x "${app_dir}/Contents/MacOS/Holder"
-          test -x "${resources_dir}/bin/holder-desktop"
-          test -x "${resources_dir}/bin/holderd"
-          test -x "${resources_dir}/bin/holderctl"
-          test -f "${resources_dir}/schema/schema.sql"
-          test -f "${resources_dir}/openapi.yaml"
-          test -f "${resources_dir}/share/glib-2.0/schemas/gschemas.compiled"
-          test -f "${resources_dir}/share/gtksourceview-5/language-specs/language2.rng"
-          test -f "${resources_dir}/manifest.txt"
+          check_file() {
+            local path="$1"
+            if [ ! -f "${path}" ]; then
+              echo "Missing file: ${path}"
+              exit 1
+            fi
+          }
 
-          test -f "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+          check_executable() {
+            local path="$1"
+            if [ ! -x "${path}" ]; then
+              echo "Missing executable: ${path}"
+              exit 1
+            fi
+          }
+
+          check_no_match() {
+            local pattern="$1"
+            local path="$2"
+            if grep -Fn -- "${pattern}" "${path}"; then
+              echo "Unexpected path leak in ${path}: ${pattern}"
+              exit 1
+            fi
+          }
+
+          check_file "${app_dir}/Contents/Info.plist"
+          check_executable "${app_dir}/Contents/MacOS/Holder"
+          check_executable "${resources_dir}/bin/holder-desktop"
+          check_executable "${resources_dir}/bin/holderd"
+          check_executable "${resources_dir}/bin/holderctl"
+          check_file "${resources_dir}/schema/schema.sql"
+          check_file "${resources_dir}/openapi.yaml"
+          check_file "${resources_dir}/share/glib-2.0/schemas/gschemas.compiled"
+          check_file "${resources_dir}/share/gtksourceview-5/language-specs/language2.rng"
+          check_file "${resources_dir}/manifest.txt"
+
+          check_file "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
           if [ -f "${resources_dir}/lib/gio/modules/giomodule.cache" ]; then
-            ! grep -F "${app_dir}" "${resources_dir}/lib/gio/modules/giomodule.cache"
-            ! grep -F "${homebrew_prefix}" "${resources_dir}/lib/gio/modules/giomodule.cache"
+            check_no_match "${app_dir}" "${resources_dir}/lib/gio/modules/giomodule.cache"
+            check_no_match "${homebrew_prefix}" "${resources_dir}/lib/gio/modules/giomodule.cache"
           fi
-          ! grep -F "${app_dir}" "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
-          ! grep -F "${homebrew_prefix}" "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
-          ! grep -F "out/artifacts/Holder.app" "${resources_dir}/manifest.txt"
+          check_no_match "${app_dir}" "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+          check_no_match "${homebrew_prefix}" "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+          check_no_match "out/artifacts/Holder.app" "${resources_dir}/manifest.txt"
 
           for binary in \
             "${app_dir}/Contents/MacOS/Holder" \
@@ -247,7 +272,9 @@ jobs:
             fi
           done
 
+          echo "Running staged holderd --version"
           "${resources_dir}/bin/holderd" --version
+          echo "Running staged holderctl --help"
           "${resources_dir}/bin/holderctl" --help
 
       - name: Upload staged app
