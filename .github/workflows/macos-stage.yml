@@ -112,11 +112,29 @@ jobs:
             yaml-cpp \
             spdlog
 
+      - name: Install Homebrew backend runtime libraries
+        run: |
+          set -euo pipefail
+
+          brew update
+          brew install \
+            boost \
+            nlohmann-json \
+            yaml-cpp \
+            spdlog \
+            sqlite \
+            libsodium \
+            libgit2 \
+            md4c \
+            openssl@3
+
       - name: Assemble Holder.app
         run: |
           set -euo pipefail
 
           version="$(tr -d '[:space:]' < VERSION)"
+          homebrew_prefix="$(brew --prefix)"
+          homebrew_openssl_prefix="$(brew --prefix openssl@3)"
           app_dir="out/artifacts/Holder.app"
           contents_dir="${app_dir}/Contents"
           resources_dir="${contents_dir}/Resources"
@@ -187,6 +205,15 @@ jobs:
           bundle_binary() {
             local binary="$1"
             local prefix="$2"
+            local search_args=(-s /opt/local/lib)
+
+            if [ -d "${homebrew_prefix}/lib" ]; then
+              search_args+=(-s "${homebrew_prefix}/lib")
+            fi
+            if [ -d "${homebrew_openssl_prefix}/lib" ] &&
+              [ "${homebrew_openssl_prefix}/lib" != "${homebrew_prefix}/lib" ]; then
+              search_args+=(-s "${homebrew_openssl_prefix}/lib")
+            fi
 
             dylibbundler \
               -od \
@@ -194,7 +221,7 @@ jobs:
               -x "${binary}" \
               -d "${resources_dir}/lib" \
               -p "${prefix}" \
-              -s /opt/local/lib
+              "${search_args[@]}"
           }
 
           bundle_binary "${contents_dir}/MacOS/Holder" "@executable_path/../Resources/lib"
