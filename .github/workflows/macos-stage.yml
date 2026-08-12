@@ -100,6 +100,7 @@ jobs:
 
           version="$(tr -d '[:space:]' < VERSION)"
           homebrew_prefix="$(brew --prefix)"
+          homebrew_gdk_pixbuf_prefix="$(brew --prefix gdk-pixbuf)"
           homebrew_gtksourceview_prefix="$(brew --prefix gtksourceview5)"
           homebrew_openssl_prefix="$(brew --prefix openssl@3)"
           app_dir="out/artifacts/Holder.app"
@@ -154,6 +155,7 @@ jobs:
           copy_tree_if_exists "${homebrew_prefix}/share/enchant-2" "${resources_dir}/share/enchant-2"
           copy_tree_if_exists "${homebrew_prefix}/share/locale" "${resources_dir}/share/locale"
           copy_tree_if_exists "${homebrew_prefix}/lib/gio" "${resources_dir}/lib/gio"
+          copy_tree_if_exists "${homebrew_gdk_pixbuf_prefix}/lib/gdk-pixbuf-2.0" "${resources_dir}/lib/gdk-pixbuf-2.0"
           copy_tree_if_exists "${homebrew_prefix}/lib/gdk-pixbuf-2.0" "${resources_dir}/lib/gdk-pixbuf-2.0"
           copy_tree_if_exists "${homebrew_prefix}/lib/gtk-4.0" "${resources_dir}/lib/gtk-4.0"
 
@@ -172,6 +174,10 @@ jobs:
               GDK_PIXBUF_MODULEDIR="lib/gdk-pixbuf-2.0/2.10.0/loaders" \
                 gdk-pixbuf-query-loaders lib/gdk-pixbuf-2.0/2.10.0/loaders/*.so \
                 > "lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+            else
+              echo "Missing gdk-pixbuf loaders directory: ${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders"
+              find "lib/gdk-pixbuf-2.0" -maxdepth 5 -type d 2>/dev/null | sort || true
+              exit 1
             fi
           )
 
