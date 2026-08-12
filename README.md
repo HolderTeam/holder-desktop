@@ -28,6 +28,44 @@ sudo apt install -y \
   libgee-0.8-dev libsoup-3.0-dev libjson-glib-dev libvte-2.91-gtk4-dev
 ```
 
+Fresh macOS setup:
+
+```bash
+brew update
+brew install \
+  git \
+  meson \
+  ninja \
+  pkgconf \
+  vala \
+  gtk4 \
+  libadwaita \
+  gtksourceview5 \
+  libspelling \
+  libgee \
+  libsoup \
+  json-glib \
+  vte3
+```
+
+Configure, build, and test:
+
+```bash
+meson setup build-macos --prefix=/
+meson compile -C build-macos
+meson test -C build-macos --print-errorlogs
+```
+
+To run the frontend directly:
+
+```bash
+./build-macos/holder-desktop
+```
+
+The desktop app expects `holderd` to already be running. For local macOS development, build and
+start the backend from the `holder-daemon` repository first, or run a staged `.app` bundle that
+contains the backend and launcher.
+
 Run the fast headless-safe test suite from this directory:
 
 ```bash

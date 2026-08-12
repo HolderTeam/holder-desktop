@@ -85,6 +85,7 @@ jobs:
             libgee \
             libsoup \
             json-glib \
+            vte3 \
             boost \
             nlohmann-json \
             yaml-cpp \

@@ -35,15 +35,15 @@ jobs:
             libspelling \
             libgee \
             libsoup \
-            json-glib
+            json-glib \
+            vte3
 
       - name: Build and test
         run: |
           set -euo pipefail
 
           meson setup build-macos \
-            --prefix=/ \
-            -Dterminal=false
+            --prefix=/
           meson compile -C build-macos
           meson test -C build-macos --print-errorlogs
 
