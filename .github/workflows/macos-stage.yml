@@ -70,54 +70,20 @@ jobs:
           repository: ${{ inputs.launcher_repository }}
           run-id: ${{ inputs.launcher_run_id }}
 
-      - name: Install MacPorts runtime tools
+      - name: Install Homebrew runtime tools
         run: |
           set -euo pipefail
 
-          os_major="$(sw_vers -productVersion | awk -F. '{ print $1 }')"
-          case "${os_major}" in
-            15) os_version="15-Sequoia" ;;
-            14) os_version="14-Sonoma" ;;
-            13) os_version="13-Ventura" ;;
-            *) echo "Unsupported macOS major version: ${os_major}" >&2; exit 1 ;;
-          esac
-          macports_version="2.11.5"
-          pkg="MacPorts-${macports_version}-${os_version}.pkg"
-          url="https://github.com/macports/macports-base/releases/download/v${macports_version}/${pkg}"
-
-          curl -L -o "${pkg}" "${url}"
-          sudo installer -pkg "${pkg}" -target /
-
-          {
-            echo "/opt/local/bin"
-            echo "/opt/local/sbin"
-          } >> "${GITHUB_PATH}"
-
-          sudo /opt/local/bin/port -N selfupdate
-          sudo /opt/local/bin/port -N install \
+          brew update
+          brew install \
             dylibbundler \
             gtk4 \
             libadwaita \
             gtksourceview5 \
             libspelling \
             libgee \
-            libsoup3 \
+            libsoup \
             json-glib \
-            sqlite3 \
-            libsodium \
-            libgit2 \
-            md4c \
-            openssl3 \
-            boost \
-            yaml-cpp \
-            spdlog
-
-      - name: Install Homebrew backend runtime libraries
-        run: |
-          set -euo pipefail
-
-          brew update
-          brew install \
             boost \
             nlohmann-json \
             yaml-cpp \
@@ -175,18 +141,19 @@ jobs:
             fi
           }
 
-          copy_tree_if_exists /opt/local/share/glib-2.0 "${resources_dir}/share/glib-2.0"
+          copy_tree_if_exists "${homebrew_prefix}/share/glib-2.0" "${resources_dir}/share/glib-2.0"
           cp downloads/desktop/share/glib-2.0/schemas/team.holder.Holder.gschema.xml \
             "${resources_dir}/share/glib-2.0/schemas/"
-          copy_tree_if_exists /opt/local/share/icons "${resources_dir}/share/icons"
-          copy_tree_if_exists /opt/local/share/themes "${resources_dir}/share/themes"
-          copy_tree_if_exists /opt/local/share/gtk-4.0 "${resources_dir}/share/gtk-4.0"
-          copy_tree_if_exists /opt/local/share/libadwaita "${resources_dir}/share/libadwaita"
-          copy_tree_if_exists /opt/local/share/gtksourceview-5 "${resources_dir}/share/gtksourceview-5"
-          copy_tree_if_exists /opt/local/share/locale "${resources_dir}/share/locale"
-          copy_tree_if_exists /opt/local/lib/gio "${resources_dir}/lib/gio"
-          copy_tree_if_exists /opt/local/lib/gdk-pixbuf-2.0 "${resources_dir}/lib/gdk-pixbuf-2.0"
-          copy_tree_if_exists /opt/local/lib/gtk-4.0 "${resources_dir}/lib/gtk-4.0"
+          copy_tree_if_exists "${homebrew_prefix}/share/icons" "${resources_dir}/share/icons"
+          copy_tree_if_exists "${homebrew_prefix}/share/themes" "${resources_dir}/share/themes"
+          copy_tree_if_exists "${homebrew_prefix}/share/gtk-4.0" "${resources_dir}/share/gtk-4.0"
+          copy_tree_if_exists "${homebrew_prefix}/share/libadwaita" "${resources_dir}/share/libadwaita"
+          copy_tree_if_exists "${homebrew_prefix}/share/gtksourceview-5" "${resources_dir}/share/gtksourceview-5"
+          copy_tree_if_exists "${homebrew_prefix}/share/enchant-2" "${resources_dir}/share/enchant-2"
+          copy_tree_if_exists "${homebrew_prefix}/share/locale" "${resources_dir}/share/locale"
+          copy_tree_if_exists "${homebrew_prefix}/lib/gio" "${resources_dir}/lib/gio"
+          copy_tree_if_exists "${homebrew_prefix}/lib/gdk-pixbuf-2.0" "${resources_dir}/lib/gdk-pixbuf-2.0"
+          copy_tree_if_exists "${homebrew_prefix}/lib/gtk-4.0" "${resources_dir}/lib/gtk-4.0"
 
           find "${resources_dir}" -type f \( -name '*.a' -o -name '*.la' -o -name '*.h' \) -delete
 
@@ -205,11 +172,8 @@ jobs:
           bundle_binary() {
             local binary="$1"
             local prefix="$2"
-            local search_args=(-s /opt/local/lib)
+            local search_args=(-s "${homebrew_prefix}/lib")
 
-            if [ -d "${homebrew_prefix}/lib" ]; then
-              search_args+=(-s "${homebrew_prefix}/lib")
-            fi
             if [ -d "${homebrew_openssl_prefix}/lib" ] &&
               [ "${homebrew_openssl_prefix}/lib" != "${homebrew_prefix}/lib" ]; then
               search_args+=(-s "${homebrew_openssl_prefix}/lib")
@@ -258,10 +222,17 @@ jobs:
           test -f "${resources_dir}/share/gtksourceview-5/language-specs/language2.rng"
           test -f "${resources_dir}/manifest.txt"
 
-          if otool -L "${resources_dir}/bin/holder-desktop" | grep -F '/opt/local/'; then
-            echo "holder-desktop still links to MacPorts paths"
-            exit 1
-          fi
+          homebrew_prefix="$(brew --prefix)"
+          for binary in \
+            "${app_dir}/Contents/MacOS/Holder" \
+            "${resources_dir}/bin/holder-desktop" \
+            "${resources_dir}/bin/holderd" \
+            "${resources_dir}/bin/holderctl"; do
+            if otool -L "${binary}" | grep -F "${homebrew_prefix}/"; then
+              echo "${binary} still links to Homebrew paths"
+              exit 1
+            fi
+          done
 
           "${resources_dir}/bin/holderd" --version
           "${resources_dir}/bin/holderctl" --help
