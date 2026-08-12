@@ -199,6 +199,115 @@ jobs:
 
           find "${resources_dir}" -type f -name '*.dylib' -exec chmod u+w {} \;
 
+          resolve_dependency_source() {
+            local dependency="$1"
+            local name="$2"
+
+            case "${dependency}" in
+              /usr/lib/*|/System/*)
+                return 1
+                ;;
+              "${resources_dir}/lib/"*)
+                if [ -f "${dependency}" ]; then
+                  printf '%s\n' "${dependency}"
+                  return 0
+                fi
+                ;;
+              "${homebrew_prefix}"/*|/opt/homebrew/*)
+                if [ -f "${dependency}" ]; then
+                  printf '%s\n' "${dependency}"
+                  return 0
+                fi
+                ;;
+            esac
+
+            if [ -f "${resources_dir}/lib/${name}" ]; then
+              printf '%s\n' "${resources_dir}/lib/${name}"
+              return 0
+            fi
+
+            if [ -f "${homebrew_prefix}/lib/${name}" ]; then
+              printf '%s\n' "${homebrew_prefix}/lib/${name}"
+              return 0
+            fi
+
+            find "${homebrew_prefix}/Cellar" -path "*/lib/${name}" \( -type f -o -type l \) -print -quit
+          }
+
+          ensure_bundled_library() {
+            local dependency="$1"
+            local name="${dependency##*/}"
+            local target="${resources_dir}/lib/${name}"
+            local source_path
+
+            if [ -f "${target}" ]; then
+              return 0
+            fi
+
+            source_path="$(resolve_dependency_source "${dependency}" "${name}" || true)"
+            if [ -z "${source_path}" ]; then
+              return 0
+            fi
+
+            cp -aL "${source_path}" "${target}"
+            chmod u+w "${target}"
+          }
+
+          normalize_bundled_library() {
+            local library="$1"
+            local name="${library##*/}"
+
+            chmod u+w "${library}"
+            install_name_tool -id "@loader_path/${name}" "${library}" 2>/dev/null || true
+
+            while IFS= read -r dependency; do
+              case "${dependency}" in
+                /usr/lib/*|/System/*)
+                  continue
+                  ;;
+              esac
+
+              local dependency_name="${dependency##*/}"
+              ensure_bundled_library "${dependency}"
+
+              if [ -f "${resources_dir}/lib/${dependency_name}" ]; then
+                install_name_tool \
+                  -change "${dependency}" "@loader_path/${dependency_name}" \
+                  "${library}" 2>/dev/null || true
+              fi
+            done < <(otool -L "${library}" | awk 'NR > 1 { print $1 }')
+
+            codesign --force --deep --preserve-metadata=entitlements,requirements,flags,runtime \
+              --sign - "${library}"
+          }
+
+          fix_module_dependencies() {
+            local module="$1"
+            local dependency_prefix="$2"
+
+            chmod u+w "${module}"
+
+            while IFS= read -r dependency; do
+              case "${dependency}" in
+                /usr/lib/*|/System/*)
+                  continue
+                  ;;
+              esac
+
+              local dependency_name="${dependency##*/}"
+              ensure_bundled_library "${dependency}"
+
+              if [ -f "${resources_dir}/lib/${dependency_name}" ]; then
+                install_name_tool \
+                  -change "${dependency}" "${dependency_prefix}/${dependency_name}" \
+                  "${module}" 2>/dev/null || true
+              fi
+            done < <(otool -L "${module}" | awk 'NR > 1 { print $1 }')
+
+            codesign --force --deep --preserve-metadata=entitlements,requirements,flags,runtime \
+              --sign - "${module}"
+          }
+
           copy_tree_dereference_if_exists "${homebrew_prefix}/lib/gio" "${resources_dir}/lib/gio"
           copy_tree_dereference_if_exists "${homebrew_gdk_pixbuf_prefix}/lib/gdk-pixbuf-2.0" "${resources_dir}/lib/gdk-pixbuf-2.0"
           copy_tree_dereference_if_exists "${homebrew_prefix}/lib/gdk-pixbuf-2.0" "${resources_dir}/lib/gdk-pixbuf-2.0"
@@ -215,10 +324,15 @@ jobs:
             fi
 
             while IFS= read -r loader; do
-              chmod u+w "${loader}"
-              bundle_binary "${loader}" "@loader_path/../../.." "-of"
+              fix_module_dependencies "${loader}" "@loader_path/../../.."
             done < <(find "${pixbuf_loaders_dir}" -maxdepth 1 -type f -name '*.so' | sort)
           fi
+
+          for _ in 1 2 3; do
+            while IFS= read -r library; do
+              normalize_bundled_library "${library}"
+            done < <(find "${resources_dir}/lib" -maxdepth 1 -type f -name '*.dylib' | sort)
+          done
 
           (
             cd "${resources_dir}"
@@ -329,6 +443,17 @@ jobs:
               exit 1
             fi
           done
+
+          while IFS= read -r library; do
+            if otool -L "${library}" | grep -F "${homebrew_prefix}/"; then
+              echo "${library} still links to Homebrew paths"
+              exit 1
+            fi
+            if otool -L "${library}" | grep -E '@executable_path|@loader_path/\.\.'; then
+              echo "${library} has non-library-relative dependency paths"
+              exit 1
+            fi
+          done < <(find "${resources_dir}/lib" -maxdepth 1 -type f -name '*.dylib' | sort)
 
           while IFS= read -r loader; do
             if otool -L "${loader}" | grep -F "${homebrew_prefix}/"; then
