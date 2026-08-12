@@ -139,7 +139,9 @@ jobs:
             local target_dir="$2"
             if [ -d "${source_dir}" ]; then
               mkdir -p "${target_dir}"
+              chmod -R u+w "${target_dir}"
               cp -a "${source_dir}/." "${target_dir}/"
+              chmod -R u+w "${target_dir}"
             fi
           }
 
@@ -148,7 +150,9 @@ jobs:
             local target_dir="$2"
             if [ -d "${source_dir}" ]; then
               mkdir -p "${target_dir}"
+              chmod -R u+w "${target_dir}"
               cp -aL "${source_dir}/." "${target_dir}/"
+              chmod -R u+w "${target_dir}"
             fi
           }
 
