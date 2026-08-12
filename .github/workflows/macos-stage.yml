@@ -143,6 +143,15 @@ jobs:
             fi
           }
 
+          copy_tree_dereference_if_exists() {
+            local source_dir="$1"
+            local target_dir="$2"
+            if [ -d "${source_dir}" ]; then
+              mkdir -p "${target_dir}"
+              cp -aL "${source_dir}/." "${target_dir}/"
+            fi
+          }
+
           copy_tree_if_exists "${homebrew_prefix}/share/glib-2.0" "${resources_dir}/share/glib-2.0"
           cp downloads/desktop/share/glib-2.0/schemas/team.holder.Holder.gschema.xml \
             "${resources_dir}/share/glib-2.0/schemas/"
@@ -186,12 +195,26 @@ jobs:
 
           find "${resources_dir}" -type f -name '*.dylib' -exec chmod u+w {} \;
 
-          copy_tree_if_exists "${homebrew_prefix}/lib/gio" "${resources_dir}/lib/gio"
-          copy_tree_if_exists "${homebrew_gdk_pixbuf_prefix}/lib/gdk-pixbuf-2.0" "${resources_dir}/lib/gdk-pixbuf-2.0"
-          copy_tree_if_exists "${homebrew_prefix}/lib/gdk-pixbuf-2.0" "${resources_dir}/lib/gdk-pixbuf-2.0"
-          copy_tree_if_exists "${homebrew_prefix}/lib/gtk-4.0" "${resources_dir}/lib/gtk-4.0"
+          copy_tree_dereference_if_exists "${homebrew_prefix}/lib/gio" "${resources_dir}/lib/gio"
+          copy_tree_dereference_if_exists "${homebrew_gdk_pixbuf_prefix}/lib/gdk-pixbuf-2.0" "${resources_dir}/lib/gdk-pixbuf-2.0"
+          copy_tree_dereference_if_exists "${homebrew_prefix}/lib/gdk-pixbuf-2.0" "${resources_dir}/lib/gdk-pixbuf-2.0"
+          copy_tree_dereference_if_exists "${homebrew_prefix}/lib/gtk-4.0" "${resources_dir}/lib/gtk-4.0"
 
           find "${resources_dir}" -type f \( -name '*.a' -o -name '*.la' -o -name '*.h' \) -delete
+
+          pixbuf_loaders_dir="${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders"
+          if [ -d "${pixbuf_loaders_dir}" ]; then
+            if ! find "${pixbuf_loaders_dir}" -maxdepth 1 -type f -name '*.so' | grep -q .; then
+              echo "Missing gdk-pixbuf loader modules in ${pixbuf_loaders_dir}"
+              find "${resources_dir}/lib/gdk-pixbuf-2.0" -maxdepth 6 -ls 2>/dev/null || true
+              exit 1
+            fi
+
+            while IFS= read -r loader; do
+              chmod u+w "${loader}"
+              bundle_binary "${loader}" "@loader_path/../../.." "-of"
+            done < <(find "${pixbuf_loaders_dir}" -maxdepth 1 -type f -name '*.so' | sort)
+          fi
 
           (
             cd "${resources_dir}"
@@ -201,9 +224,20 @@ jobs:
             fi
 
             if [ -d "lib/gdk-pixbuf-2.0/2.10.0/loaders" ]; then
+              if ! find "lib/gdk-pixbuf-2.0/2.10.0/loaders" -maxdepth 1 -type f -name '*.so' | grep -q .; then
+                echo "Missing gdk-pixbuf loader modules in ${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders"
+                find "lib/gdk-pixbuf-2.0" -maxdepth 6 -ls 2>/dev/null || true
+                exit 1
+              fi
+
               GDK_PIXBUF_MODULEDIR="lib/gdk-pixbuf-2.0/2.10.0/loaders" \
                 gdk-pixbuf-query-loaders lib/gdk-pixbuf-2.0/2.10.0/loaders/*.so \
                 > "lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+
+              if ! grep -F "libpixbufloader" "lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"; then
+                echo "gdk-pixbuf loader cache contains no loader modules"
+                exit 1
+              fi
             else
               echo "Missing gdk-pixbuf loaders directory: ${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders"
               find "lib/gdk-pixbuf-2.0" -maxdepth 5 -type d 2>/dev/null | sort || true
@@ -265,6 +299,14 @@ jobs:
           check_file "${resources_dir}/manifest.txt"
 
           check_file "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+          if ! find "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders" -maxdepth 1 -type f -name '*.so' | grep -q .; then
+            echo "Missing gdk-pixbuf loader modules in staged app"
+            exit 1
+          fi
+          if ! grep -F "libpixbufloader" "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"; then
+            echo "gdk-pixbuf loader cache contains no loader modules"
+            exit 1
+          fi
           if [ -f "${resources_dir}/lib/gio/modules/giomodule.cache" ]; then
             check_no_match "${app_dir}" "${resources_dir}/lib/gio/modules/giomodule.cache"
             check_no_match "${homebrew_prefix}" "${resources_dir}/lib/gio/modules/giomodule.cache"
@@ -283,6 +325,13 @@ jobs:
               exit 1
             fi
           done
+
+          while IFS= read -r loader; do
+            if otool -L "${loader}" | grep -F "${homebrew_prefix}/"; then
+              echo "${loader} still links to Homebrew paths"
+              exit 1
+            fi
+          done < <(find "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders" -maxdepth 1 -type f -name '*.so' | sort)
 
           echo "Running staged holderd --version"
           "${resources_dir}/bin/holderd" --version
