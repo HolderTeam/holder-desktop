@@ -284,8 +284,10 @@ jobs:
           fix_module_dependencies() {
             local module="$1"
             local dependency_prefix="$2"
+            local module_name="${module##*/}"
 
             chmod u+w "${module}"
+            install_name_tool -id "@loader_path/${module_name}" "${module}" 2>/dev/null || true
 
             while IFS= read -r dependency; do
               case "${dependency}" in
