@@ -159,14 +159,14 @@ jobs:
           copy_tree_dereference_if_exists "${homebrew_prefix}/share/glib-2.0" "${resources_dir}/share/glib-2.0"
           cp downloads/desktop/share/glib-2.0/schemas/team.holder.Holder.gschema.xml \
             "${resources_dir}/share/glib-2.0/schemas/"
-          copy_tree_if_exists "${homebrew_prefix}/share/icons" "${resources_dir}/share/icons"
-          copy_tree_if_exists "${homebrew_prefix}/share/themes" "${resources_dir}/share/themes"
-          copy_tree_if_exists "${homebrew_prefix}/share/gtk-4.0" "${resources_dir}/share/gtk-4.0"
-          copy_tree_if_exists "${homebrew_prefix}/share/libadwaita" "${resources_dir}/share/libadwaita"
-          copy_tree_if_exists "${homebrew_gtksourceview_prefix}/share/gtksourceview-5" "${resources_dir}/share/gtksourceview-5"
-          copy_tree_if_exists "${homebrew_prefix}/share/gtksourceview-5" "${resources_dir}/share/gtksourceview-5"
-          copy_tree_if_exists "${homebrew_prefix}/share/enchant-2" "${resources_dir}/share/enchant-2"
-          copy_tree_if_exists "${homebrew_prefix}/share/locale" "${resources_dir}/share/locale"
+          copy_tree_dereference_if_exists "${homebrew_prefix}/share/icons" "${resources_dir}/share/icons"
+          copy_tree_dereference_if_exists "${homebrew_prefix}/share/themes" "${resources_dir}/share/themes"
+          copy_tree_dereference_if_exists "${homebrew_prefix}/share/gtk-4.0" "${resources_dir}/share/gtk-4.0"
+          copy_tree_dereference_if_exists "${homebrew_prefix}/share/libadwaita" "${resources_dir}/share/libadwaita"
+          copy_tree_dereference_if_exists "${homebrew_gtksourceview_prefix}/share/gtksourceview-5" "${resources_dir}/share/gtksourceview-5"
+          copy_tree_dereference_if_exists "${homebrew_prefix}/share/gtksourceview-5" "${resources_dir}/share/gtksourceview-5"
+          copy_tree_dereference_if_exists "${homebrew_prefix}/share/enchant-2" "${resources_dir}/share/enchant-2"
+          copy_tree_dereference_if_exists "${homebrew_prefix}/share/locale" "${resources_dir}/share/locale"
 
           find "${resources_dir}" -type f \( -name '*.a' -o -name '*.la' -o -name '*.h' \) -delete
 
