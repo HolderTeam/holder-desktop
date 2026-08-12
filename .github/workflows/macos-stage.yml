@@ -378,10 +378,15 @@ jobs:
               > Holder.app/Contents/Resources/manifest.txt
           )
 
-          broken_symlinks="$(find "${app_dir}" -xtype l -print)"
+          broken_symlinks=""
+          while IFS= read -r symlink; do
+            if [ ! -e "${symlink}" ]; then
+              broken_symlinks="${broken_symlinks}${symlink}"$'\n'
+            fi
+          done < <(find "${app_dir}" -type l -print)
           if [ -n "${broken_symlinks}" ]; then
             echo "Broken symlinks in staged app:"
-            printf '%s\n' "${broken_symlinks}"
+            printf '%s' "${broken_symlinks}"
             exit 1
           fi
 
