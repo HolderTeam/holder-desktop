@@ -479,6 +479,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Holder-macos-staged
-          path: out/artifacts/Holder.app
+          path: out/artifacts
           if-no-files-found: error
           retention-days: 7
