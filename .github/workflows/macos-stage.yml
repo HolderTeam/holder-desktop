@@ -154,14 +154,44 @@ jobs:
           copy_tree_if_exists "${homebrew_prefix}/share/gtksourceview-5" "${resources_dir}/share/gtksourceview-5"
           copy_tree_if_exists "${homebrew_prefix}/share/enchant-2" "${resources_dir}/share/enchant-2"
           copy_tree_if_exists "${homebrew_prefix}/share/locale" "${resources_dir}/share/locale"
+
+          find "${resources_dir}" -type f \( -name '*.a' -o -name '*.la' -o -name '*.h' \) -delete
+
+          glib-compile-schemas "${resources_dir}/share/glib-2.0/schemas"
+
+          bundle_binary() {
+            local binary="$1"
+            local prefix="$2"
+            local overwrite_mode="$3"
+            local search_args=(-s "${homebrew_prefix}/lib")
+
+            if [ -d "${homebrew_openssl_prefix}/lib" ] &&
+              [ "${homebrew_openssl_prefix}/lib" != "${homebrew_prefix}/lib" ]; then
+              search_args+=(-s "${homebrew_openssl_prefix}/lib")
+            fi
+
+            dylibbundler \
+              "${overwrite_mode}" \
+              -b \
+              -x "${binary}" \
+              -d "${resources_dir}/lib" \
+              -p "${prefix}" \
+              "${search_args[@]}"
+          }
+
+          bundle_binary "${contents_dir}/MacOS/Holder" "@executable_path/../Resources/lib" "-od"
+          bundle_binary "${resources_dir}/bin/holder-desktop" "@executable_path/../lib" "-of"
+          bundle_binary "${resources_dir}/bin/holderd" "@executable_path/../lib" "-of"
+          bundle_binary "${resources_dir}/bin/holderctl" "@executable_path/../lib" "-of"
+
+          find "${resources_dir}" -type f -name '*.dylib' -exec chmod u+w {} \;
+
           copy_tree_if_exists "${homebrew_prefix}/lib/gio" "${resources_dir}/lib/gio"
           copy_tree_if_exists "${homebrew_gdk_pixbuf_prefix}/lib/gdk-pixbuf-2.0" "${resources_dir}/lib/gdk-pixbuf-2.0"
           copy_tree_if_exists "${homebrew_prefix}/lib/gdk-pixbuf-2.0" "${resources_dir}/lib/gdk-pixbuf-2.0"
           copy_tree_if_exists "${homebrew_prefix}/lib/gtk-4.0" "${resources_dir}/lib/gtk-4.0"
 
           find "${resources_dir}" -type f \( -name '*.a' -o -name '*.la' -o -name '*.h' \) -delete
-
-          glib-compile-schemas "${resources_dir}/share/glib-2.0/schemas"
 
           (
             cd "${resources_dir}"
@@ -180,32 +210,6 @@ jobs:
               exit 1
             fi
           )
-
-          bundle_binary() {
-            local binary="$1"
-            local prefix="$2"
-            local search_args=(-s "${homebrew_prefix}/lib")
-
-            if [ -d "${homebrew_openssl_prefix}/lib" ] &&
-              [ "${homebrew_openssl_prefix}/lib" != "${homebrew_prefix}/lib" ]; then
-              search_args+=(-s "${homebrew_openssl_prefix}/lib")
-            fi
-
-            dylibbundler \
-              -od \
-              -b \
-              -x "${binary}" \
-              -d "${resources_dir}/lib" \
-              -p "${prefix}" \
-              "${search_args[@]}"
-          }
-
-          bundle_binary "${contents_dir}/MacOS/Holder" "@executable_path/../Resources/lib"
-          bundle_binary "${resources_dir}/bin/holder-desktop" "@executable_path/../lib"
-          bundle_binary "${resources_dir}/bin/holderd" "@executable_path/../lib"
-          bundle_binary "${resources_dir}/bin/holderctl" "@executable_path/../lib"
-
-          find "${resources_dir}" -type f -name '*.dylib' -exec chmod u+w {} \;
 
           (
             cd "out/artifacts"
