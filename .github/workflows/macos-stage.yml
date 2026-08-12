@@ -159,15 +159,19 @@ jobs:
 
           glib-compile-schemas "${resources_dir}/share/glib-2.0/schemas"
 
-          if [ -d "${resources_dir}/lib/gio/modules" ]; then
-            gio-querymodules "${resources_dir}/lib/gio/modules"
-          fi
+          (
+            cd "${resources_dir}"
 
-          if [ -d "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders" ]; then
-            GDK_PIXBUF_MODULEDIR="${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders" \
-              gdk-pixbuf-query-loaders "${resources_dir}"/lib/gdk-pixbuf-2.0/2.10.0/loaders/*.so \
-              > "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
-          fi
+            if [ -d "lib/gio/modules" ]; then
+              gio-querymodules "lib/gio/modules"
+            fi
+
+            if [ -d "lib/gdk-pixbuf-2.0/2.10.0/loaders" ]; then
+              GDK_PIXBUF_MODULEDIR="lib/gdk-pixbuf-2.0/2.10.0/loaders" \
+                gdk-pixbuf-query-loaders lib/gdk-pixbuf-2.0/2.10.0/loaders/*.so \
+                > "lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+            fi
+          )
 
           bundle_binary() {
             local binary="$1"
@@ -210,6 +214,7 @@ jobs:
 
           app_dir="out/artifacts/Holder.app"
           resources_dir="${app_dir}/Contents/Resources"
+          homebrew_prefix="$(brew --prefix)"
 
           test -f "${app_dir}/Contents/Info.plist"
           test -x "${app_dir}/Contents/MacOS/Holder"
@@ -222,7 +227,15 @@ jobs:
           test -f "${resources_dir}/share/gtksourceview-5/language-specs/language2.rng"
           test -f "${resources_dir}/manifest.txt"
 
-          homebrew_prefix="$(brew --prefix)"
+          test -f "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+          if [ -f "${resources_dir}/lib/gio/modules/giomodule.cache" ]; then
+            ! grep -F "${app_dir}" "${resources_dir}/lib/gio/modules/giomodule.cache"
+            ! grep -F "${homebrew_prefix}" "${resources_dir}/lib/gio/modules/giomodule.cache"
+          fi
+          ! grep -F "${app_dir}" "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+          ! grep -F "${homebrew_prefix}" "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+          ! grep -F "out/artifacts/Holder.app" "${resources_dir}/manifest.txt"
+
           for binary in \
             "${app_dir}/Contents/MacOS/Holder" \
             "${resources_dir}/bin/holder-desktop" \
