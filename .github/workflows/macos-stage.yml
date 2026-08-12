@@ -156,7 +156,7 @@ jobs:
             fi
           }
 
-          copy_tree_if_exists "${homebrew_prefix}/share/glib-2.0" "${resources_dir}/share/glib-2.0"
+          copy_tree_dereference_if_exists "${homebrew_prefix}/share/glib-2.0" "${resources_dir}/share/glib-2.0"
           cp downloads/desktop/share/glib-2.0/schemas/team.holder.Holder.gschema.xml \
             "${resources_dir}/share/glib-2.0/schemas/"
           copy_tree_if_exists "${homebrew_prefix}/share/icons" "${resources_dir}/share/icons"
@@ -377,6 +377,13 @@ jobs:
               | sort \
               > Holder.app/Contents/Resources/manifest.txt
           )
+
+          broken_symlinks="$(find "${app_dir}" -xtype l -print)"
+          if [ -n "${broken_symlinks}" ]; then
+            echo "Broken symlinks in staged app:"
+            printf '%s\n' "${broken_symlinks}"
+            exit 1
+          fi
 
           codesign --force --sign - "${contents_dir}/MacOS/Holder"
           codesign --force --sign - "${resources_dir}/bin/holder-desktop"
