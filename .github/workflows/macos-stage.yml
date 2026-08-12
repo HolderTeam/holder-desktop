@@ -378,6 +378,12 @@ jobs:
               > Holder.app/Contents/Resources/manifest.txt
           )
 
+          codesign --force --sign - "${contents_dir}/MacOS/Holder"
+          codesign --force --sign - "${resources_dir}/bin/holder-desktop"
+          codesign --force --sign - "${resources_dir}/bin/holderd"
+          codesign --force --sign - "${resources_dir}/bin/holderctl"
+          codesign --force --deep --sign - "${app_dir}"
+
           find "${app_dir}" -maxdepth 5 -type f | sort
 
       - name: Smoke-test Holder.app
@@ -469,6 +475,8 @@ jobs:
               exit 1
             fi
           done < <(find "${resources_dir}/lib/gdk-pixbuf-2.0/2.10.0/loaders" -maxdepth 1 -type f -name '*.so' | sort)
+
+          codesign --verify --deep --strict --verbose=2 "${app_dir}"
 
           echo "Running staged holderd --version"
           "${resources_dir}/bin/holderd" --version
