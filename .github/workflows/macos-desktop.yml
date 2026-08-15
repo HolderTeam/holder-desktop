@@ -74,6 +74,7 @@ jobs:
           test -f out/artifacts/macos-desktop/bin/holder-desktop
           test -f out/artifacts/macos-desktop/share/glib-2.0/schemas/team.holder.Holder.gschema.xml
           test -f out/artifacts/macos-desktop/share/holder-desktop/holder.jpg
+          test -f out/artifacts/macos-desktop/share/icons/hicolor/512x512/apps/team.holder.Holder.png
           test -f out/artifacts/macos-desktop/share/applications/team.holder.Holder.desktop
           test -f out/artifacts/macos-desktop/manifest.txt
           grep -qx 'bin/holder-desktop' out/artifacts/macos-desktop/manifest.txt

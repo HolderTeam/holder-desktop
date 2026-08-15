@@ -11,6 +11,8 @@
   <string>Holder</string>
   <key>CFBundleIdentifier</key>
   <string>team.holder.Holder</string>
+  <key>CFBundleIconFile</key>
+  <string>Holder</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>

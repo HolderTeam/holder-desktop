@@ -2,5 +2,6 @@ usr/bin/holder-desktop
 usr/share/applications/team.holder.Holder.desktop
 usr/share/glib-2.0/schemas/team.holder.Holder.gschema.xml
 usr/share/holder-desktop/holder.jpg
+usr/share/icons/hicolor/*/apps/team.holder.Holder.png
 usr/share/man/man1/holder-desktop.1
 usr/share/metainfo/team.holder.Holder.metainfo.xml

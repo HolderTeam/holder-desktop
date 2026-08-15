@@ -98,6 +98,7 @@ public class MainWindow : Adw.ApplicationWindow {
             default_height: startup_geometry.height,
             title: "Holder"
         );
+        set_icon_name("team.holder.Holder");
 
         project_store = new GLib.ListStore(typeof(Project));
         project_selection = new Gtk.SingleSelection(project_store);

@@ -23,7 +23,8 @@ OutputBaseFilename=Holder-{#AppVersion}-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-UninstallDisplayIcon={app}\Holder.exe
+SetupIconFile=packaging\windows\Holder.ico
+UninstallDisplayIcon={app}\Holder.ico
 ChangesEnvironment=yes
 SetupLogging=yes
 
@@ -33,12 +34,13 @@ Name: "addtopath"; Description: "Add Holder command-line tools to PATH"; GroupDe
 
 [Files]
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "packaging\windows\Holder.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\Holder"; Filename: "{app}\Holder.exe"; WorkingDir: "{app}"
-Name: "{group}\Holder Backend"; Filename: "{app}\bin\holderd.exe"; WorkingDir: "{app}\bin"
+Name: "{group}\Holder"; Filename: "{app}\Holder.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Holder.ico"
+Name: "{group}\Holder Backend"; Filename: "{app}\bin\holderd.exe"; WorkingDir: "{app}\bin"; IconFilename: "{app}\Holder.ico"
 Name: "{group}\Uninstall Holder"; Filename: "{uninstallexe}"
-Name: "{userdesktop}\Holder"; Filename: "{app}\Holder.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{userdesktop}\Holder"; Filename: "{app}\Holder.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Holder.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\Holder.exe"; Description: "Launch Holder"; Flags: nowait postinstall skipifsilent unchecked

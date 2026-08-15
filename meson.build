@@ -41,6 +41,13 @@ install_data(
   rename: 'holder.jpg',
 )
 
+foreach icon_size : ['16x16', '24x24', '32x32', '48x48', '64x64', '128x128', '256x256', '512x512']
+  install_data(
+    'data/icons/hicolor' / icon_size / 'apps/team.holder.Holder.png',
+    install_dir: join_paths(datadir, 'icons', 'hicolor', icon_size, 'apps'),
+  )
+endforeach
+
 install_man('man/holder-desktop.1')
 
 deps = [

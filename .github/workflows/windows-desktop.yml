@@ -95,12 +95,14 @@ jobs:
             "${stage_dir}/share/applications" \
             "${stage_dir}/share/glib-2.0/schemas" \
             "${stage_dir}/share/holder-desktop" \
+            "${stage_dir}/share/holder-desktop/icons" \
             "${stage_dir}/share/metainfo"
 
           cp "${build_dir}/holder-desktop.exe" "${stage_dir}/bin/"
           cp data/team.holder.Holder.desktop "${stage_dir}/share/applications/"
           cp data/team.holder.Holder.metainfo.xml "${stage_dir}/share/metainfo/"
           cp img/holder.jpg "${stage_dir}/share/holder-desktop/"
+          cp packaging/windows/Holder.ico "${stage_dir}/share/holder-desktop/icons/"
 
           cp /ucrt64/share/glib-2.0/schemas/*.xml "${stage_dir}/share/glib-2.0/schemas/"
           cp data/team.holder.Holder.gschema.xml "${stage_dir}/share/glib-2.0/schemas/"
@@ -109,6 +111,8 @@ jobs:
           copy_tree_if_exists /ucrt64/lib/gio
           copy_tree_if_exists /ucrt64/lib/gtk-4.0
           copy_tree_if_exists /ucrt64/share/icons
+          mkdir -p "${stage_dir}/share/icons/hicolor"
+          cp -a data/icons/hicolor/. "${stage_dir}/share/icons/hicolor/"
           copy_tree_if_exists /ucrt64/share/themes
           copy_tree_if_exists /ucrt64/share/gtk-4.0
           copy_tree_if_exists /ucrt64/share/libadwaita
@@ -171,6 +175,8 @@ jobs:
           test -d out/artifacts/windows-desktop/lib/gdk-pixbuf-2.0
           test -f out/artifacts/windows-desktop/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
           test -d out/artifacts/windows-desktop/share/icons
+          test -f out/artifacts/windows-desktop/share/icons/hicolor/512x512/apps/team.holder.Holder.png
+          test -f out/artifacts/windows-desktop/share/holder-desktop/icons/Holder.ico
           test -f out/artifacts/windows-desktop/share/gtksourceview-5/language-specs/language2.rng
           test -f out/artifacts/windows-desktop/manifest.txt
           ! grep -F "$(cygpath -m "$(pwd)/out/artifacts/windows-desktop")" \
