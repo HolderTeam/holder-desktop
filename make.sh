@@ -21,6 +21,74 @@ refresh_compiled_schemas() {
   rm -f "${dir}/data/gschemas.compiled"
 }
 
+install_dev_desktop_assets() {
+  local app_id="$1"
+  local data_home="${XDG_DATA_HOME:-${HOME}/.local/share}"
+  local desktop_dir="${data_home}/applications"
+  local icon_theme_dir="${data_home}/icons/hicolor"
+  local -a icon_sizes=(16 24 32 48 64 128 256 512)
+
+  mkdir -p "${desktop_dir}"
+  {
+    while IFS= read -r line; do
+      case "${line}" in
+        Name=*)
+          printf 'Name=Holder (Development)\n'
+          ;;
+        Exec=*)
+          printf 'Exec=%s/%s/holder-desktop\n' "${PWD}" "${BUILD_DIR}"
+          ;;
+        Icon=*)
+          printf 'Icon=%s\n' "${app_id}"
+          ;;
+        *)
+          printf '%s\n' "${line}"
+          ;;
+      esac
+    done < data/team.holder.Holder.desktop
+  } > "${desktop_dir}/${app_id}.desktop"
+
+  for size in "${icon_sizes[@]}"; do
+    mkdir -p "${icon_theme_dir}/${size}x${size}/apps"
+    cp \
+      "data/icons/hicolor/${size}x${size}/apps/team.holder.Holder.png" \
+      "${icon_theme_dir}/${size}x${size}/apps/team.holder.Holder.png"
+    cp \
+      "data/icons/hicolor/${size}x${size}/apps/team.holder.Holder.png" \
+      "${icon_theme_dir}/${size}x${size}/apps/${app_id}.png"
+  done
+
+  if [[ ! -f "${icon_theme_dir}/index.theme" ]]; then
+    {
+      printf '[Icon Theme]\n'
+      printf 'Name=Hicolor\n'
+      printf 'Comment=Fallback icon theme\n'
+      printf 'Directories='
+      local sep=''
+      for size in "${icon_sizes[@]}"; do
+        printf '%s%sx%s/apps' "${sep}" "${size}" "${size}"
+        sep=','
+      done
+      printf '\n\n'
+
+      for size in "${icon_sizes[@]}"; do
+        printf '[%sx%s/apps]\n' "${size}" "${size}"
+        printf 'Size=%s\n' "${size}"
+        printf 'Context=Applications\n'
+        printf 'Type=Fixed\n\n'
+      done
+    } > "${icon_theme_dir}/index.theme"
+  fi
+
+  if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -q -f "${icon_theme_dir}" || true
+  fi
+
+  if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database -q "${desktop_dir}" || true
+  fi
+}
+
 build() {
   setup_build "${BUILD_DIR}"
   refresh_compiled_schemas "${BUILD_DIR}"
@@ -34,7 +102,11 @@ test_only() {
 
 run_app() {
   test_only
-  "./${BUILD_DIR}/holder-desktop"
+  local app_id="${HOLDER_DESKTOP_APPLICATION_ID:-team.holder.Holder.Devel}"
+  install_dev_desktop_assets "${app_id}"
+  HOLDER_DESKTOP_APPLICATION_ID="${app_id}" \
+    XDG_DATA_DIRS="${PWD}/data:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}" \
+    "./${BUILD_DIR}/holder-desktop"
 }
 
 coverage() {

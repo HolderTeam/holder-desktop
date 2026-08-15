@@ -1,12 +1,22 @@
 namespace HolderLinux {
 
 public class App : Adw.Application {
+    private const string DEFAULT_APPLICATION_ID = "team.holder.Holder";
+
     private int startup_width;
     private int startup_height;
 
+    private static string resolve_application_id() {
+        var configured_id = Environment.get_variable("HOLDER_DESKTOP_APPLICATION_ID");
+        if (configured_id != null && configured_id.strip() != "") {
+            return configured_id;
+        }
+        return DEFAULT_APPLICATION_ID;
+    }
+
     public App(int startup_width = 0, int startup_height = 0) {
         Object(
-            application_id: "team.holder.Holder",
+            application_id: resolve_application_id(),
             flags: ApplicationFlags.DEFAULT_FLAGS
         );
         this.startup_width = startup_width;

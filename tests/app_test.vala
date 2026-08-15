@@ -37,6 +37,19 @@ private void test_constructor_registers_quit_action() {
     assert(action != null);
 }
 
+private void test_constructor_uses_default_application_id() {
+    Environment.unset_variable("HOLDER_DESKTOP_APPLICATION_ID");
+    var app = new HolderLinux.App();
+    assert(app.get_application_id() == "team.holder.Holder");
+}
+
+private void test_constructor_uses_development_application_id_override() {
+    Environment.set_variable("HOLDER_DESKTOP_APPLICATION_ID", "team.holder.Holder.Devel", true);
+    var app = new HolderLinux.App();
+    Environment.unset_variable("HOLDER_DESKTOP_APPLICATION_ID");
+    assert(app.get_application_id() == "team.holder.Holder.Devel");
+}
+
 private void test_quit_action_activate_is_callable() {
     var app = new HolderLinux.App();
     var action = app.lookup_action("quit");
@@ -88,6 +101,10 @@ public static int main(string[] args) {
 
     Test.add_func("/app/constructor_registers_quit_action",
                   test_constructor_registers_quit_action);
+    Test.add_func("/app/constructor_uses_default_application_id",
+                  test_constructor_uses_default_application_id);
+    Test.add_func("/app/constructor_uses_development_application_id_override",
+                  test_constructor_uses_development_application_id_override);
     Test.add_func("/app/quit_action_activate_is_callable",
                   test_quit_action_activate_is_callable);
     Test.add_func("/app/constructor_registers_expected_accels",
