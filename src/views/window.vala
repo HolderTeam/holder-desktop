@@ -60,6 +60,8 @@ public class MainWindow : Adw.ApplicationWindow {
     private WindowEditorRenderer editor_renderer;
     private WindowActivityFeedback activity_feedback;
     private WindowActionsAdapter window_actions_adapter;
+    private UpdateCheckService update_check_service;
+    private UpdateDialogAdapter update_dialog_adapter;
     private CardActionDialogAdapter card_action_dialog_adapter;
     private ProjectCreateDialogAdapter project_create_dialog_adapter;
     private PrintService print_service;
@@ -178,6 +180,7 @@ public class MainWindow : Adw.ApplicationWindow {
             activity_log_controller,
             controller
         );
+        update_check_service = new UpdateCheckService();
         project_create_controller = new ProjectCreateController();
         explorer_selection_controller = new ExplorerSelectionController(
             project_store,
@@ -216,6 +219,7 @@ public class MainWindow : Adw.ApplicationWindow {
             local_info_view_adapter
         );
         window_actions_adapter = new WindowActionsAdapter(this);
+        update_dialog_adapter = new UpdateDialogAdapter(this);
         card_action_dialog_adapter = new CardActionDialogAdapter(this);
         project_create_dialog_adapter = new ProjectCreateDialogAdapter(this);
         print_service = new PrintService();
@@ -367,6 +371,24 @@ public class MainWindow : Adw.ApplicationWindow {
         }
 
         controller.bootstrap.begin();
+        queue_update_check();
+    }
+
+    private void queue_update_check() {
+        Idle.add(() => {
+            run_update_check.begin();
+            return Source.REMOVE;
+        });
+    }
+
+    private async void run_update_check() {
+        var candidate = yield update_check_service.check_if_due(settings, HolderLinux.VERSION);
+        if (candidate == null) {
+            return;
+        }
+        update_dialog_adapter.show(candidate, HolderLinux.VERSION, (shown_candidate) => {
+            update_check_service.record_prompt(settings, shown_candidate.version);
+        });
     }
 
     private void apply_sidebar_from_state() {

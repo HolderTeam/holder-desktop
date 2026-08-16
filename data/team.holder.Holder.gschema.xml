@@ -85,5 +85,26 @@
         Used to prefill the guided Git sync setup for subsequent projects.
       </description>
     </key>
+    <key name="update-last-check-at" type="x">
+      <default>0</default>
+      <summary>Last automatic update check time</summary>
+      <description>
+        Unix timestamp of the last background update check attempt.
+      </description>
+    </key>
+    <key name="update-last-prompt-version" type="s">
+      <default>''</default>
+      <summary>Last update version shown to the user</summary>
+      <description>
+        Latest release version for which Holder showed an upgrade prompt.
+      </description>
+    </key>
+    <key name="update-last-prompt-at" type="x">
+      <default>0</default>
+      <summary>Last update prompt time</summary>
+      <description>
+        Unix timestamp of the last upgrade prompt shown to the user.
+      </description>
+    </key>
   </schema>
 </schemalist>

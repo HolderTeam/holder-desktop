@@ -360,6 +360,9 @@ private void test_key_constants_are_non_empty() {
     assert(HolderLinux.AppSettings.KEY_TINY_CLOSE_STREAK.length > 0);
     assert(HolderLinux.AppSettings.KEY_CUSTOM_CARD_LINK_KINDS.length > 0);
     assert(HolderLinux.AppSettings.KEY_GIT_GITHUB_USERNAME.length > 0);
+    assert(HolderLinux.AppSettings.KEY_UPDATE_LAST_CHECK_AT.length > 0);
+    assert(HolderLinux.AppSettings.KEY_UPDATE_LAST_PROMPT_VERSION.length > 0);
+    assert(HolderLinux.AppSettings.KEY_UPDATE_LAST_PROMPT_AT.length > 0);
 }
 
 int main(string[] args) {

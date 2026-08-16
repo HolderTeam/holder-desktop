@@ -5,6 +5,7 @@ datadir = get_option('datadir')
 
 config_data = configuration_data()
 config_data.set('HOLDER_VERSION', meson.project_version())
+config_data.set('HOLDER_PLATFORM', host_machine.system())
 
 holder_config = configure_file(
   input: 'src/config.vala.in',
@@ -89,6 +90,7 @@ sources = [
   'src/services/print_service.vala',
   'src/services/git_sync_service.vala',
   'src/services/resources_service.vala',
+  'src/services/update_check.vala',
   'src/utils/text_utils.vala',
   'src/views/sidebar.vala',
   'src/views/ai_panel.vala',
@@ -106,6 +108,7 @@ sources = [
   'src/views/adapters/window_editor_renderer.vala',
   'src/views/adapters/window_activity_feedback.vala',
   'src/views/adapters/window_actions.vala',
+  'src/views/adapters/update_dialog.vala',
   'src/views/adapters/card_action_dialog.vala',
   'src/views/adapters/project_create_dialog.vala',
   'src/views/adapters/recovery_dialog.vala',
@@ -1657,6 +1660,40 @@ app_settings_test_exe = executable(
 )
 
 test('holder-linux-app-settings-tests', app_settings_test_exe)
+
+update_check_test_exe = executable(
+  'holder-linux-update-check-tests',
+  [
+    holder_config,
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/app_settings.vala',
+    'src/services/update_check.vala',
+    'tests/update_check_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('libadwaita-1'),
+    dependency('gee-0.8'),
+    dependency('libsoup-3.0'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-update-check-tests', update_check_test_exe)
 
 window_geometry_test_exe = executable(
   'holder-linux-window-geometry-tests',

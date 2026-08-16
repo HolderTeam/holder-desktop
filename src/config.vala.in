@@ -1,3 +1,4 @@
 namespace HolderLinux {
     public const string VERSION = "@HOLDER_VERSION@";
+    public const string PLATFORM = "@HOLDER_PLATFORM@";
 }

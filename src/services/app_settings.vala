@@ -15,6 +15,9 @@ public class AppSettings : Object {
     public const string KEY_TINY_CLOSE_STREAK = "tiny-close-streak";
     public const string KEY_CUSTOM_CARD_LINK_KINDS = "custom-card-link-kinds";
     public const string KEY_GIT_GITHUB_USERNAME = "git-github-username";
+    public const string KEY_UPDATE_LAST_CHECK_AT = "update-last-check-at";
+    public const string KEY_UPDATE_LAST_PROMPT_VERSION = "update-last-prompt-version";
+    public const string KEY_UPDATE_LAST_PROMPT_AT = "update-last-prompt-at";
     private const string GNOME_INTERFACE_SCHEMA_ID = "org.gnome.desktop.interface";
     private const string GNOME_COLOR_SCHEME_KEY = "color-scheme";
     private static WarningSink? warning_sink = null;
