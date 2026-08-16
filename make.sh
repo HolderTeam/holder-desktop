@@ -105,6 +105,7 @@ run_app() {
   local app_id="${HOLDER_DESKTOP_APPLICATION_ID:-team.holder.Holder.Devel}"
   install_dev_desktop_assets "${app_id}"
   HOLDER_DESKTOP_APPLICATION_ID="${app_id}" \
+    GSETTINGS_SCHEMA_DIR="${PWD}/${BUILD_DIR}/data" \
     XDG_DATA_DIRS="${PWD}/data:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}" \
     "./${BUILD_DIR}/holder-desktop"
 }
