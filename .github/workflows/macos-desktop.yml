@@ -35,6 +35,7 @@ jobs:
             libspelling \
             libgee \
             libsoup \
+            glib-networking \
             json-glib \
             vte3
 
