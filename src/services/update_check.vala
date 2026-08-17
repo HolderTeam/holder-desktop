@@ -66,6 +66,7 @@ public class UpdateCheckService : Object {
     private IClock clock;
     private string version_url;
     private string platform_key;
+    private bool debug_enabled;
 
     public UpdateCheckService(IUpdateMetadataTransport? transport = null,
                               IClock? clock = null,
@@ -76,6 +77,7 @@ public class UpdateCheckService : Object {
         var env_url = Environment.get_variable("HOLDER_UPDATE_CHECK_URL");
         this.version_url = version_url ?? ((env_url != null && env_url.strip() != "") ? env_url : DEFAULT_VERSION_URL);
         this.platform_key = platform_key ?? resolve_platform_key();
+        this.debug_enabled = Environment.get_variable("HOLDER_UPDATE_CHECK_DEBUG") == "1";
     }
 
     public async UpdateCandidate? check_if_due(Settings? settings, string current_version) {
@@ -85,20 +87,30 @@ public class UpdateCheckService : Object {
 
         var now = clock.now_epoch_seconds();
         if (!should_check(settings, now)) {
+            debug("skipped; checked recently");
             return null;
         }
         settings.set_int64(AppSettings.KEY_UPDATE_LAST_CHECK_AT, now);
 
         UpdateCandidate? candidate = null;
         try {
+            debug("fetching %s for platform %s".printf(version_url, platform_key));
             candidate = yield fetch_update_candidate(current_version);
         } catch (Error e) {
+            debug("failed: %s".printf(e.message));
             return null;
         }
 
-        if (candidate == null || !should_prompt(settings, candidate.version, now)) {
+        if (candidate == null) {
+            debug("no newer update candidate for current version %s".printf(current_version));
             return null;
         }
+
+        if (!should_prompt(settings, candidate.version, now)) {
+            debug("candidate %s suppressed by prompt throttle".printf(candidate.version));
+            return null;
+        }
+        debug("candidate %s available at %s".printf(candidate.version, candidate.download_url));
         return candidate;
     }
 
@@ -266,6 +278,13 @@ public class UpdateCheckService : Object {
         default:
             return "linux";
         }
+    }
+
+    private void debug(string line) {
+        if (!debug_enabled) {
+            return;
+        }
+        message("Update check: %s", line);
     }
 }
 
