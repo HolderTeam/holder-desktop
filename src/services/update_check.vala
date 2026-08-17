@@ -86,8 +86,13 @@ public class UpdateCheckService : Object {
         }
 
         var now = clock.now_epoch_seconds();
+        var last_check = settings.get_int64(AppSettings.KEY_UPDATE_LAST_CHECK_AT);
         if (!should_check(settings, now)) {
-            debug("skipped; checked recently");
+            debug(("skipped; checked recently; last_check=%" + int64.FORMAT + " now=%" + int64.FORMAT + " age=%" + int64.FORMAT).printf(
+                last_check,
+                now,
+                now - last_check
+            ));
             return null;
         }
         settings.set_int64(AppSettings.KEY_UPDATE_LAST_CHECK_AT, now);
