@@ -91,6 +91,7 @@ private Gtk.Entry? find_entry_with_text(Gtk.Widget root, string text) {
 private void collect_dropdowns(Gtk.Widget root, Gee.ArrayList<Gtk.DropDown> dropdowns) {
     if (root is Gtk.DropDown) {
         dropdowns.add((Gtk.DropDown) root);
+        return;
     }
 
     Gtk.Widget? child = root.get_first_child();
@@ -103,6 +104,7 @@ private void collect_dropdowns(Gtk.Widget root, Gee.ArrayList<Gtk.DropDown> drop
 private void collect_switches(Gtk.Widget root, Gee.ArrayList<Gtk.Switch> switches) {
     if (root is Gtk.Switch) {
         switches.add((Gtk.Switch) root);
+        return;
     }
 
     Gtk.Widget? child = root.get_first_child();
