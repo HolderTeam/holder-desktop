@@ -191,13 +191,16 @@ public class TagsToolView : Object, IToolShellAdapter {
 
     private Gtk.FlowBox new_flow_box() {
         var box = new Gtk.FlowBox();
+        box.set_orientation(Gtk.Orientation.HORIZONTAL);
         box.set_selection_mode(Gtk.SelectionMode.NONE);
         box.set_column_spacing(6);
         box.set_row_spacing(6);
         box.set_max_children_per_line(12);
         box.set_min_children_per_line(1);
         box.set_homogeneous(false);
-        box.set_halign(Gtk.Align.START);
+        box.set_halign(Gtk.Align.FILL);
+        box.set_valign(Gtk.Align.START);
+        box.set_hexpand(true);
         return box;
     }
 

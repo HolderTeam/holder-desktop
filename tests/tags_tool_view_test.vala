@@ -32,6 +32,19 @@ private bool contains_label(Gtk.Widget? widget, string text) {
     return false;
 }
 
+private void collect_flow_boxes(Gtk.Widget? widget, Gee.ArrayList<Gtk.FlowBox> boxes) {
+    if (widget == null) {
+        return;
+    }
+    var flow_box = widget as Gtk.FlowBox;
+    if (flow_box != null) {
+        boxes.add(flow_box);
+    }
+    for (var child = widget.get_first_child(); child != null; child = child.get_next_sibling()) {
+        collect_flow_boxes(child, boxes);
+    }
+}
+
 private void test_cloud_card_tags_and_results() {
     var api = new MainControllerFakeApi();
     api.project_tags.add(new HolderLinux.TagCount("sync", 1));
@@ -60,6 +73,15 @@ private void test_cloud_card_tags_and_results() {
     assert(contains_label(view.widget, "On this card"));
     assert(contains_label(view.widget, "#android"));
     assert(contains_label(view.widget, "#sync"));
+
+    var flow_boxes = new Gee.ArrayList<Gtk.FlowBox>();
+    collect_flow_boxes(view.widget, flow_boxes);
+    assert(flow_boxes.size == 2);
+    foreach (var flow_box in flow_boxes) {
+        assert(flow_box.get_orientation() == Gtk.Orientation.HORIZONTAL);
+        assert(flow_box.get_halign() == Gtk.Align.FILL);
+        assert(flow_box.get_hexpand());
+    }
 
     view.show_tag("#Android");
     assert(wait_until(() => api.list_cards_with_tag_calls == 1));
