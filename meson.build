@@ -52,8 +52,8 @@ endforeach
 install_man('man/holder-desktop.1')
 
 deps = [
-  dependency('gtk4'),
-  dependency('libadwaita-1'),
+  dependency('gtk4', version: '>=4.14'),
+  dependency('libadwaita-1', version: '>=1.5'),
   dependency('gtksourceview-5'),
   dependency('libspelling-1'),
   dependency('gio-2.0'),
@@ -86,6 +86,7 @@ sources = [
   'src/state/activity_log.vala',
   'src/services/core_interfaces.vala',
   'src/services/app_settings.vala',
+  'src/services/editor_font_style.vala',
   'src/services/editor_recovery_draft_service.vala',
   'src/services/print_service.vala',
   'src/services/git_sync_service.vala',
@@ -3101,6 +3102,7 @@ preferences_dialog_test_exe = executable(
   'holder-linux-preferences-dialog-tests',
   [
     'src/services/app_settings.vala',
+    'src/services/editor_font_style.vala',
     'src/views/preferences_dialog.vala',
     'tests/preferences_dialog_test.vala',
   ],
