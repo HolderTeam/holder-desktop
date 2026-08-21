@@ -9,6 +9,7 @@ internal interface IToolboxEventSource : Object {
                                                                string? card_id);
     public abstract signal void flowboard_card_open_requested(string card_id);
     public abstract signal void connections_card_open_requested(string card_id);
+    public abstract signal void tags_card_open_requested(string card_id);
     public abstract signal void connections_card_create_child_requested(string card_id);
     public abstract signal void flowboard_card_move_to_trash_requested(string card_id);
     public abstract signal void flowboard_move_intent_requested(string card_id,
@@ -99,6 +100,12 @@ internal class ToolboxEventOrchestrator : Object {
             selection_intent_orchestrator.open_card_with_transition.begin(
                 card_id,
                 "toolbox-connections-card-open"
+            );
+        });
+        toolbox.tags_card_open_requested.connect((card_id) => {
+            selection_intent_orchestrator.open_card_with_transition.begin(
+                card_id,
+                "toolbox-tags-card-open"
             );
         });
         toolbox.connections_card_create_child_requested.connect((card_id) => {

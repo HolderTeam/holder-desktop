@@ -89,6 +89,13 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
     public async HolderLinux.CardDetail get_card(string card_id) throws Error {
         return new HolderLinux.CardDetail(card_id, "p1", "T", "C", 1);
     }
+    public async Gee.ArrayList<HolderLinux.TagCount> list_project_tags(string project_id) throws Error {
+        return new Gee.ArrayList<HolderLinux.TagCount>();
+    }
+    public async Gee.ArrayList<HolderLinux.CardSummary> list_cards_with_tag(string project_id,
+                                                                            string tag) throws Error {
+        return new Gee.ArrayList<HolderLinux.CardSummary>();
+    }
     public async Gee.ArrayList<HolderLinux.CardLink> list_card_links(string card_id) throws Error {
         return new Gee.ArrayList<HolderLinux.CardLink>();
     }

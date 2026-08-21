@@ -62,7 +62,7 @@ private void test_parse_cards_missing_data_is_protocol_error() {
 
 private void test_parse_card_detail_full_and_default() {
     var root_full = parse_json_object(
-        "{\"data\":{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"T\",\"content\":\"Body\",\"updated_at\":99}}"
+        "{\"data\":{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"T\",\"content\":\"#android Body\",\"updated_at\":99,\"tags\":[\"android\",\"sync\"],\"tag_occurrences\":[{\"tag\":\"android\",\"byte_start\":0,\"byte_end\":8}]}}"
     );
 
     HolderLinux.CardDetail full;
@@ -74,8 +74,12 @@ private void test_parse_card_detail_full_and_default() {
     assert(full.card_id == "c1");
     assert(full.project_id == "p1");
     assert(full.title == "T");
-    assert(full.content == "Body");
+    assert(full.content == "#android Body");
     assert(full.updated_at == 99);
+    assert(full.tags.length == 2);
+    assert(full.tags[0] == "android");
+    assert(full.tag_occurrences.length == 1);
+    assert(full.tag_occurrences[0].byte_end == 8);
 
     var root_default = parse_json_object(
         "{\"data\":{\"card_id\":\"c2\",\"project_id\":\"p2\",\"title\":\"X\",\"content\":\"Y\"}}"
@@ -87,6 +91,31 @@ private void test_parse_card_detail_full_and_default() {
         assert_not_reached();
     }
     assert(defaults.updated_at == 0);
+    assert(defaults.tags.length == 0);
+    assert(defaults.tag_occurrences.length == 0);
+}
+
+private void test_parse_project_tags() {
+    var root = parse_json_object(
+        "{\"data\":[{\"tag\":\"sync\",\"card_count\":4},{\"tag\":\"android\",\"card_count\":2}]}"
+    );
+    Gee.ArrayList<HolderLinux.TagCount> tags;
+    try {
+        tags = HolderLinux.ApiParsersCards.parse_project_tags(root);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    assert(tags.size == 2);
+    assert(tags[0].tag == "sync");
+    assert(tags[0].card_count == 4);
+
+    bool got_protocol = false;
+    try {
+        HolderLinux.ApiParsersCards.parse_project_tags(parse_json_object("{\"ok\":true}"));
+    } catch (Error e) {
+        got_protocol = e.message.contains("Missing data for project tags response");
+    }
+    assert(got_protocol);
 }
 
 private void test_parse_card_detail_missing_data_is_protocol_error() {
@@ -250,6 +279,7 @@ public static int main(string[] args) {
     Test.add_func("/parsers/cards/parse-cards-full-and-defaults", test_parse_cards_full_and_defaults);
     Test.add_func("/parsers/cards/parse-cards-missing-data-protocol-error", test_parse_cards_missing_data_is_protocol_error);
     Test.add_func("/parsers/cards/card-detail-full-and-default", test_parse_card_detail_full_and_default);
+    Test.add_func("/parsers/cards/project-tags", test_parse_project_tags);
     Test.add_func("/parsers/cards/card-detail-missing-data-protocol-error", test_parse_card_detail_missing_data_is_protocol_error);
     Test.add_func("/parsers/cards/card-context-full-and-defaults", test_parse_card_context_full_and_defaults);
     Test.add_func("/parsers/cards/card-context-errors", test_parse_card_context_errors);

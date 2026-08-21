@@ -221,6 +221,41 @@ private void test_delete_card_sends_delete_to_card_path() {
     assert(transport.last_uri.contains("/cards/c%201%2F2"));
 }
 
+private void test_project_tags_and_cards_with_tag() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"tag\":\"android\",\"card_count\":2}]}"
+    );
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":[{\"card_id\":\"c1\",\"project_id\":\"p1\",\"title\":\"Tagged\",\"updated_at\":2}]}"
+    );
+    var client = make_client(transport);
+
+    bool tags_done = false;
+    Gee.ArrayList<HolderLinux.TagCount>? tags = null;
+    client.list_project_tags.begin("p 1", (obj, res) => {
+        try { tags = client.list_project_tags.end(res); } catch (Error e) { tags = null; }
+        tags_done = true;
+    });
+    assert(wait_for_condition(() => tags_done));
+    assert(tags != null && tags.size == 1);
+    assert(tags[0].tag == "android");
+    assert(transport.last_uri.contains("/projects/p%201/tags"));
+
+    bool cards_done = false;
+    Gee.ArrayList<HolderLinux.CardSummary>? cards = null;
+    client.list_cards_with_tag.begin("p1", "android/mobile", (obj, res) => {
+        try { cards = client.list_cards_with_tag.end(res); } catch (Error e) { cards = null; }
+        cards_done = true;
+    });
+    assert(wait_for_condition(() => cards_done));
+    assert(cards != null && cards.size == 1);
+    assert(cards[0].title == "Tagged");
+    assert(transport.last_uri.contains("tag=android%2Fmobile"));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -234,6 +269,8 @@ public static int main(string[] args) {
                   test_create_update_position_and_move_card_success);
     Test.add_func("/api_client_cards/delete_card_sends_delete_to_card_path",
                   test_delete_card_sends_delete_to_card_path);
+    Test.add_func("/api_client_cards/project_tags_and_cards_with_tag",
+                  test_project_tags_and_cards_with_tag);
 
     return Test.run();
 }

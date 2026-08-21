@@ -2,6 +2,7 @@ namespace HolderLinux {
 
 public class ToolboxPane : Object {
     private ConnectionsToolView connections_tool;
+    private TagsToolView tags_tool;
     private GitSyncToolView git_sync_tool;
     private RecoveryKeyToolView recovery_key_tool;
     private ResourcesToolView resources_tool;
@@ -27,6 +28,7 @@ public class ToolboxPane : Object {
     public signal void toast_requested(string message);
     public signal void flowboard_card_open_requested(string card_id);
     public signal void connections_card_open_requested(string card_id);
+    public signal void tags_card_open_requested(string card_id);
     public signal void connections_card_create_child_requested(string card_id);
     public signal void flowboard_card_move_to_trash_requested(string card_id);
     public signal void flowboard_move_intent_requested(string card_id,
@@ -62,6 +64,9 @@ public class ToolboxPane : Object {
         this.api = api;
         if (connections_tool != null) {
             connections_tool.set_api_client(api);
+        }
+        if (tags_tool != null) {
+            tags_tool.set_api_client(api);
         }
         if (git_sync_tool != null) {
             git_sync_tool.set_api_client(api);
@@ -100,6 +105,9 @@ public class ToolboxPane : Object {
 
         if (connections_tool != null) {
             connections_tool.bind_context(project_selection, card_store, card_selection);
+        }
+        if (tags_tool != null) {
+            tags_tool.bind_context(project_selection, card_selection);
         }
 
         project_selection.notify["selected"].connect(() => {
@@ -261,6 +269,22 @@ public class ToolboxPane : Object {
         connections_page.set_icon_name("network-wired-symbolic");
         connections_tool.set_tool_visible(false);
 
+        tags_tool = new TagsToolView();
+        tool_adapters.set("tags", tags_tool);
+        tags_tool.error_reported.connect((title_text, details) => {
+            error_reported(title_text, details);
+        });
+        tags_tool.card_open_requested.connect((card_id) => {
+            tags_card_open_requested(card_id);
+        });
+        tags_tool.set_api_client(api);
+        if (project_selection != null && card_selection != null) {
+            tags_tool.bind_context(project_selection, card_selection);
+        }
+        var tags_page = stack.add_titled(tags_tool.widget, "tags", "Tags");
+        tags_page.set_icon_name("tag-symbolic");
+        tags_tool.set_tool_visible(false);
+
         resources_tool = new ResourcesToolView();
         tool_adapters.set("resources", resources_tool);
         resources_tool.error_reported.connect((title_text, details) => {
@@ -361,6 +385,9 @@ public class ToolboxPane : Object {
             if (connections_tool != null) {
                 connections_tool.set_tool_visible(page != null && page.name == "connections");
             }
+            if (tags_tool != null) {
+                tags_tool.set_tool_visible(page != null && page.name == "tags");
+            }
             apply_shell_state();
             if (page.title == "Trash") {
                 refresh_trash();
@@ -370,6 +397,11 @@ public class ToolboxPane : Object {
             var visible = stack.get_visible_child();
             var page = visible != null ? stack.get_page(visible) : null;
             connections_tool.set_tool_visible(page != null && page.name == "connections");
+        }
+        if (tags_tool != null) {
+            var visible = stack.get_visible_child();
+            var page = visible != null ? stack.get_page(visible) : null;
+            tags_tool.set_tool_visible(page != null && page.name == "tags");
         }
         apply_shell_state();
 
@@ -396,6 +428,13 @@ public class ToolboxPane : Object {
         }
         ((!) toolbox_stack).set_visible_child_name(tool_id);
         apply_shell_state();
+    }
+
+    public void show_tag(string tag) {
+        show_tool("tags");
+        if (tags_tool != null) {
+            tags_tool.show_tag(tag);
+        }
     }
 
     public bool is_showing_tool(string tool_id) {

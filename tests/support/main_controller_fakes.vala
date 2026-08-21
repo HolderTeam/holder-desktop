@@ -87,6 +87,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int list_projects_calls = 0;
     public int list_cards_calls = 0;
     public int get_card_calls = 0;
+    public int list_project_tags_calls = 0;
+    public int list_cards_with_tag_calls = 0;
     public int search_calls = 0;
     public int update_card_calls = 0;
     public int update_card_position_calls = 0;
@@ -129,6 +131,11 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int create_card_link_calls = 0;
     public int delete_card_link_calls = 0;
     public string last_updated_card_id = "";
+    public string last_requested_tag = "";
+    public Gee.ArrayList<HolderLinux.TagCount> project_tags = new Gee.ArrayList<HolderLinux.TagCount>();
+    public Gee.ArrayList<HolderLinux.CardSummary> tagged_cards = new Gee.ArrayList<HolderLinux.CardSummary>();
+    public string[] current_card_tags = {};
+    public HolderLinux.CardTagOccurrence[] current_tag_occurrences = {};
     public string last_created_project_id = "";
     public string last_created_project_name = "";
     public string last_created_title = "";
@@ -494,7 +501,27 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         if (get_card_before_complete_hook != null) {
             ((!) get_card_before_complete_hook)(card_id);
         }
-        return new HolderLinux.CardDetail(card_id, "p1", "Card 1", "# Card 1\n\nBody", 20);
+        return new HolderLinux.CardDetail(
+            card_id,
+            "p1",
+            "Card 1",
+            "# Card 1\n\nBody",
+            20,
+            current_card_tags,
+            current_tag_occurrences
+        );
+    }
+
+    public async Gee.ArrayList<HolderLinux.TagCount> list_project_tags(string project_id) throws Error {
+        list_project_tags_calls++;
+        return project_tags;
+    }
+
+    public async Gee.ArrayList<HolderLinux.CardSummary> list_cards_with_tag(string project_id,
+                                                                            string tag) throws Error {
+        list_cards_with_tag_calls++;
+        last_requested_tag = tag;
+        return tagged_cards;
     }
 
     public async Gee.ArrayList<HolderLinux.CardLink> list_card_links(string card_id) throws Error {

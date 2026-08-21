@@ -32,13 +32,50 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
         }
 
         var data = root.get_object_member("data");
+        string[] tags = {};
+        if (data.has_member("tags")) {
+            var tags_data = data.get_array_member("tags");
+            for (uint i = 0; i < tags_data.get_length(); i++) {
+                tags += tags_data.get_string_element(i);
+            }
+        }
+        CardTagOccurrence[] tag_occurrences = {};
+        if (data.has_member("tag_occurrences")) {
+            var occurrence_data = data.get_array_member("tag_occurrences");
+            for (uint i = 0; i < occurrence_data.get_length(); i++) {
+                var item = occurrence_data.get_object_element(i);
+                tag_occurrences += new CardTagOccurrence(
+                    item.get_string_member("tag"),
+                    (int) item.get_int_member("byte_start"),
+                    (int) item.get_int_member("byte_end")
+                );
+            }
+        }
         return new CardDetail( // LCOV_EXCL_BR_LINE: ctor edge branch artifact
             data.get_string_member("card_id"),
             data.get_string_member("project_id"),
             data.get_string_member("title"),
             data.get_string_member("content"),
-            data.has_member("updated_at") ? data.get_int_member("updated_at") : 0
+            data.has_member("updated_at") ? data.get_int_member("updated_at") : 0,
+            tags,
+            tag_occurrences
         );
+    }
+
+    public static Gee.ArrayList<TagCount> parse_project_tags(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for project tags response");
+        }
+        var tags = new Gee.ArrayList<TagCount>();
+        var data = root.get_array_member("data");
+        for (uint i = 0; i < data.get_length(); i++) {
+            var item = data.get_object_element(i);
+            tags.add(new TagCount(
+                item.get_string_member("tag"),
+                (int) item.get_int_member("card_count")
+            ));
+        }
+        return tags;
     }
 
     public static CardContextData parse_card_context(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact

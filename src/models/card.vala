@@ -62,12 +62,16 @@ public class CardDetail : Object {
     public string title { get; set; }
     public string content { get; set; }
     public int64 updated_at { get; set; }
+    public string[] tags { get; private set; }
+    public CardTagOccurrence[] tag_occurrences;
 
     public CardDetail(string card_id,
                       string project_id,
                       string title,
                       string content,
-                      int64 updated_at) {
+                      int64 updated_at,
+                      string[]? tags = null,
+                      CardTagOccurrence[]? tag_occurrences = null) {
         Object(
             card_id: card_id,
             project_id: project_id,
@@ -75,6 +79,27 @@ public class CardDetail : Object {
             content: content,
             updated_at: updated_at
         );
+        this.tags = tags ?? new string[0];
+        this.tag_occurrences = tag_occurrences ?? new CardTagOccurrence[0];
+    }
+}
+
+public class CardTagOccurrence : Object {
+    public string tag { get; construct; }
+    public int byte_start { get; construct; }
+    public int byte_end { get; construct; }
+
+    public CardTagOccurrence(string tag, int byte_start, int byte_end) {
+        Object(tag: tag, byte_start: byte_start, byte_end: byte_end);
+    }
+}
+
+public class TagCount : Object {
+    public string tag { get; construct; }
+    public int card_count { get; construct; }
+
+    public TagCount(string tag, int card_count) {
+        Object(tag: tag, card_count: card_count);
     }
 }
 

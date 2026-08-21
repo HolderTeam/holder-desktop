@@ -250,6 +250,9 @@ internal class WindowToolboxEventSource : Object, IToolboxEventSource {
         toolbox.connections_card_open_requested.connect((card_id) => {
             connections_card_open_requested(card_id);
         });
+        toolbox.tags_card_open_requested.connect((card_id) => {
+            tags_card_open_requested(card_id);
+        });
         toolbox.connections_card_create_child_requested.connect((card_id) => {
             connections_card_create_child_requested(card_id);
         });

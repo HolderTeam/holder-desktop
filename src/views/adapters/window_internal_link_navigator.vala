@@ -2,6 +2,7 @@ namespace HolderLinux {
 
 internal class WindowInternalLinkNavigator : Object {
     private InternalLinkController internal_link_controller;
+    private TagNavigationController tag_navigation_controller;
     private GtkSource.Buffer editor_buffer;
     private GtkSource.View editor_view;
     private GLib.ListStore card_store;
@@ -9,9 +10,11 @@ internal class WindowInternalLinkNavigator : Object {
     private SelectionIntentOrchestrator selection_intent_orchestrator;
     private CardActionDialogAdapter card_action_dialog_adapter;
     private ToolboxPane toolbox;
+    private WorkspacePane workspace;
     private Adw.ToastOverlay toast_overlay;
 
     public WindowInternalLinkNavigator(InternalLinkController internal_link_controller,
+                                       TagNavigationController tag_navigation_controller,
                                        GtkSource.Buffer editor_buffer,
                                        GtkSource.View editor_view,
                                        GLib.ListStore card_store,
@@ -19,8 +22,10 @@ internal class WindowInternalLinkNavigator : Object {
                                        SelectionIntentOrchestrator selection_intent_orchestrator,
                                        CardActionDialogAdapter card_action_dialog_adapter,
                                        ToolboxPane toolbox,
+                                       WorkspacePane workspace,
                                        Adw.ToastOverlay toast_overlay) {
         this.internal_link_controller = internal_link_controller;
+        this.tag_navigation_controller = tag_navigation_controller;
         this.editor_buffer = editor_buffer;
         this.editor_view = editor_view;
         this.card_store = card_store;
@@ -28,6 +33,7 @@ internal class WindowInternalLinkNavigator : Object {
         this.selection_intent_orchestrator = selection_intent_orchestrator;
         this.card_action_dialog_adapter = card_action_dialog_adapter;
         this.toolbox = toolbox;
+        this.workspace = workspace;
         this.toast_overlay = toast_overlay;
     }
 
@@ -123,7 +129,7 @@ internal class WindowInternalLinkNavigator : Object {
             project_cards_for_selected_project()
         );
         if (!decision.handled) {
-            return false;
+            return navigate_tag_at_iter(iter);
         }
 
         if (decision.open_card_id == null) {
@@ -146,6 +152,28 @@ internal class WindowInternalLinkNavigator : Object {
             (!) decision.open_card_id,
             "tool-card-open"
         );
+        return true;
+    }
+
+    private bool navigate_tag_at_iter(Gtk.TextIter iter) {
+        var current_card = controller.get_current_card();
+        if (current_card == null) {
+            return false;
+        }
+        Gtk.TextIter document_start;
+        Gtk.TextIter document_end;
+        editor_buffer.get_bounds(out document_start, out document_end);
+        var editor_text = editor_buffer.get_text(document_start, document_end, false);
+        var before_cursor = editor_buffer.get_text(document_start, iter, false);
+        var tag = tag_navigation_controller.tag_at_byte_offset(
+            editor_text,
+            before_cursor.length,
+            current_card.tag_occurrences
+        );
+        if (tag == null) {
+            return false;
+        }
+        workspace.show_tag((!) tag);
         return true;
     }
 }

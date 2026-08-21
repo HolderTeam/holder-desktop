@@ -69,6 +69,15 @@ public class ApiClient : Object, IHolderApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR
         return yield ApiClientCardsEndpoints.get_card(this, card_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
+    public async Gee.ArrayList<TagCount> list_project_tags(string project_id) throws Error {
+        return yield ApiClientCardsEndpoints.list_project_tags(this, project_id);
+    }
+
+    public async Gee.ArrayList<CardSummary> list_cards_with_tag(string project_id,
+                                                                string tag) throws Error {
+        return yield ApiClientCardsEndpoints.list_cards_with_tag(this, project_id, tag);
+    }
+
     public async string create_card(string project_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
                                     string title,
                                     string content,

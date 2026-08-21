@@ -163,6 +163,11 @@ public class WorkspacePane : Object {
         }
     }
 
+    public void show_tag(string tag) {
+        toolbox_toggle_btn.set_active(true);
+        toolbox.show_tag(tag);
+    }
+
     public void set_ai_panel_visible(bool visible) {
         ai_panel_visible = visible;
         ai_panel.widget.set_visible(visible);

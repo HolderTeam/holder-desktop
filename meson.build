@@ -119,6 +119,7 @@ sources = [
   'src/views/adapters/window_workspace_events.vala',
   'src/views/adapters/window_state_events.vala',
   'src/views/toolbox.vala',
+  'src/views/toolbox/tags_tool_view.vala',
   'src/views/toolbox/tool_shell.vala',
   'src/views/toolbox/tool_adapter.vala',
   'src/views/toolbox/connections_tool_view.vala',
@@ -191,6 +192,7 @@ sources = [
   'src/controllers/recovery.vala',
   'src/controllers/recovery_ui.vala',
   'src/controllers/internal_link.vala',
+  'src/controllers/tag_navigation.vala',
   'src/services/discovery.vala',
   'src/services/recovery_service.vala',
   'src/services/http_transport.vala',
@@ -3226,4 +3228,58 @@ ai_panel_view_test_exe = executable(
 )
 
 test('holder-linux-ai-panel-view-tests', ai_panel_view_test_exe)
+
+tag_navigation_test_exe = executable(
+  'holder-linux-tag-navigation-tests',
+  [
+    'src/models/card.vala',
+    'src/controllers/tag_navigation.vala',
+    'tests/tag_navigation_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-tag-navigation-tests', tag_navigation_test_exe)
+
+tags_tool_view_test_exe = executable(
+  'holder-linux-tags-tool-view-tests',
+  [
+    'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/models/toolbox_nav.vala',
+    'src/services/core_interfaces.vala',
+    'src/views/toolbox/tool_adapter.vala',
+    'src/views/toolbox/tags_tool_view.vala',
+    'tests/tags_tool_view_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-tags-tool-view-tests', tags_tool_view_test_exe)
 endif

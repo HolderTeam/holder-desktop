@@ -254,6 +254,7 @@ public class MainWindow : Adw.ApplicationWindow {
         );
         internal_link_navigator = new WindowInternalLinkNavigator(
             new InternalLinkController(),
+            new TagNavigationController(),
             editor_buffer,
             editor_view,
             card_store,
@@ -261,6 +262,7 @@ public class MainWindow : Adw.ApplicationWindow {
             selection_intent_orchestrator,
             card_action_dialog_adapter,
             toolbox,
+            workspace,
             toast_overlay
         );
         toolbox_breadcrumb_controller = new ToolboxBreadcrumbController(

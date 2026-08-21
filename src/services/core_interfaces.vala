@@ -28,6 +28,9 @@ public interface IHolderApi : Object {
     public abstract async CardContextData get_card_context(string project_id,
                                                            string? parent_card_id = null) throws Error;
     public abstract async CardDetail get_card(string card_id) throws Error;
+    public abstract async Gee.ArrayList<TagCount> list_project_tags(string project_id) throws Error;
+    public abstract async Gee.ArrayList<CardSummary> list_cards_with_tag(string project_id,
+                                                                         string tag) throws Error;
     public abstract async Gee.ArrayList<CardLink> list_card_links(string card_id) throws Error;
     public abstract async Gee.ArrayList<CardLink> list_card_backlinks(string card_id) throws Error;
     public abstract async Gee.ArrayList<ProjectResource> list_resources(string project_id) throws Error;

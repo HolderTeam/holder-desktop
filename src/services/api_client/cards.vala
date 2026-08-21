@@ -37,6 +37,27 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
         return ApiParsersCards.parse_card_detail(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
     }
 
+    public static async Gee.ArrayList<TagCount> list_project_tags(ApiClient client,
+                                                                  string project_id) throws Error {
+        var root = yield client.request_json(
+            "GET",
+            "/projects/%s/tags".printf(Uri.escape_string(project_id)),
+            null,
+            null
+        );
+        return ApiParsersCards.parse_project_tags(root);
+    }
+
+    public static async Gee.ArrayList<CardSummary> list_cards_with_tag(ApiClient client,
+                                                                       string project_id,
+                                                                       string tag) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("project_id", project_id);
+        query.insert("tag", tag);
+        var root = yield client.request_json("GET", "/cards", null, query);
+        return ApiParsersCards.parse_cards(root);
+    }
+
     public static async Gee.ArrayList<CardLink> list_card_links(ApiClient client, string card_id) throws Error { // LCOV_EXCL_BR_LINE: async declaration branch artifact
         var root = yield client.request_json( // LCOV_EXCL_BR_LINE: yield resume edge artifact
             "GET",
