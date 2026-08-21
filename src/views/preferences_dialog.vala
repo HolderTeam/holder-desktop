@@ -5,17 +5,22 @@ public class PreferencesDialog : Adw.PreferencesDialog {
     private GtkSource.View editor_view;
     private Spelling.TextBufferAdapter? spelling_adapter;
     private Settings? settings;
+    private EditorFontStyle editor_font_style;
     private Gee.HashMap<string, GtkSource.StyleSchemePreview> scheme_previews;
+    internal Adw.SwitchRow custom_font_row { get; private set; }
+    internal Adw.ActionRow custom_font_choice_row { get; private set; }
 
     public PreferencesDialog(GtkSource.Buffer editor_buffer,
                              GtkSource.View editor_view,
                              Spelling.TextBufferAdapter? spelling_adapter,
-                             Settings? settings) {
+                             Settings? settings,
+                             EditorFontStyle editor_font_style) {
         Object();
         this.editor_buffer = editor_buffer;
         this.editor_view = editor_view;
         this.spelling_adapter = spelling_adapter;
         this.settings = settings;
+        this.editor_font_style = editor_font_style;
         this.scheme_previews = new Gee.HashMap<string, GtkSource.StyleSchemePreview>();
         this.set_title("Preferences");
         build_appearance_page();
@@ -74,6 +79,8 @@ public class PreferencesDialog : Adw.PreferencesDialog {
 
         page.add(scheme_group);
 
+        build_font_group(page);
+
         var editor_group = new Adw.PreferencesGroup();
         editor_group.set_title("Editor");
 
@@ -121,6 +128,76 @@ public class PreferencesDialog : Adw.PreferencesDialog {
 
         page.add(editor_group);
         add(page);
+    }
+
+    private void build_font_group(Adw.PreferencesPage page) {
+        var font_group = new Adw.PreferencesGroup();
+
+        var stored_font = settings != null
+            ? settings.get_string(AppSettings.KEY_CUSTOM_EDITOR_FONT)
+            : editor_font_style.font_description;
+        stored_font = EditorFontStyle.canonical_font_description(stored_font);
+
+        custom_font_row = new Adw.SwitchRow();
+        custom_font_row.set_title("Custom Font");
+        custom_font_row.set_active(
+            settings != null
+                ? settings.get_boolean(AppSettings.KEY_USE_CUSTOM_EDITOR_FONT)
+                : editor_font_style.enabled
+        );
+        font_group.add(custom_font_row);
+
+        custom_font_choice_row = new Adw.ActionRow();
+        custom_font_choice_row.set_title(stored_font);
+        custom_font_choice_row.set_activatable(true);
+        custom_font_choice_row.set_visible(custom_font_row.get_active());
+
+        var chevron = new Gtk.Image.from_icon_name("go-next-symbolic");
+        chevron.set_accessible_role(Gtk.AccessibleRole.PRESENTATION);
+        custom_font_choice_row.add_suffix(chevron);
+        custom_font_choice_row.activated.connect(() => {
+            choose_custom_font.begin();
+        });
+        font_group.add(custom_font_choice_row);
+
+        editor_font_style.apply(custom_font_row.get_active(), stored_font);
+        custom_font_row.notify["active"].connect(() => {
+            var enabled = custom_font_row.get_active();
+            custom_font_choice_row.set_visible(enabled);
+            editor_font_style.apply(enabled, custom_font_choice_row.get_title());
+            if (settings != null) {
+                settings.set_boolean(AppSettings.KEY_USE_CUSTOM_EDITOR_FONT, enabled);
+            }
+        });
+
+        page.add(font_group);
+    }
+
+    private async void choose_custom_font() {
+        var font_dialog = new Gtk.FontDialog();
+        font_dialog.set_title("Pick a Font");
+        var initial = Pango.FontDescription.from_string(custom_font_choice_row.get_title());
+        var parent = get_root() as Gtk.Window;
+
+        try {
+            var selected = yield font_dialog.choose_font(parent, initial, null);
+            if (selected != null) {
+                select_custom_font(selected);
+            }
+        } catch (IOError.CANCELLED e) {
+            // Closing the chooser leaves the current font unchanged.
+        } catch (Error e) {
+            warning("Unable to choose an editor font: %s", e.message);
+        }
+    }
+
+    internal void select_custom_font(Pango.FontDescription description) {
+        var selected = EditorFontStyle.canonical_font_description(description.to_string());
+        custom_font_choice_row.set_title(selected);
+        editor_font_style.apply(custom_font_row.get_active(), selected);
+        if (settings != null) {
+            settings.set_string(AppSettings.KEY_CUSTOM_EDITOR_FONT, selected);
+        }
     }
 
     private void populate_style_schemes(Gtk.FlowBox flowbox) {

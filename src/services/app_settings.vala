@@ -5,6 +5,8 @@ public class AppSettings : Object {
     public const string SCHEMA_ID = "team.holder.Holder";
     public const string KEY_STYLE_VARIANT = "style-variant";
     public const string KEY_STYLE_SCHEME_ID = "style-scheme-id";
+    public const string KEY_USE_CUSTOM_EDITOR_FONT = "use-custom-editor-font";
+    public const string KEY_CUSTOM_EDITOR_FONT = "custom-editor-font";
     public const string KEY_SHOW_LINE_NUMBERS = "show-line-numbers";
     public const string KEY_SHOW_SPELL_CHECKING = "show-spell-checking";
     public const string KEY_WINDOW_WIDTH = "window-width";

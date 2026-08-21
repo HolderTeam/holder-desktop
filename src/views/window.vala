@@ -16,6 +16,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private WorkspacePane workspace;
     private GtkSource.Buffer editor_buffer;
     private GtkSource.View editor_view;
+    private EditorFontStyle editor_font_style;
     private Spelling.TextBufferAdapter? spelling_adapter;
     private Gtk.SearchEntry search_entry;
     private Gtk.Label search_summary_label;
@@ -125,6 +126,7 @@ public class MainWindow : Adw.ApplicationWindow {
         workspace = new WorkspacePane(search_store);
         editor_buffer = workspace.editor_buffer;
         editor_view = workspace.editor_view;
+        editor_font_style = new EditorFontStyle(editor_view);
         spelling_adapter = workspace.spelling_adapter;
         settings = boot_settings;
         if (settings != null) {
@@ -930,6 +932,10 @@ public class MainWindow : Adw.ApplicationWindow {
         Adw.StyleManager.get_default().set_color_scheme(AppSettings.effective_color_scheme_for_key(style_key));
 
         editor_view.set_show_line_numbers(settings.get_boolean(AppSettings.KEY_SHOW_LINE_NUMBERS));
+        editor_font_style.apply(
+            settings.get_boolean(AppSettings.KEY_USE_CUSTOM_EDITOR_FONT),
+            settings.get_string(AppSettings.KEY_CUSTOM_EDITOR_FONT)
+        );
         if (spelling_adapter != null) {
             spelling_adapter.set_enabled(settings.get_boolean(AppSettings.KEY_SHOW_SPELL_CHECKING));
         }
@@ -995,7 +1001,8 @@ public class MainWindow : Adw.ApplicationWindow {
             editor_buffer,
             editor_view,
             spelling_adapter,
-            settings
+            settings,
+            editor_font_style
         );
     }
 

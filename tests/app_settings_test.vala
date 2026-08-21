@@ -350,6 +350,8 @@ private void test_open_or_null_when_local_schema_missing_emits_specific_warning(
 private void test_key_constants_are_non_empty() {
     assert(HolderLinux.AppSettings.KEY_STYLE_VARIANT.length > 0);
     assert(HolderLinux.AppSettings.KEY_STYLE_SCHEME_ID.length > 0);
+    assert(HolderLinux.AppSettings.KEY_USE_CUSTOM_EDITOR_FONT.length > 0);
+    assert(HolderLinux.AppSettings.KEY_CUSTOM_EDITOR_FONT.length > 0);
     assert(HolderLinux.AppSettings.KEY_SHOW_LINE_NUMBERS.length > 0);
     assert(HolderLinux.AppSettings.KEY_SHOW_SPELL_CHECKING.length > 0);
     assert(HolderLinux.AppSettings.KEY_WINDOW_WIDTH.length > 0);
@@ -363,6 +365,15 @@ private void test_key_constants_are_non_empty() {
     assert(HolderLinux.AppSettings.KEY_UPDATE_LAST_CHECK_AT.length > 0);
     assert(HolderLinux.AppSettings.KEY_UPDATE_LAST_PROMPT_VERSION.length > 0);
     assert(HolderLinux.AppSettings.KEY_UPDATE_LAST_PROMPT_AT.length > 0);
+}
+
+private void test_editor_font_schema_defaults() {
+    var settings = new Settings(HolderLinux.AppSettings.SCHEMA_ID);
+    settings.reset(HolderLinux.AppSettings.KEY_USE_CUSTOM_EDITOR_FONT);
+    settings.reset(HolderLinux.AppSettings.KEY_CUSTOM_EDITOR_FONT);
+
+    assert(!settings.get_boolean(HolderLinux.AppSettings.KEY_USE_CUSTOM_EDITOR_FONT));
+    assert(settings.get_string(HolderLinux.AppSettings.KEY_CUSTOM_EDITOR_FONT) == "Monospace 11");
 }
 
 int main(string[] args) {
@@ -416,5 +427,7 @@ int main(string[] args) {
                   test_open_or_null_when_local_schema_missing_emits_specific_warning);
     Test.add_func("/app_settings/key_constants_are_non_empty",
                   test_key_constants_are_non_empty);
+    Test.add_func("/app_settings/editor_font_schema_defaults",
+                  test_editor_font_schema_defaults);
     return Test.run();
 }

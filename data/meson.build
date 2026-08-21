@@ -1,5 +1,6 @@
 gnome.compile_schemas(
   build_by_default: true,
+  depend_files: files('team.holder.Holder.gschema.xml'),
 )
 
 install_data(

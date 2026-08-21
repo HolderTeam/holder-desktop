@@ -15,6 +15,20 @@
         Empty string means no explicit override.
       </description>
     </key>
+    <key name="use-custom-editor-font" type="b">
+      <default>false</default>
+      <summary>Use a custom editor font</summary>
+      <description>
+        If true, the editor uses the font stored in custom-editor-font.
+      </description>
+    </key>
+    <key name="custom-editor-font" type="s">
+      <default>'Monospace 11'</default>
+      <summary>Custom editor font</summary>
+      <description>
+        A Pango font description containing the editor font family, face, and size.
+      </description>
+    </key>
     <key name="show-line-numbers" type="b">
       <default>true</default>
       <summary>Show line numbers in the editor</summary>
