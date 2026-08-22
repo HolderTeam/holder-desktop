@@ -54,6 +54,12 @@ jobs:
         run: meson compile -C build-linux
 
       - name: Run tests
+        env:
+          # The GitHub runner has no accessibility bus or usable DRI device.
+          # GTK warnings are fatal under GLib's test harness, so use GTK's
+          # documented headless settings for widget tests.
+          GTK_A11Y: none
+          GSK_RENDERER: cairo
         run: |
           xvfb-run -a dbus-run-session -- \
             meson test \
