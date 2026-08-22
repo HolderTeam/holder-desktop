@@ -39,7 +39,7 @@ jobs:
             meson \
             ninja-build \
             pkg-config \
-            vala \
+            valac \
             xvfb
 
       - name: Configure Meson
