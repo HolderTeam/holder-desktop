@@ -1,0 +1,155 @@
+name: Linux desktop artifact
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out holder-desktop
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y \
+            appstream \
+            dbus-x11 \
+            desktop-file-utils \
+            libadwaita-1-dev \
+            libgee-0.8-dev \
+            libglib2.0-bin \
+            libgtk-4-dev \
+            libgtksourceview-5-dev \
+            libjson-glib-dev \
+            libsoup-3.0-dev \
+            libspelling-1-dev \
+            libvte-2.91-gtk4-dev \
+            meson \
+            ninja-build \
+            pkg-config \
+            vala \
+            xvfb
+
+      - name: Configure Meson
+        run: |
+          meson setup build-linux \
+            --prefix=/usr \
+            --buildtype=debugoptimized \
+            -Dtests=true \
+            -Dterminal=true
+
+      - name: Build desktop and tests
+        run: meson compile -C build-linux
+
+      - name: Run tests
+        run: |
+          xvfb-run -a dbus-run-session -- \
+            meson test \
+              -C build-linux \
+              --print-errorlogs \
+              --num-processes 8
+
+      - name: Stage installed desktop
+        run: |
+          set -euo pipefail
+
+          stage_dir="${PWD}/out/artifacts/linux-desktop"
+          install -d "${stage_dir}/release"
+
+          DESTDIR="${stage_dir}" meson install -C build-linux
+
+          # AppImage launchers do not use the system man-page hierarchy.
+          rm -rf "${stage_dir}/usr/share/man"
+
+          # GSettings normally compiles schemas at system package install time.
+          # Compile the isolated schema set so the staged application is usable
+          # without writing to the host's /usr tree.
+          glib-compile-schemas \
+            "${stage_dir}/usr/share/glib-2.0/schemas"
+
+          tr -d '[:space:]' < VERSION \
+            > "${stage_dir}/release/holder-desktop-version.txt"
+          printf '%s\n' "${GITHUB_SHA}" \
+            > "${stage_dir}/release/holder-desktop-commit.txt"
+
+          (
+            cd "${stage_dir}"
+            find . \( -type f -o -type l \) \
+              ! -path './release/holder-desktop-manifest.txt' \
+              | sed 's#^\./##' \
+              | sort \
+              > release/holder-desktop-manifest.txt
+          )
+
+          find "${stage_dir}" -type f | sort
+
+      - name: Smoke-test staged desktop
+        run: |
+          set -euo pipefail
+
+          stage_dir="${PWD}/out/artifacts/linux-desktop"
+          schema_dir="${stage_dir}/usr/share/glib-2.0/schemas"
+          expected_version="$(tr -d '[:space:]' < VERSION)"
+
+          test -x "${stage_dir}/usr/bin/holder-desktop"
+          test -f "${schema_dir}/team.holder.Holder.gschema.xml"
+          test -f "${schema_dir}/gschemas.compiled"
+          test -f "${stage_dir}/usr/share/holder-desktop/holder.jpg"
+          test -f "${stage_dir}/usr/share/icons/hicolor/512x512/apps/team.holder.Holder.png"
+          test -f "${stage_dir}/usr/share/applications/team.holder.Holder.desktop"
+          test -f "${stage_dir}/usr/share/metainfo/team.holder.Holder.metainfo.xml"
+          test -f "${stage_dir}/release/holder-desktop-manifest.txt"
+
+          test "$(cat "${stage_dir}/release/holder-desktop-version.txt")" = \
+            "${expected_version}"
+          grep -qx 'usr/bin/holder-desktop' \
+            "${stage_dir}/release/holder-desktop-manifest.txt"
+
+          desktop-file-validate \
+            "${stage_dir}/usr/share/applications/team.holder.Holder.desktop"
+          appstreamcli validate --no-net \
+            "${stage_dir}/usr/share/metainfo/team.holder.Holder.metainfo.xml"
+
+          GSETTINGS_SCHEMA_DIR="${schema_dir}" \
+            gsettings list-keys team.holder.Holder >/dev/null
+
+          runtime_libraries="$(ldd "${stage_dir}/usr/bin/holder-desktop")"
+          printf '%s\n' "${runtime_libraries}"
+          if grep -q 'not found' <<<"${runtime_libraries}"; then
+            exit 1
+          fi
+
+      - name: Archive desktop artifact
+        run: |
+          set -euo pipefail
+
+          stage_dir="${PWD}/out/artifacts/linux-desktop"
+          upload_dir="${PWD}/out/artifacts/linux-desktop-upload"
+          archive_name="holder-desktop-linux-x86_64.tar.gz"
+
+          install -d "${upload_dir}"
+          tar -C "${stage_dir}" -czf "${upload_dir}/${archive_name}" .
+          (
+            cd "${upload_dir}"
+            sha256sum "${archive_name}" > "${archive_name}.sha256"
+          )
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: holder-desktop-linux-x86_64
+          path: out/artifacts/linux-desktop-upload/*
+          if-no-files-found: error
+          retention-days: 7
