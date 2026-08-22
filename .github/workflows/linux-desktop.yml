@@ -81,6 +81,8 @@ jobs:
 
           tr -d '[:space:]' < VERSION \
             > "${stage_dir}/release/holder-desktop-version.txt"
+          install -m 0644 compatibility/daemon-api.json \
+            "${stage_dir}/release/holder-desktop-daemon-api.json"
           printf '%s\n' "${GITHUB_SHA}" \
             > "${stage_dir}/release/holder-desktop-commit.txt"
 
@@ -110,12 +112,15 @@ jobs:
           test -f "${stage_dir}/usr/share/icons/hicolor/512x512/apps/team.holder.Holder.png"
           test -f "${stage_dir}/usr/share/applications/team.holder.Holder.desktop"
           test -f "${stage_dir}/usr/share/metainfo/team.holder.Holder.metainfo.xml"
+          test -f "${stage_dir}/release/holder-desktop-daemon-api.json"
           test -f "${stage_dir}/release/holder-desktop-manifest.txt"
 
           test "$(cat "${stage_dir}/release/holder-desktop-version.txt")" = \
             "${expected_version}"
           grep -qx 'usr/bin/holder-desktop' \
             "${stage_dir}/release/holder-desktop-manifest.txt"
+          python3 -m json.tool \
+            "${stage_dir}/release/holder-desktop-daemon-api.json" >/dev/null
 
           desktop-file-validate \
             "${stage_dir}/usr/share/applications/team.holder.Holder.desktop"

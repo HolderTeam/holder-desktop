@@ -1,0 +1,6 @@
+{
+  "daemon_api": {
+    "minimum": "0.1",
+    "maximum_exclusive": "0.2"
+  }
+}
