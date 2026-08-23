@@ -467,7 +467,10 @@ public class WorkspacePane : Object {
         Spelling.init();
 
         var lm = GtkSource.LanguageManager.get_default();
-        var markdown = lm.get_language("markdown");
+        var markdown = lm.get_language("holder-markdown");
+        if (markdown == null) {
+            markdown = lm.get_language("markdown");
+        }
         if (markdown == null) {
             markdown = lm.guess_language("note.md", null);
         }
@@ -481,6 +484,12 @@ public class WorkspacePane : Object {
         editor_view.set_show_line_numbers(true);
         editor_view.set_vexpand(true);
         editor_view.set_hexpand(true);
+
+        var markdown_keys = new Gtk.EventControllerKey();
+        markdown_keys.key_pressed.connect((keyval, keycode, state) => {
+            return handle_markdown_return(keyval, state);
+        });
+        editor_view.add_controller(markdown_keys);
 
         var context_click = new Gtk.GestureClick();
         context_click.set_button(0);
@@ -554,6 +563,47 @@ public class WorkspacePane : Object {
 
         outer.append(ai_split);
         return outer;
+    }
+
+    private bool handle_markdown_return(uint keyval, Gdk.ModifierType state) {
+        if (keyval != Gdk.Key.Return && keyval != Gdk.Key.KP_Enter) {
+            return false;
+        }
+        var disallowed_modifiers = Gdk.ModifierType.SHIFT_MASK |
+            Gdk.ModifierType.CONTROL_MASK |
+            Gdk.ModifierType.ALT_MASK |
+            Gdk.ModifierType.SUPER_MASK;
+        if ((state & disallowed_modifiers) != 0 || !editor_view.get_editable()) {
+            return false;
+        }
+
+        Gtk.TextIter selection_start;
+        Gtk.TextIter selection_end;
+        if (editor_buffer.get_selection_bounds(out selection_start, out selection_end)) {
+            return false;
+        }
+
+        Gtk.TextIter cursor;
+        editor_buffer.get_iter_at_mark(out cursor, editor_buffer.get_insert());
+        Gtk.TextIter line_start = cursor;
+        line_start.set_line_offset(0);
+        var line_prefix = editor_buffer.get_text(line_start, cursor, false);
+        var decision = new MarkdownEditingController().decide_return(line_prefix);
+        if (decision.action == MarkdownListAction.NONE) {
+            return false;
+        }
+
+        editor_buffer.begin_user_action();
+        if (decision.action == MarkdownListAction.END) {
+            editor_buffer.delete(ref line_start, ref cursor);
+            editor_buffer.insert(ref line_start, "\n", -1);
+            editor_buffer.place_cursor(line_start);
+        } else {
+            editor_buffer.insert(ref cursor, "\n" + decision.continuation, -1);
+            editor_buffer.place_cursor(cursor);
+        }
+        editor_buffer.end_user_action();
+        return true;
     }
 
     private Gtk.Revealer build_find_replace_revealer() {

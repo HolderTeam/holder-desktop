@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+ Holder's Markdown source language extends GtkSourceView's stock Markdown
+ definition with the CommonMark heading boundary and the GFM constructs
+ rendered by the Android client.
+
+ Copyright (C) 2026 Holder contributors
+
+ This file is free software; you can redistribute it and/or modify it
+ under the terms of the GNU Lesser General Public License as published by
+ the Free Software Foundation; either version 2.1 of the License, or (at
+ your option) any later version.
+-->
+<language id="holder-markdown" name="Holder Markdown" version="2.0" _section="Markup">
+  <metadata>
+    <property name="mimetypes">text/x-markdown</property>
+    <property name="globs">*.markdown;*.md;*.mkd</property>
+    <property name="block-comment-start">&lt;!--</property>
+    <property name="block-comment-end">--&gt;</property>
+    <property name="suggested-suffix">.md</property>
+  </metadata>
+
+  <styles>
+    <style id="header" name="Header" map-to="def:heading"/>
+    <style id="strikethrough" name="Strikethrough" map-to="def:deletion"/>
+    <style id="task-marker" name="Task Marker" map-to="def:list-marker"/>
+    <style id="table-delimiter" name="Table Delimiter" map-to="def:operator"/>
+    <style id="alert-marker" name="Alert Marker" map-to="def:note"/>
+    <style id="bare-url" name="Bare URL" map-to="def:link-destination"/>
+    <style id="wikilink" name="Wiki Link" map-to="def:link-text"/>
+  </styles>
+
+  <definitions>
+    <!-- CommonMark ATX headings require whitespace or end-of-line after the marker. -->
+    <context id="atx-header" class="holder-heading" style-ref="header">
+      <match>^[ ]{0,3}#{1,6}([ \t]+.*)?$</match>
+    </context>
+
+    <context id="strikethrough" class="holder-strikethrough" style-ref="strikethrough">
+      <match>~~(?=\S).+?(?&lt;=\S)~~</match>
+    </context>
+
+    <context id="task-marker" class="holder-task-marker" style-ref="task-marker">
+      <match>^[ ]{0,3}(\*|\+|-)[ \t]+\[[ xX]\](?=[ \t]+|$)</match>
+    </context>
+
+    <!-- Highlight the GFM delimiter row without treating every prose pipe as a table. -->
+    <context id="table-delimiter" class="holder-table-delimiter" style-ref="table-delimiter">
+      <match extended="true">
+        ^[ ]{0,3}\|?[ \t]*:?-+:?[ \t]*
+        (\|[ \t]*:?-+:?[ \t]*)+
+        \|?[ \t]*$
+      </match>
+    </context>
+
+    <context id="alert-marker" class="holder-alert" style-ref="alert-marker">
+      <match>^[ ]{0,3}&gt;[ \t]*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*$</match>
+    </context>
+
+    <context id="wikilink" class="holder-wikilink" style-ref="wikilink">
+      <match>\[\[[^\]\n]+\]\]</match>
+    </context>
+
+    <context id="bare-url" class="no-spell-check holder-bare-url" style-ref="bare-url">
+      <match>(https?://|mailto:)[^\s&lt;&gt;&quot;]+</match>
+    </context>
+
+    <context id="holder-markdown">
+      <include>
+        <context ref="atx-header"/>
+        <context ref="alert-marker"/>
+        <context ref="task-marker"/>
+        <context ref="table-delimiter"/>
+        <context ref="strikethrough"/>
+        <context ref="wikilink"/>
+        <context ref="bare-url"/>
+
+        <!-- Stock Markdown contexts retained, except its permissive ATX heading rule. -->
+        <context ref="markdown:setext-header"/>
+        <context ref="markdown:horizontal-rule"/>
+        <context ref="markdown:list"/>
+        <context ref="markdown:code-block"/>
+        <context ref="markdown:1-backtick-code-span"/>
+        <context ref="markdown:2-backticks-code-span"/>
+        <context ref="markdown:3-backticks-code-span"/>
+        <context ref="markdown:blockquote"/>
+        <context ref="markdown:automatic-link"/>
+        <context ref="markdown:inline-link"/>
+        <context ref="markdown:reference-link"/>
+        <context ref="markdown:link-definition"/>
+        <context ref="markdown:inline-image"/>
+        <context ref="markdown:reference-image"/>
+        <context ref="markdown:underscores-emphasis"/>
+        <context ref="markdown:asterisks-emphasis"/>
+        <context ref="markdown:underscores-strong-emphasis"/>
+        <context ref="markdown:asterisks-strong-emphasis"/>
+        <context ref="markdown:backslash-escape"/>
+        <context ref="markdown:line-break"/>
+        <context ref="html:html"/>
+      </include>
+    </context>
+  </definitions>
+</language>

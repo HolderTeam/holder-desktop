@@ -3,6 +3,8 @@ namespace HolderLinux {
 internal class WindowInternalLinkNavigator : Object {
     private InternalLinkController internal_link_controller;
     private TagNavigationController tag_navigation_controller;
+    private MarkdownLinkController markdown_link_controller;
+    private IUriLauncher uri_launcher;
     private GtkSource.Buffer editor_buffer;
     private GtkSource.View editor_view;
     private GLib.ListStore card_store;
@@ -23,9 +25,13 @@ internal class WindowInternalLinkNavigator : Object {
                                        CardActionDialogAdapter card_action_dialog_adapter,
                                        ToolboxPane toolbox,
                                        WorkspacePane workspace,
-                                       Adw.ToastOverlay toast_overlay) {
+                                       Adw.ToastOverlay toast_overlay,
+                                       MarkdownLinkController? markdown_link_controller = null,
+                                       IUriLauncher? uri_launcher = null) {
         this.internal_link_controller = internal_link_controller;
         this.tag_navigation_controller = tag_navigation_controller;
+        this.markdown_link_controller = markdown_link_controller ?? new MarkdownLinkController();
+        this.uri_launcher = uri_launcher ?? new AppInfoUriLauncher();
         this.editor_buffer = editor_buffer;
         this.editor_view = editor_view;
         this.card_store = card_store;
@@ -129,7 +135,10 @@ internal class WindowInternalLinkNavigator : Object {
             project_cards_for_selected_project()
         );
         if (!decision.handled) {
-            return navigate_tag_at_iter(iter);
+            if (navigate_tag_at_iter(iter)) {
+                return true;
+            }
+            return navigate_external_link_at_iter(iter);
         }
 
         if (decision.open_card_id == null) {
@@ -174,6 +183,29 @@ internal class WindowInternalLinkNavigator : Object {
             return false;
         }
         workspace.show_tag((!) tag);
+        return true;
+    }
+
+    private bool navigate_external_link_at_iter(Gtk.TextIter iter) {
+        Gtk.TextIter document_start;
+        Gtk.TextIter document_end;
+        editor_buffer.get_bounds(out document_start, out document_end);
+        var editor_text = editor_buffer.get_text(document_start, document_end, false);
+        var before_cursor = editor_buffer.get_text(document_start, iter, false);
+        var uri = markdown_link_controller.uri_at_byte_offset(
+            editor_text,
+            before_cursor.length
+        );
+        if (uri == null) {
+            return false;
+        }
+        try {
+            uri_launcher.launch((!) uri);
+        } catch (Error e) {
+            toast_overlay.add_toast(
+                new Adw.Toast("Could not open link: %s".printf(e.message))
+            );
+        }
         return true;
     }
 }

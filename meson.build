@@ -193,6 +193,8 @@ sources = [
   'src/controllers/recovery_ui.vala',
   'src/controllers/internal_link.vala',
   'src/controllers/tag_navigation.vala',
+  'src/controllers/markdown_editing.vala',
+  'src/controllers/markdown_links.vala',
   'src/services/discovery.vala',
   'src/services/recovery_service.vala',
   'src/services/http_transport.vala',
@@ -2157,6 +2159,67 @@ internal_link_test_exe = executable(
 )
 
 test('holder-linux-internal-link-tests', internal_link_test_exe)
+
+markdown_editing_test_exe = executable(
+  'holder-linux-markdown-editing-tests',
+  [
+    'src/controllers/markdown_editing.vala',
+    'tests/markdown_editing_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-markdown-editing-tests', markdown_editing_test_exe)
+
+markdown_links_test_exe = executable(
+  'holder-linux-markdown-links-tests',
+  [
+    'src/controllers/markdown_links.vala',
+    'tests/markdown_links_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-markdown-links-tests', markdown_links_test_exe)
+
+holder_markdown_language_test_exe = executable(
+  'holder-linux-holder-markdown-language-tests',
+  [
+    'tests/holder_markdown_language_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('gtksourceview-5'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+holder_markdown_language_test_env = environment()
+holder_markdown_language_test_env.set(
+  'HOLDER_MARKDOWN_LANGUAGE_DIR',
+  meson.project_source_root() / 'data' / 'gtksourceview-5' / 'language-specs',
+)
+
+test(
+  'holder-linux-holder-markdown-language-tests',
+  holder_markdown_language_test_exe,
+  env: holder_markdown_language_test_env,
+)
 
 project_create_test_exe = executable(
   'holder-linux-project-create-tests',

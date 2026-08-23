@@ -8,6 +8,11 @@ install_data(
   install_dir: join_paths(get_option('datadir'), 'glib-2.0', 'schemas'),
 )
 
+install_data(
+  'gtksourceview-5/language-specs/holder-markdown.lang',
+  install_dir: join_paths(get_option('datadir'), 'gtksourceview-5', 'language-specs'),
+)
+
 help_resources = gnome.compile_resources(
   'holder_linux_help',
   'help.gresource.xml',
