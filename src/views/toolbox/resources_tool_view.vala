@@ -12,6 +12,9 @@ public class ResourcesToolView : Object, IToolShellAdapter {
     private Gtk.Button resources_open_btn;
     private Gtk.Button resources_edit_btn;
     private Gtk.Button resources_delete_btn;
+    private Gtk.ListBox locations_list;
+    private Gtk.Label locations_empty_label;
+    private string? preferred_location_id;
     private Gee.ArrayList<ProjectResource> all_resources = new Gee.ArrayList<ProjectResource>();
     private uint resources_refresh_serial = 0;
     private bool has_committed_resources = false;
@@ -143,9 +146,9 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         var view = new Gtk.ColumnView(resources_selection);
         view.set_vexpand(true);
         view.append_column(build_resource_text_column("Label", "label"));
-        view.append_column(build_resource_text_column("Kind", "kind"));
-        view.append_column(build_resource_text_column("URI", "uri"));
-        view.append_column(build_resource_text_column("Desc", "desc"));
+        view.append_column(build_resource_text_column("Type", "kind"));
+        view.append_column(build_resource_text_column("Assets", "assets"));
+        view.append_column(build_resource_text_column("Description", "desc"));
         view.append_column(build_resource_text_column("Updated", "updated"));
 
         var scroller = new Gtk.ScrolledWindow();
@@ -154,9 +157,36 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         root.append(scroller);
 
         resources_empty_label = new Gtk.Label("No resources in this project.") { xalign = 0.0f };
+        resources_empty_label.set_name("resources-empty-state");
         resources_empty_label.add_css_class("dim-label");
         resources_empty_label.set_visible(false);
         root.append(resources_empty_label);
+
+        var separator = new Gtk.Separator(Gtk.Orientation.HORIZONTAL);
+        separator.set_margin_top(6);
+        root.append(separator);
+
+        var locations_header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        var locations_title = new Gtk.Label("Storage Locations") { xalign = 0.0f, hexpand = true };
+        locations_title.add_css_class("heading");
+        locations_header.append(locations_title);
+        var add_local = new Gtk.Button.with_label("Add Folder");
+        add_local.clicked.connect(() => { open_location_dialog(false); });
+        locations_header.append(add_local);
+        var add_s3 = new Gtk.Button.with_label("Add S3-compatible");
+        add_s3.clicked.connect(() => { open_location_dialog(true); });
+        locations_header.append(add_s3);
+        root.append(locations_header);
+
+        locations_list = new Gtk.ListBox();
+        locations_list.set_selection_mode(Gtk.SelectionMode.NONE);
+        locations_list.add_css_class("boxed-list");
+        root.append(locations_list);
+        locations_empty_label = new Gtk.Label("No storage location configured for this project.") {
+            xalign = 0.0f
+        };
+        locations_empty_label.add_css_class("dim-label");
+        root.append(locations_empty_label);
 
         resources_open_btn = new Gtk.Button.with_label("Open");
         resources_open_btn.clicked.connect(() => {
@@ -219,6 +249,12 @@ public class ResourcesToolView : Object, IToolShellAdapter {
                     label.set_text(controller.ellipsize_title(resource.uri));
                     label.set_tooltip_text(resource.uri);
                     break;
+                case "assets":
+                    label.set_text(resource.assets.size.to_string());
+                    label.set_tooltip_text(
+                        resource.assets.size == 1 ? "1 attached asset" : "%d attached assets".printf(resource.assets.size)
+                    );
+                    break;
                 case "desc":
                     var desc = resource.desc ?? "";
                     label.set_text(controller.ellipsize_title(desc));
@@ -240,6 +276,88 @@ public class ResourcesToolView : Object, IToolShellAdapter {
     private void queue_resources_refresh() {
         resources_refresh_serial++;
         refresh_resources.begin(resources_refresh_serial);
+        refresh_locations.begin(resources_refresh_serial);
+    }
+
+    private async void refresh_locations(uint request_serial) {
+        if (locations_list == null) {
+            return;
+        }
+        clear_locations();
+        var project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        var storage_api = api as IResourceStorageApi;
+        if (project == null || storage_api == null) {
+            locations_empty_label.set_visible(true);
+            return;
+        }
+        try {
+            var result = yield storage_api.list_storage_locations(project.project_id);
+            if (request_serial != resources_refresh_serial) {
+                return;
+            }
+            preferred_location_id = result.preferred_location_id;
+            foreach (var location in result.locations) {
+                locations_list.append(build_location_row(project, location));
+            }
+            locations_empty_label.set_visible(result.locations.size == 0);
+        } catch (Error e) {
+            locations_empty_label.set_text("Failed to load storage locations.");
+            locations_empty_label.set_visible(true);
+            error_reported("Storage Locations refresh failed", e.message);
+        }
+    }
+
+    private void clear_locations() {
+        var child = locations_list.get_first_child();
+        while (child != null) {
+            var next = child.get_next_sibling();
+            locations_list.remove(child);
+            child = next;
+        }
+    }
+
+    private Gtk.Widget build_location_row(Project project, StorageLocation location) {
+        var row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+        row.set_margin_top(8);
+        row.set_margin_bottom(8);
+        row.set_margin_start(10);
+        row.set_margin_end(10);
+        var text = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
+        text.set_hexpand(true);
+        var title = new Gtk.Label(location.name) { xalign = 0.0f };
+        title.add_css_class("heading");
+        text.append(title);
+        var summary_text = location.provider == "local_directory" ? "Local folder" : "S3-compatible storage";
+        if (location.binding_preview != null) {
+            summary_text += " · " + (!) location.binding_preview;
+        } else {
+            summary_text += " · Configuration required";
+        }
+        var summary = new Gtk.Label(summary_text) { xalign = 0.0f };
+        summary.add_css_class("dim-label");
+        text.append(summary);
+        row.append(text);
+        if (preferred_location_id == location.location_id) {
+            var preferred = new Gtk.Label("Preferred");
+            preferred.add_css_class("accent");
+            row.append(preferred);
+        } else if (location.bound) {
+            var prefer = new Gtk.Button.with_label("Use by default");
+            prefer.clicked.connect(() => { prefer_location.begin(project.project_id, location.location_id); });
+            row.append(prefer);
+        }
+        var test = new Gtk.Button.from_icon_name("emblem-ok-symbolic");
+        test.set_tooltip_text("Test storage location");
+        test.set_sensitive(location.bound);
+        test.clicked.connect(() => { test_location.begin(location.location_id); });
+        row.append(test);
+        var remove = new Gtk.Button.from_icon_name("user-trash-symbolic");
+        remove.set_tooltip_text("Delete storage location");
+        remove.clicked.connect(() => { delete_location.begin(location.location_id); });
+        row.append(remove);
+        return row;
     }
 
     private async void refresh_resources(uint request_serial) {
@@ -324,6 +442,195 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         }
     }
 
+    private void open_location_dialog(bool s3_compatible) {
+        var project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        var storage_api = api as IResourceStorageApi;
+        var root_window = widget.get_root() as Gtk.Window;
+        if (project == null || storage_api == null || root_window == null) {
+            toast_requested("Select a project and connect to Holder first.");
+            return;
+        }
+
+        var dialog = new Adw.MessageDialog(
+            root_window,
+            s3_compatible ? "Add S3-compatible Storage" : "Add Storage Folder",
+            s3_compatible
+                ? "The endpoint and bucket are shared through Git. Credentials stay in this device's keyring."
+                : "The folder path stays private to this device."
+        );
+        dialog.add_response("cancel", "Cancel");
+        dialog.add_response("save", "Add");
+        dialog.set_response_appearance("save", Adw.ResponseAppearance.SUGGESTED);
+        dialog.set_default_response("save");
+        dialog.set_close_response("cancel");
+
+        var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
+        var name = new Gtk.Entry();
+        name.set_placeholder_text(s3_compatible ? "Family Assets" : "Assets on this computer");
+        content.append(new Gtk.Label("Name") { xalign = 0.0f });
+        content.append(name);
+
+        var path = new Gtk.Entry();
+        var endpoint = new Gtk.Entry();
+        var region = new Gtk.Entry();
+        var bucket = new Gtk.Entry();
+        var prefix = new Gtk.Entry();
+        var access_key = new Gtk.Entry();
+        var secret_key = new Gtk.Entry();
+        var session_token = new Gtk.Entry();
+        access_key.set_visibility(false);
+        secret_key.set_visibility(false);
+        session_token.set_visibility(false);
+        if (!s3_compatible) {
+            var path_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+            path.set_hexpand(true);
+            path.set_placeholder_text("/path/to/assets");
+            path_row.append(path);
+            var choose = new Gtk.Button.with_label("Choose…");
+            choose.clicked.connect(() => {
+                var picker = new Gtk.FileDialog();
+                picker.set_title("Choose Storage Folder");
+                picker.select_folder.begin(root_window, null, (obj, result) => {
+                    try {
+                        var folder = picker.select_folder.end(result);
+                        if (folder != null && folder.get_path() != null) path.set_text((!) folder.get_path());
+                    } catch (Error e) {
+                        if (!(e is IOError.CANCELLED)) error_reported("Failed to choose folder", e.message);
+                    }
+                });
+            });
+            path_row.append(choose);
+            content.append(new Gtk.Label("Folder") { xalign = 0.0f });
+            content.append(path_row);
+        } else {
+            endpoint.set_placeholder_text("https://s3.example.com");
+            region.set_placeholder_text("us-east-1");
+            bucket.set_placeholder_text("holder-family-assets");
+            prefix.set_placeholder_text("optional/prefix");
+            access_key.set_placeholder_text("Access key ID");
+            secret_key.set_placeholder_text("Secret access key");
+            session_token.set_placeholder_text("Session token (optional)");
+            content.append(new Gtk.Label("Endpoint") { xalign = 0.0f }); content.append(endpoint);
+            content.append(new Gtk.Label("Region") { xalign = 0.0f }); content.append(region);
+            content.append(new Gtk.Label("Bucket") { xalign = 0.0f }); content.append(bucket);
+            content.append(new Gtk.Label("Object prefix (optional)") { xalign = 0.0f }); content.append(prefix);
+            content.append(new Gtk.Separator(Gtk.Orientation.HORIZONTAL));
+            content.append(new Gtk.Label("Credentials for this device") { xalign = 0.0f });
+            content.append(access_key); content.append(secret_key); content.append(session_token);
+        }
+        dialog.set_extra_child(content);
+        dialog.response.connect((response) => {
+            if (response != "save") {
+                dialog.close();
+                return;
+            }
+            var location_name = name.get_text().strip();
+            if (location_name.length == 0) {
+                toast_requested("A storage location name is required.");
+                return;
+            }
+            var configuration = new Gee.HashMap<string, string>();
+            var values = new Gee.HashMap<string, string>();
+            string preview;
+            if (s3_compatible) {
+                if (endpoint.get_text().strip().length == 0 ||
+                    region.get_text().strip().length == 0 ||
+                    bucket.get_text().strip().length == 0 ||
+                    access_key.get_text().strip().length == 0 ||
+                    secret_key.get_text().length == 0) {
+                    toast_requested("Endpoint, region, bucket and credentials are required.");
+                    return;
+                }
+                configuration.set("endpoint", endpoint.get_text().strip());
+                configuration.set("region", region.get_text().strip());
+                configuration.set("bucket", bucket.get_text().strip());
+                configuration.set("prefix", prefix.get_text().strip());
+                configuration.set("addressing_style", "path");
+                values.set("access_key_id", access_key.get_text().strip());
+                values.set("secret_access_key", secret_key.get_text());
+                if (session_token.get_text().length > 0) values.set("session_token", session_token.get_text());
+                preview = "%s / %s".printf(endpoint.get_text().strip(), bucket.get_text().strip());
+            } else {
+                if (path.get_text().strip().length == 0) {
+                    toast_requested("Choose a storage folder.");
+                    return;
+                }
+                values.set("root_path", path.get_text().strip());
+                preview = path.get_text().strip();
+            }
+            create_and_bind_location.begin(
+                project.project_id,
+                location_name,
+                s3_compatible ? "s3_compatible" : "local_directory",
+                configuration,
+                values,
+                preview
+            );
+            dialog.close();
+        });
+        dialog.present();
+    }
+
+    private async void create_and_bind_location(string project_id,
+                                                string name,
+                                                string provider,
+                                                Gee.HashMap<string, string> configuration,
+                                                Gee.HashMap<string, string> values,
+                                                string preview) {
+        var storage_api = api as IResourceStorageApi;
+        if (storage_api == null) return;
+        try {
+            var location_id = yield storage_api.create_storage_location(
+                project_id, name, provider, configuration
+            );
+            yield storage_api.bind_storage_location(location_id, values, preview);
+            if (preferred_location_id == null) {
+                yield storage_api.prefer_storage_location(project_id, location_id);
+            }
+            toast_requested("Storage location added.");
+            queue_resources_refresh();
+        } catch (Error e) {
+            error_reported("Failed to add storage location", e.message);
+        }
+    }
+
+    private async void prefer_location(string project_id, string location_id) {
+        var storage_api = api as IResourceStorageApi;
+        if (storage_api == null) return;
+        try {
+            yield storage_api.prefer_storage_location(project_id, location_id);
+            toast_requested("Preferred storage location updated.");
+            queue_resources_refresh();
+        } catch (Error e) {
+            error_reported("Failed to update preferred location", e.message);
+        }
+    }
+
+    private async void test_location(string location_id) {
+        var storage_api = api as IResourceStorageApi;
+        if (storage_api == null) return;
+        try {
+            yield storage_api.test_storage_location(location_id);
+            toast_requested("Storage location is available.");
+        } catch (Error e) {
+            error_reported("Storage location test failed", e.message);
+        }
+    }
+
+    private async void delete_location(string location_id) {
+        var storage_api = api as IResourceStorageApi;
+        if (storage_api == null) return;
+        try {
+            yield storage_api.delete_storage_location(location_id);
+            toast_requested("Storage location removed.");
+            queue_resources_refresh();
+        } catch (Error e) {
+            error_reported("Failed to remove storage location", e.message);
+        }
+    }
+
     private void open_resource_dialog(ProjectResource? existing) {
         var project = project_selection != null
             ? project_selection.get_selected_item() as Project
@@ -342,7 +649,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         var dialog = new Adw.MessageDialog(
             root_window,
             is_edit ? "Edit Resource" : "Add Resource",
-            is_edit ? "Update resource pointer fields." : "Create a project resource pointer."
+            is_edit ? "Update the Resource's basic metadata." : "Describe a thing in this Project."
         );
         dialog.add_response("cancel", "Cancel");
         dialog.add_response("save", "Save");
@@ -372,7 +679,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         content.append(kind_dropdown);
         content.append(custom_kind_entry);
 
-        var uri_label = new Gtk.Label("URI") { xalign = 0.0f };
+        var uri_label = new Gtk.Label("Identifier (optional)") { xalign = 0.0f };
         var uri_entry = new Gtk.Entry();
         uri_entry.set_placeholder_text("https://..., file:///..., /path/to/file");
         content.append(uri_label);
@@ -401,10 +708,26 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         content.append(desc_label);
         content.append(desc_entry);
 
+        var details_view = new Gtk.TextView();
+        details_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
+        details_view.set_monospace(true);
+        details_view.set_top_margin(6);
+        details_view.set_bottom_margin(6);
+        details_view.set_left_margin(6);
+        details_view.set_right_margin(6);
+        var details_scroll = new Gtk.ScrolledWindow();
+        details_scroll.set_min_content_height(100);
+        details_scroll.set_child(details_view);
+        var details_expander = new Gtk.Expander("Additional Details");
+        details_expander.set_tooltip_text("One property: value entry per line; repeat a property for multiple values.");
+        details_expander.set_child(details_scroll);
+        content.append(details_expander);
+
         if (existing != null) {
             uri_entry.set_text(existing.uri);
             label_entry.set_text(existing.label);
             desc_entry.set_text(existing.desc ?? "");
+            details_view.get_buffer().set_text(controller.format_additional_metadata(existing));
             int match = -1;
             for (uint i = 0; i < kind_options.get_n_items(); i++) {
                 var option = kind_options.get_string(i);
@@ -434,25 +757,45 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             var uri = uri_entry.get_text().strip();
             var label = label_entry.get_text().strip();
             var desc_raw = desc_entry.get_text().strip();
-            if (uri.length == 0 || label.length == 0) {
-                toast_requested("URI and label are required.");
+            if (label.length == 0) {
+                toast_requested("A label is required.");
                 return;
             }
 
-            string kind = "url";
+            string kind = "thing";
             var selected = kind_dropdown.get_selected();
             if (selected < kind_options.get_n_items() - 1) {
                 kind = kind_options.get_string(selected);
             } else {
                 var custom = custom_kind_entry.get_text().strip();
-                kind = custom.length > 0 ? custom : "url";
+                kind = custom.length > 0 ? custom : "thing";
             }
 
             var desc = desc_raw.length > 0 ? desc_raw : null;
+            Gtk.TextIter details_start;
+            Gtk.TextIter details_end;
+            details_view.get_buffer().get_bounds(out details_start, out details_end);
+            Gee.HashMap<string, Gee.ArrayList<string>> extra_metadata;
+            try {
+                extra_metadata = controller.parse_additional_metadata(
+                    details_view.get_buffer().get_text(details_start, details_end, false)
+                );
+            } catch (Error e) {
+                toast_requested(e.message);
+                return;
+            }
             if (existing != null) {
-                update_resource.begin(existing.resource_id, kind, uri, label, desc);
+                foreach (var entry in existing.metadata.entries) {
+                    if (entry.key != "identifier" && entry.key != "description" &&
+                        !extra_metadata.has_key(entry.key)) {
+                        extra_metadata.set(entry.key, new Gee.ArrayList<string>());
+                    }
+                }
+            }
+            if (existing != null) {
+                update_resource.begin(existing.resource_id, kind, uri, label, desc, extra_metadata);
             } else {
-                create_resource.begin(project.project_id, kind, uri, label, desc);
+                create_resource.begin(project.project_id, kind, uri, label, desc, extra_metadata);
             }
             dialog.close();
         });
@@ -463,8 +806,11 @@ public class ResourcesToolView : Object, IToolShellAdapter {
                                         string kind,
                                         string uri,
                                         string label,
-                                        string? desc) {
-        var result = yield controller.create_resource_flow(api, project_id, kind, uri, label, desc);
+                                        string? desc,
+                                        Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) {
+        var result = yield controller.create_resource_flow(
+            api, project_id, kind, uri, label, desc, extra_metadata
+        );
         if (result.ignored) {
             return;
         }
@@ -482,12 +828,15 @@ public class ResourcesToolView : Object, IToolShellAdapter {
                                         string kind,
                                         string uri,
                                         string label,
-                                        string? desc) {
+                                        string? desc,
+                                        Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) {
         var project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
         var project_id = project != null ? project.project_id : null;
-        var result = yield controller.update_resource_flow_scoped(api, resource_id, project_id, kind, uri, label, desc);
+        var result = yield controller.update_resource_flow_scoped(
+            api, resource_id, project_id, kind, uri, label, desc, extra_metadata
+        );
         if (result.ignored) {
             return;
         }
@@ -506,10 +855,35 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         if (selected == null) {
             return;
         }
+        if (selected.assets.size > 0) {
+            save_and_open_asset.begin(selected, selected.assets[0]);
+            return;
+        }
+        if (selected.uri.strip().length == 0) {
+            toast_requested("This Resource has no Asset or identifier to open.");
+            return;
+        }
         try {
             AppInfo.launch_default_for_uri(selected.uri, null);
         } catch (Error e) {
             error_reported("Failed to open resource", e.message);
+        }
+    }
+
+    private async void save_and_open_asset(ProjectResource resource, ResourceAsset asset) {
+        var storage_api = api as IResourceStorageApi;
+        var root_window = widget.get_root() as Gtk.Window;
+        if (storage_api == null || root_window == null) return;
+        var dialog = new Gtk.FileDialog();
+        dialog.set_title("Save and Open Asset");
+        dialog.set_initial_name(asset.original_filename);
+        try {
+            var destination = yield dialog.save(root_window, null);
+            if (destination == null || destination.get_path() == null) return;
+            yield storage_api.download_asset(resource.resource_id, asset.asset_id, (!) destination.get_path());
+            AppInfo.launch_default_for_uri(destination.get_uri(), null);
+        } catch (Error e) {
+            if (!(e is IOError.CANCELLED)) error_reported("Failed to open Asset", e.message);
         }
     }
 

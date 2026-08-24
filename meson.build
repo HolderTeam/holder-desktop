@@ -193,6 +193,7 @@ sources = [
   'src/controllers/recovery_ui.vala',
   'src/controllers/internal_link.vala',
   'src/controllers/tag_navigation.vala',
+  'src/controllers/tag_highlighting.vala',
   'src/controllers/markdown_editing.vala',
   'src/controllers/markdown_links.vala',
   'src/services/discovery.vala',
@@ -3309,6 +3310,25 @@ tag_navigation_test_exe = executable(
 )
 
 test('holder-linux-tag-navigation-tests', tag_navigation_test_exe)
+
+tag_highlighting_test_exe = executable(
+  'holder-linux-tag-highlighting-tests',
+  [
+    'src/models/card.vala',
+    'src/controllers/tag_highlighting.vala',
+    'tests/tag_highlighting_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-tag-highlighting-tests', tag_highlighting_test_exe)
 
 tags_tool_view_test_exe = executable(
   'holder-linux-tags-tool-view-tests',

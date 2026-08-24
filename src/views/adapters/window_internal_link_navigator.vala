@@ -165,6 +165,9 @@ internal class WindowInternalLinkNavigator : Object {
     }
 
     private bool navigate_tag_at_iter(Gtk.TextIter iter) {
+        if (controller.has_unsaved_editor_changes()) {
+            return false;
+        }
         var current_card = controller.get_current_card();
         if (current_card == null) {
             return false;

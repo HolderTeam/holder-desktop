@@ -86,8 +86,9 @@ public class ResourcesController : Object {
                                       string kind,
                                       string uri,
                                       string label,
-                                      string? desc) throws Error {
-        yield service.create_resource(api, project_id, kind, uri, label, desc);
+                                      string? desc,
+                                      Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
+        yield service.create_resource(api, project_id, kind, uri, label, desc, extra_metadata);
     }
 
     public async void update_resource(IHolderApi api,
@@ -95,8 +96,9 @@ public class ResourcesController : Object {
                                       string kind,
                                       string uri,
                                       string label,
-                                      string? desc) throws Error {
-        yield service.update_resource(api, resource_id, kind, uri, label, desc);
+                                      string? desc,
+                                      Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
+        yield service.update_resource(api, resource_id, kind, uri, label, desc, extra_metadata);
     }
 
     public async void delete_resource(IHolderApi api, string resource_id) throws Error {
@@ -150,7 +152,50 @@ public class ResourcesController : Object {
     }
 
     public string[] default_resource_kinds() {
-        return {"url", "file", "dir", "repo", "image"};
+        return {"thing", "document", "image", "person", "organisation", "book", "website"};
+    }
+
+    public string format_additional_metadata(ProjectResource resource) {
+        var lines = new StringBuilder();
+        foreach (var entry in resource.metadata.entries) {
+            if (entry.key == "identifier" || entry.key == "description") continue;
+            foreach (var value in entry.value) {
+                if (lines.len > 0) lines.append_c('\n');
+                lines.append(entry.key);
+                lines.append(": ");
+                lines.append(value);
+            }
+        }
+        return lines.str;
+    }
+
+    public Gee.HashMap<string, Gee.ArrayList<string>> parse_additional_metadata(string text) throws Error {
+        var metadata = new Gee.HashMap<string, Gee.ArrayList<string>>();
+        foreach (var raw_line in text.split("\n")) {
+            var line = raw_line.strip();
+            if (line.length == 0) continue;
+            var separator = line.index_of(":");
+            if (separator <= 0) {
+                throw new IOError.INVALID_ARGUMENT(
+                    "Additional Details must use one ‘property: value’ entry per line."
+                );
+            }
+            var property = line.substring(0, separator).strip();
+            var value = line.substring(separator + 1).strip();
+            if (property.length == 0 || value.length == 0 ||
+                property == "identifier" || property == "description") {
+                throw new IOError.INVALID_ARGUMENT(
+                    "Additional Details need a custom property name and a non-empty value."
+                );
+            }
+            var values = metadata.get(property);
+            if (values == null) {
+                values = new Gee.ArrayList<string>();
+                metadata.set(property, values);
+            }
+            values.add(value);
+        }
+        return metadata;
     }
 
     public async ResourcesRefreshResult refresh_resources_flow(IHolderApi? api, Project? project) {
@@ -194,12 +239,13 @@ public class ResourcesController : Object {
                                                               string kind,
                                                               string uri,
                                                               string label,
-                                                              string? desc) {
+                                                              string? desc,
+                                                              Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) {
         if (api == null) {
             return new ResourcesMutationResult(false, true);
         }
         try {
-            yield create_resource(api, project_id, kind, uri, label, desc);
+            yield create_resource(api, project_id, kind, uri, label, desc, extra_metadata);
             activity_requested(
                 "result.resource.create",
                 "Created resource: %s".printf(label),
@@ -232,8 +278,11 @@ public class ResourcesController : Object {
                                                               string kind,
                                                               string uri,
                                                               string label,
-                                                              string? desc) {
-        return yield update_resource_flow_scoped(api, resource_id, null, kind, uri, label, desc);
+                                                              string? desc,
+                                                              Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) {
+        return yield update_resource_flow_scoped(
+            api, resource_id, null, kind, uri, label, desc, extra_metadata
+        );
     }
 
     public async ResourcesMutationResult update_resource_flow_scoped(IHolderApi? api,
@@ -242,12 +291,13 @@ public class ResourcesController : Object {
                                                                      string kind,
                                                                      string uri,
                                                                      string label,
-                                                                     string? desc) {
+                                                                     string? desc,
+                                                                     Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) {
         if (api == null) {
             return new ResourcesMutationResult(false, true);
         }
         try {
-            yield update_resource(api, resource_id, kind, uri, label, desc);
+            yield update_resource(api, resource_id, kind, uri, label, desc, extra_metadata);
             activity_requested(
                 "result.resource.update",
                 "Updated resource: %s".printf(label),

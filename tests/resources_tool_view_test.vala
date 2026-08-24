@@ -70,9 +70,24 @@ private Gtk.Button? find_button_with_label(Gtk.Widget root, string label) {
 }
 
 private Gtk.Label resources_empty_label(HolderLinux.ResourcesToolView view) {
-    var label = view.widget.get_last_child() as Gtk.Label;
+    var label = find_named_label(view.widget, "resources-empty-state");
     assert(label != null);
     return (!) label;
+}
+
+private Gtk.Label? find_named_label(Gtk.Widget root, string name) {
+    if (root is Gtk.Label && root.get_name() == name) {
+        return (Gtk.Label) root;
+    }
+    Gtk.Widget? child = root.get_first_child();
+    while (child != null) {
+        var match = find_named_label(child, name);
+        if (match != null) {
+            return match;
+        }
+        child = child.get_next_sibling();
+    }
+    return null;
 }
 
 private uint resources_item_count(HolderLinux.ResourcesToolView view) {
@@ -222,7 +237,7 @@ private void test_mutations_call_api_emit_feedback_and_refresh() {
     assert(wait_for_condition(() => api.list_resources_calls > 0));
 
     bool create_done = false;
-    view.create_resource.begin("p1", "url", "https://new.test", "New", "desc", (obj, res) => {
+    view.create_resource.begin("p1", "url", "https://new.test", "New", "desc", null, (obj, res) => {
         view.create_resource.end(res);
         create_done = true;
     });
@@ -237,7 +252,7 @@ private void test_mutations_call_api_emit_feedback_and_refresh() {
     assert(last_activity == "result.resource.create");
 
     bool update_done = false;
-    view.update_resource.begin("r1", "repo", "git@example.test:new.git", "Repo", null, (obj, res) => {
+    view.update_resource.begin("r1", "repo", "git@example.test:new.git", "Repo", null, null, (obj, res) => {
         view.update_resource.end(res);
         update_done = true;
     });
@@ -278,7 +293,7 @@ private void test_mutation_failure_reports_error() {
     assert(wait_for_condition(() => api.list_resources_calls > 0));
 
     bool done = false;
-    view.update_resource.begin("r1", "url", "https://bad.test", "Bad", null, (obj, res) => {
+    view.update_resource.begin("r1", "url", "https://bad.test", "Bad", null, null, (obj, res) => {
         view.update_resource.end(res);
         done = true;
     });

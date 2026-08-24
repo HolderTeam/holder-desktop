@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-public class ApiClient : Object, IHolderApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+public class ApiClient : Object, IHolderApi, IResourceStorageApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     private IApiHttpTransport transport; // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     private string base_url;
     private string auth_token;
@@ -149,8 +149,9 @@ public class ApiClient : Object, IHolderApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR
                                         string kind,
                                         string uri,
                                         string label,
-                                        string? desc = null) throws Error {
-        return yield ApiClientResourcesEndpoints.create_resource(this, project_id, kind, uri, label, desc); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+                                        string? desc = null,
+                                        Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
+        return yield ApiClientResourcesEndpoints.create_resource(this, project_id, kind, uri, label, desc, extra_metadata); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     }
 
     public async void update_resource(string resource_id, // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
@@ -158,14 +159,70 @@ public class ApiClient : Object, IHolderApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR
                                       string? uri,
                                       string? label,
                                       string? desc,
-                                      int64 updated_at) throws Error {
+                                      int64 updated_at,
+                                      Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
         yield ApiClientResourcesEndpoints.update_resource( // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
-            this, resource_id, kind, uri, label, desc, updated_at
+            this, resource_id, kind, uri, label, desc, updated_at, extra_metadata
         );
     }
 
     public async void delete_resource(string resource_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
         yield ApiClientResourcesEndpoints.delete_resource(this, resource_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async StorageLocationList list_storage_locations(string project_id) throws Error {
+        return yield ApiClientResourcesEndpoints.list_storage_locations(this, project_id);
+    }
+
+    public async string create_storage_location(string project_id,
+                                                string name,
+                                                string provider,
+                                                Gee.HashMap<string, string> configuration) throws Error {
+        return yield ApiClientResourcesEndpoints.create_storage_location(
+            this, project_id, name, provider, configuration
+        );
+    }
+
+    public async void bind_storage_location(string location_id,
+                                            Gee.HashMap<string, string> values,
+                                            string preview) throws Error {
+        yield ApiClientResourcesEndpoints.bind_storage_location(this, location_id, values, preview);
+    }
+
+    public async void prefer_storage_location(string project_id, string location_id) throws Error {
+        yield ApiClientResourcesEndpoints.prefer_storage_location(this, project_id, location_id);
+    }
+
+    public async void test_storage_location(string location_id) throws Error {
+        yield ApiClientResourcesEndpoints.test_storage_location(this, location_id);
+    }
+
+    public async void delete_storage_location(string location_id) throws Error {
+        yield ApiClientResourcesEndpoints.delete_storage_location(this, location_id);
+    }
+
+    public async AssetImportJob start_asset_import(string project_id,
+                                                   string card_id,
+                                                   string location_id,
+                                                   string source_path) throws Error {
+        return yield ApiClientResourcesEndpoints.start_asset_import(
+            this, project_id, card_id, location_id, source_path
+        );
+    }
+
+    public async AssetImportJob get_asset_import_job(string job_id) throws Error {
+        return yield ApiClientResourcesEndpoints.get_asset_import_job(this, job_id);
+    }
+
+    public async void download_asset(string resource_id,
+                                     string asset_id,
+                                     string destination_path) throws Error {
+        yield download_to_file(
+            "/resources/%s/assets/%s/content".printf(
+                Uri.escape_string(resource_id), Uri.escape_string(asset_id)
+            ),
+            destination_path
+        );
     }
 
     // Trash
@@ -387,6 +444,31 @@ public class ApiClient : Object, IHolderApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR
             path,
             request_body,
             query
+        );
+    }
+
+    internal async void download_to_file(string path, string destination_path) throws Error {
+        var url = ApiClientTransport.build_url(base_url, path, null);
+        var message = new Soup.Message("GET", url);
+        message.request_headers.append("Authorization", "Bearer %s".printf(auth_token));
+        ApiHttpStreamResponse response;
+        try {
+            response = yield transport.send(message);
+        } catch (Error e) {
+            throw new ApiError.TRANSPORT("Transport error for GET %s: %s".printf(path, e.message));
+        }
+        if (response.status < 200 || response.status >= 300) {
+            throw new ApiError.HTTP("HTTP %u for GET %s".printf(response.status, path));
+        }
+        var destination = File.new_for_path(destination_path);
+        var output = yield destination.replace_async(
+            null, false, FileCreateFlags.REPLACE_DESTINATION, Priority.DEFAULT, null
+        );
+        yield output.splice_async(
+            response.stream,
+            OutputStreamSpliceFlags.CLOSE_SOURCE | OutputStreamSpliceFlags.CLOSE_TARGET,
+            Priority.DEFAULT,
+            null
         );
     }
 

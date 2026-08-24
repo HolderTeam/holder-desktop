@@ -116,7 +116,8 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                         string kind,
                                         string uri,
                                         string label,
-                                        string? desc = null) throws Error {
+                                        string? desc = null,
+                                        Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
         return "r1";
     }
     public async void update_resource(string resource_id,
@@ -124,7 +125,8 @@ public class AiRunFakeApi : Object, HolderLinux.IHolderApi {
                                       string? uri,
                                       string? label,
                                       string? desc,
-                                      int64 updated_at) throws Error {}
+                                      int64 updated_at,
+                                      Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {}
     public async void delete_resource(string resource_id) throws Error {}
     public async HolderLinux.CardLink create_card_link(string from_card_id,
                                                        string to_card_id,

@@ -1672,6 +1672,40 @@ private void test_editor_change_emits_unsaved_until_save_confirmation() {
     assert(!controller.has_unsaved_editor_changes());
 }
 
+private void test_successful_autosave_refreshes_validated_tag_occurrences() {
+    var api = new MainControllerFakeApi();
+    api.reflect_update_in_get_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    controller.get_current_card().tag_occurrences = {
+        new HolderLinux.CardTagOccurrence("old", 0, 4)
+    };
+    var edited = "# New title\n\n#todo";
+    harness.editor_text.value = edited;
+    api.current_tag_occurrences = {
+        new HolderLinux.CardTagOccurrence("todo", 13, 18)
+    };
+
+    controller.on_editor_content_changed();
+    assert(controller.get_current_card().tag_occurrences.length == 1);
+    assert(controller.get_current_card().tag_occurrences[0].tag == "old");
+
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => controller.get_current_card().tag_occurrences.length == 1));
+    assert(controller.get_current_card().tag_occurrences[0].tag == "todo");
+    assert(controller.get_current_card().tag_occurrences[0].byte_start == 13);
+    assert(api.get_card_calls >= 2);
+}
+
 private void test_autosave_failure_keeps_unsaved_save_state() {
     var api = new MainControllerFakeApi();
     api.fail_update_card = true;
@@ -2903,6 +2937,10 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/editor_change_emits_unsaved_until_save_confirmation",
         test_editor_change_emits_unsaved_until_save_confirmation
+    );
+    Test.add_func(
+        "/main_controller/successful_autosave_refreshes_validated_tag_occurrences",
+        test_successful_autosave_refreshes_validated_tag_occurrences
     );
     Test.add_func(
         "/main_controller/autosave_failure_keeps_unsaved_save_state",

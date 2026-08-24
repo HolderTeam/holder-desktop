@@ -43,13 +43,15 @@ public interface IHolderApi : Object {
                                                  string kind,
                                                  string uri,
                                                  string label,
-                                                 string? desc = null) throws Error;
+                                                 string? desc = null,
+                                                 Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error;
     public abstract async void update_resource(string resource_id,
                                                string? kind,
                                                string? uri,
                                                string? label,
                                                string? desc,
-                                               int64 updated_at) throws Error;
+                                               int64 updated_at,
+                                               Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error;
     public abstract async void delete_resource(string resource_id) throws Error;
     public abstract async CardLink create_card_link(string from_card_id,
                                                     string to_card_id,
@@ -136,6 +138,31 @@ public interface IHolderApi : Object {
                                                    string intent,
                                                    string? target_card_id = null,
                                                    string? parent_card_id = null) throws Error;
+}
+
+// Kept separate so lightweight controller fakes and non-storage clients are not forced to expose
+// machine-local paths or credentials. ApiClient implements both interfaces.
+public interface IResourceStorageApi : Object {
+    public abstract async StorageLocationList list_storage_locations(string project_id) throws Error;
+    public abstract async string create_storage_location(string project_id,
+                                                         string name,
+                                                         string provider,
+                                                         Gee.HashMap<string, string> configuration) throws Error;
+    public abstract async void bind_storage_location(string location_id,
+                                                     Gee.HashMap<string, string> values,
+                                                     string preview) throws Error;
+    public abstract async void prefer_storage_location(string project_id,
+                                                       string location_id) throws Error;
+    public abstract async void test_storage_location(string location_id) throws Error;
+    public abstract async void delete_storage_location(string location_id) throws Error;
+    public abstract async AssetImportJob start_asset_import(string project_id,
+                                                            string card_id,
+                                                            string location_id,
+                                                            string source_path) throws Error;
+    public abstract async AssetImportJob get_asset_import_job(string job_id) throws Error;
+    public abstract async void download_asset(string resource_id,
+                                              string asset_id,
+                                              string destination_path) throws Error;
 }
 
 public interface IApiFactory : Object {

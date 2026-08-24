@@ -210,6 +210,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public bool list_threads_empty = false;
     public bool include_created_card = false;
     public bool fail_update_card = false;
+    public bool reflect_update_in_get_card = false;
     public bool fail_update_card_position = false;
     public bool fail_delete_card = false;
     public bool fail_search = false;
@@ -504,8 +505,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         return new HolderLinux.CardDetail(
             card_id,
             "p1",
-            "Card 1",
-            "# Card 1\n\nBody",
+            reflect_update_in_get_card && update_card_calls > 0 ? last_updated_title : "Card 1",
+            reflect_update_in_get_card && update_card_calls > 0 ? last_updated_content : "# Card 1\n\nBody",
             20,
             current_card_tags,
             current_tag_occurrences
@@ -622,7 +623,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                         string kind,
                                         string uri,
                                         string label,
-                                        string? desc = null) throws Error {
+                                        string? desc = null,
+                                        Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
         if (fail_create_resource) {
             throw new IOError.FAILED("create resource failed");
         }
@@ -640,7 +642,8 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
                                       string? uri,
                                       string? label,
                                       string? desc,
-                                      int64 updated_at) throws Error {
+                                      int64 updated_at,
+                                      Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
         if (fail_update_resource) {
             throw new IOError.FAILED("update resource failed");
         }

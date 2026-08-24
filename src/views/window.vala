@@ -124,6 +124,9 @@ public class MainWindow : Adw.ApplicationWindow {
         set_content(toast_overlay);
 
         workspace = new WorkspacePane(search_store);
+        workspace.file_dropped.connect((file) => {
+            import_dropped_file.begin(file);
+        });
         editor_buffer = workspace.editor_buffer;
         editor_view = workspace.editor_view;
         editor_font_style = new EditorFontStyle(editor_view);
@@ -807,8 +810,66 @@ public class MainWindow : Adw.ApplicationWindow {
         activity_feedback.set_status(text);
     }
 
+    private async void import_dropped_file(File file) {
+        var storage_api = controller.get_api_client() as IResourceStorageApi;
+        var project = controller.get_current_project();
+        var card = controller.get_current_card();
+        var source_path = file.get_path();
+        if (storage_api == null || project == null || card == null || source_path == null) {
+            add_toast("Select a Card before dropping local files.");
+            return;
+        }
+        try {
+            var locations = yield storage_api.list_storage_locations(project.project_id);
+            if (locations.preferred_location_id == null) {
+                workspace.set_toolbox_visible(true);
+                toolbox.show_tool("resources");
+                add_toast("Add and choose a preferred Storage Location first.");
+                return;
+            }
+            set_status("Importing %s…".printf(file.get_basename() ?? "asset"));
+            var job = yield storage_api.start_asset_import(
+                project.project_id,
+                card.card_id,
+                (!) locations.preferred_location_id,
+                source_path
+            );
+            for (int attempt = 0; attempt < 600; attempt++) {
+                job = yield storage_api.get_asset_import_job(job.job_id);
+                if (job.status == "completed") {
+                    set_status("Imported %s".printf(file.get_basename() ?? "asset"));
+                    add_toast("Asset attached to this Card.");
+                    toolbox.show_tool("resources");
+                    return;
+                }
+                if (job.status == "failed") {
+                    throw new ApiError.PROTOCOL(job.error ?? "Asset import failed");
+                }
+                set_status("Importing %s · %s".printf(file.get_basename() ?? "asset", job.status));
+                yield wait_for_import_poll();
+            }
+            throw new ApiError.TRANSPORT("Asset import timed out");
+        } catch (Error e) {
+            show_error("Failed to import Asset", e.message);
+        }
+    }
+
+    private async void wait_for_import_poll() {
+        Timeout.add(100, () => {
+            wait_for_import_poll.callback();
+            return Source.REMOVE;
+        });
+        yield;
+    }
+
     internal void set_editor_state(string text, bool editable) {
         editor_renderer.set_editor_state(text, editable);
+        var card = controller.get_current_card();
+        if (card != null && card.content == text) {
+            workspace.set_validated_tag_occurrences(card.tag_occurrences);
+        } else {
+            workspace.clear_validated_tag_highlights();
+        }
     }
 
     internal void update_window_title(string title_text) {

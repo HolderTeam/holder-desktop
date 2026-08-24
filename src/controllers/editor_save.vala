@@ -45,6 +45,7 @@ internal class EditorSaveController : Object {
             return;
         }
         var previous_title = owner.current_card.title;
+        var saved_card_id = owner.current_card.card_id;
         var title = TextUtils.title_from_content(text);
         var updated_at = owner.now_epoch_seconds();
         var doc_chars = text.char_count();
@@ -57,8 +58,9 @@ internal class EditorSaveController : Object {
 
         try {
             set_editor_save_state("Saving...");
-            yield ((!) owner.api).update_card(owner.current_card.card_id, title, text, updated_at);
+            yield ((!) owner.api).update_card(saved_card_id, title, text, updated_at);
             note_confirmed_durable_save(
+                saved_card_id,
                 previous_title,
                 title,
                 text,
@@ -69,6 +71,7 @@ internal class EditorSaveController : Object {
                 delta_chars,
                 content_fingerprint
             );
+            yield refresh_validated_tag_occurrences(saved_card_id, text);
         } catch (Error e) {
             save_local_recovery_draft(owner.current_card, text);
             owner.emit_activity(
@@ -183,7 +186,8 @@ internal class EditorSaveController : Object {
     // A save is confirmed only after the backend request returns success.
     // Frontend cleanup that assumes durability, such as clearing recovery
     // drafts or advancing the committed editor baseline, must happen here.
-    private void note_confirmed_durable_save(string previous_title,
+    private void note_confirmed_durable_save(string saved_card_id,
+                                             string previous_title,
                                              string title,
                                              string text,
                                              int64 updated_at,
@@ -192,7 +196,7 @@ internal class EditorSaveController : Object {
                                              int body_chars,
                                              int delta_chars,
                                              string content_fingerprint) {
-        if (owner.current_card == null) {
+        if (owner.current_card == null || owner.current_card.card_id != saved_card_id) {
             return; // LCOV_EXCL_LINE: defensive async race guard after successful save if selection changed mid-flight
         }
 
@@ -213,6 +217,7 @@ internal class EditorSaveController : Object {
         owner.current_card.title = title;
         owner.current_card.content = text;
         owner.current_card.updated_at = updated_at;
+        owner.current_card.tag_occurrences = new CardTagOccurrence[0];
         owner.editor_draft_state.mark_save_succeeded(owner.current_card.card_id, text);
         remove_local_recovery_draft(owner.current_card.card_id);
 
@@ -263,6 +268,38 @@ internal class EditorSaveController : Object {
             recovery_draft_service.remove_draft(card_id);
         } catch (Error e) {
             warning("Failed to remove local recovery draft for %s: %s", card_id, e.message); // LCOV_EXCL_LINE: warning path is fatal under this test runner
+        }
+    }
+
+    private async void refresh_validated_tag_occurrences(string card_id, string saved_text) {
+        if (owner.api == null || owner.current_card == null ||
+            owner.current_card.card_id != card_id) {
+            return;
+        }
+        if (saved_text.index_of_char('#') < 0) {
+            if (owner.editor_text.get_text() == saved_text) {
+                owner.current_card.tag_occurrences = new CardTagOccurrence[0];
+                owner.editor_state_changed(saved_text, true);
+            }
+            return;
+        }
+        try {
+            var refreshed = yield ((!) owner.api).get_card(card_id);
+            if (owner.current_card == null || owner.current_card.card_id != card_id ||
+                owner.editor_text.get_text() != saved_text) {
+                return;
+            }
+            if (refreshed.content != saved_text) {
+                owner.editor_state_changed(saved_text, true);
+                return;
+            }
+            owner.current_card.tag_occurrences = refreshed.tag_occurrences;
+            owner.editor_state_changed(saved_text, true);
+        } catch (Error e) {
+            if (owner.current_card != null && owner.current_card.card_id == card_id &&
+                owner.editor_text.get_text() == saved_text) {
+                owner.editor_state_changed(saved_text, true);
+            }
         }
     }
 

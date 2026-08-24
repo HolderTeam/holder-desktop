@@ -11,8 +11,9 @@ public class ResourcesService : Object {
                                       string kind,
                                       string uri,
                                       string label,
-                                      string? desc) throws Error {
-        yield api.create_resource(project_id, kind, uri, label, desc);
+                                      string? desc,
+                                      Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
+        yield api.create_resource(project_id, kind, uri, label, desc, extra_metadata);
     }
 
     public async void update_resource(IHolderApi api,
@@ -20,9 +21,10 @@ public class ResourcesService : Object {
                                       string kind,
                                       string uri,
                                       string label,
-                                      string? desc) throws Error {
+                                      string? desc,
+                                      Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) throws Error {
         var now = new DateTime.now_utc().to_unix();
-        yield api.update_resource(resource_id, kind, uri, label, desc, now);
+        yield api.update_resource(resource_id, kind, uri, label, desc, now, extra_metadata);
     }
 
     public async void delete_resource(IHolderApi api, string resource_id) throws Error {

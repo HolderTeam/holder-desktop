@@ -26,6 +26,8 @@ public class WorkspacePane : Object {
     private Gtk.Entry find_entry;
     private Gtk.Entry replace_entry;
     private Gtk.Paned content_paned;
+    private Gtk.TextTag validated_tag_style;
+    private TagHighlightingController tag_highlighting_controller;
     private int last_ai_panel_width = -1;
     private bool ai_panel_width_user_set = false;
     private bool suppress_ai_position_persist = false;
@@ -58,6 +60,7 @@ public class WorkspacePane : Object {
     public signal void find_next_requested();
     public signal void replace_requested();
     public signal void replace_all_requested();
+    public signal void file_dropped(File file);
 
     public WorkspacePane(GLib.ListModel search_model) {
         widget = build_ui(search_model);
@@ -100,6 +103,29 @@ public class WorkspacePane : Object {
         if (editor_view.get_editable() != editable) {
             editor_view.set_editable(editable);
         }
+    }
+
+    public void set_validated_tag_occurrences(CardTagOccurrence[] occurrences) {
+        clear_validated_tag_highlights();
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        editor_buffer.get_bounds(out start, out end);
+        var text = editor_buffer.get_text(start, end, false);
+        validated_tag_style.set_priority(editor_buffer.get_tag_table().get_size() - 1);
+        foreach (var range in tag_highlighting_controller.ranges_for(text, occurrences)) {
+            Gtk.TextIter tag_start;
+            Gtk.TextIter tag_end;
+            editor_buffer.get_iter_at_offset(out tag_start, range.char_start);
+            editor_buffer.get_iter_at_offset(out tag_end, range.char_end);
+            editor_buffer.apply_tag(validated_tag_style, tag_start, tag_end);
+        }
+    }
+
+    public void clear_validated_tag_highlights() {
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        editor_buffer.get_bounds(out start, out end);
+        editor_buffer.remove_tag(validated_tag_style, start, end);
     }
 
     public void show_editor_mode() {
@@ -478,12 +504,35 @@ public class WorkspacePane : Object {
             editor_buffer.set_language(markdown);
         }
 
+        tag_highlighting_controller = new TagHighlightingController();
+        validated_tag_style = new Gtk.TextTag("holder-validated-tag");
+        editor_buffer.get_tag_table().add(validated_tag_style);
+        configure_validated_tag_style();
+        editor_buffer.notify["style-scheme"].connect(() => {
+            configure_validated_tag_style();
+        });
+
         editor_view = new GtkSource.View.with_buffer(editor_buffer);
         configure_monospace(editor_view);
         editor_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
         editor_view.set_show_line_numbers(true);
         editor_view.set_vexpand(true);
         editor_view.set_hexpand(true);
+
+        var file_drop = new Gtk.DropTarget(typeof(Gdk.FileList), Gdk.DragAction.COPY);
+        file_drop.drop.connect((value, x, y) => {
+            var dropped = (Gdk.FileList?) value.get_boxed();
+            if (dropped == null) {
+                return false;
+            }
+            bool accepted = false;
+            foreach (var file in dropped.get_files()) {
+                file_dropped(file);
+                accepted = true;
+            }
+            return accepted;
+        });
+        editor_view.add_controller(file_drop);
 
         var markdown_keys = new Gtk.EventControllerKey();
         markdown_keys.key_pressed.connect((keyval, keycode, state) => {
@@ -563,6 +612,29 @@ public class WorkspacePane : Object {
 
         outer.append(ai_split);
         return outer;
+    }
+
+    private void configure_validated_tag_style() {
+        validated_tag_style.foreground_set = false;
+        validated_tag_style.weight = (int) Pango.Weight.SEMIBOLD;
+        validated_tag_style.weight_set = true;
+        validated_tag_style.set_priority(editor_buffer.get_tag_table().get_size() - 1);
+
+        var scheme = editor_buffer.get_style_scheme();
+        if (scheme == null) {
+            return;
+        }
+        var style = scheme.get_style("def:preprocessor");
+        if (style == null || !style.foreground_set) {
+            style = scheme.get_style("def:link-text");
+        }
+        if (style == null || !style.foreground_set) {
+            return;
+        }
+        Gdk.RGBA color = {};
+        if (color.parse(style.foreground)) {
+            validated_tag_style.foreground_rgba = color;
+        }
     }
 
     private bool handle_markdown_return(uint keyval, Gdk.ModifierType state) {

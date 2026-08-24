@@ -72,14 +72,14 @@ private void test_async_methods_forward_to_api() {
             assert(api.list_resources_calls == 1);
             assert(api.last_resource_project_id == "p-1");
 
-            controller.create_resource.begin(api, "p-1", "url", "https://example.com", "Example", "desc",
+            controller.create_resource.begin(api, "p-1", "url", "https://example.com", "Example", "desc", null,
                                              (obj2, res2) => {
                 try {
                     controller.create_resource.end(res2);
                     assert(api.create_resource_calls == 1);
                     assert(api.last_resource_kind == "url");
 
-                    controller.update_resource.begin(api, "r-1", "file", "file:///tmp/a.txt", "A", null,
+                    controller.update_resource.begin(api, "r-1", "file", "file:///tmp/a.txt", "A", null, null,
                                                      (obj3, res3) => {
                         try {
                             controller.update_resource.end(res3);
@@ -160,12 +160,14 @@ private void test_ellipsize_title_cutoff_negative_returns_original() {
 private void test_default_resource_kinds_are_stable() {
     var controller = new HolderLinux.ResourcesController();
     var kinds = controller.default_resource_kinds();
-    assert(kinds.length == 5);
-    assert(kinds[0] == "url");
-    assert(kinds[1] == "file");
-    assert(kinds[2] == "dir");
-    assert(kinds[3] == "repo");
-    assert(kinds[4] == "image");
+    assert(kinds.length == 7);
+    assert(kinds[0] == "thing");
+    assert(kinds[1] == "document");
+    assert(kinds[2] == "image");
+    assert(kinds[3] == "person");
+    assert(kinds[4] == "organisation");
+    assert(kinds[5] == "book");
+    assert(kinds[6] == "website");
 }
 
 private void test_refresh_resources_flow_project_and_api_preconditions() {
@@ -250,7 +252,7 @@ private void test_create_update_delete_resource_flows() {
 
     bool cdone = false;
     HolderLinux.ResourcesMutationResult? cresult = null;
-    controller.create_resource_flow.begin(api, "p1", "url", "https://example.com", "Example", null, (obj, res) => {
+    controller.create_resource_flow.begin(api, "p1", "url", "https://example.com", "Example", null, null, (obj, res) => {
         cresult = controller.create_resource_flow.end(res);
         cdone = true;
     });
@@ -260,7 +262,7 @@ private void test_create_update_delete_resource_flows() {
 
     bool udone = false;
     HolderLinux.ResourcesMutationResult? uresult = null;
-    controller.update_resource_flow.begin(api, "r1", "file", "file:///tmp/a.txt", "A", null, (obj, res) => {
+    controller.update_resource_flow.begin(api, "r1", "file", "file:///tmp/a.txt", "A", null, null, (obj, res) => {
         uresult = controller.update_resource_flow.end(res);
         udone = true;
     });
@@ -284,7 +286,7 @@ private void test_resource_flows_ignore_or_error_paths() {
 
     bool done_ignore = false;
     HolderLinux.ResourcesMutationResult? ignore_result = null;
-    controller.create_resource_flow.begin(null, "p1", "url", "u", "l", null, (obj, res) => {
+    controller.create_resource_flow.begin(null, "p1", "url", "u", "l", null, null, (obj, res) => {
         ignore_result = controller.create_resource_flow.end(res);
         done_ignore = true;
     });
@@ -295,7 +297,7 @@ private void test_resource_flows_ignore_or_error_paths() {
     api.fail_update_resource = true;
     bool done_error = false;
     HolderLinux.ResourcesMutationResult? error_result = null;
-    controller.update_resource_flow.begin(api, "r1", "file", "u", "l", null, (obj, res) => {
+    controller.update_resource_flow.begin(api, "r1", "file", "u", "l", null, null, (obj, res) => {
         error_result = controller.update_resource_flow.end(res);
         done_error = true;
     });
@@ -318,7 +320,7 @@ private void test_resource_create_flow_failure_reports_activity_and_error() {
 
     bool done = false;
     HolderLinux.ResourcesMutationResult? result = null;
-    controller.create_resource_flow.begin(api, "p1", "url", "https://example.com", "Example", null, (obj, res) => {
+    controller.create_resource_flow.begin(api, "p1", "url", "https://example.com", "Example", null, null, (obj, res) => {
         result = controller.create_resource_flow.end(res);
         done = true;
     });
@@ -335,7 +337,7 @@ private void test_resource_update_and_delete_ignore_when_api_missing() {
 
     bool update_done = false;
     HolderLinux.ResourcesMutationResult? update_result = null;
-    controller.update_resource_flow.begin(null, "r1", "file", "u", "l", null, (obj, res) => {
+    controller.update_resource_flow.begin(null, "r1", "file", "u", "l", null, null, (obj, res) => {
         update_result = controller.update_resource_flow.end(res);
         update_done = true;
     });
@@ -376,6 +378,27 @@ private void test_resource_delete_flow_failure_reports_activity_and_error() {
     assert(result.error_title == "Failed to delete resource");
     assert(activity_kind == "result.resource.delete_failed");
     assert(activity_message.contains("Failed to delete resource:"));
+}
+
+private void test_additional_metadata_parses_repeated_values_and_rejects_bad_lines() {
+    var controller = new HolderLinux.ResourcesController();
+    try {
+        var metadata = controller.parse_additional_metadata(
+            "creator: Ada Lovelace\ncreator: Grace Hopper\ncustom: value: with colon\n"
+        );
+        assert(metadata.get("creator").size == 2);
+        assert(metadata.get("custom")[0] == "value: with colon");
+    } catch (Error e) {
+        assert_not_reached();
+    }
+
+    bool rejected = false;
+    try {
+        controller.parse_additional_metadata("not a property line");
+    } catch (Error e) {
+        rejected = e is IOError.INVALID_ARGUMENT;
+    }
+    assert(rejected);
 }
 
 int main(string[] args) {
@@ -421,6 +444,8 @@ int main(string[] args) {
                   test_resource_update_and_delete_ignore_when_api_missing);
     Test.add_func("/resources_controller/resource_delete_flow_failure_reports_activity_and_error",
                   test_resource_delete_flow_failure_reports_activity_and_error);
+    Test.add_func("/resources_controller/additional_metadata_parse",
+                  test_additional_metadata_parses_repeated_values_and_rejects_bad_lines);
 
     return Test.run();
 }

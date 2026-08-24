@@ -10,7 +10,7 @@ private void test_list_resources_parses_results_and_query() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"resource_id\":\"r1\",\"project_id\":\"p1\",\"kind\":\"url\",\"uri\":\"https://example.com\",\"label\":\"Example\",\"desc\":\"Docs\",\"created_at\":1,\"updated_at\":2}]}"
+        "{\"ok\":true,\"data\":[{\"resource_id\":\"r1\",\"project_id\":\"p1\",\"type\":\"website\",\"label\":\"Example\",\"metadata\":{\"identifier\":[\"https://example.com\"],\"description\":[\"Docs\"]},\"assets\":[],\"created_at\":1,\"updated_at\":2}]}"
     );
     var client = make_client(transport);
 
@@ -30,7 +30,9 @@ private void test_list_resources_parses_results_and_query() {
     assert(resources.size == 1);
     assert(resources[0].resource_id == "r1");
     assert(resources[0].project_id == "p1");
-    assert(resources[0].kind == "url");
+    assert(resources[0].resource_type == "website");
+    assert(resources[0].uri == "https://example.com");
+    assert(resources[0].desc == "Docs");
     assert(resources[0].label == "Example");
     assert(transport.last_method == "GET");
     assert(transport.last_uri.contains("/resources"));
@@ -45,7 +47,7 @@ private void test_create_resource_with_and_without_desc() {
 
     bool done_first = false;
     string first_id = "";
-    client.create_resource.begin("p1", "url", "https://example.com", "Example", "Docs", (obj, res) => {
+    client.create_resource.begin("p1", "url", "https://example.com", "Example", "Docs", null, (obj, res) => {
         try {
             first_id = client.create_resource.end(res);
         } catch (Error e) {
@@ -62,7 +64,7 @@ private void test_create_resource_with_and_without_desc() {
 
     bool done_second = false;
     string second_id = "";
-    client.create_resource.begin("p1", "file", "file:///tmp/x", "Local", null, (obj, res) => {
+    client.create_resource.begin("p1", "file", "file:///tmp/x", "Local", null, null, (obj, res) => {
         try {
             second_id = client.create_resource.end(res);
         } catch (Error e) {
@@ -82,7 +84,7 @@ private void test_create_resource_missing_data_is_protocol_error() {
 
     bool done = false;
     bool got_protocol = false;
-    client.create_resource.begin("p1", "url", "https://example.com", "Example", null, (obj, res) => {
+    client.create_resource.begin("p1", "url", "https://example.com", "Example", null, null, (obj, res) => {
         try {
             client.create_resource.end(res);
         } catch (Error e) {
@@ -103,7 +105,7 @@ private void test_update_resource_and_delete_resource_paths() {
 
     bool done_update = false;
     bool ok_update = false;
-    client.update_resource.begin("r 1/2", "url", null, "New Label", null, 123, (obj, res) => {
+    client.update_resource.begin("r 1/2", "url", null, "New Label", null, 123, null, (obj, res) => {
         try {
             client.update_resource.end(res);
             ok_update = true;

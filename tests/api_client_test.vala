@@ -383,7 +383,7 @@ private void test_resources_crud_and_parse() {
 
     bool done_create = false;
     string resource_id = "";
-    client.create_resource.begin("p1", "url", "https://example.com", "Example", null, (obj, res) => {
+    client.create_resource.begin("p1", "url", "https://example.com", "Example", null, null, (obj, res) => {
         try {
             resource_id = client.create_resource.end(res);
         } catch (Error e) {
@@ -398,7 +398,7 @@ private void test_resources_crud_and_parse() {
 
     bool done_update = false;
     bool update_ok = false;
-    client.update_resource.begin("r2", "file", "/tmp/a.txt", "A", null, 7, (obj, res) => {
+    client.update_resource.begin("r2", "file", "/tmp/a.txt", "A", null, 7, null, (obj, res) => {
         try {
             client.update_resource.end(res);
             update_ok = true;
@@ -436,7 +436,7 @@ private void test_create_resource_with_desc_succeeds() {
 
     bool done = false;
     string resource_id = "";
-    client.create_resource.begin("p1", "file", "/tmp/note.txt", "Note", "a description", (obj, res) => {
+    client.create_resource.begin("p1", "file", "/tmp/note.txt", "Note", "a description", null, (obj, res) => {
         try {
             resource_id = client.create_resource.end(res);
         } catch (Error e) {
@@ -459,7 +459,7 @@ private void test_create_resource_missing_data_is_protocol_error() {
 
     bool done = false;
     bool got_protocol = false;
-    client.create_resource.begin("p1", "url", "https://example.com", "Example", null, (obj, res) => {
+    client.create_resource.begin("p1", "url", "https://example.com", "Example", null, null, (obj, res) => {
         try {
             client.create_resource.end(res);
         } catch (Error e) {
@@ -479,7 +479,7 @@ private void test_update_resource_with_desc_succeeds() {
 
     bool done = false;
     bool ok = false;
-    client.update_resource.begin("r2", "file", "/tmp/a.txt", "A", "has desc", 8, (obj, res) => {
+    client.update_resource.begin("r2", "file", "/tmp/a.txt", "A", "has desc", 8, null, (obj, res) => {
         try {
             client.update_resource.end(res);
             ok = true;
@@ -500,7 +500,7 @@ private void test_list_resources_parses_non_null_desc() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(
         200,
-        "{\"ok\":true,\"data\":[{\"resource_id\":\"r1\",\"project_id\":\"p1\",\"kind\":\"file\",\"uri\":\"/tmp/a.txt\",\"label\":\"A\",\"desc\":\"local file\"}]}"
+        "{\"ok\":true,\"data\":[{\"resource_id\":\"r1\",\"project_id\":\"p1\",\"type\":\"document\",\"label\":\"A\",\"metadata\":{\"identifier\":[\"/tmp/a.txt\"],\"description\":[\"local file\"]},\"assets\":[]}]}"
     );
     var client = make_client(transport);
 
