@@ -191,6 +191,7 @@ public class ResourceAsset : Object {
     public string original_filename { get; construct; }
     public string media_type { get; construct; }
     public int64 byte_size { get; construct; }
+    public string plaintext_sha256 { get; construct; }
     public Gee.ArrayList<AssetPlacement> placements { get; construct; }
 
     public ResourceAsset(string asset_id,
@@ -198,6 +199,7 @@ public class ResourceAsset : Object {
                          string original_filename,
                          string media_type,
                          int64 byte_size,
+                         string plaintext_sha256 = "",
                          Gee.ArrayList<AssetPlacement>? placements = null) {
         Object(
             asset_id: asset_id,
@@ -205,6 +207,7 @@ public class ResourceAsset : Object {
             original_filename: original_filename,
             media_type: media_type,
             byte_size: byte_size,
+            plaintext_sha256: plaintext_sha256,
             placements: placements ?? new Gee.ArrayList<AssetPlacement>()
         );
     }
@@ -252,18 +255,24 @@ public class AssetImportJob : Object {
     public string status { get; construct; }
     public string? resource_id { get; construct; }
     public string? asset_id { get; construct; }
+    public bool duplicate_reused { get; construct; }
+    public bool link_created { get; construct; }
     public string? error { get; construct; }
 
     public AssetImportJob(string job_id,
                           string status,
                           string? resource_id = null,
                           string? asset_id = null,
+                          bool duplicate_reused = false,
+                          bool link_created = false,
                           string? error = null) {
         Object(
             job_id: job_id,
             status: status,
             resource_id: resource_id,
             asset_id: asset_id,
+            duplicate_reused: duplicate_reused,
+            link_created: link_created,
             error: error
         );
     }

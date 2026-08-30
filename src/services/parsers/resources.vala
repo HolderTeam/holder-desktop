@@ -51,6 +51,7 @@ public class ApiParsersResources { // LCOV_EXCL_LINE
                         ApiParsersCommon.string_member_or_empty(asset_object, "original_filename"),
                         ApiParsersCommon.string_member_or_empty(asset_object, "media_type"),
                         asset_object.has_member("byte_size") ? asset_object.get_int_member("byte_size") : 0,
+                        ApiParsersCommon.string_member_or_empty(asset_object, "plaintext_sha256"),
                         placements
                     ));
                 }
@@ -121,6 +122,8 @@ public class ApiParsersResources { // LCOV_EXCL_LINE
             ApiParsersCommon.string_member_or_empty(data, "status"),
             nullable_string(data, "resource_id"),
             nullable_string(data, "asset_id"),
+            data.has_member("duplicate_reused") && data.get_boolean_member("duplicate_reused"),
+            data.has_member("link_created") && data.get_boolean_member("link_created"),
             nullable_string(data, "error")
         );
     }

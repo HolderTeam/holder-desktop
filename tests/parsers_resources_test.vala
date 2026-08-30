@@ -28,7 +28,7 @@ private void test_parse_resources_missing_data_is_protocol_error() {
 private void test_parse_resources_full_and_defaults() {
     var root = parse_json_object(
         "{\"data\":[" +
-        "{\"resource_id\":\"r1\",\"project_id\":\"p1\",\"type\":\"website\",\"label\":\"Example\",\"metadata\":{\"identifier\":[\"https://example.com\"],\"description\":[\"Docs\"],\"creator\":[\"One\",\"Two\"]},\"assets\":[{\"asset_id\":\"a1\",\"resource_id\":\"r1\",\"original_filename\":\"page.pdf\",\"media_type\":\"application/pdf\",\"byte_size\":42,\"placements\":[{\"placement_id\":\"pl1\",\"location_id\":\"l1\",\"encoding\":\"plain\",\"stored_byte_size\":42}]}],\"created_at\":111,\"updated_at\":222}," +
+        "{\"resource_id\":\"r1\",\"project_id\":\"p1\",\"type\":\"website\",\"label\":\"Example\",\"metadata\":{\"identifier\":[\"https://example.com\"],\"description\":[\"Docs\"],\"creator\":[\"One\",\"Two\"]},\"assets\":[{\"asset_id\":\"a1\",\"resource_id\":\"r1\",\"original_filename\":\"page.pdf\",\"media_type\":\"application/pdf\",\"byte_size\":42,\"plaintext_sha256\":\"abc123\",\"placements\":[{\"placement_id\":\"pl1\",\"location_id\":\"l1\",\"encoding\":\"plain\",\"stored_byte_size\":42}]}],\"created_at\":111,\"updated_at\":222}," +
         "{\"resource_id\":\"r2\",\"project_id\":\"p2\",\"type\":\"document\",\"label\":\"Local\",\"metadata\":{},\"assets\":[]}," +
         "{\"resource_id\":\"r3\"}" +
         "]}"
@@ -55,6 +55,7 @@ private void test_parse_resources_full_and_defaults() {
     assert(r1.metadata.get("creator").size == 2);
     assert(r1.assets.size == 1);
     assert(r1.assets[0].original_filename == "page.pdf");
+    assert(r1.assets[0].plaintext_sha256 == "abc123");
     assert(r1.assets[0].placements.size == 1);
     assert(r1.assets[0].placements[0].location_id == "l1");
 
@@ -79,6 +80,22 @@ private void test_parse_resources_full_and_defaults() {
     assert(r3.updated_at == 0);
 }
 
+private void test_parse_import_job_retains_reuse_and_link_state() {
+    var root = parse_json_object(
+        "{\"data\":{\"job_id\":\"j1\",\"status\":\"completed\",\"resource_id\":\"r1\"," +
+        "\"asset_id\":\"a1\",\"duplicate_reused\":true,\"link_created\":false,\"error\":null}}"
+    );
+    HolderLinux.AssetImportJob job;
+    try {
+        job = HolderLinux.ApiParsersResources.parse_import_job(root);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    assert(job.job_id == "j1");
+    assert(job.duplicate_reused);
+    assert(!job.link_created);
+}
+
 private void test_parse_resources_empty_data_returns_empty_list() {
     var root = parse_json_object("{\"data\":[]}");
 
@@ -98,6 +115,7 @@ public static int main(string[] args) {
     Test.add_func("/parsers/resources/missing-data-protocol-error", test_parse_resources_missing_data_is_protocol_error);
     Test.add_func("/parsers/resources/full-and-defaults", test_parse_resources_full_and_defaults);
     Test.add_func("/parsers/resources/empty-data-returns-empty-list", test_parse_resources_empty_data_returns_empty_list);
+    Test.add_func("/parsers/resources/import-job-reuse-state", test_parse_import_job_retains_reuse_and_link_state);
 
     return Test.run();
 }
