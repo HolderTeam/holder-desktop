@@ -351,12 +351,30 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         card.set_margin_start(4);
         card.set_margin_end(4);
 
+        var title_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+        title_row.set_margin_top(12);
+        title_row.set_margin_start(12);
+        title_row.set_margin_end(12);
+        var configured_icon = new Gtk.Image.from_icon_name("emblem-ok-symbolic");
+        configured_icon.set_name("git-configured-success-icon");
+        configured_icon.add_css_class("success");
+        configured_icon.set_tooltip_text("Git sync configured");
+        title_row.append(configured_icon);
         var title = new Gtk.Label("Git sync configured") { xalign = 0.0f };
         title.add_css_class("title-4");
-        title.set_margin_top(12);
-        title.set_margin_start(12);
-        title.set_margin_end(12);
-        card.append(title);
+        title_row.append(title);
+        card.append(title_row);
+
+        var configured_summary = new Gtk.Label(
+            "Your cards are safely stored in a remote repository, ready to sync to your other devices and share when you choose."
+        ) { xalign = 0.0f };
+        configured_summary.set_name("git-configured-summary");
+        configured_summary.set_wrap(true);
+        configured_summary.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        configured_summary.add_css_class("dim-label");
+        configured_summary.set_margin_start(12);
+        configured_summary.set_margin_end(12);
+        card.append(configured_summary);
 
         git_configured_project_label = new Gtk.Label("") { xalign = 0.0f };
         git_configured_project_label.set_name("git-configured-project");

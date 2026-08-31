@@ -157,8 +157,14 @@ private void test_git_sync_tool_view_shows_durable_configured_state() {
     assert(((!) state_stack).get_visible_child_name() == "configured");
     var repository = find_widget_with_name(view.widget, "git-configured-repository") as Gtk.Label;
     var remote = find_widget_with_name(view.widget, "git-configured-remote") as Gtk.Label;
+    var success_icon = find_widget_with_name(view.widget, "git-configured-success-icon") as Gtk.Image;
+    var summary = find_widget_with_name(view.widget, "git-configured-summary") as Gtk.Label;
     assert(repository != null);
     assert(remote != null);
+    assert(success_icon != null);
+    assert(summary != null);
+    assert(((!) success_icon).get_icon_name() == "emblem-ok-symbolic");
+    assert(((!) summary).get_text().contains("ready to sync to your other devices"));
     assert(((!) repository).get_text() == "github.com/HolderTeam/runbook");
     assert(((!) remote).get_text() == "git@github.com:HolderTeam/runbook.git");
 
