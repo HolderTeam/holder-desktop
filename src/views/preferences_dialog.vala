@@ -161,8 +161,7 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         editor_group.add(trim_code_whitespace_row);
 
         // Preserve is the escape hatch: the other two have no effect while it's on, so hide
-        // them rather than leave two moot switches visible -- matching the Android Settings
-        // screen this was ported from.
+        // them rather than leave two moot switches visible.
         preserve_whitespace_row.notify["active"].connect(() => {
             var preserve = preserve_whitespace_row.get_active();
             if (settings != null) {

@@ -54,10 +54,8 @@ public class TextUtils : Object {
     }
 
     /**
-     * Save-time cleanup of trailing whitespace, gated by three independent settings -- mirrors
-     * team.holder.android's HolderSettings/TrailingWhitespaceTrim.kt exactly (same wording, same
-     * three-way behavior), ported to the desktop editor. Never applied to the live editor
-     * buffer; see EditorSaveController.autosave_current_card and
+     * Save-time cleanup of trailing whitespace, gated by three independent settings. Never
+     * applied to the live editor buffer; see EditorSaveController.autosave_current_card and
      * EditorDraftState.has_unsaved_changes for why this must be applied consistently everywhere
      * the live buffer is compared against the last-saved text, not just at the literal save
      * call, or the "Unsaved" indicator gets stuck on permanently.

@@ -108,8 +108,6 @@ private void test_relative_time_exact_86400_seconds_formats_days() {
     assert(out_text == "1d ago");
 }
 
-// Port of team.holder.android's TrailingWhitespaceTrimTest.kt -- same cases, same expectations,
-// against the Vala port in TextUtils.trim_trailing_whitespace_for_save.
 private string trim(string text,
                     bool preserve = false,
                     bool trim_two_space_hard_breaks = false,
