@@ -111,12 +111,17 @@ private void test_inline_decoration_does_not_change_markdown_text() {
     });
 
     assert(spellcheck.adapter != null);
-    var retired_adapter = (Spelling.TextBufferAdapter) spellcheck.adapter;
+    bool retired_adapter_destroyed = false;
+    Spelling.TextBufferAdapter? retired_adapter = spellcheck.adapter;
+    retired_adapter.weak_ref(() => {
+        retired_adapter_destroyed = true;
+    });
     assert(retired_adapter.get_enabled());
+    retired_adapter = null;
     renderer.set_items(items);
     assert(!spellcheck.buffer_safe);
     assert(spellcheck.adapter == null);
-    assert(!retired_adapter.get_enabled());
+    assert(retired_adapter_destroyed);
     for (int i = 0; i < 20; i++) {
         while (MainContext.default().pending()) {
             MainContext.default().iteration(false);
@@ -151,17 +156,21 @@ private void test_inline_decoration_does_not_change_markdown_text() {
     assert(spellcheck.buffer_safe);
     assert(spellcheck.adapter != null);
     assert(((Spelling.TextBufferAdapter) spellcheck.adapter).get_enabled());
-    assert(spellcheck.adapter != retired_adapter);
 
-    var restored_adapter = (Spelling.TextBufferAdapter) spellcheck.adapter;
+    bool restored_adapter_destroyed = false;
+    Spelling.TextBufferAdapter? restored_adapter = spellcheck.adapter;
+    restored_adapter.weak_ref(() => {
+        restored_adapter_destroyed = true;
+    });
     spellcheck.set_enabled_preference(false);
+    restored_adapter = null;
     renderer.clear();
     buffer.get_bounds(out start, out end);
     assert(buffer.get_text(start, end, false) == replacement_text);
     assert(renderer.decoration_count() == 0);
     assert(spellcheck.adapter != null);
     assert(!((Spelling.TextBufferAdapter) spellcheck.adapter).get_enabled());
-    assert(spellcheck.adapter != restored_adapter);
+    assert(restored_adapter_destroyed);
     window.destroy();
 }
 
