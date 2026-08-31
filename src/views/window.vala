@@ -17,7 +17,6 @@ public class MainWindow : Adw.ApplicationWindow {
     private GtkSource.Buffer editor_buffer;
     private GtkSource.View editor_view;
     private EditorFontStyle editor_font_style;
-    private Spelling.TextBufferAdapter? spelling_adapter;
     private Gtk.SearchEntry search_entry;
     private Gtk.Label search_summary_label;
     private Gtk.SingleSelection search_selection;
@@ -146,7 +145,6 @@ public class MainWindow : Adw.ApplicationWindow {
         editor_view = workspace.editor_view;
         inline_resource_image_renderer = workspace.inline_resource_images;
         editor_font_style = new EditorFontStyle(editor_view);
-        spelling_adapter = workspace.spelling_adapter;
         settings = boot_settings;
         if (settings != null) {
             last_sidebar_position = WindowGeometry.clamp_sidebar_width(
@@ -1319,9 +1317,9 @@ public class MainWindow : Adw.ApplicationWindow {
             settings.get_boolean(AppSettings.KEY_USE_CUSTOM_EDITOR_FONT),
             settings.get_string(AppSettings.KEY_CUSTOM_EDITOR_FONT)
         );
-        if (spelling_adapter != null) {
-            spelling_adapter.set_enabled(settings.get_boolean(AppSettings.KEY_SHOW_SPELL_CHECKING));
-        }
+        workspace.set_spell_check_enabled(
+            settings.get_boolean(AppSettings.KEY_SHOW_SPELL_CHECKING)
+        );
 
         var scheme_id = settings.get_string(AppSettings.KEY_STYLE_SCHEME_ID);
         if (scheme_id == null || scheme_id.length == 0) {
@@ -1383,7 +1381,7 @@ public class MainWindow : Adw.ApplicationWindow {
         window_actions_adapter.show_preferences(
             editor_buffer,
             editor_view,
-            spelling_adapter,
+            workspace.editor_spellcheck,
             settings,
             editor_font_style
         );

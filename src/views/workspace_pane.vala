@@ -41,7 +41,7 @@ public class WorkspacePane : Object {
     public Gtk.Widget widget { get; private set; }
     public GtkSource.Buffer editor_buffer { get; private set; }
     public GtkSource.View editor_view { get; private set; }
-    public Spelling.TextBufferAdapter? spelling_adapter { get; private set; }
+    public EditorSpellcheckController editor_spellcheck { get; private set; }
     public Gtk.SearchEntry search_entry { get; private set; }
     public Gtk.Stack content_stack { get; private set; }
     public Gtk.Label search_summary_label { get; private set; }
@@ -206,9 +206,7 @@ public class WorkspacePane : Object {
     }
 
     public void set_spell_check_enabled(bool enabled) {
-        if (spelling_adapter != null) {
-            spelling_adapter.set_enabled(enabled);
-        }
+        editor_spellcheck.set_enabled_preference(enabled);
     }
 
     public void set_toolbox_visible(bool visible) {
@@ -586,7 +584,6 @@ public class WorkspacePane : Object {
         editor_buffer = new GtkSource.Buffer(null);
         editor_buffer.set_highlight_syntax(true);
         editor_buffer.set_highlight_matching_brackets(true);
-        Spelling.init();
 
         var lm = GtkSource.LanguageManager.get_default();
         var markdown = lm.get_language("holder-markdown");
@@ -615,6 +612,13 @@ public class WorkspacePane : Object {
         editor_view.set_vexpand(true);
         editor_view.set_hexpand(true);
         inline_resource_images = new InlineResourceImageRenderer(editor_buffer, editor_view);
+        editor_spellcheck = new EditorSpellcheckController(editor_buffer, editor_view);
+        inline_resource_images.buffer_mutation_started.connect(() => {
+            editor_spellcheck.prepare_buffer_mutation();
+        });
+        inline_resource_images.buffer_mutation_finished.connect((has_inline_images) => {
+            editor_spellcheck.finish_buffer_mutation(has_inline_images);
+        });
 
         var file_drop = new Gtk.DropTarget(typeof(Gdk.FileList), Gdk.DragAction.COPY);
         file_drop.drop.connect((value, x, y) => {
@@ -657,15 +661,6 @@ public class WorkspacePane : Object {
             maybe_move_cursor_for_context_menu(context_click, n_press, x, y);
         });
         editor_view.add_controller(context_click);
-
-        var checker = Spelling.Checker.get_default();
-        if (checker != null) {
-            spelling_adapter = new Spelling.TextBufferAdapter(editor_buffer, checker);
-            spelling_adapter.set_enabled(true);
-            inline_resource_images.set_spelling_adapter(spelling_adapter);
-            editor_view.insert_action_group("spelling", spelling_adapter);
-            editor_view.set_extra_menu(spelling_adapter.get_menu_model());
-        }
 
         var editor_scroll = new Gtk.ScrolledWindow();
         editor_scroll.set_child(editor_view);

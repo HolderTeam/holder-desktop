@@ -102,13 +102,21 @@ private void test_inline_decoration_does_not_change_markdown_text() {
     window.set_child(view);
     window.present();
     var renderer = new HolderLinux.InlineResourceImageRenderer(buffer, view);
-    Spelling.init();
-    var checker = Spelling.Checker.get_default();
-    var spelling_adapter = new Spelling.TextBufferAdapter(buffer, checker);
-    spelling_adapter.set_enabled(true);
-    renderer.set_spelling_adapter(spelling_adapter);
+    var spellcheck = new HolderLinux.EditorSpellcheckController(buffer, view);
+    renderer.buffer_mutation_started.connect(() => {
+        spellcheck.prepare_buffer_mutation();
+    });
+    renderer.buffer_mutation_finished.connect((has_inline_images) => {
+        spellcheck.finish_buffer_mutation(has_inline_images);
+    });
 
+    assert(spellcheck.adapter != null);
+    var retired_adapter = (Spelling.TextBufferAdapter) spellcheck.adapter;
+    assert(retired_adapter.get_enabled());
     renderer.set_items(items);
+    assert(!spellcheck.buffer_safe);
+    assert(spellcheck.adapter == null);
+    assert(!retired_adapter.get_enabled());
     for (int i = 0; i < 20; i++) {
         while (MainContext.default().pending()) {
             MainContext.default().iteration(false);
@@ -140,12 +148,20 @@ private void test_inline_decoration_does_not_change_markdown_text() {
     buffer.get_bounds(out start, out end);
     assert(buffer.get_text(start, end, false) == replacement_text);
     assert(renderer.decoration_count() == 0);
+    assert(spellcheck.buffer_safe);
+    assert(spellcheck.adapter != null);
+    assert(((Spelling.TextBufferAdapter) spellcheck.adapter).get_enabled());
+    assert(spellcheck.adapter != retired_adapter);
 
+    var restored_adapter = (Spelling.TextBufferAdapter) spellcheck.adapter;
+    spellcheck.set_enabled_preference(false);
     renderer.clear();
     buffer.get_bounds(out start, out end);
     assert(buffer.get_text(start, end, false) == replacement_text);
     assert(renderer.decoration_count() == 0);
-    assert(spelling_adapter.get_enabled());
+    assert(spellcheck.adapter != null);
+    assert(!((Spelling.TextBufferAdapter) spellcheck.adapter).get_enabled());
+    assert(spellcheck.adapter != restored_adapter);
     window.destroy();
 }
 

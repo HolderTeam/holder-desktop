@@ -201,6 +201,7 @@ sources = [
   'src/controllers/markdown_editing.vala',
   'src/controllers/markdown_links.vala',
   'src/controllers/markdown_resource_images.vala',
+  'src/controllers/editor_spellcheck.vala',
   'src/services/discovery.vala',
   'src/services/recovery_service.vala',
   'src/services/http_transport.vala',
@@ -2236,6 +2237,7 @@ markdown_resource_images_test_exe = executable(
   [
     'src/models/project.vala',
     'src/controllers/markdown_resource_images.vala',
+    'src/controllers/editor_spellcheck.vala',
     'src/views/inline_resource_image_renderer.vala',
     'tests/markdown_resource_images_test.vala',
   ],
@@ -3237,6 +3239,7 @@ preferences_dialog_test_exe = executable(
   [
     'src/services/app_settings.vala',
     'src/services/editor_font_style.vala',
+    'src/controllers/editor_spellcheck.vala',
     'src/views/preferences_dialog.vala',
     'tests/preferences_dialog_test.vala',
   ],

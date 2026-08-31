@@ -3,7 +3,7 @@ namespace HolderLinux {
 public class PreferencesDialog : Adw.PreferencesDialog {
     private GtkSource.Buffer editor_buffer;
     private GtkSource.View editor_view;
-    private Spelling.TextBufferAdapter? spelling_adapter;
+    private EditorSpellcheckController? editor_spellcheck;
     private Settings? settings;
     private EditorFontStyle editor_font_style;
     private Gee.HashMap<string, GtkSource.StyleSchemePreview> scheme_previews;
@@ -12,13 +12,13 @@ public class PreferencesDialog : Adw.PreferencesDialog {
 
     public PreferencesDialog(GtkSource.Buffer editor_buffer,
                              GtkSource.View editor_view,
-                             Spelling.TextBufferAdapter? spelling_adapter,
+                             EditorSpellcheckController? editor_spellcheck,
                              Settings? settings,
                              EditorFontStyle editor_font_style) {
         Object();
         this.editor_buffer = editor_buffer;
         this.editor_view = editor_view;
-        this.spelling_adapter = spelling_adapter;
+        this.editor_spellcheck = editor_spellcheck;
         this.settings = settings;
         this.editor_font_style = editor_font_style;
         this.scheme_previews = new Gee.HashMap<string, GtkSource.StyleSchemePreview>();
@@ -106,19 +106,21 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         spell_row.set_subtitle("Underline misspelled words in the editor.");
         if (settings != null) {
             spell_row.set_active(settings.get_boolean(AppSettings.KEY_SHOW_SPELL_CHECKING));
-        } else if (spelling_adapter != null) {
-            spell_row.set_active(spelling_adapter.get_enabled());
+        } else if (editor_spellcheck != null) {
+            spell_row.set_active(editor_spellcheck.requested_enabled);
         } else {
             spell_row.set_active(true);
         }
-        if (spelling_adapter == null) {
+        if (editor_spellcheck == null || !editor_spellcheck.backend_available) {
             spell_row.set_sensitive(false);
             spell_row.set_subtitle("Spell checking backend is unavailable.");
+        } else if (!editor_spellcheck.buffer_safe) {
+            spell_row.set_subtitle("Spell checking is paused while inline images are displayed.");
         }
         spell_row.notify["active"].connect(() => {
             var enabled = spell_row.get_active();
-            if (spelling_adapter != null) {
-                spelling_adapter.set_enabled(enabled);
+            if (editor_spellcheck != null) {
+                editor_spellcheck.set_enabled_preference(enabled);
             }
             if (settings != null) {
                 settings.set_boolean(AppSettings.KEY_SHOW_SPELL_CHECKING, enabled);

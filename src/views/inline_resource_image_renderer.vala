@@ -24,11 +24,12 @@ public class InlineResourceImageRenderer : Object {
 
     private GtkSource.Buffer buffer;
     private GtkSource.View view;
-    private Spelling.TextBufferAdapter? spelling_adapter;
     private Gee.ArrayList<Decoration> decorations = new Gee.ArrayList<Decoration>();
 
     public bool is_applying_buffer_decoration { get; private set; default = false; }
     public signal void preview_requested(ProjectResource resource, ResourceAsset asset);
+    public signal void buffer_mutation_started();
+    public signal void buffer_mutation_finished(bool has_inline_images);
 
     public InlineResourceImageRenderer(GtkSource.Buffer buffer, GtkSource.View view) {
         this.buffer = buffer;
@@ -38,15 +39,11 @@ public class InlineResourceImageRenderer : Object {
         });
     }
 
-    public void set_spelling_adapter(Spelling.TextBufferAdapter? adapter) {
-        spelling_adapter = adapter;
-    }
-
     public void set_items(Gee.ArrayList<InlineResourceImageItem> items) {
         if (update_existing_items(items)) {
             return;
         }
-        var restore_spelling = suspend_spelling();
+        buffer_mutation_started();
         is_applying_buffer_decoration = true;
         try {
             clear_internal();
@@ -67,7 +64,7 @@ public class InlineResourceImageRenderer : Object {
             }
         } finally {
             is_applying_buffer_decoration = false;
-            resume_spelling(restore_spelling);
+            buffer_mutation_finished(decorations.size > 0);
         }
         update_decoration_widths();
     }
@@ -118,25 +115,25 @@ public class InlineResourceImageRenderer : Object {
     }
 
     public void clear() {
-        var restore_spelling = suspend_spelling();
+        buffer_mutation_started();
         is_applying_buffer_decoration = true;
         try {
             clear_internal();
         } finally {
             is_applying_buffer_decoration = false;
-            resume_spelling(restore_spelling);
+            buffer_mutation_finished(false);
         }
     }
 
     public void replace_buffer_text(string text) {
-        var restore_spelling = suspend_spelling();
+        buffer_mutation_started();
         is_applying_buffer_decoration = true;
         try {
             clear_internal();
             buffer.set_text(text, -1);
         } finally {
             is_applying_buffer_decoration = false;
-            resume_spelling(restore_spelling);
+            buffer_mutation_finished(false);
         }
     }
 
@@ -234,22 +231,6 @@ public class InlineResourceImageRenderer : Object {
             }
         }
         return null;
-    }
-
-    private bool suspend_spelling() {
-        if (spelling_adapter == null || !spelling_adapter.get_enabled()) {
-            return false;
-        }
-        spelling_adapter.set_enabled(false);
-        return true;
-    }
-
-    private void resume_spelling(bool restore) {
-        if (!restore || spelling_adapter == null) {
-            return;
-        }
-        spelling_adapter.set_enabled(true);
-        spelling_adapter.invalidate_all();
     }
 
     private void clear_internal() {
