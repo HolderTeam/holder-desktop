@@ -186,6 +186,9 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         var add_s3 = new Gtk.Button.with_label("Add S3-compatible");
         add_s3.clicked.connect(() => { open_location_dialog(true); });
         locations_header.append(add_s3);
+        var add_google_drive = new Gtk.Button.with_label("Add Google Drive");
+        add_google_drive.clicked.connect(() => { open_google_drive_connect_flow(); });
+        locations_header.append(add_google_drive);
         root.append(locations_header);
 
         locations_list = new Gtk.ListBox();
@@ -748,6 +751,125 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         } catch (Error e) {
             error_reported("Failed to add storage location", e.message);
         }
+    }
+
+    // Finds an existing unbound "google-drive" Location for reuse -- so retrying a
+    // cancelled or failed connect attempt doesn't leave duplicate "Configuration
+    // required" rows behind. Deliberately doesn't match an already-bound one: clicking
+    // "Add Google Drive" again when one's already connected should offer to connect a
+    // second account, not silently reuse the first (desktop has no equivalent of
+    // Android's one-account-per-device limitation -- see GoogleDriveProvider's own doc
+    // comment in holder-daemon).
+    internal static string? find_unbound_google_drive_location_id(StorageLocationList locations) {
+        foreach (var location in locations.locations) {
+            if (location.provider == "google-drive" && !location.bound) {
+                return location.location_id;
+            }
+        }
+        return null;
+    }
+
+    internal static bool location_is_bound(StorageLocationList locations, string location_id) {
+        foreach (var location in locations.locations) {
+            if (location.location_id == location_id) return location.bound;
+        }
+        return false;
+    }
+
+    private void open_google_drive_connect_flow() {
+        var project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        var storage_api = api as IResourceStorageApi;
+        var root_window = widget.get_root() as Gtk.Window;
+        if (project == null || storage_api == null || root_window == null) {
+            toast_requested("Select a project and connect to Holder first.");
+            return;
+        }
+        connect_google_drive.begin(project.project_id, root_window);
+    }
+
+    private async void connect_google_drive(string project_id, Gtk.Window root_window) {
+        var storage_api = api as IResourceStorageApi;
+        if (storage_api == null) return;
+
+        var spinner = new Gtk.Spinner();
+        spinner.start();
+        var status_label = new Gtk.Label("Preparing…") { xalign = 0.0f, wrap = true, hexpand = true };
+        var status_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+        status_row.append(spinner);
+        status_row.append(status_label);
+
+        var dialog = new Adw.MessageDialog(
+            root_window,
+            "Connect Google Drive",
+            "You'll be sent to your browser to sign in and allow access. Come back here " +
+                "when you're done."
+        );
+        dialog.add_response("cancel", "Cancel");
+        dialog.set_close_response("cancel");
+        dialog.set_extra_child(status_row);
+        bool cancelled = false;
+        dialog.response.connect(() => { cancelled = true; });
+        dialog.present();
+
+        try {
+            var locations = yield storage_api.list_storage_locations(project_id);
+            var location_id = find_unbound_google_drive_location_id(locations);
+            if (location_id == null) {
+                location_id = yield storage_api.create_storage_location(
+                    project_id, "Google Drive", "google-drive", new Gee.HashMap<string, string>()
+                );
+            }
+            if (cancelled) return;
+
+            status_label.set_text("Opening your browser…");
+            var authorization_url = yield storage_api.start_google_drive_oauth(location_id);
+            if (cancelled) return;
+
+            // Let a launch failure fall through to the outer catch below, same as every
+            // other failure in this flow -- no need for a domain-specific error type
+            // here, just AppInfo's own.
+            AppInfo.launch_default_for_uri(authorization_url, null);
+            status_label.set_text("Waiting for you to finish in your browser…");
+
+            // Matches the daemon's own pending-attempt TTL (10 minutes) at roughly a
+            // 1s poll interval, generous for "switch to a browser tab and sign in."
+            for (int attempt = 0; attempt < 600 && !cancelled; attempt++) {
+                yield wait_for_google_drive_oauth_poll();
+                if (cancelled) return;
+                var refreshed = yield storage_api.list_storage_locations(project_id);
+                if (location_is_bound(refreshed, location_id)) {
+                    if (preferred_location_id == null) {
+                        yield storage_api.prefer_storage_location(project_id, location_id);
+                    }
+                    dialog.close();
+                    toast_requested("Google Drive connected.");
+                    queue_resources_refresh();
+                    return;
+                }
+            }
+            if (!cancelled) {
+                dialog.close();
+                error_reported(
+                    "Google Drive connection timed out",
+                    "Try connecting again from the Resources tool."
+                );
+            }
+        } catch (Error e) {
+            if (!cancelled) {
+                dialog.close();
+                error_reported("Failed to connect Google Drive", e.message);
+            }
+        }
+    }
+
+    private async void wait_for_google_drive_oauth_poll() {
+        Timeout.add(1000, () => {
+            wait_for_google_drive_oauth_poll.callback();
+            return Source.REMOVE;
+        });
+        yield;
     }
 
     private async void prefer_location(string project_id, string location_id) {

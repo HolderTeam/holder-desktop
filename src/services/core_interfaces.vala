@@ -155,6 +155,12 @@ public interface IResourceStorageApi : Object {
                                                        string location_id) throws Error;
     public abstract async void test_storage_location(string location_id) throws Error;
     public abstract async void delete_storage_location(string location_id) throws Error;
+    // Starts a Google Drive connect attempt for an already-created "google-drive"
+    // Location and returns the URL to open in the system browser. Binding happens out of
+    // band -- the daemon's own OAuth callback route binds the refresh token once the user
+    // finishes in their browser, not this call -- so the caller polls
+    // list_storage_locations afterward for that Location's bound flag turning true.
+    public abstract async string start_google_drive_oauth(string location_id) throws Error;
     public abstract async AssetImportJob start_asset_import(string project_id,
                                                             string card_id,
                                                             string location_id,

@@ -33,6 +33,9 @@ private class FakeStorageApi : Object, HolderLinux.IResourceStorageApi {
     public async void delete_storage_location(string location_id) throws Error {
         throw new IOError.NOT_SUPPORTED("unused");
     }
+    public async string start_google_drive_oauth(string location_id) throws Error {
+        throw new IOError.NOT_SUPPORTED("unused");
+    }
     public async HolderLinux.AssetImportJob start_asset_import(string project_id, string card_id,
                                                                string location_id,
                                                                string source_path) throws Error {

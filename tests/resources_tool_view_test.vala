@@ -18,6 +18,49 @@ private HolderLinux.ProjectResource resource(string id,
     return new HolderLinux.ProjectResource(id, "p1", kind, uri, label, desc, 1700000000, 1700000100);
 }
 
+private HolderLinux.StorageLocation location(string id, string provider, bool bound) {
+    return new HolderLinux.StorageLocation(id, "p1", "name", provider, null, bound);
+}
+
+private HolderLinux.StorageLocationList location_list(HolderLinux.StorageLocation[] items) {
+    var list = new Gee.ArrayList<HolderLinux.StorageLocation>();
+    foreach (var item in items) list.add(item);
+    return new HolderLinux.StorageLocationList(list, null);
+}
+
+private void test_find_unbound_google_drive_location_id_ignores_other_providers_and_bound_ones() {
+    var locations = location_list({
+        location("s3-1", "s3_compatible", false),
+        location("drive-bound", "google-drive", true),
+        location("drive-unbound", "google-drive", false),
+    });
+
+    assert(
+        HolderLinux.ResourcesToolView.find_unbound_google_drive_location_id(locations) ==
+        "drive-unbound"
+    );
+}
+
+private void test_find_unbound_google_drive_location_id_returns_null_when_none_match() {
+    var locations = location_list({
+        location("s3-1", "s3_compatible", false),
+        location("drive-bound", "google-drive", true),
+    });
+
+    assert(HolderLinux.ResourcesToolView.find_unbound_google_drive_location_id(locations) == null);
+}
+
+private void test_location_is_bound_matches_by_id() {
+    var locations = location_list({
+        location("drive-1", "google-drive", true),
+        location("drive-2", "google-drive", false),
+    });
+
+    assert(HolderLinux.ResourcesToolView.location_is_bound(locations, "drive-1"));
+    assert(!HolderLinux.ResourcesToolView.location_is_bound(locations, "drive-2"));
+    assert(!HolderLinux.ResourcesToolView.location_is_bound(locations, "no-such-id"));
+}
+
 private Gtk.ColumnView? find_column_view(Gtk.Widget root) {
     if (root is Gtk.ColumnView) {
         return (Gtk.ColumnView) root;
@@ -348,6 +391,18 @@ public static int main(string[] args) {
                   test_refresh_failure_after_committed_resources_preserves_visible_list);
     Test.add_func("/holder/resources-view/mutations", test_mutations_call_api_emit_feedback_and_refresh);
     Test.add_func("/holder/resources-view/mutation-failure", test_mutation_failure_reports_error);
+    Test.add_func(
+        "/holder/resources-view/find-unbound-google-drive-location-id/ignores-other-providers-and-bound",
+        test_find_unbound_google_drive_location_id_ignores_other_providers_and_bound_ones
+    );
+    Test.add_func(
+        "/holder/resources-view/find-unbound-google-drive-location-id/returns-null-when-none-match",
+        test_find_unbound_google_drive_location_id_returns_null_when_none_match
+    );
+    Test.add_func(
+        "/holder/resources-view/location-is-bound/matches-by-id",
+        test_location_is_bound_matches_by_id
+    );
     return Test.run();
 }
 

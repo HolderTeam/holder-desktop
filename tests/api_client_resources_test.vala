@@ -139,6 +139,31 @@ private void test_update_resource_and_delete_resource_paths() {
     assert(transport.last_uri.contains("/resources/r%201%2F2"));
 }
 
+private void test_start_google_drive_oauth_posts_and_returns_the_authorization_url() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"authorization_url\":\"https://accounts.google.com/o/oauth2/v2/auth?state=abc\"}}"
+    );
+    var client = make_client(transport);
+
+    bool done = false;
+    string? url = null;
+    client.start_google_drive_oauth.begin("loc 1/2", (obj, res) => {
+        try {
+            url = client.start_google_drive_oauth.end(res);
+        } catch (Error e) {
+            url = null;
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(url == "https://accounts.google.com/o/oauth2/v2/auth?state=abc");
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.contains("/locations/loc%201%2F2/oauth/google-drive/authorize"));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -150,6 +175,10 @@ public static int main(string[] args) {
                   test_create_resource_missing_data_is_protocol_error);
     Test.add_func("/api_client_resources/update_resource_and_delete_resource_paths",
                   test_update_resource_and_delete_resource_paths);
+    Test.add_func(
+        "/api_client_resources/start_google_drive_oauth_posts_and_returns_the_authorization_url",
+        test_start_google_drive_oauth_posts_and_returns_the_authorization_url
+    );
 
     return Test.run();
 }

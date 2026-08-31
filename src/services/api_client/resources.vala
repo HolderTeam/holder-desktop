@@ -196,6 +196,18 @@ public class ApiClientResourcesEndpoints : Object { // LCOV_EXCL_BR_LINE: declar
         );
     }
 
+    public static async string start_google_drive_oauth(ApiClient client, string location_id) throws Error {
+        var root = yield client.request_json(
+            "POST",
+            "/locations/%s/oauth/google-drive/authorize".printf(Uri.escape_string(location_id)),
+            "{}",
+            null
+        );
+        return ApiParsersCommon.string_member_or_empty(
+            root.get_object_member("data"), "authorization_url"
+        );
+    }
+
     public static async AssetImportJob start_asset_import(ApiClient client,
                                                           string project_id,
                                                           string card_id,

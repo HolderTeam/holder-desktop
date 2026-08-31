@@ -201,6 +201,10 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi { // LCOV_EXCL_
         yield ApiClientResourcesEndpoints.delete_storage_location(this, location_id);
     }
 
+    public async string start_google_drive_oauth(string location_id) throws Error {
+        return yield ApiClientResourcesEndpoints.start_google_drive_oauth(this, location_id);
+    }
+
     public async AssetImportJob start_asset_import(string project_id,
                                                    string card_id,
                                                    string location_id,
