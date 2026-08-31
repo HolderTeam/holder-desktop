@@ -56,6 +56,30 @@ public class ApiParsersResources { // LCOV_EXCL_LINE
                     ));
                 }
             }
+            var referenced_by_cards = new Gee.ArrayList<ResourceCardReference>();
+            if (item.has_member("referenced_by_cards")) {
+                var references_array = item.get_array_member("referenced_by_cards");
+                for (uint reference_index = 0;
+                     reference_index < references_array.get_length();
+                     reference_index++) {
+                    var reference_object = references_array.get_object_element(reference_index);
+                    var link_kinds = new Gee.ArrayList<string>();
+                    if (reference_object.has_member("link_kinds")) {
+                        var kinds_array = reference_object.get_array_member("link_kinds");
+                        for (uint kind_index = 0; kind_index < kinds_array.get_length(); kind_index++) {
+                            link_kinds.add(kinds_array.get_string_element(kind_index));
+                        }
+                    }
+                    referenced_by_cards.add(new ResourceCardReference(
+                        ApiParsersCommon.string_member_or_empty(reference_object, "card_id"),
+                        ApiParsersCommon.string_member_or_empty(reference_object, "title"),
+                        reference_object.has_member("updated_at")
+                            ? reference_object.get_int_member("updated_at")
+                            : 0,
+                        link_kinds
+                    ));
+                }
+            }
             var identifier = metadata.get("identifier");
             var descriptions = metadata.get("description");
             out_list.add(new ProjectResource( // LCOV_EXCL_BR_LINE
@@ -68,7 +92,8 @@ public class ApiParsersResources { // LCOV_EXCL_LINE
                 item.has_member("created_at") ? item.get_int_member("created_at") : 0,
                 item.has_member("updated_at") ? item.get_int_member("updated_at") : 0,
                 metadata,
-                assets
+                assets,
+                referenced_by_cards
             ));
         }
         return out_list; // LCOV_EXCL_BR_LINE

@@ -253,6 +253,12 @@ internal class WindowToolboxEventSource : Object, IToolboxEventSource {
         toolbox.tags_card_open_requested.connect((card_id) => {
             tags_card_open_requested(card_id);
         });
+        toolbox.resources_card_open_requested.connect((card_id) => {
+            resources_card_open_requested(card_id);
+        });
+        toolbox.resource_references_requested.connect((resource) => {
+            resource_references_requested(resource);
+        });
         toolbox.connections_card_create_child_requested.connect((card_id) => {
             connections_card_create_child_requested(card_id);
         });

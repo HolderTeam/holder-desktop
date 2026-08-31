@@ -52,6 +52,7 @@ public class MainController : Object {
     public string last_move_intent = "";
     public string? last_move_target_card_id = "unset";
     public string? last_move_parent_card_id = "unset";
+    public ProjectResource? shown_resource_references;
 
     public async void create_card(string? parent_card_id = null) {
         create_card_calls++;
@@ -69,6 +70,10 @@ public class MainController : Object {
         last_move_intent = intent;
         last_move_target_card_id = target_card_id;
         last_move_parent_card_id = parent_card_id;
+    }
+
+    public void show_resource_references(ProjectResource resource) {
+        shown_resource_references = resource;
     }
 }
 
@@ -94,6 +99,18 @@ private class FakeToolboxEventSource : Object, IToolboxEventSource {
 
     public void emit_connections_card_open_requested(string card_id) {
         connections_card_open_requested(card_id);
+    }
+
+    public void emit_tags_card_open_requested(string card_id) {
+        tags_card_open_requested(card_id);
+    }
+
+    public void emit_resources_card_open_requested(string card_id) {
+        resources_card_open_requested(card_id);
+    }
+
+    public void emit_resource_references_requested(ProjectResource resource) {
+        resource_references_requested(resource);
     }
 
     public void emit_connections_card_create_child_requested(string card_id) {
@@ -304,6 +321,20 @@ private void test_bind_routes_open_card_requests_with_expected_reasons() {
     wait_for_idle();
     assert(selection.last_open_card_id == "card-conn");
     assert(selection.last_open_reason == "toolbox-connections-card-open");
+
+    source.emit_tags_card_open_requested("card-tag");
+    wait_for_idle();
+    assert(selection.last_open_card_id == "card-tag");
+    assert(selection.last_open_reason == "toolbox-tags-card-open");
+
+    source.emit_resources_card_open_requested("card-resource");
+    wait_for_idle();
+    assert(selection.last_open_card_id == "card-resource");
+    assert(selection.last_open_reason == "toolbox-resources-card-open");
+
+    var resource = new ProjectResource("r1", "p1", "image", "", "Boiler", null, 1, 2);
+    source.emit_resource_references_requested(resource);
+    assert(controller.shown_resource_references == resource);
 }
 
 private void test_breadcrumb_navigation_passes_callbacks_through_orchestrator() {

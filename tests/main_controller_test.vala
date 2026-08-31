@@ -794,6 +794,58 @@ private void test_clear_search_results_clears_store_and_resets_summary() {
     assert(last_summary == "Search results will appear here.");
 }
 
+private void test_show_resource_references_populates_central_card_results() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+    var resource = new HolderLinux.ProjectResource(
+        "resource-1",
+        "project-1",
+        "image",
+        "",
+        "Boiler photograph",
+        null,
+        1,
+        2
+    );
+    var first_kinds = new Gee.ArrayList<string>();
+    first_kinds.add("attachment");
+    resource.referenced_by_cards.add(new HolderLinux.ResourceCardReference(
+        "card-1",
+        "Boiler service",
+        100,
+        first_kinds
+    ));
+    var second_kinds = new Gee.ArrayList<string>();
+    second_kinds.add("reference");
+    second_kinds.add("related_item");
+    resource.referenced_by_cards.add(new HolderLinux.ResourceCardReference(
+        "card-2",
+        "House records",
+        200,
+        second_kinds
+    ));
+
+    string summary = "";
+    bool show_search = false;
+    controller.search_summary_changed.connect((text) => { summary = text; });
+    controller.show_search_requested.connect(() => { show_search = true; });
+
+    controller.show_resource_references(resource);
+
+    assert(show_search);
+    assert(summary == "2 card(s) using “Boiler photograph”");
+    assert(harness.search_store.get_n_items() == 2);
+    var first = harness.search_store.get_item(0) as HolderLinux.SearchCardResult;
+    var second = harness.search_store.get_item(1) as HolderLinux.SearchCardResult;
+    assert(first != null && first.card_id == "card-1");
+    assert(first.snippet == "Attachment");
+    assert(second != null && second.card_id == "card-2");
+    assert(second.snippet == "Reference · Related item");
+}
+
 private void test_selected_ids_and_api_getter() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -2797,6 +2849,10 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/clear_search_results_clears_store_and_resets_summary",
         test_clear_search_results_clears_store_and_resets_summary
+    );
+    Test.add_func(
+        "/main_controller/show_resource_references_populates_central_card_results",
+        test_show_resource_references_populates_central_card_results
     );
     Test.add_func(
         "/main_controller/selected_ids_and_api_getter",

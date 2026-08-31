@@ -29,6 +29,8 @@ public class ToolboxPane : Object {
     public signal void flowboard_card_open_requested(string card_id);
     public signal void connections_card_open_requested(string card_id);
     public signal void tags_card_open_requested(string card_id);
+    public signal void resources_card_open_requested(string card_id);
+    public signal void resource_references_requested(ProjectResource resource);
     public signal void asset_preview_requested(ProjectResource resource, ResourceAsset asset);
     public signal void project_resources_loaded(string project_id,
                                                 Gee.ArrayList<ProjectResource> resources);
@@ -304,6 +306,12 @@ public class ToolboxPane : Object {
         });
         resources_tool.asset_preview_requested.connect((resource, asset) => {
             asset_preview_requested(resource, asset);
+        });
+        resources_tool.card_open_requested.connect((card_id) => {
+            resources_card_open_requested(card_id);
+        });
+        resources_tool.resource_references_requested.connect((resource) => {
+            resource_references_requested(resource);
         });
         resources_tool.project_resources_loaded.connect((project_id, resources) => {
             project_resources_loaded(project_id, resources);

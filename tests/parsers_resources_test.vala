@@ -28,7 +28,7 @@ private void test_parse_resources_missing_data_is_protocol_error() {
 private void test_parse_resources_full_and_defaults() {
     var root = parse_json_object(
         "{\"data\":[" +
-        "{\"resource_id\":\"r1\",\"project_id\":\"p1\",\"type\":\"website\",\"label\":\"Example\",\"metadata\":{\"identifier\":[\"https://example.com\"],\"description\":[\"Docs\"],\"creator\":[\"One\",\"Two\"]},\"assets\":[{\"asset_id\":\"a1\",\"resource_id\":\"r1\",\"original_filename\":\"page.pdf\",\"media_type\":\"application/pdf\",\"byte_size\":42,\"plaintext_sha256\":\"abc123\",\"placements\":[{\"placement_id\":\"pl1\",\"location_id\":\"l1\",\"encoding\":\"plain\",\"stored_byte_size\":42}]}],\"created_at\":111,\"updated_at\":222}," +
+        "{\"resource_id\":\"r1\",\"project_id\":\"p1\",\"type\":\"website\",\"label\":\"Example\",\"metadata\":{\"identifier\":[\"https://example.com\"],\"description\":[\"Docs\"],\"creator\":[\"One\",\"Two\"]},\"assets\":[{\"asset_id\":\"a1\",\"resource_id\":\"r1\",\"original_filename\":\"page.pdf\",\"media_type\":\"application/pdf\",\"byte_size\":42,\"plaintext_sha256\":\"abc123\",\"placements\":[{\"placement_id\":\"pl1\",\"location_id\":\"l1\",\"encoding\":\"plain\",\"stored_byte_size\":42}]}],\"referenced_by_cards\":[{\"card_id\":\"c1\",\"title\":\"Research notes\",\"updated_at\":333,\"link_kinds\":[\"attachment\",\"reference\"]}],\"created_at\":111,\"updated_at\":222}," +
         "{\"resource_id\":\"r2\",\"project_id\":\"p2\",\"type\":\"document\",\"label\":\"Local\",\"metadata\":{},\"assets\":[]}," +
         "{\"resource_id\":\"r3\"}" +
         "]}"
@@ -58,6 +58,11 @@ private void test_parse_resources_full_and_defaults() {
     assert(r1.assets[0].plaintext_sha256 == "abc123");
     assert(r1.assets[0].placements.size == 1);
     assert(r1.assets[0].placements[0].location_id == "l1");
+    assert(r1.referenced_by_cards.size == 1);
+    assert(r1.referenced_by_cards[0].card_id == "c1");
+    assert(r1.referenced_by_cards[0].title == "Research notes");
+    assert(r1.referenced_by_cards[0].updated_at == 333);
+    assert(r1.referenced_by_cards[0].link_kinds.size == 2);
 
     var r2 = resources[1];
     assert(r2.resource_id == "r2");
@@ -68,6 +73,7 @@ private void test_parse_resources_full_and_defaults() {
     assert(r2.desc == null);
     assert(r2.created_at == 0);
     assert(r2.updated_at == 0);
+    assert(r2.referenced_by_cards.size == 0);
 
     var r3 = resources[2];
     assert(r3.resource_id == "r3");

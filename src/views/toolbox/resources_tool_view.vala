@@ -31,6 +31,8 @@ public class ResourcesToolView : Object, IToolShellAdapter {
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
     public signal void asset_preview_requested(ProjectResource resource, ResourceAsset asset);
+    public signal void card_open_requested(string card_id);
+    public signal void resource_references_requested(ProjectResource resource);
     public signal void project_resources_loaded(string project_id,
                                                 Gee.ArrayList<ProjectResource> resources);
     public signal void activity_requested(string kind,
@@ -150,6 +152,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         view.append_column(build_resource_text_column("Label", "label"));
         view.append_column(build_resource_text_column("Type", "kind"));
         view.append_column(build_resource_text_column("Assets", "assets"));
+        view.append_column(build_resource_usage_column());
         view.append_column(build_resource_text_column("Description", "desc"));
         view.append_column(build_resource_text_column("Updated", "updated"));
 
@@ -278,6 +281,131 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         });
 
         return new Gtk.ColumnViewColumn(title, factory);
+    }
+
+    private Gtk.ColumnViewColumn build_resource_usage_column() {
+        var factory = new Gtk.SignalListItemFactory();
+        factory.setup.connect((item_obj) => {
+            var item = item_obj as Gtk.ListItem;
+            if (item == null) {
+                return;
+            }
+            var links = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 2);
+            links.set_hexpand(true);
+            item.set_child(links);
+        });
+        factory.bind.connect((item_obj) => {
+            var item = item_obj as Gtk.ListItem;
+            if (item == null) {
+                return;
+            }
+            var resource = item.get_item() as ProjectResource;
+            var links = item.get_child() as Gtk.Box;
+            if (resource == null || links == null) {
+                return;
+            }
+            clear_box(links);
+            populate_resource_usage(links, resource);
+        });
+
+        var column = new Gtk.ColumnViewColumn("Used by", factory);
+        column.set_expand(true);
+        return column;
+    }
+
+    private void populate_resource_usage(Gtk.Box links, ProjectResource resource) {
+        if (resource.referenced_by_cards.size == 0) {
+            var none = new Gtk.Label("—") { xalign = 0.0f };
+            none.add_css_class("dim-label");
+            links.append(none);
+            return;
+        }
+
+        int visible_count = int.min(resource.referenced_by_cards.size, 2);
+        if (resource.referenced_by_cards.size > 2) {
+            visible_count = 1;
+        }
+        for (int index = 0; index < visible_count; index++) {
+            if (index > 0) {
+                var separator = new Gtk.Label("·");
+                separator.add_css_class("dim-label");
+                links.append(separator);
+            }
+            links.append(build_card_reference_button(resource.referenced_by_cards[index]));
+        }
+
+        var remaining = resource.referenced_by_cards.size - visible_count;
+        if (remaining > 0) {
+            var separator = new Gtk.Label("·");
+            separator.add_css_class("dim-label");
+            links.append(separator);
+            var more = new Gtk.Button.with_label("+%d more".printf(remaining));
+            more.add_css_class("flat");
+            more.add_css_class("accent");
+            more.set_tooltip_text(all_reference_titles(resource));
+            more.clicked.connect(() => {
+                resource_references_requested(resource);
+            });
+            links.append(more);
+        }
+    }
+
+    private Gtk.Button build_card_reference_button(ResourceCardReference reference) {
+        var button = new Gtk.Button.with_label(reference.title);
+        button.add_css_class("flat");
+        button.add_css_class("accent");
+        button.set_tooltip_text(reference_tooltip(reference));
+        var label = button.get_child() as Gtk.Label;
+        if (label != null) {
+            label.set_ellipsize(Pango.EllipsizeMode.END);
+            label.set_max_width_chars(24);
+        }
+        button.clicked.connect(() => {
+            card_open_requested(reference.card_id);
+        });
+        return button;
+    }
+
+    private static string reference_tooltip(ResourceCardReference reference) {
+        if (reference.link_kinds.size == 0) {
+            return reference.title;
+        }
+        var kinds = new Gee.ArrayList<string>();
+        foreach (var kind in reference.link_kinds) {
+            kinds.add(friendly_link_kind(kind));
+        }
+        return "%s · %s".printf(reference.title, string.joinv(", ", kinds.to_array()));
+    }
+
+    private static string all_reference_titles(ProjectResource resource) {
+        var titles = new Gee.ArrayList<string>();
+        foreach (var reference in resource.referenced_by_cards) {
+            titles.add(reference.title);
+        }
+        return string.joinv("\n", titles.to_array());
+    }
+
+    public static string friendly_link_kind(string kind) {
+        switch (kind) {
+            case "attachment":
+                return "Attachment";
+            case "reference":
+                return "Reference";
+            default:
+                if (kind.length == 0) {
+                    return "Linked";
+                }
+                return kind.substring(0, 1).up() + kind.substring(1).replace("_", " ");
+        }
+    }
+
+    private static void clear_box(Gtk.Box box) {
+        var child = box.get_first_child();
+        while (child != null) {
+            var next = child.get_next_sibling();
+            box.remove(child);
+            child = next;
+        }
     }
 
     private void queue_resources_refresh() {

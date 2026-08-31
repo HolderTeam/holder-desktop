@@ -105,6 +105,7 @@ public class ProjectResource : Object {
     public string label { get; set; }
     public Gee.HashMap<string, Gee.ArrayList<string>> metadata { get; construct; }
     public Gee.ArrayList<ResourceAsset> assets { get; construct; }
+    public Gee.ArrayList<ResourceCardReference> referenced_by_cards { get; construct; }
     public int64 created_at { get; construct; }
     public int64 updated_at { get; set; }
 
@@ -135,7 +136,8 @@ public class ProjectResource : Object {
                            int64 created_at,
                            int64 updated_at,
                            Gee.HashMap<string, Gee.ArrayList<string>>? metadata = null,
-                           Gee.ArrayList<ResourceAsset>? assets = null) {
+                           Gee.ArrayList<ResourceAsset>? assets = null,
+                           Gee.ArrayList<ResourceCardReference>? referenced_by_cards = null) {
         var actual_metadata = metadata ?? new Gee.HashMap<string, Gee.ArrayList<string>>();
         Object(
             resource_id: resource_id,
@@ -144,6 +146,7 @@ public class ProjectResource : Object {
             label: label,
             metadata: actual_metadata,
             assets: assets ?? new Gee.ArrayList<ResourceAsset>(),
+            referenced_by_cards: referenced_by_cards ?? new Gee.ArrayList<ResourceCardReference>(),
             created_at: created_at,
             updated_at: updated_at
         );
@@ -166,6 +169,25 @@ public class ProjectResource : Object {
         var values = new Gee.ArrayList<string>();
         values.add(value);
         metadata.set(key, values);
+    }
+}
+
+public class ResourceCardReference : Object {
+    public string card_id { get; construct; }
+    public string title { get; construct; }
+    public int64 updated_at { get; construct; }
+    public Gee.ArrayList<string> link_kinds { get; construct; }
+
+    public ResourceCardReference(string card_id,
+                                 string title,
+                                 int64 updated_at,
+                                 Gee.ArrayList<string>? link_kinds = null) {
+        Object(
+            card_id: card_id,
+            title: title,
+            updated_at: updated_at,
+            link_kinds: link_kinds ?? new Gee.ArrayList<string>()
+        );
     }
 }
 

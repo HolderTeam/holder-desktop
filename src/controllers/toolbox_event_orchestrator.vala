@@ -10,6 +10,8 @@ internal interface IToolboxEventSource : Object {
     public abstract signal void flowboard_card_open_requested(string card_id);
     public abstract signal void connections_card_open_requested(string card_id);
     public abstract signal void tags_card_open_requested(string card_id);
+    public abstract signal void resources_card_open_requested(string card_id);
+    public abstract signal void resource_references_requested(ProjectResource resource);
     public abstract signal void connections_card_create_child_requested(string card_id);
     public abstract signal void flowboard_card_move_to_trash_requested(string card_id);
     public abstract signal void flowboard_move_intent_requested(string card_id,
@@ -107,6 +109,15 @@ internal class ToolboxEventOrchestrator : Object {
                 card_id,
                 "toolbox-tags-card-open"
             );
+        });
+        toolbox.resources_card_open_requested.connect((card_id) => {
+            selection_intent_orchestrator.open_card_with_transition.begin(
+                card_id,
+                "toolbox-resources-card-open"
+            );
+        });
+        toolbox.resource_references_requested.connect((resource) => {
+            controller.show_resource_references(resource);
         });
         toolbox.connections_card_create_child_requested.connect((card_id) => {
             controller.create_card.begin(card_id);

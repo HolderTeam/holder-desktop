@@ -209,6 +209,48 @@ public class MainController : Object, IAiRunContext {
         search_controller.clear_search_results();
     }
 
+    public void show_resource_references(ProjectResource resource) {
+        var results = new Gee.ArrayList<SearchCardResult>();
+        foreach (var reference in resource.referenced_by_cards) {
+            results.add(new SearchCardResult(
+                reference.card_id,
+                reference.title,
+                reference.updated_at,
+                reference.updated_at,
+                resource_reference_snippet(reference),
+                0.0
+            ));
+        }
+        replace_search_results(results);
+        search_summary_changed(
+            "%d card(s) using “%s”".printf(results.size, resource.label)
+        );
+        show_search_requested();
+    }
+
+    private static string resource_reference_snippet(ResourceCardReference reference) {
+        if (reference.link_kinds.size == 0) {
+            return "Linked resource";
+        }
+        var labels = new Gee.ArrayList<string>();
+        foreach (var kind in reference.link_kinds) {
+            switch (kind) {
+                case "attachment":
+                    labels.add("Attachment");
+                    break;
+                case "reference":
+                    labels.add("Reference");
+                    break;
+                default:
+                    labels.add(kind.length > 0
+                        ? kind.substring(0, 1).up() + kind.substring(1).replace("_", " ")
+                        : "Linked");
+                    break;
+            }
+        }
+        return string.joinv(" · ", labels.to_array());
+    }
+
     public async string? prepare_search_result_card_at(uint position) {
         return yield search_controller.prepare_search_result_card_at(position);
     }
