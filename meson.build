@@ -91,10 +91,13 @@ sources = [
   'src/services/print_service.vala',
   'src/services/git_sync_service.vala',
   'src/services/resources_service.vala',
+  'src/services/asset_cache.vala',
   'src/services/update_check.vala',
   'src/utils/text_utils.vala',
   'src/views/sidebar.vala',
   'src/views/ai_panel.vala',
+  'src/views/asset_preview_pane.vala',
+  'src/views/inline_resource_image_renderer.vala',
   'src/views/preferences_dialog.vala',
   'src/views/search.vala',
   'src/views/flowboard_pane.vala',
@@ -176,6 +179,7 @@ sources = [
   'src/controllers/git_sync_presenter.vala',
   'src/controllers/git_sync.vala',
   'src/controllers/resources.vala',
+  'src/controllers/asset_preview.vala',
   'src/controllers/connections.vala',
   'src/controllers/terminal.vala',
   'src/controllers/flowboard.vala',
@@ -196,6 +200,8 @@ sources = [
   'src/controllers/tag_highlighting.vala',
   'src/controllers/markdown_editing.vala',
   'src/controllers/markdown_links.vala',
+  'src/controllers/markdown_resource_images.vala',
+  'src/controllers/editor_spellcheck.vala',
   'src/services/discovery.vala',
   'src/services/recovery_service.vala',
   'src/services/http_transport.vala',
@@ -1735,6 +1741,37 @@ workspace_layout_test_exe = executable(
 
 test('holder-linux-workspace-layout-tests', workspace_layout_test_exe)
 
+asset_preview_test_exe = executable(
+  'holder-linux-asset-preview-tests',
+  [
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/asset_cache.vala',
+    'src/controllers/asset_preview.vala',
+    'tests/asset_preview_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-asset-preview-tests', asset_preview_test_exe)
+
 flowboard_presenter_test_exe = executable(
   'holder-linux-flowboard-presenter-tests',
   [
@@ -2194,6 +2231,39 @@ markdown_links_test_exe = executable(
 )
 
 test('holder-linux-markdown-links-tests', markdown_links_test_exe)
+
+markdown_resource_images_test_exe = executable(
+  'holder-linux-markdown-resource-images-tests',
+  [
+    'src/models/project.vala',
+    'src/controllers/markdown_resource_images.vala',
+    'src/controllers/editor_spellcheck.vala',
+    'src/views/inline_resource_image_renderer.vala',
+    'tests/markdown_resource_images_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('gtksourceview-5'),
+    dependency('libspelling-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+markdown_resource_images_test_env = environment()
+markdown_resource_images_test_env.set(
+  'HOLDER_MARKDOWN_LANGUAGE_DIR',
+  meson.project_source_root() / 'data' / 'gtksourceview-5' / 'language-specs',
+)
+test(
+  'holder-linux-markdown-resource-images-tests',
+  markdown_resource_images_test_exe,
+  env: markdown_resource_images_test_env,
+)
 
 holder_markdown_language_test_exe = executable(
   'holder-linux-holder-markdown-language-tests',
@@ -3169,6 +3239,7 @@ preferences_dialog_test_exe = executable(
   [
     'src/services/app_settings.vala',
     'src/services/editor_font_style.vala',
+    'src/controllers/editor_spellcheck.vala',
     'src/views/preferences_dialog.vala',
     'tests/preferences_dialog_test.vala',
   ],

@@ -17,7 +17,6 @@ public class MainWindow : Adw.ApplicationWindow {
     private GtkSource.Buffer editor_buffer;
     private GtkSource.View editor_view;
     private EditorFontStyle editor_font_style;
-    private Spelling.TextBufferAdapter? spelling_adapter;
     private Gtk.SearchEntry search_entry;
     private Gtk.Label search_summary_label;
     private Gtk.SingleSelection search_selection;
@@ -25,6 +24,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private SidebarPane sidebar;
     private Gtk.Paned root_paned;
     private AiPanel ai_panel;
+    private AssetPreviewPane asset_preview;
     private ToolboxPane toolbox;
     private MainController controller;
     private ProjectCreateController project_create_controller;
@@ -69,6 +69,20 @@ public class MainWindow : Adw.ApplicationWindow {
     private PrintAdapter print_ui_controller;
     private AiRunController ai_run_controller;
     private AiNudgeController ai_nudge_controller;
+    private AssetPreviewController asset_preview_controller;
+    private AssetCache asset_cache;
+    private MarkdownResourceImageController markdown_resource_image_controller;
+    private InlineResourceImageRenderer inline_resource_image_renderer;
+    private Gee.ArrayList<ProjectResource> inline_project_resources =
+        new Gee.ArrayList<ProjectResource>();
+    private string? inline_resources_project_id;
+    private uint inline_resource_refresh_id = 0;
+    private uint inline_resource_load_serial = 0;
+    private Gee.ArrayList<CardAttachment> card_attachments = new Gee.ArrayList<CardAttachment>();
+    private int selected_attachment_index = -1;
+    private string? selected_asset_cache_path;
+    private uint asset_load_serial = 0;
+    private string? pending_preview_asset_id;
     private AiPanelEventOrchestrator ai_panel_event_orchestrator;
     private FindReplaceController find_replace_controller;
     private FlowboardController flowboard_controller;
@@ -124,19 +138,20 @@ public class MainWindow : Adw.ApplicationWindow {
         set_content(toast_overlay);
 
         workspace = new WorkspacePane(search_store);
-        workspace.file_dropped.connect((file) => {
-            import_dropped_file.begin(file);
+        workspace.file_dropped.connect((file, insertion_mark) => {
+            import_dropped_file.begin(file, insertion_mark);
         });
         editor_buffer = workspace.editor_buffer;
         editor_view = workspace.editor_view;
+        inline_resource_image_renderer = workspace.inline_resource_images;
         editor_font_style = new EditorFontStyle(editor_view);
-        spelling_adapter = workspace.spelling_adapter;
         settings = boot_settings;
         if (settings != null) {
             last_sidebar_position = WindowGeometry.clamp_sidebar_width(
                 settings.get_int(AppSettings.KEY_SIDEBAR_WIDTH)
             );
             workspace.set_ai_panel_width(settings.get_int(AppSettings.KEY_AI_PANEL_WIDTH));
+            workspace.set_asset_preview_width(settings.get_int(AppSettings.KEY_ASSET_PREVIEW_WIDTH));
         }
         apply_persisted_preferences();
         search_entry = workspace.search_entry;
@@ -144,10 +159,12 @@ public class MainWindow : Adw.ApplicationWindow {
         search_selection = workspace.search_selection;
         search_list = workspace.search_list;
         ai_panel = workspace.ai_panel;
+        asset_preview = workspace.asset_preview;
         toolbox = workspace.toolbox;
         editor_renderer = new WindowEditorRenderer(this, workspace, search_summary_label, ai_panel);
         editor_renderer.content_rendered.connect(() => {
             refresh_connections_internal_links_from_editor();
+            queue_inline_resource_images_refresh();
         });
         editor_renderer.apply();
         local_info_controller = new LocalInfoController(new WindowLocalInfoLogger(toolbox));
@@ -234,6 +251,9 @@ public class MainWindow : Adw.ApplicationWindow {
         recovery_dialog_adapter = new RecoveryDialogAdapter(this, recovery_ui_controller);
         ai_run_controller = new AiRunController(controller);
         ai_nudge_controller = new AiNudgeController(controller);
+        asset_preview_controller = new AssetPreviewController();
+        asset_cache = new AssetCache();
+        markdown_resource_image_controller = new MarkdownResourceImageController();
         find_replace_controller = new FindReplaceController(
             new WindowFindReplaceOps(editor_buffer, editor_view)
         );
@@ -266,8 +286,13 @@ public class MainWindow : Adw.ApplicationWindow {
             card_action_dialog_adapter,
             toolbox,
             workspace,
-            toast_overlay
+            toast_overlay,
+            null,
+            markdown_resource_image_controller
         );
+        internal_link_navigator.resource_preview_requested.connect((resource_id) => {
+            preview_inline_resource(resource_id);
+        });
         toolbox_breadcrumb_controller = new ToolboxBreadcrumbController(
             selection_intent_orchestrator,
             toolbox
@@ -361,6 +386,41 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.set_activity_log_store(activity_log_store);
         toolbox.bind_connections_context(project_selection, card_store, card_selection);
         toolbox.bind_flowboard_controller(flowboard_controller);
+        workspace.asset_preview_toggled.connect((visible) => {
+            workspace.set_asset_preview_visible(visible);
+            if (visible && selected_attachment_index >= 0) {
+                load_attachment.begin(selected_attachment_index);
+            }
+        });
+        toolbox.asset_preview_requested.connect((resource, asset) => {
+            preview_resource(resource, asset);
+        });
+        toolbox.project_resources_loaded.connect((project_id, resources) => {
+            apply_inline_project_resources(project_id, resources);
+        });
+        asset_preview.attachment_selected.connect((index) => {
+            load_attachment.begin((int) index);
+        });
+        asset_preview.open_external_requested.connect(() => {
+            open_selected_asset_externally.begin();
+        });
+        asset_preview.export_requested.connect(() => {
+            export_selected_asset.begin();
+        });
+        asset_preview_controller.attachments_loaded.connect((attachments) => {
+            apply_card_attachments(attachments);
+        });
+        asset_preview_controller.project_resources_loaded.connect((project_id, resources) => {
+            apply_inline_project_resources(project_id, resources);
+        });
+        inline_resource_image_renderer.preview_requested.connect((resource, asset) => {
+            preview_resource(resource, asset);
+        });
+        asset_preview_controller.load_failed.connect((message) => {
+            if (workspace.is_asset_preview_visible()) {
+                asset_preview.show_error(null, "Could not load this Card's attachments: " + message);
+            }
+        });
         activity_log_store.entry_added.connect((entry) => {
             foreach (var candidate in activity_reducer.reduce(activity_log_store.snapshot())) {
                 ai_nudge_controller.evaluate_candidate.begin(candidate);
@@ -482,6 +542,10 @@ public class MainWindow : Adw.ApplicationWindow {
         settings.set_int(
             AppSettings.KEY_AI_PANEL_WIDTH,
             workspace.get_ai_panel_width_for_persist()
+        );
+        settings.set_int(
+            AppSettings.KEY_ASSET_PREVIEW_WIDTH,
+            workspace.get_asset_preview_width_for_persist()
         );
 
         var maximized = is_maximized();
@@ -737,10 +801,13 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void on_editor_buffer_changed() {
-        if (editor_renderer.is_applying_content || controller.get_current_card() == null) {
+        if (editor_renderer.is_applying_content ||
+            inline_resource_image_renderer.is_applying_buffer_decoration ||
+            controller.get_current_card() == null) {
             return;
         }
         refresh_connections_internal_links_from_editor();
+        queue_inline_resource_images_refresh();
         controller.on_editor_content_changed();
         controller.schedule_autosave();
     }
@@ -796,6 +863,7 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void on_app_state_changed() {
         apply_sidebar_from_state();
+        refresh_current_card_attachments();
         if (workspace.is_ai_panel_visible()) {
             ai_panel.refresh_nudges(app_state_store.selection.project_id, app_state_store.selection.card_id);
             ai_nudge_controller.evaluate_title_suggestion_for_current_card.begin();
@@ -806,16 +874,237 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.set_navigation_loading(loading);
     }
 
+    private void refresh_current_card_attachments() {
+        var api = controller.get_api_client();
+        var project = controller.get_current_project();
+        var card = controller.get_current_card();
+        var project_id = project != null ? project.project_id : null;
+        if (project_id != inline_resources_project_id) {
+            inline_resources_project_id = project_id;
+            inline_project_resources = new Gee.ArrayList<ProjectResource>();
+            inline_resource_load_serial++;
+            inline_resource_image_renderer.clear();
+        }
+        asset_preview_controller.refresh_card_attachments.begin(
+            api,
+            project_id,
+            card != null ? card.card_id : null
+        );
+    }
+
+    private void queue_inline_resource_images_refresh() {
+        if (inline_resource_refresh_id != 0) {
+            Source.remove(inline_resource_refresh_id);
+        }
+        inline_resource_refresh_id = Timeout.add(180, () => {
+            inline_resource_refresh_id = 0;
+            refresh_inline_resource_images.begin();
+            return Source.REMOVE;
+        });
+    }
+
+    private void apply_inline_project_resources(
+        string project_id,
+        Gee.ArrayList<ProjectResource> resources
+    ) {
+        var project = controller.get_current_project();
+        if (project == null || project.project_id != project_id) {
+            return;
+        }
+        inline_resources_project_id = project_id;
+        inline_project_resources = resources;
+        queue_inline_resource_images_refresh();
+    }
+
+    private async void refresh_inline_resource_images() {
+        var current_card = controller.get_current_card();
+        var current_project = controller.get_current_project();
+        if (current_card == null || current_project == null ||
+            inline_resources_project_id != current_project.project_id) {
+            inline_resource_load_serial++;
+            inline_resource_image_renderer.clear();
+            return;
+        }
+
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        editor_buffer.get_bounds(out start, out end);
+        var markdown = editor_buffer.get_text(start, end, false);
+        var items = markdown_resource_image_controller.resolve(
+            markdown,
+            inline_project_resources
+        );
+        var serial = ++inline_resource_load_serial;
+        inline_resource_image_renderer.set_items(items);
+        var storage_api = controller.get_api_client() as IResourceStorageApi;
+        if (storage_api == null) {
+            foreach (var item in items) {
+                inline_resource_image_renderer.show_error(
+                    item.key(),
+                    "Asset storage is unavailable."
+                );
+            }
+            return;
+        }
+
+        foreach (var item in items) {
+            try {
+                var cached_path = yield asset_cache.ensure_cached(
+                    storage_api,
+                    item.resource,
+                    item.asset
+                );
+                if (serial != inline_resource_load_serial) {
+                    return;
+                }
+                inline_resource_image_renderer.show_image(item.key(), cached_path);
+            } catch (Error e) {
+                if (serial != inline_resource_load_serial) {
+                    return;
+                }
+                inline_resource_image_renderer.show_error(
+                    item.key(),
+                    "Image unavailable: " + e.message
+                );
+            }
+        }
+    }
+
+    private void preview_inline_resource(string resource_id) {
+        foreach (var resource in inline_project_resources) {
+            if (resource.resource_id != resource_id) {
+                continue;
+            }
+            foreach (var asset in resource.assets) {
+                if (asset.media_type.has_prefix("image/")) {
+                    preview_resource(resource, asset);
+                    return;
+                }
+            }
+        }
+        add_toast("This Resource has no image available in the current project.");
+    }
+
+    private void apply_card_attachments(Gee.ArrayList<CardAttachment> attachments) {
+        var previous_asset_id = selected_attachment_index >= 0 &&
+            selected_attachment_index < card_attachments.size
+            ? card_attachments[selected_attachment_index].asset.asset_id
+            : null;
+        card_attachments = attachments;
+        var requested_asset_id = pending_preview_asset_id ?? previous_asset_id;
+        pending_preview_asset_id = null;
+        selected_attachment_index = card_attachments.size > 0 ? 0 : -1;
+        if (requested_asset_id != null) {
+            for (int i = 0; i < card_attachments.size; i++) {
+                if (card_attachments[i].asset.asset_id == requested_asset_id) {
+                    selected_attachment_index = i;
+                    break;
+                }
+            }
+        }
+        asset_preview.set_attachments(card_attachments, selected_attachment_index < 0 ? 0 : selected_attachment_index);
+        if (requested_asset_id != null && selected_attachment_index >= 0) {
+            workspace.set_asset_preview_visible(true);
+        }
+        if (workspace.is_asset_preview_visible() && selected_attachment_index >= 0) {
+            load_attachment.begin(selected_attachment_index);
+        }
+    }
+
+    private void preview_resource(ProjectResource resource, ResourceAsset asset) {
+        var card = controller.get_current_card();
+        var preview_items = new Gee.ArrayList<CardAttachment>();
+        preview_items.add(new CardAttachment(card != null ? card.card_id : "", resource, asset));
+        card_attachments = preview_items;
+        selected_attachment_index = 0;
+        asset_preview.set_attachments(card_attachments, 0);
+        workspace.set_asset_preview_visible(true);
+        load_attachment.begin(0);
+    }
+
+    private async void load_attachment(int index) {
+        if (index < 0 || index >= card_attachments.size) {
+            return;
+        }
+        selected_attachment_index = index;
+        selected_asset_cache_path = null;
+        var attachment = card_attachments[index];
+        var serial = ++asset_load_serial;
+        asset_preview.show_loading(attachment);
+        try {
+            var cached_path = yield ensure_attachment_cached(attachment);
+            if (serial != asset_load_serial || index != selected_attachment_index) {
+                return;
+            }
+            selected_asset_cache_path = cached_path;
+            if (attachment.asset.media_type.has_prefix("image/")) {
+                asset_preview.show_image(attachment, cached_path);
+            } else {
+                asset_preview.show_document(attachment);
+            }
+        } catch (Error e) {
+            if (serial == asset_load_serial) {
+                asset_preview.show_error(
+                    attachment,
+                    "This Asset is not available in the private cache and could not be retrieved: " + e.message
+                );
+            }
+        }
+    }
+
+    private async string ensure_attachment_cached(CardAttachment attachment) throws Error {
+        var storage_api = controller.get_api_client() as IResourceStorageApi;
+        if (storage_api == null) {
+            throw new IOError.NOT_SUPPORTED("Asset storage is not available.");
+        }
+        return yield asset_cache.ensure_cached(storage_api, attachment.resource, attachment.asset);
+    }
+
+    private async void open_selected_asset_externally() {
+        if (selected_attachment_index < 0 || selected_attachment_index >= card_attachments.size) {
+            return;
+        }
+        var attachment = card_attachments[selected_attachment_index];
+        try {
+            var cached_path = selected_asset_cache_path ?? yield ensure_attachment_cached(attachment);
+            selected_asset_cache_path = cached_path;
+            AppInfo.launch_default_for_uri(File.new_for_path(cached_path).get_uri(), null);
+        } catch (Error e) {
+            show_error("Failed to open Asset", e.message);
+        }
+    }
+
+    private async void export_selected_asset() {
+        if (selected_attachment_index < 0 || selected_attachment_index >= card_attachments.size) {
+            return;
+        }
+        var attachment = card_attachments[selected_attachment_index];
+        try {
+            var cached_path = selected_asset_cache_path ?? yield ensure_attachment_cached(attachment);
+            selected_asset_cache_path = cached_path;
+            var dialog = new Gtk.FileDialog();
+            dialog.set_title("Export Asset");
+            dialog.set_initial_name(attachment.asset.original_filename);
+            var destination = yield dialog.save(this, null);
+            if (destination == null || destination.get_path() == null) return;
+            yield asset_cache.export_cached(cached_path, (!) destination.get_path());
+            add_toast("Asset exported.");
+        } catch (Error e) {
+            if (!(e is IOError.CANCELLED)) show_error("Failed to export Asset", e.message);
+        }
+    }
+
     internal void set_status(string text) {
         activity_feedback.set_status(text);
     }
 
-    private async void import_dropped_file(File file) {
+    private async void import_dropped_file(File file, Gtk.TextMark insertion_mark) {
         var storage_api = controller.get_api_client() as IResourceStorageApi;
         var project = controller.get_current_project();
         var card = controller.get_current_card();
         var source_path = file.get_path();
         if (storage_api == null || project == null || card == null || source_path == null) {
+            workspace.discard_file_drop_mark(insertion_mark);
             add_toast("Select a Card before dropping local files.");
             return;
         }
@@ -834,23 +1123,52 @@ public class MainWindow : Adw.ApplicationWindow {
                 (!) locations.preferred_location_id,
                 source_path
             );
+            string? last_status = null;
             for (int attempt = 0; attempt < 600; attempt++) {
                 job = yield storage_api.get_asset_import_job(job.job_id);
                 if (job.status == "completed") {
+                    if (job.resource_id == null) {
+                        throw new ApiError.PROTOCOL(
+                            "Completed Asset import did not return a Resource ID"
+                        );
+                    }
                     set_status("Imported %s".printf(file.get_basename() ?? "asset"));
-                    add_toast("Asset attached to this Card.");
-                    toolbox.show_tool("resources");
+                    add_toast(AssetPreviewController.import_completion_message(job));
+                    var current_project = controller.get_current_project();
+                    var current_card = controller.get_current_card();
+                    var import_is_still_selected = current_project != null && current_card != null &&
+                        current_project.project_id == project.project_id &&
+                        current_card.card_id == card.card_id;
+                    if (import_is_still_selected) {
+                        var filename = file.get_basename() ?? "image";
+                        if (MarkdownResourceImageController.filename_is_image(filename)) {
+                            workspace.insert_resource_image_markdown(
+                                insertion_mark,
+                                filename,
+                                (!) job.resource_id
+                            );
+                        }
+                        toolbox.show_tool("resources");
+                        toolbox.refresh_resources(job.resource_id);
+                        pending_preview_asset_id = job.asset_id;
+                        refresh_current_card_attachments();
+                    }
                     return;
                 }
                 if (job.status == "failed") {
                     throw new ApiError.PROTOCOL(job.error ?? "Asset import failed");
                 }
-                set_status("Importing %s · %s".printf(file.get_basename() ?? "asset", job.status));
+                if (job.status != last_status) {
+                    last_status = job.status;
+                    set_status("Importing %s · %s".printf(file.get_basename() ?? "asset", job.status));
+                }
                 yield wait_for_import_poll();
             }
             throw new ApiError.TRANSPORT("Asset import timed out");
         } catch (Error e) {
             show_error("Failed to import Asset", e.message);
+        } finally {
+            workspace.discard_file_drop_mark(insertion_mark);
         }
     }
 
@@ -999,9 +1317,9 @@ public class MainWindow : Adw.ApplicationWindow {
             settings.get_boolean(AppSettings.KEY_USE_CUSTOM_EDITOR_FONT),
             settings.get_string(AppSettings.KEY_CUSTOM_EDITOR_FONT)
         );
-        if (spelling_adapter != null) {
-            spelling_adapter.set_enabled(settings.get_boolean(AppSettings.KEY_SHOW_SPELL_CHECKING));
-        }
+        workspace.set_spell_check_enabled(
+            settings.get_boolean(AppSettings.KEY_SHOW_SPELL_CHECKING)
+        );
 
         var scheme_id = settings.get_string(AppSettings.KEY_STYLE_SCHEME_ID);
         if (scheme_id == null || scheme_id.length == 0) {
@@ -1063,7 +1381,7 @@ public class MainWindow : Adw.ApplicationWindow {
         window_actions_adapter.show_preferences(
             editor_buffer,
             editor_view,
-            spelling_adapter,
+            workspace.editor_spellcheck,
             settings,
             editor_font_style
         );

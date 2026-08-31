@@ -33,6 +33,16 @@ private void test_initial_toolbox_position_clamps_to_paned_bounds() {
     assert(HolderLinux.WorkspaceLayout.initial_toolbox_position(800, 450, 200) == 450);
 }
 
+private void test_asset_preview_width_and_position() {
+    assert(HolderLinux.WorkspaceLayout.clamp_asset_preview_width(100) == 300);
+    assert(HolderLinux.WorkspaceLayout.clamp_asset_preview_width(500) == 500);
+    assert(HolderLinux.WorkspaceLayout.clamp_asset_preview_width(1200) == 900);
+    assert(HolderLinux.WorkspaceLayout.default_asset_preview_width(1200) == 408);
+    assert(HolderLinux.WorkspaceLayout.initial_asset_preview_position(
+        1200, 500, true, 0, 1200
+    ) == 700);
+}
+
 public int main(string[] args) {
     Test.init(ref args);
 
@@ -43,6 +53,7 @@ public int main(string[] args) {
     Test.add_func("/holder/workspace-layout/initial-ai-panel-position-clamps", test_initial_ai_panel_position_clamps_to_paned_bounds);
     Test.add_func("/holder/workspace-layout/initial-toolbox-position-default", test_initial_toolbox_position_uses_default_fraction);
     Test.add_func("/holder/workspace-layout/initial-toolbox-position-clamps", test_initial_toolbox_position_clamps_to_paned_bounds);
+    Test.add_func("/holder/workspace-layout/asset-preview-width", test_asset_preview_width_and_position);
 
     return Test.run();
 }

@@ -106,6 +106,15 @@ private void select_resource_index(HolderLinux.ResourcesToolView view, uint inde
     ((!) selection).set_selected(index);
 }
 
+private string? selected_resource_id(HolderLinux.ResourcesToolView view) {
+    var column_view = find_column_view(view.widget);
+    assert(column_view != null);
+    var selection = ((!) column_view).get_model() as Gtk.SingleSelection;
+    assert(selection != null);
+    var selected = ((!) selection).get_selected_item() as HolderLinux.ProjectResource;
+    return selected != null ? selected.resource_id : null;
+}
+
 private void set_resources_filter_text(HolderLinux.ResourcesToolView view, string text) {
     var actions = view.get_actions_widget();
     assert(actions != null);
@@ -149,6 +158,24 @@ private void test_refresh_with_resources_updates_list_and_selection_actions() {
     assert(wait_for_condition(() => resources_action_button(view, "Open").get_sensitive()));
     assert(resources_action_button(view, "Edit").get_sensitive());
     assert(resources_action_button(view, "Delete").get_sensitive());
+}
+
+private void test_requested_refresh_selects_affected_resource() {
+    var api = new MainControllerFakeApi();
+    api.resources.add(resource("r1", "url", "https://example.test", "Example"));
+    api.resources.add(resource("r2", "repo", "git@example.test:holder.git", "Holder repo"));
+
+    var view = new HolderLinux.ResourcesToolView();
+    view.set_api_client(api);
+    view.set_project_selection(project_selection_with_one());
+    assert(wait_for_condition(() => resources_item_count(view) == 2));
+    assert(selected_resource_id(view) == "r1");
+
+    var previous_calls = api.list_resources_calls;
+    view.request_refresh("r2");
+
+    assert(wait_for_condition(() => api.list_resources_calls > previous_calls &&
+                                    selected_resource_id(view) == "r2"));
 }
 
 private void test_filter_updates_visible_resources_and_empty_message() {
@@ -313,6 +340,8 @@ public static int main(string[] args) {
 
     Test.add_func("/holder/resources-view/no-project", test_refresh_without_project_shows_select_message);
     Test.add_func("/holder/resources-view/refresh-with-resources", test_refresh_with_resources_updates_list_and_selection_actions);
+    Test.add_func("/holder/resources-view/requested-refresh-selects-resource",
+                  test_requested_refresh_selects_affected_resource);
     Test.add_func("/holder/resources-view/filter", test_filter_updates_visible_resources_and_empty_message);
     Test.add_func("/holder/resources-view/refresh-failure", test_refresh_failure_reports_error_and_empty_state);
     Test.add_func("/holder/resources-view/refresh-failure-preserves-list",

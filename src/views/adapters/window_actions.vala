@@ -9,13 +9,13 @@ internal class WindowActionsAdapter : Object {
 
     public void show_preferences(GtkSource.Buffer editor_buffer,
                                  GtkSource.View editor_view,
-                                 Spelling.TextBufferAdapter? spelling_adapter,
+                                 EditorSpellcheckController? editor_spellcheck,
                                  Settings? settings,
                                  EditorFontStyle editor_font_style) {
         var dialog = new PreferencesDialog(
             editor_buffer,
             editor_view,
-            spelling_adapter,
+            editor_spellcheck,
             settings,
             editor_font_style
         );

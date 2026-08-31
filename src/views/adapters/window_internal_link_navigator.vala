@@ -4,6 +4,7 @@ internal class WindowInternalLinkNavigator : Object {
     private InternalLinkController internal_link_controller;
     private TagNavigationController tag_navigation_controller;
     private MarkdownLinkController markdown_link_controller;
+    private MarkdownResourceImageController resource_image_controller;
     private IUriLauncher uri_launcher;
     private GtkSource.Buffer editor_buffer;
     private GtkSource.View editor_view;
@@ -14,6 +15,8 @@ internal class WindowInternalLinkNavigator : Object {
     private ToolboxPane toolbox;
     private WorkspacePane workspace;
     private Adw.ToastOverlay toast_overlay;
+
+    public signal void resource_preview_requested(string resource_id);
 
     public WindowInternalLinkNavigator(InternalLinkController internal_link_controller,
                                        TagNavigationController tag_navigation_controller,
@@ -27,10 +30,13 @@ internal class WindowInternalLinkNavigator : Object {
                                        WorkspacePane workspace,
                                        Adw.ToastOverlay toast_overlay,
                                        MarkdownLinkController? markdown_link_controller = null,
+                                       MarkdownResourceImageController? resource_image_controller = null,
                                        IUriLauncher? uri_launcher = null) {
         this.internal_link_controller = internal_link_controller;
         this.tag_navigation_controller = tag_navigation_controller;
         this.markdown_link_controller = markdown_link_controller ?? new MarkdownLinkController();
+        this.resource_image_controller = resource_image_controller ??
+            new MarkdownResourceImageController();
         this.uri_launcher = uri_launcher ?? new AppInfoUriLauncher();
         this.editor_buffer = editor_buffer;
         this.editor_view = editor_view;
@@ -135,6 +141,9 @@ internal class WindowInternalLinkNavigator : Object {
             project_cards_for_selected_project()
         );
         if (!decision.handled) {
+            if (navigate_resource_image_at_iter(iter)) {
+                return true;
+            }
             if (navigate_tag_at_iter(iter)) {
                 return true;
             }
@@ -161,6 +170,23 @@ internal class WindowInternalLinkNavigator : Object {
             (!) decision.open_card_id,
             "tool-card-open"
         );
+        return true;
+    }
+
+    private bool navigate_resource_image_at_iter(Gtk.TextIter iter) {
+        Gtk.TextIter document_start;
+        Gtk.TextIter document_end;
+        editor_buffer.get_bounds(out document_start, out document_end);
+        var editor_text = editor_buffer.get_text(document_start, document_end, false);
+        var before_cursor = editor_buffer.get_text(document_start, iter, false);
+        var resource_id = resource_image_controller.resource_id_at_byte_offset(
+            editor_text,
+            before_cursor.length
+        );
+        if (resource_id == null) {
+            return false;
+        }
+        resource_preview_requested((!) resource_id);
         return true;
     }
 

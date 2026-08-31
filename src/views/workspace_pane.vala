@@ -16,6 +16,7 @@ public class WorkspacePane : Object {
     private Gtk.ToggleButton search_toggle_btn;
     private Gtk.ToggleButton editor_toggle_btn;
     private Gtk.ToggleButton toolbox_toggle_btn;
+    private Gtk.ToggleButton asset_preview_toggle_btn;
     private Gtk.Label save_state_label;
     private Gtk.Revealer message_revealer;
     private Gtk.Label message_label;
@@ -26,16 +27,21 @@ public class WorkspacePane : Object {
     private Gtk.Entry find_entry;
     private Gtk.Entry replace_entry;
     private Gtk.Paned content_paned;
+    private Gtk.Paned asset_split;
     private Gtk.TextTag validated_tag_style;
     private TagHighlightingController tag_highlighting_controller;
     private int last_ai_panel_width = -1;
     private bool ai_panel_width_user_set = false;
     private bool suppress_ai_position_persist = false;
     private bool ai_panel_visible = false;
+    private int last_asset_preview_width = -1;
+    private bool asset_preview_width_user_set = false;
+    private bool suppress_asset_position_persist = false;
+    private bool asset_preview_visible = false;
     public Gtk.Widget widget { get; private set; }
     public GtkSource.Buffer editor_buffer { get; private set; }
     public GtkSource.View editor_view { get; private set; }
-    public Spelling.TextBufferAdapter? spelling_adapter { get; private set; }
+    public EditorSpellcheckController editor_spellcheck { get; private set; }
     public Gtk.SearchEntry search_entry { get; private set; }
     public Gtk.Stack content_stack { get; private set; }
     public Gtk.Label search_summary_label { get; private set; }
@@ -43,6 +49,8 @@ public class WorkspacePane : Object {
     public Gtk.ListView search_list { get; private set; }
     public Gtk.Paned ai_split { get; private set; }
     public AiPanel ai_panel { get; private set; }
+    public AssetPreviewPane asset_preview { get; private set; }
+    public InlineResourceImageRenderer inline_resource_images { get; private set; }
     public ToolboxPane toolbox { get; private set; }
 
     public signal void refresh_requested();
@@ -50,6 +58,7 @@ public class WorkspacePane : Object {
     public signal void new_card_requested();
     public signal void explorer_panel_toggled(bool visible);
     public signal void ai_panel_toggled(bool visible);
+    public signal void asset_preview_toggled(bool visible);
     public signal void toolbox_toggled(bool visible);
     public signal void open_debug_panel_requested();
     public signal void search_activated();
@@ -60,7 +69,7 @@ public class WorkspacePane : Object {
     public signal void find_next_requested();
     public signal void replace_requested();
     public signal void replace_all_requested();
-    public signal void file_dropped(File file);
+    public signal void file_dropped(File file, Gtk.TextMark insertion_mark);
 
     public WorkspacePane(GLib.ListModel search_model) {
         widget = build_ui(search_model);
@@ -98,10 +107,36 @@ public class WorkspacePane : Object {
         editor_buffer.get_bounds(out start, out end);
         var current_text = editor_buffer.get_text(start, end, false);
         if (current_text != text) {
-            editor_buffer.set_text(text, -1);
+            inline_resource_images.replace_buffer_text(text);
         }
         if (editor_view.get_editable() != editable) {
             editor_view.set_editable(editable);
+        }
+    }
+
+    public void insert_resource_image_markdown(Gtk.TextMark insertion_mark,
+                                               string filename,
+                                               string resource_id) {
+        if (insertion_mark.get_deleted()) {
+            return;
+        }
+        Gtk.TextIter iter;
+        editor_buffer.get_iter_at_mark(out iter, insertion_mark);
+        var markdown = MarkdownResourceImageController.markdown_for_file(filename, resource_id);
+        var insertion = MarkdownResourceImageController.block_insertion(
+            markdown,
+            iter.starts_line(),
+            iter.ends_line()
+        );
+        editor_buffer.begin_user_action();
+        editor_buffer.insert(ref iter, insertion, -1);
+        editor_buffer.delete_mark(insertion_mark);
+        editor_buffer.end_user_action();
+    }
+
+    public void discard_file_drop_mark(Gtk.TextMark insertion_mark) {
+        if (!insertion_mark.get_deleted()) {
+            editor_buffer.delete_mark(insertion_mark);
         }
     }
 
@@ -171,9 +206,7 @@ public class WorkspacePane : Object {
     }
 
     public void set_spell_check_enabled(bool enabled) {
-        if (spelling_adapter != null) {
-            spelling_adapter.set_enabled(enabled);
-        }
+        editor_spellcheck.set_enabled_preference(enabled);
     }
 
     public void set_toolbox_visible(bool visible) {
@@ -223,6 +256,34 @@ public class WorkspacePane : Object {
         return WorkspaceLayout.clamp_ai_panel_width(last_ai_panel_width);
     }
 
+    public void set_asset_preview_visible(bool visible) {
+        asset_preview_visible = visible;
+        asset_preview.widget.set_visible(visible);
+        if (asset_preview_toggle_btn.get_active() != visible) {
+            asset_preview_toggle_btn.set_active(visible);
+        }
+        if (visible) apply_initial_asset_preview_position(true);
+    }
+
+    public bool is_asset_preview_visible() {
+        return asset_preview_visible;
+    }
+
+    public void set_asset_preview_width(int width) {
+        if (width > 0) {
+            last_asset_preview_width = WorkspaceLayout.clamp_asset_preview_width(width);
+            asset_preview_width_user_set = true;
+        } else {
+            last_asset_preview_width = -1;
+            asset_preview_width_user_set = false;
+        }
+    }
+
+    public int get_asset_preview_width_for_persist() {
+        if (!asset_preview_width_user_set || last_asset_preview_width <= 0) return 0;
+        return WorkspaceLayout.clamp_asset_preview_width(last_asset_preview_width);
+    }
+
     private void apply_initial_toolbox_position(bool allow_defer) {
         var paned_height = content_paned.get_height();
         if (paned_height <= 0) {
@@ -265,6 +326,31 @@ public class WorkspacePane : Object {
         ai_split.set_position(target_start);
         Idle.add(() => {
             suppress_ai_position_persist = false;
+            return Source.REMOVE;
+        });
+    }
+
+    private void apply_initial_asset_preview_position(bool allow_defer) {
+        var split_width = asset_split.get_width();
+        if (split_width <= 0) {
+            if (allow_defer) {
+                Idle.add(() => {
+                    apply_initial_asset_preview_position(false);
+                    return Source.REMOVE;
+                });
+            }
+            return;
+        }
+        suppress_asset_position_persist = true;
+        asset_split.set_position(WorkspaceLayout.initial_asset_preview_position(
+            split_width,
+            last_asset_preview_width,
+            asset_preview_width_user_set,
+            asset_split.min_position,
+            asset_split.max_position
+        ));
+        Idle.add(() => {
+            suppress_asset_position_persist = false;
             return Source.REMOVE;
         });
     }
@@ -373,6 +459,13 @@ public class WorkspacePane : Object {
             ai_panel_toggled(ai_toggle_btn.get_active());
         });
 
+        asset_preview_toggle_btn = new Gtk.ToggleButton();
+        asset_preview_toggle_btn.set_icon_name("image-x-generic-symbolic");
+        asset_preview_toggle_btn.set_tooltip_text("Toggle Asset Preview");
+        asset_preview_toggle_btn.toggled.connect(() => {
+            asset_preview_toggled(asset_preview_toggle_btn.get_active());
+        });
+
         toolbox_toggle_btn = new Gtk.ToggleButton();
         toolbox_toggle_btn.set_icon_name("applications-science-symbolic");
         toolbox_toggle_btn.set_tooltip_text("Toggle project toolbox panel");
@@ -403,6 +496,7 @@ public class WorkspacePane : Object {
         header.pack_end(main_menu_btn);
         header.pack_end(toolbox_toggle_btn);
         header.pack_end(ai_toggle_btn);
+        header.pack_end(asset_preview_toggle_btn);
         header.pack_end(editor_toggle_btn);
         header.pack_end(find_replace_btn);
         header.pack_end(search_toggle_btn);
@@ -490,7 +584,6 @@ public class WorkspacePane : Object {
         editor_buffer = new GtkSource.Buffer(null);
         editor_buffer.set_highlight_syntax(true);
         editor_buffer.set_highlight_matching_brackets(true);
-        Spelling.init();
 
         var lm = GtkSource.LanguageManager.get_default();
         var markdown = lm.get_language("holder-markdown");
@@ -518,6 +611,14 @@ public class WorkspacePane : Object {
         editor_view.set_show_line_numbers(true);
         editor_view.set_vexpand(true);
         editor_view.set_hexpand(true);
+        inline_resource_images = new InlineResourceImageRenderer(editor_buffer, editor_view);
+        editor_spellcheck = new EditorSpellcheckController(editor_buffer, editor_view);
+        inline_resource_images.buffer_mutation_started.connect(() => {
+            editor_spellcheck.prepare_buffer_mutation();
+        });
+        inline_resource_images.buffer_mutation_finished.connect((has_inline_images) => {
+            editor_spellcheck.finish_buffer_mutation(has_inline_images);
+        });
 
         var file_drop = new Gtk.DropTarget(typeof(Gdk.FileList), Gdk.DragAction.COPY);
         file_drop.drop.connect((value, x, y) => {
@@ -525,9 +626,23 @@ public class WorkspacePane : Object {
             if (dropped == null) {
                 return false;
             }
+            int buffer_x;
+            int buffer_y;
+            editor_view.window_to_buffer_coords(
+                Gtk.TextWindowType.WIDGET,
+                (int) x,
+                (int) y,
+                out buffer_x,
+                out buffer_y
+            );
+            Gtk.TextIter drop_iter;
+            if (!editor_view.get_iter_at_location(out drop_iter, buffer_x, buffer_y)) {
+                editor_buffer.get_iter_at_mark(out drop_iter, editor_buffer.get_insert());
+            }
             bool accepted = false;
             foreach (var file in dropped.get_files()) {
-                file_dropped(file);
+                var insertion_mark = editor_buffer.create_mark(null, drop_iter, false);
+                file_dropped(file, insertion_mark);
                 accepted = true;
             }
             return accepted;
@@ -546,14 +661,6 @@ public class WorkspacePane : Object {
             maybe_move_cursor_for_context_menu(context_click, n_press, x, y);
         });
         editor_view.add_controller(context_click);
-
-        var checker = Spelling.Checker.get_default();
-        if (checker != null) {
-            spelling_adapter = new Spelling.TextBufferAdapter(editor_buffer, checker);
-            spelling_adapter.set_enabled(true);
-            editor_view.insert_action_group("spelling", spelling_adapter);
-            editor_view.set_extra_menu(spelling_adapter.get_menu_model());
-        }
 
         var editor_scroll = new Gtk.ScrolledWindow();
         editor_scroll.set_child(editor_view);
@@ -582,9 +689,34 @@ public class WorkspacePane : Object {
         content_paned.set_hexpand(true);
         toolbox.widget.set_visible(false);
 
+        asset_preview = new AssetPreviewPane();
+        asset_preview.close_requested.connect(() => {
+            asset_preview_toggle_btn.set_active(false);
+        });
+        asset_split = new Gtk.Paned(Gtk.Orientation.HORIZONTAL);
+        asset_split.set_start_child(content_paned);
+        asset_split.set_end_child(asset_preview.widget);
+        asset_split.set_resize_start_child(true);
+        asset_split.set_resize_end_child(false);
+        asset_split.set_shrink_start_child(false);
+        asset_split.set_shrink_end_child(true);
+        asset_split.set_wide_handle(true);
+        asset_preview.widget.set_visible(false);
+        asset_split.set_vexpand(true);
+        asset_split.set_hexpand(true);
+        asset_split.notify["position"].connect(() => {
+            if (suppress_asset_position_persist || !asset_preview.widget.get_visible()) return;
+            var split_width = asset_split.get_width();
+            if (split_width <= 0) return;
+            var panel_width = split_width - asset_split.get_position();
+            if (panel_width <= 0) return;
+            last_asset_preview_width = WorkspaceLayout.clamp_asset_preview_width(panel_width);
+            asset_preview_width_user_set = true;
+        });
+
         ai_panel = new AiPanel();
         ai_split = new Gtk.Paned(Gtk.Orientation.HORIZONTAL);
-        ai_split.set_start_child(content_paned);
+        ai_split.set_start_child(asset_split);
         ai_split.set_end_child(ai_panel.widget);
         ai_split.set_resize_start_child(true);
         ai_split.set_resize_end_child(false);

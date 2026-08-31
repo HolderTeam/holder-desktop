@@ -18,6 +18,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
     private Gee.ArrayList<ProjectResource> all_resources = new Gee.ArrayList<ProjectResource>();
     private uint resources_refresh_serial = 0;
     private bool has_committed_resources = false;
+    private string? pending_resource_selection_id;
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id {
@@ -29,6 +30,9 @@ public class ResourcesToolView : Object, IToolShellAdapter {
 
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
+    public signal void asset_preview_requested(ProjectResource resource, ResourceAsset asset);
+    public signal void project_resources_loaded(string project_id,
+                                                Gee.ArrayList<ProjectResource> resources);
     public signal void activity_requested(string kind,
                                           string message,
                                           string? project_id,
@@ -129,13 +133,6 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         });
         resources_actions_bar.append(add_btn);
 
-        var refresh_btn = new Gtk.Button.from_icon_name("view-refresh-symbolic");
-        refresh_btn.set_tooltip_text("Refresh resources");
-        refresh_btn.clicked.connect(() => {
-            queue_resources_refresh();
-        });
-        resources_actions_bar.append(refresh_btn);
-
         resources_store = new GLib.ListStore(typeof(ProjectResource));
         resources_selection = new Gtk.SingleSelection(resources_store);
         resources_selection.set_autoselect(true);
@@ -145,6 +142,11 @@ public class ResourcesToolView : Object, IToolShellAdapter {
 
         var view = new Gtk.ColumnView(resources_selection);
         view.set_vexpand(true);
+        view.set_single_click_activate(false);
+        view.activate.connect((position) => {
+            resources_selection.set_selected(position);
+            open_selected_resource();
+        });
         view.append_column(build_resource_text_column("Label", "label"));
         view.append_column(build_resource_text_column("Type", "kind"));
         view.append_column(build_resource_text_column("Assets", "assets"));
@@ -155,6 +157,11 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         scroller.set_vexpand(true);
         scroller.set_child(view);
         root.append(scroller);
+
+        var scope_label = new Gtk.Label("All project Resources") { xalign = 0.0f };
+        scope_label.add_css_class("dim-label");
+        scope_label.set_margin_start(4);
+        root.prepend(scope_label);
 
         resources_empty_label = new Gtk.Label("No resources in this project.") { xalign = 0.0f };
         resources_empty_label.set_name("resources-empty-state");
@@ -379,6 +386,9 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             all_resources = result.resources;
             apply_resources_filter();
             has_committed_resources = true;
+            if (project != null) {
+                project_resources_loaded(project.project_id, result.resources);
+            }
             return;
         }
 
@@ -402,12 +412,25 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         if (resources_store == null) {
             return;
         }
+        var previous = selected_resource();
+        var previous_id = pending_resource_selection_id ??
+            (previous != null ? previous.resource_id : null);
         clear_visible_resources();
 
         var query = resources_search_entry != null ? resources_search_entry.get_text() : "";
         var result = controller.apply_resources_filter_flow(all_resources, query);
+        uint index = 0;
+        uint selected_index = Gtk.INVALID_LIST_POSITION;
         foreach (var resource in result.filtered) {
             resources_store.append(resource);
+            if (previous_id != null && resource.resource_id == previous_id) {
+                selected_index = index;
+            }
+            index++;
+        }
+        if (selected_index != Gtk.INVALID_LIST_POSITION) {
+            resources_selection.set_selected(selected_index);
+            pending_resource_selection_id = null;
         }
 
         resources_empty_label.set_visible(result.empty);
@@ -467,6 +490,9 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         dialog.set_close_response("cancel");
 
         var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
+        var project_notice = new Gtk.Label("Project: %s".printf(project.name)) { xalign = 0.0f };
+        project_notice.add_css_class("heading");
+        content.append(project_notice);
         var name = new Gtk.Entry();
         name.set_placeholder_text(s3_compatible ? "Family Assets" : "Assets on this computer");
         content.append(new Gtk.Label("Name") { xalign = 0.0f });
@@ -658,6 +684,9 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         dialog.set_close_response("cancel");
 
         var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
+        var project_notice = new Gtk.Label("Project: %s".printf(project.name)) { xalign = 0.0f };
+        project_notice.add_css_class("heading");
+        content.append(project_notice);
         var kind_label = new Gtk.Label("Kind") { xalign = 0.0f };
         var kind_options = new Gtk.StringList(null);
         foreach (var kind in controller.default_resource_kinds()) {
@@ -856,7 +885,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             return;
         }
         if (selected.assets.size > 0) {
-            save_and_open_asset.begin(selected, selected.assets[0]);
+            asset_preview_requested(selected, selected.assets[0]);
             return;
         }
         if (selected.uri.strip().length == 0) {
@@ -870,21 +899,11 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         }
     }
 
-    private async void save_and_open_asset(ProjectResource resource, ResourceAsset asset) {
-        var storage_api = api as IResourceStorageApi;
-        var root_window = widget.get_root() as Gtk.Window;
-        if (storage_api == null || root_window == null) return;
-        var dialog = new Gtk.FileDialog();
-        dialog.set_title("Save and Open Asset");
-        dialog.set_initial_name(asset.original_filename);
-        try {
-            var destination = yield dialog.save(root_window, null);
-            if (destination == null || destination.get_path() == null) return;
-            yield storage_api.download_asset(resource.resource_id, asset.asset_id, (!) destination.get_path());
-            AppInfo.launch_default_for_uri(destination.get_uri(), null);
-        } catch (Error e) {
-            if (!(e is IOError.CANCELLED)) error_reported("Failed to open Asset", e.message);
+    public void request_refresh(string? select_resource_id = null) {
+        if (select_resource_id != null) {
+            pending_resource_selection_id = select_resource_id;
         }
+        queue_resources_refresh();
     }
 
     private void confirm_delete_selected_resource() {
