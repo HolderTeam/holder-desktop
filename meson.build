@@ -555,11 +555,13 @@ git_sync_presenter_test_exe = executable(
   [
     'src/models/activity_details.vala',
     'src/models/git.vala',
+    'src/models/project.vala',
     'src/controllers/git_sync_presenter.vala',
     'tests/git_sync_presenter_test.vala',
   ],
   dependencies: [
     dependency('gio-2.0'),
+    dependency('gee-0.8'),
   ],
   vala_args: [
     '--target-glib=2.70',

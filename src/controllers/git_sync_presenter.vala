@@ -25,6 +25,31 @@ internal class GitCliControlsPresentation : Object {
     }
 }
 
+internal class GitConfiguredStatePresentation : Object {
+    public string repository_text { get; construct; }
+    public string remote_url { get; construct; }
+    public string status_text { get; construct; }
+    public string detail_text { get; construct; }
+    public string web_url { get; construct; }
+    public string status_class { get; construct; }
+
+    public GitConfiguredStatePresentation(string repository_text,
+                                           string remote_url,
+                                           string status_text,
+                                           string detail_text,
+                                           string web_url,
+                                           string status_class) {
+        Object(
+            repository_text: repository_text,
+            remote_url: remote_url,
+            status_text: status_text,
+            detail_text: detail_text,
+            web_url: web_url,
+            status_class: status_class
+        );
+    }
+}
+
 internal class GitProviderRemotePreview : Object {
     public string remote_url { get; construct; }
     public string template_label { get; construct; }
@@ -117,6 +142,122 @@ internal class GitSyncPresenter : Object {
             cli_available,
             can_use_cli
         );
+    }
+
+    public static GitConfiguredStatePresentation configured_state(Project project, int64 now) {
+        var remote_url = project.git_remote_url != null ? project.git_remote_url.strip() : "";
+        var repository_text = repository_name_from_remote(remote_url);
+        var status_text = "Ready to sync";
+        var status_class = "accent";
+        var sync = project.sync;
+        var last_error = sync.last_sync_error.strip();
+        var push_status = sync.last_push_status.strip().down();
+        var pull_status = sync.last_pull_status.strip().down();
+
+        if (last_error.length > 0 || is_failed_status(push_status) || is_failed_status(pull_status)) {
+            status_text = "Needs attention";
+            status_class = "error";
+        } else if (sync.uncommitted_changes_count > 0 || sync.unpushed_commits_count > 0) {
+            status_text = "Changes waiting";
+            status_class = "warning";
+        } else if (sync.has_last_push_at || sync.has_last_pull_at ||
+                   push_status == "pushed" || push_status == "up_to_date") {
+            status_text = "Up to date";
+            status_class = "success";
+        }
+
+        var details = new StringBuilder();
+        var latest_push = sync.has_last_push_at ? sync.last_push_at : 0;
+        var latest_pull = sync.has_last_pull_at ? sync.last_pull_at : 0;
+        var latest_success = latest_push > latest_pull ? latest_push : latest_pull;
+        if (latest_success > 0) {
+            details.append("Last successful sync %s".printf(format_relative_time(now, latest_success)));
+        } else {
+            details.append("No successful sync recorded yet");
+        }
+        if (sync.uncommitted_changes_count > 0) {
+            details.append(" · %d uncommitted change%s".printf(
+                sync.uncommitted_changes_count,
+                sync.uncommitted_changes_count == 1 ? "" : "s"
+            ));
+        }
+        if (sync.unpushed_commits_count > 0) {
+            details.append(" · %d commit%s waiting to push".printf(
+                sync.unpushed_commits_count,
+                sync.unpushed_commits_count == 1 ? "" : "s"
+            ));
+        }
+        if (last_error.length > 0) {
+            details.append("\n%s".printf(last_error));
+        }
+
+        return new GitConfiguredStatePresentation(
+            repository_text,
+            remote_url,
+            status_text,
+            details.str,
+            web_url_from_remote(remote_url),
+            status_class
+        );
+    }
+
+    public static string web_url_from_remote(string remote_url) {
+        var remote = remote_url.strip();
+        if (remote.has_prefix("http://") || remote.has_prefix("https://")) {
+            return strip_git_suffix(remote);
+        }
+        if (remote.has_prefix("git@")) {
+            var separator = remote.index_of(":");
+            if (separator > 4 && separator + 1 < remote.length) {
+                var host = remote.substring(4, separator - 4);
+                var path = remote.substring(separator + 1);
+                return "https://%s/%s".printf(host, strip_git_suffix(path));
+            }
+        }
+        if (remote.has_prefix("ssh://")) {
+            var remainder = remote.substring("ssh://".length);
+            var slash = remainder.index_of("/");
+            if (slash > 0 && slash + 1 < remainder.length) {
+                var authority = remainder.substring(0, slash);
+                var at = authority.last_index_of("@");
+                var host = at >= 0 ? authority.substring(at + 1) : authority;
+                var path = remainder.substring(slash + 1);
+                return "https://%s/%s".printf(host, strip_git_suffix(path));
+            }
+        }
+        return "";
+    }
+
+    private static string repository_name_from_remote(string remote_url) {
+        var web_url = web_url_from_remote(remote_url);
+        if (web_url.length == 0) {
+            return remote_url;
+        }
+        var scheme = web_url.index_of("://");
+        return scheme >= 0 ? web_url.substring(scheme + 3) : web_url;
+    }
+
+    private static string strip_git_suffix(string value) {
+        return value.has_suffix(".git") ? value.substring(0, value.length - 4) : value;
+    }
+
+    private static bool is_failed_status(string status) {
+        return status.contains("fail") || status.contains("error") ||
+               status.contains("denied") || status.contains("conflict");
+    }
+
+    private static string format_relative_time(int64 now, int64 timestamp) {
+        var delta = now - timestamp;
+        if (delta < 60) {
+            return "just now";
+        }
+        if (delta < 3600) {
+            return "%lldm ago".printf(delta / 60);
+        }
+        if (delta < 86400) {
+            return "%lldh ago".printf(delta / 3600);
+        }
+        return "%lldd ago".printf(delta / 86400);
     }
 
     public static GitProviderRemotePreview provider_remote_preview(GitProviderCatalogEntry? provider,

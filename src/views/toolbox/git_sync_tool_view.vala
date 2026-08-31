@@ -33,6 +33,23 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     private Gtk.Label git_provider_template_label;
     private Gtk.Button git_provider_apply_btn;
     private Gtk.Stack git_sync_stack;
+    private Gtk.Stack git_start_state_stack;
+    private Gtk.Button git_setup_cancel_btn;
+    private Gtk.Label git_configured_project_label;
+    private Gtk.Label git_configured_repository_label;
+    private Gtk.Label git_configured_remote_label;
+    private Gtk.Label git_configured_status_label;
+    private Gtk.Label git_configured_detail_label;
+    private Gtk.Button git_configured_sync_btn;
+    private Gtk.Button git_configured_open_btn;
+    private Gtk.Button git_configured_copy_btn;
+    private Gtk.Button git_configured_change_btn;
+    private Gtk.Button git_configured_disconnect_btn;
+    private Project? git_configured_project;
+    private string git_configured_web_url = "";
+    private string git_locally_disconnected_project_id = "";
+    private bool git_editing_remote = false;
+    private uint git_state_refresh_generation = 0;
     private Gtk.Label git_gh_cli_status_label;
     private Gtk.Button git_gh_cli_auto_btn;
     private Gtk.Button git_gh_cli_guided_btn;
@@ -132,6 +149,8 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         if (git_sync_stack != null) {
             git_sync_stack.set_visible_child_name("start");
         }
+        git_editing_remote = false;
+        refresh_git_configured_state.begin();
         return true;
     }
 
@@ -139,6 +158,8 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         if (git_sync_stack != null) {
             git_sync_stack.set_visible_child_name("start");
         }
+        git_editing_remote = false;
+        refresh_git_configured_state.begin();
         return true;
     }
 
@@ -146,11 +167,14 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         if (git_sync_stack != null) {
             git_sync_stack.set_visible_child_name("start");
         }
+        git_editing_remote = false;
+        refresh_git_configured_state.begin();
         return true;
     }
 
     public void set_api_client(IHolderApi? api) {
         this.api = api;
+        refresh_git_configured_state.begin();
     }
 
     public void set_settings(Settings? settings) {
@@ -163,12 +187,15 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         this.project_selection = project_selection;
         if (this.project_selection != null) {
             this.project_selection.notify["selected"].connect(() => {
+                git_editing_remote = false;
                 refresh_guided_repo_name_default();
                 refresh_provider_setup_defaults();
+                refresh_git_configured_state.begin();
             });
         }
         refresh_guided_repo_name_default();
         refresh_provider_setup_defaults();
+        refresh_git_configured_state.begin();
     }
 
     private Gtk.Widget build_git_sync_tab() {
@@ -196,6 +223,16 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     }
 
     private Gtk.Widget build_git_sync_start_page() {
+        git_start_state_stack = new Gtk.Stack();
+        git_start_state_stack.set_name("git-start-state-stack");
+        git_start_state_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE);
+        git_start_state_stack.add_named(build_git_sync_setup_page(), "setup");
+        git_start_state_stack.add_named(build_git_sync_configured_page(), "configured");
+        git_start_state_stack.set_visible_child_name("setup");
+        return git_start_state_stack;
+    }
+
+    private Gtk.Widget build_git_sync_setup_page() {
         var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
 
         var intro = new Gtk.Label(
@@ -288,6 +325,15 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         git_manual_status_label.add_css_class("dim-label");
         box.append(git_manual_status_label);
 
+        git_setup_cancel_btn = new Gtk.Button.with_label("Cancel changes");
+        git_setup_cancel_btn.set_halign(Gtk.Align.START);
+        git_setup_cancel_btn.set_visible(false);
+        git_setup_cancel_btn.clicked.connect(() => {
+            git_editing_remote = false;
+            render_git_project_state(git_configured_project);
+        });
+        box.append(git_setup_cancel_btn);
+
         if (auto_check_github_cli) {
             check_github_cli_state.begin();
         }
@@ -295,13 +341,331 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         return box;
     }
 
-    private async void run_manual_remote_setup() {
-        var selected_project = project_selection != null
+    private Gtk.Widget build_git_sync_configured_page() {
+        var page = new Gtk.Box(Gtk.Orientation.VERTICAL, 12);
+
+        var card = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
+        card.add_css_class("card");
+        card.set_margin_top(4);
+        card.set_margin_bottom(4);
+        card.set_margin_start(4);
+        card.set_margin_end(4);
+
+        var title = new Gtk.Label("Git sync configured") { xalign = 0.0f };
+        title.add_css_class("title-4");
+        title.set_margin_top(12);
+        title.set_margin_start(12);
+        title.set_margin_end(12);
+        card.append(title);
+
+        git_configured_project_label = new Gtk.Label("") { xalign = 0.0f };
+        git_configured_project_label.set_name("git-configured-project");
+        git_configured_project_label.add_css_class("dim-label");
+        git_configured_project_label.set_margin_start(12);
+        git_configured_project_label.set_margin_end(12);
+        card.append(git_configured_project_label);
+
+        git_configured_repository_label = new Gtk.Label("") { xalign = 0.0f };
+        git_configured_repository_label.set_name("git-configured-repository");
+        git_configured_repository_label.add_css_class("heading");
+        git_configured_repository_label.set_selectable(true);
+        git_configured_repository_label.set_margin_start(12);
+        git_configured_repository_label.set_margin_end(12);
+        card.append(git_configured_repository_label);
+
+        git_configured_remote_label = new Gtk.Label("") { xalign = 0.0f };
+        git_configured_remote_label.set_name("git-configured-remote");
+        git_configured_remote_label.set_selectable(true);
+        git_configured_remote_label.set_ellipsize(Pango.EllipsizeMode.MIDDLE);
+        git_configured_remote_label.add_css_class("dim-label");
+        git_configured_remote_label.set_margin_start(12);
+        git_configured_remote_label.set_margin_end(12);
+        card.append(git_configured_remote_label);
+
+        var status_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
+        status_row.set_margin_top(4);
+        status_row.set_margin_start(12);
+        status_row.set_margin_end(12);
+        git_configured_status_label = new Gtk.Label("") { xalign = 0.0f };
+        git_configured_status_label.set_name("git-configured-status");
+        git_configured_status_label.add_css_class("heading");
+        status_row.append(git_configured_status_label);
+        card.append(status_row);
+
+        git_configured_detail_label = new Gtk.Label("") { xalign = 0.0f };
+        git_configured_detail_label.set_name("git-configured-detail");
+        git_configured_detail_label.set_wrap(true);
+        git_configured_detail_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        git_configured_detail_label.add_css_class("dim-label");
+        git_configured_detail_label.set_margin_start(12);
+        git_configured_detail_label.set_margin_end(12);
+        card.append(git_configured_detail_label);
+
+        var actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        actions.set_margin_top(6);
+        actions.set_margin_bottom(12);
+        actions.set_margin_start(12);
+        actions.set_margin_end(12);
+
+        git_configured_sync_btn = new Gtk.Button.with_label("Sync now");
+        git_configured_sync_btn.add_css_class("suggested-action");
+        git_configured_sync_btn.clicked.connect(() => sync_configured_project.begin());
+        actions.append(git_configured_sync_btn);
+
+        git_configured_open_btn = new Gtk.Button.with_label("Open repository");
+        git_configured_open_btn.clicked.connect(open_configured_repository);
+        actions.append(git_configured_open_btn);
+
+        git_configured_copy_btn = new Gtk.Button.with_label("Copy URL");
+        git_configured_copy_btn.clicked.connect(copy_configured_remote);
+        actions.append(git_configured_copy_btn);
+
+        git_configured_change_btn = new Gtk.Button.with_label("Change remote");
+        git_configured_change_btn.clicked.connect(begin_change_remote);
+        actions.append(git_configured_change_btn);
+
+        git_configured_disconnect_btn = new Gtk.Button.with_label("Disconnect…");
+        git_configured_disconnect_btn.add_css_class("destructive-action");
+        git_configured_disconnect_btn.clicked.connect(confirm_disconnect_remote);
+        actions.append(git_configured_disconnect_btn);
+        card.append(actions);
+
+        page.append(card);
+        var note = new Gtk.Label(
+            "Holder will keep this project synced in the background. Disconnecting Holder does not delete the remote repository."
+        ) { xalign = 0.0f };
+        note.set_wrap(true);
+        note.set_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        note.add_css_class("dim-label");
+        page.append(note);
+        return page;
+    }
+
+    private Project? selected_project() {
+        return project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
+    }
+
+    private Project project_snapshot_with_remote(Project source, string? remote_url) {
+        return new Project(
+            source.project_id,
+            source.name,
+            source.privacy_mode,
+            source.root_path,
+            source.created_at,
+            source.updated_at,
+            remote_url,
+            source.sync,
+            source.card_count,
+            source.root_card_count
+        );
+    }
+
+    private async void refresh_git_configured_state(Project? optimistic_project = null) {
+        var selected = selected_project();
+        var generation = ++git_state_refresh_generation;
+        if (selected == null) {
+            render_git_project_state(null);
+            return;
+        }
+
+        // Render the selection immediately, then replace it with the backend's current
+        // immutable Project snapshot. This is especially important just after configuring
+        // a remote, because the selection still contains the old git_remote_url.
+        render_git_project_state(optimistic_project ?? selected);
+        if (api == null) {
+            return;
+        }
+
+        try {
+            var projects = yield api.list_projects();
+            if (generation != git_state_refresh_generation) {
+                return;
+            }
+            var current = selected_project();
+            if (current == null || current.project_id != selected.project_id) {
+                return;
+            }
+            foreach (var project in projects) {
+                if (project.project_id == selected.project_id) {
+                    if (git_locally_disconnected_project_id == project.project_id &&
+                        (project.git_remote_url == null || project.git_remote_url.strip().length == 0)) {
+                        git_locally_disconnected_project_id = "";
+                    }
+                    render_git_project_state(project);
+                    return;
+                }
+            }
+        } catch (Error e) {
+            // Keep the last known durable state visible. Other API error surfaces provide
+            // diagnostics; losing the configured card here would recreate the original UX bug.
+        }
+    }
+
+    private void render_git_project_state(Project? project) {
+        if (git_start_state_stack == null) {
+            return;
+        }
+        var remote_url = project != null && project.git_remote_url != null &&
+                         project.project_id != git_locally_disconnected_project_id
+            ? project.git_remote_url.strip()
+            : "";
+        if (git_editing_remote || project == null || remote_url.length == 0) {
+            git_start_state_stack.set_visible_child_name("setup");
+            if (git_setup_cancel_btn != null) {
+                git_setup_cancel_btn.set_visible(git_editing_remote && git_configured_project != null);
+            }
+            return;
+        }
+
+        git_configured_project = project;
+        var presentation = GitSyncPresenter.configured_state(
+            project,
+            new DateTime.now_utc().to_unix()
+        );
+        git_configured_web_url = presentation.web_url;
+        git_configured_project_label.set_text("Project: %s".printf(project.name));
+        git_configured_repository_label.set_text(presentation.repository_text);
+        git_configured_remote_label.set_text(presentation.remote_url);
+        git_configured_status_label.set_text(presentation.status_text);
+        git_configured_status_label.remove_css_class("success");
+        git_configured_status_label.remove_css_class("warning");
+        git_configured_status_label.remove_css_class("error");
+        git_configured_status_label.remove_css_class("accent");
+        git_configured_status_label.add_css_class(presentation.status_class);
+        git_configured_detail_label.set_text(presentation.detail_text);
+        git_configured_open_btn.set_sensitive(git_configured_web_url.length > 0);
+        git_setup_cancel_btn.set_visible(false);
+        git_start_state_stack.set_visible_child_name("configured");
+    }
+
+    private async void sync_configured_project() {
+        var project = git_configured_project;
+        if (project == null || api == null) {
+            toast_requested("Select a configured project first.");
+            return;
+        }
+        git_configured_sync_btn.set_sensitive(false);
+        git_configured_status_label.set_text("Syncing…");
+        try {
+            var result = yield api.push_project_git(project.project_id, "", true);
+            if (result.status == "pushed") {
+                toast_requested("Project synced.");
+            } else if (result.status == "up_to_date") {
+                toast_requested("Project is already up to date.");
+            } else {
+                var details = result.error_message.strip();
+                if (details.length == 0) {
+                    details = "Git sync returned: %s".printf(result.status);
+                }
+                error_reported("Git sync failed", details);
+            }
+            yield refresh_git_configured_state(project);
+        } catch (Error e) {
+            git_configured_status_label.set_text("Needs attention");
+            error_reported("Git sync failed", e.message);
+        }
+        git_configured_sync_btn.set_sensitive(true);
+    }
+
+    private void open_configured_repository() {
+        if (git_configured_web_url.length == 0) {
+            return;
+        }
+        try {
+            AppInfo.launch_default_for_uri(git_configured_web_url, null);
+        } catch (Error e) {
+            error_reported("Could not open repository", e.message);
+        }
+    }
+
+    private void copy_configured_remote() {
+        if (git_configured_project == null || git_configured_project.git_remote_url == null) {
+            return;
+        }
+        var display = widget.get_display();
+        if (display == null) {
+            return;
+        }
+        display.get_clipboard().set_text(git_configured_project.git_remote_url);
+        toast_requested("Repository URL copied.");
+    }
+
+    private void begin_change_remote() {
+        var project = git_configured_project;
+        if (project == null || project.git_remote_url == null) {
+            return;
+        }
+        git_editing_remote = true;
+        git_remote_entry.set_text(project.git_remote_url);
+        git_branch_entry.set_text("");
+        git_manual_status_label.set_text(
+            "Changing this updates Holder's remote; it does not delete the existing repository."
+        );
+        render_git_project_state(project);
+        git_remote_entry.grab_focus();
+    }
+
+    private void confirm_disconnect_remote() {
+        var project = git_configured_project;
+        var root_window = widget.get_root() as Gtk.Window;
+        if (project == null || root_window == null) {
+            return;
+        }
+        var dialog = new Adw.MessageDialog(
+            root_window,
+            "Disconnect Git sync?",
+            "Holder will stop syncing “%s”. Your cards and the remote repository will not be deleted.".printf(
+                project.name
+            )
+        );
+        dialog.add_response("cancel", "Cancel");
+        dialog.add_response("disconnect", "Disconnect");
+        dialog.set_response_appearance("disconnect", Adw.ResponseAppearance.DESTRUCTIVE);
+        dialog.set_default_response("cancel");
+        dialog.set_close_response("cancel");
+        dialog.response.connect((response) => {
+            if (response == "disconnect") {
+                disconnect_configured_remote.begin(project);
+            }
+            dialog.close();
+        });
+        dialog.present();
+    }
+
+    private async void disconnect_configured_remote(Project project) {
+        if (api == null) {
+            return;
+        }
+        git_configured_disconnect_btn.set_sensitive(false);
+        try {
+            yield api.set_project_git_remote(
+                project.project_id,
+                null,
+                new DateTime.now_utc().to_unix()
+            );
+            git_state_refresh_generation++;
+            git_locally_disconnected_project_id = project.project_id;
+            git_configured_project = null;
+            git_configured_web_url = "";
+            git_editing_remote = false;
+            git_remote_entry.set_text("");
+            git_branch_entry.set_text("");
+            git_manual_status_label.set_text("Git sync disconnected. The remote repository was not deleted.");
+            git_start_state_stack.set_visible_child_name("setup");
+            toast_requested("Git sync disconnected.");
+        } catch (Error e) {
+            error_reported("Could not disconnect Git sync", e.message);
+        }
+        git_configured_disconnect_btn.set_sensitive(true);
+    }
+
+    private async void run_manual_remote_setup() {
+        var project = selected_project();
         var remote_url = git_remote_entry != null ? git_remote_entry.get_text().strip() : "";
         var branch = git_branch_entry != null ? git_branch_entry.get_text().strip() : "";
-        var validation = controller.validate_remote_setup_inputs(selected_project, api, remote_url);
+        var validation = controller.validate_remote_setup_inputs(project, api, remote_url);
         if (!validation.ok) {
             if (validation.is_toast) {
                 toast_requested(validation.message);
@@ -311,7 +675,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             return;
         }
         yield apply_project_git_remote_and_sync(
-            (Project) selected_project,
+            (Project) project,
             remote_url,
             branch,
             git_manual_status_label,
@@ -348,6 +712,10 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             if (result.toast_message.strip().length > 0) {
                 toast_requested(result.toast_message);
             }
+            git_locally_disconnected_project_id = "";
+            git_editing_remote = false;
+            git_sync_stack.set_visible_child_name("start");
+            yield refresh_git_configured_state(project_snapshot_with_remote(selected_project, remote_url));
         } catch (Error e) {
             if (action_button != null) {
                 action_button.set_sensitive(true);
@@ -591,6 +959,16 @@ public class GitSyncToolView : Object, IToolShellAdapter {
                 error_reported(flow_result.error_title, flow_result.error_details);
             } else if (flow_result.toast_message.strip().length > 0) {
                 toast_requested(flow_result.toast_message);
+            }
+            if (flow_result.error_title.strip().length == 0) {
+                git_locally_disconnected_project_id = "";
+                git_editing_remote = false;
+                git_sync_stack.set_visible_child_name("start");
+                var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
+                yield refresh_git_configured_state(
+                    project_snapshot_with_remote(selected_project, remote_url)
+                );
+                return;
             }
         } catch (Error e) {
             if (git_gh_cli_status_label != null) {
@@ -1227,6 +1605,13 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             if (result.toast_message.strip().length > 0) {
                 toast_requested(result.toast_message);
             }
+            git_locally_disconnected_project_id = "";
+            git_editing_remote = false;
+            git_sync_stack.set_visible_child_name("start");
+            var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
+            yield refresh_git_configured_state(
+                project_snapshot_with_remote(selected_project, remote_url)
+            );
         } catch (Error e) {
             if (git_guided_push_btn != null) {
                 git_guided_push_btn.set_sensitive(true);

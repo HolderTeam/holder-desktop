@@ -14,6 +14,84 @@ private HolderLinux.GitProviderCatalogEntry make_provider(string id,
     );
 }
 
+private HolderLinux.Project configured_project(string remote_url,
+                                                HolderLinux.ProjectSyncState sync) {
+    return new HolderLinux.Project(
+        "p1",
+        "Family Notes",
+        "encrypted_git",
+        "/tmp/p1",
+        10,
+        20,
+        remote_url,
+        sync
+    );
+}
+
+private void test_configured_state_shows_repository_and_last_sync() {
+    var sync = new HolderLinux.ProjectSyncState(
+        null,
+        9880,
+        null,
+        0,
+        0,
+        "pushed"
+    );
+    var presentation = HolderLinux.GitSyncPresenter.configured_state(
+        configured_project("git@github.com:HolderTeam/family-notes.git", sync),
+        10000
+    );
+
+    assert(presentation.repository_text == "github.com/HolderTeam/family-notes");
+    assert(presentation.remote_url == "git@github.com:HolderTeam/family-notes.git");
+    assert(presentation.web_url == "https://github.com/HolderTeam/family-notes");
+    assert(presentation.status_text == "Up to date");
+    assert(presentation.status_class == "success");
+    assert(presentation.detail_text == "Last successful sync 2m ago");
+}
+
+private void test_configured_state_prioritizes_pending_changes() {
+    var sync = new HolderLinux.ProjectSyncState(
+        null,
+        9900,
+        null,
+        2,
+        1,
+        "pushed"
+    );
+    var presentation = HolderLinux.GitSyncPresenter.configured_state(
+        configured_project("https://git.example.com/team/cards.git", sync),
+        10000
+    );
+
+    assert(presentation.status_text == "Changes waiting");
+    assert(presentation.status_class == "warning");
+    assert(presentation.detail_text.contains("2 uncommitted changes"));
+    assert(presentation.detail_text.contains("1 commit waiting to push"));
+}
+
+private void test_configured_state_prioritizes_sync_error() {
+    var sync = new HolderLinux.ProjectSyncState(
+        null,
+        null,
+        null,
+        2,
+        3,
+        "failed",
+        "",
+        "Authentication denied"
+    );
+    var presentation = HolderLinux.GitSyncPresenter.configured_state(
+        configured_project("ssh://git@git.example.com/team/cards.git", sync),
+        10000
+    );
+
+    assert(presentation.status_text == "Needs attention");
+    assert(presentation.status_class == "error");
+    assert(presentation.detail_text.contains("Authentication denied"));
+    assert(presentation.web_url == "https://git.example.com/team/cards");
+}
+
 private void test_git_cli_controls_when_cli_missing() {
     var presentation = HolderLinux.GitSyncPresenter.git_cli_controls(false, false, "");
 
@@ -176,6 +254,9 @@ public int main(string[] args) {
     Test.add_func("/holder/git-sync-presenter/cli-missing", test_git_cli_controls_when_cli_missing);
     Test.add_func("/holder/git-sync-presenter/cli-authenticated", test_git_cli_controls_when_authenticated);
     Test.add_func("/holder/git-sync-presenter/cli-requires-login", test_git_cli_controls_requires_login_to_enable_buttons);
+    Test.add_func("/holder/git-sync-presenter/configured-state-last-sync", test_configured_state_shows_repository_and_last_sync);
+    Test.add_func("/holder/git-sync-presenter/configured-state-pending", test_configured_state_prioritizes_pending_changes);
+    Test.add_func("/holder/git-sync-presenter/configured-state-error", test_configured_state_prioritizes_sync_error);
     Test.add_func("/holder/git-sync-presenter/provider-default-host", test_provider_remote_preview_uses_default_host_and_template);
     Test.add_func("/holder/git-sync-presenter/provider-fallback-template", test_provider_remote_preview_falls_back_when_template_missing);
     Test.add_func("/holder/git-sync-presenter/provider-region-placeholder", test_provider_remote_preview_uses_region_placeholder);

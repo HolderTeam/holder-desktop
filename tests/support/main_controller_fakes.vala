@@ -255,6 +255,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int64 last_resource_updated_at = 0;
     public string last_git_project_id = "";
     public string? last_git_remote_url = null;
+    public string? project_git_remote_url = "https://example.com/p1.git";
     public int64 last_git_remote_updated_at = 0;
     public string last_git_branch = "";
     public bool last_git_set_upstream = false;
@@ -356,7 +357,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
             "/tmp/p1",
             10,
             10,
-            "https://example.com/p1.git",
+            project_git_remote_url,
             new HolderLinux.ProjectSyncState(
                 0,
                 1710000000,
@@ -953,6 +954,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         last_git_project_id = project_id;
         last_git_remote_url = git_remote_url;
         last_git_remote_updated_at = updated_at;
+        project_git_remote_url = git_remote_url;
     }
 
     public async HolderLinux.GitTestRemoteResult test_project_git_remote(string project_id,
