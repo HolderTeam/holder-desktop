@@ -9,6 +9,9 @@ public class AppSettings : Object {
     public const string KEY_CUSTOM_EDITOR_FONT = "custom-editor-font";
     public const string KEY_SHOW_LINE_NUMBERS = "show-line-numbers";
     public const string KEY_SHOW_SPELL_CHECKING = "show-spell-checking";
+    public const string KEY_PRESERVE_TRAILING_WHITESPACE = "preserve-trailing-whitespace";
+    public const string KEY_TRIM_TWO_SPACE_HARD_BREAKS = "trim-two-space-hard-breaks";
+    public const string KEY_TRIM_WHITESPACE_IN_CODE_BLOCKS = "trim-whitespace-in-code-blocks";
     public const string KEY_WINDOW_WIDTH = "window-width";
     public const string KEY_WINDOW_HEIGHT = "window-height";
     public const string KEY_WINDOW_MAXIMIZED = "window-maximized";

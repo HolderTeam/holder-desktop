@@ -192,7 +192,9 @@ public class MainWindow : Adw.ApplicationWindow {
             null,
             null,
             null,
-            app_state_store
+            app_state_store,
+            null,
+            settings
         );
         activity_log_controller = new ActivityLogController(activity_log_store, controller);
         activity_feedback = new WindowActivityFeedback(

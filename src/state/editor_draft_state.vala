@@ -24,11 +24,17 @@ public class EditorDraftState : Object {
         committed_text = content;
     }
 
-    public bool has_unsaved_changes(CardDetail? current_card, ITextProvider editor_text) {
+    // Takes the current text as a plain string, already trimmed the same way it will be before
+    // saving (see TextUtils.trim_trailing_whitespace_for_save and
+    // EditorSaveController.trim_for_save) -- not an ITextProvider read directly here, so this
+    // comparison is never accidentally made against the untrimmed live buffer while
+    // committed_text holds the trimmed text a save actually persisted, which would otherwise
+    // make this permanently report unsaved changes that don't exist.
+    public bool has_unsaved_changes(CardDetail? current_card, string current_text) {
         if (current_card == null || card_id == null || current_card.card_id != card_id) {
             return false;
         }
-        return editor_text.get_text() != committed_text;
+        return current_text != committed_text;
     }
 }
 

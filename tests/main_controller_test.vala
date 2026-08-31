@@ -92,7 +92,8 @@ private MainControllerTestHarness make_harness(MainControllerFakeApi api,
                                  FakeServerDiscovery? discovery = null,
                                  HolderLinux.IHolderApi? initial_api = null,
                                  bool inject_initial_api = true,
-                                 HolderLinux.IEditorRecoveryDraftService? recovery_draft_service = null) {
+                                 HolderLinux.IEditorRecoveryDraftService? recovery_draft_service = null,
+                                 Settings? settings = null) {
     return new MainControllerTestHarness(
         api,
         scheduler,
@@ -100,7 +101,9 @@ private MainControllerTestHarness make_harness(MainControllerFakeApi api,
         discovery,
         initial_api,
         inject_initial_api,
-        recovery_draft_service
+        recovery_draft_service,
+        null,
+        settings
     );
 }
 
@@ -1724,6 +1727,54 @@ private void test_editor_change_emits_unsaved_until_save_confirmation() {
     assert(!controller.has_unsaved_editor_changes());
 }
 
+private void test_autosave_trims_trailing_whitespace_when_settings_enable_it() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    // Schema id duplicated as a literal rather than referencing HolderLinux.AppSettings
+    // .SCHEMA_ID -- AppSettings also carries Adw.ColorScheme-returning helpers, and this test
+    // target deliberately doesn't link libadwaita. See editor_save.vala's own KEY_* constants
+    // for the same reasoning; keep this schema id and the three key names in sync with
+    // team.holder.Holder.gschema.xml if either ever changes.
+    var settings = new Settings("team.holder.Holder");
+    settings.reset("preserve-trailing-whitespace");
+    settings.set_boolean("trim-two-space-hard-breaks", true);
+    settings.reset("trim-whitespace-in-code-blocks");
+    var harness = make_harness(api, scheduler, clock, null, null, true, null, settings);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    // Ordinary trailing whitespace is always removed; the genuine two-space hard-break run on
+    // the second line is stripped too here specifically because trim-two-space-hard-breaks is
+    // on above -- proving the setting, not just the always-on ordinary-whitespace cleanup, is
+    // actually reaching the save.
+    harness.editor_text.value = "# Title \n\nHard break line  \nplain line";
+    controller.on_editor_content_changed();
+    assert(controller.has_unsaved_editor_changes());
+
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => api.update_card_calls > 0));
+    assert(api.last_updated_content == "# Title\n\nHard break line\nplain line");
+
+    // A confirmed save (with no further edits meanwhile) resyncs the visible editor to exactly
+    // what was persisted -- so the buffer ends up trimmed too, not left holding invisible
+    // trailing whitespace the save already discarded. This is also the regression case for the
+    // bug where comparing the buffer against an already-trimmed committed baseline left
+    // "Unsaved" permanently stuck on: trim(committed text) == committed text, so this must
+    // settle to false, not loop forever re-triggering autosave.
+    assert(wait_for_condition(() => harness.editor_text.value == "# Title\n\nHard break line\nplain line"));
+    assert(!controller.has_unsaved_editor_changes());
+
+    settings.reset("preserve-trailing-whitespace");
+    settings.reset("trim-two-space-hard-breaks");
+    settings.reset("trim-whitespace-in-code-blocks");
+}
+
 private void test_successful_autosave_refreshes_validated_tag_occurrences() {
     var api = new MainControllerFakeApi();
     api.reflect_update_in_get_card = true;
@@ -2993,6 +3044,10 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/editor_change_emits_unsaved_until_save_confirmation",
         test_editor_change_emits_unsaved_until_save_confirmation
+    );
+    Test.add_func(
+        "/main_controller/autosave_trims_trailing_whitespace_when_settings_enable_it",
+        test_autosave_trims_trailing_whitespace_when_settings_enable_it
     );
     Test.add_func(
         "/main_controller/successful_autosave_refreshes_validated_tag_occurrences",

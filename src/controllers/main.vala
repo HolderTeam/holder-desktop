@@ -19,6 +19,7 @@ public class MainController : Object, IAiRunContext {
     internal IClock clock;
     internal IScheduler scheduler;
     internal EditorDraftState editor_draft_state;
+    internal Settings? settings;
     internal Project? current_project;
     internal CardDetail? current_card;
     internal AiThreadSummary? current_ai_thread;
@@ -80,7 +81,8 @@ public class MainController : Object, IAiRunContext {
                           IScheduler? scheduler = null,
                           IHolderApi? initial_api = null,
                           IExplorerStateSink? explorer_state_sink = null,
-                          IEditorRecoveryDraftService? recovery_draft_service = null) {
+                          IEditorRecoveryDraftService? recovery_draft_service = null,
+                          Settings? settings = null) {
         this.project_store = project_store;
         this.project_selection = project_selection;
         this.card_store = card_store;
@@ -95,6 +97,7 @@ public class MainController : Object, IAiRunContext {
         this.clock = clock ?? new SystemClock();
         this.scheduler = scheduler ?? new MainLoopScheduler();
         this.editor_draft_state = new EditorDraftState();
+        this.settings = settings;
         this.api = initial_api;
         this.explorer_state_sink = explorer_state_sink;
         this.store_sync_controller = new StoreSyncController(this);

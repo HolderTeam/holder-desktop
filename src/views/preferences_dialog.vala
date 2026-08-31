@@ -128,6 +128,66 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         });
         editor_group.add(spell_row);
 
+        var preserve_whitespace_row = new Adw.SwitchRow();
+        preserve_whitespace_row.set_title("Preserve trailing whitespace");
+        preserve_whitespace_row.set_subtitle("Keeps spaces and tabs at the ends of lines.");
+        if (settings != null) {
+            preserve_whitespace_row.set_active(
+                settings.get_boolean(AppSettings.KEY_PRESERVE_TRAILING_WHITESPACE)
+            );
+        }
+        editor_group.add(preserve_whitespace_row);
+
+        var trim_hard_breaks_row = new Adw.SwitchRow();
+        trim_hard_breaks_row.set_title("Trim two-space hard breaks");
+        trim_hard_breaks_row.set_subtitle("Two invisible trailing spaces can force a Markdown line break.");
+        if (settings != null) {
+            trim_hard_breaks_row.set_active(
+                settings.get_boolean(AppSettings.KEY_TRIM_TWO_SPACE_HARD_BREAKS)
+            );
+        }
+        trim_hard_breaks_row.set_visible(!preserve_whitespace_row.get_active());
+        editor_group.add(trim_hard_breaks_row);
+
+        var trim_code_whitespace_row = new Adw.SwitchRow();
+        trim_code_whitespace_row.set_title("Trim trailing whitespace in code");
+        trim_code_whitespace_row.set_subtitle("Code blocks normally preserve their contents literally.");
+        if (settings != null) {
+            trim_code_whitespace_row.set_active(
+                settings.get_boolean(AppSettings.KEY_TRIM_WHITESPACE_IN_CODE_BLOCKS)
+            );
+        }
+        trim_code_whitespace_row.set_visible(!preserve_whitespace_row.get_active());
+        editor_group.add(trim_code_whitespace_row);
+
+        // Preserve is the escape hatch: the other two have no effect while it's on, so hide
+        // them rather than leave two moot switches visible -- matching the Android Settings
+        // screen this was ported from.
+        preserve_whitespace_row.notify["active"].connect(() => {
+            var preserve = preserve_whitespace_row.get_active();
+            if (settings != null) {
+                settings.set_boolean(AppSettings.KEY_PRESERVE_TRAILING_WHITESPACE, preserve);
+            }
+            trim_hard_breaks_row.set_visible(!preserve);
+            trim_code_whitespace_row.set_visible(!preserve);
+        });
+        trim_hard_breaks_row.notify["active"].connect(() => {
+            if (settings != null) {
+                settings.set_boolean(
+                    AppSettings.KEY_TRIM_TWO_SPACE_HARD_BREAKS,
+                    trim_hard_breaks_row.get_active()
+                );
+            }
+        });
+        trim_code_whitespace_row.notify["active"].connect(() => {
+            if (settings != null) {
+                settings.set_boolean(
+                    AppSettings.KEY_TRIM_WHITESPACE_IN_CODE_BLOCKS,
+                    trim_code_whitespace_row.get_active()
+                );
+            }
+        });
+
         page.add(editor_group);
         add(page);
     }

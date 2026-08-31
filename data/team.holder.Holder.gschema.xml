@@ -43,6 +43,32 @@
         If true, misspelled words are underlined in the editor.
       </description>
     </key>
+    <key name="preserve-trailing-whitespace" type="b">
+      <default>false</default>
+      <summary>Preserve trailing whitespace on save</summary>
+      <description>
+        If true, spaces and tabs at the ends of lines are kept exactly as typed or pasted, and
+        trim-two-space-hard-breaks and trim-whitespace-in-code-blocks have no effect.
+      </description>
+    </key>
+    <key name="trim-two-space-hard-breaks" type="b">
+      <default>false</default>
+      <summary>Trim two-space Markdown hard breaks on save</summary>
+      <description>
+        If true, a genuine two-or-more-space hard-break run at the end of a line is stripped to
+        nothing on save, the same as ordinary trailing whitespace, instead of being kept as a
+        two-space hard break. Has no effect when preserve-trailing-whitespace is true.
+      </description>
+    </key>
+    <key name="trim-whitespace-in-code-blocks" type="b">
+      <default>false</default>
+      <summary>Trim trailing whitespace inside fenced code blocks on save</summary>
+      <description>
+        If true, trailing spaces and tabs inside fenced code blocks are stripped on save the
+        same as ordinary lines, instead of being preserved literally. Has no effect when
+        preserve-trailing-whitespace is true.
+      </description>
+    </key>
     <key name="window-width" type="i">
       <default>1200</default>
       <summary>Window width in pixels</summary>

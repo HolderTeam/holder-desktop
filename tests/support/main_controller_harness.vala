@@ -22,7 +22,8 @@ public class MainControllerTestHarness : Object {
                                      HolderLinux.IHolderApi? initial_api = null,
                                      bool inject_initial_api = true,
                                      HolderLinux.IEditorRecoveryDraftService? recovery_draft_service = null,
-                                     HolderLinux.IExplorerStateSink? explorer_state_sink = null) {
+                                     HolderLinux.IExplorerStateSink? explorer_state_sink = null,
+                                     Settings? settings = null) {
         project_store = new GLib.ListStore(typeof(HolderLinux.Project));
         card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
         thread_store = new GLib.ListStore(typeof(HolderLinux.AiThreadSummary));
@@ -49,7 +50,8 @@ public class MainControllerTestHarness : Object {
             scheduler,
             inject_initial_api ? (initial_api ?? api) : null,
             explorer_state_sink,
-            recovery_draft_service
+            recovery_draft_service,
+            settings
         );
 
         controller.editor_state_changed.connect((text, editable) => {

@@ -34,8 +34,8 @@ internal class EditorSaveController : Object {
         }
 
         var previous_content = owner.editor_draft_state.committed_text;
-        var text = owner.editor_text.get_text();
-        if (!has_unsaved_editor_changes()) {
+        var text = trim_for_save(owner.editor_text.get_text());
+        if (!owner.editor_draft_state.has_unsaved_changes(owner.current_card, text)) {
             return;
         }
         if (owner.api == null) {
@@ -95,7 +95,39 @@ internal class EditorSaveController : Object {
     }
 
     public bool has_unsaved_editor_changes() {
-        return owner.editor_draft_state.has_unsaved_changes(owner.current_card, owner.editor_text);
+        return owner.editor_draft_state.has_unsaved_changes(
+            owner.current_card,
+            trim_for_save(owner.editor_text.get_text())
+        );
+    }
+
+    // Key names are duplicated from AppSettings.KEY_PRESERVE_TRAILING_WHITESPACE/
+    // KEY_TRIM_TWO_SPACE_HARD_BREAKS/KEY_TRIM_WHITESPACE_IN_CODE_BLOCKS (team.holder.Holder
+    // .gschema.xml) rather than referencing that class -- AppSettings also carries
+    // Adw.ColorScheme-returning helpers, so referencing it here would pull a libadwaita
+    // dependency into every lightweight controller-test executable that compiles this file,
+    // several of which deliberately don't link GTK/Adwaita at all. Keep these three literals in
+    // sync with the schema and with AppSettings if either ever changes.
+    private const string KEY_PRESERVE_TRAILING_WHITESPACE = "preserve-trailing-whitespace";
+    private const string KEY_TRIM_TWO_SPACE_HARD_BREAKS = "trim-two-space-hard-breaks";
+    private const string KEY_TRIM_WHITESPACE_IN_CODE_BLOCKS = "trim-whitespace-in-code-blocks";
+
+    // Reads the three trailing-whitespace settings fresh on every call rather than caching them,
+    // since they can change at any time via the Preferences dialog and this is called on every
+    // keystroke (via has_unsaved_editor_changes -> on_editor_content_changed) as well as every
+    // autosave tick. No compiled GSettings schema (owner.settings == null) means preserving
+    // everything untouched, not trimming with a guessed default -- never risk mutating content
+    // when the actual preference can't be read.
+    private string trim_for_save(string text) {
+        if (owner.settings == null) {
+            return text;
+        }
+        return TextUtils.trim_trailing_whitespace_for_save(
+            text,
+            owner.settings.get_boolean(KEY_PRESERVE_TRAILING_WHITESPACE),
+            owner.settings.get_boolean(KEY_TRIM_TWO_SPACE_HARD_BREAKS),
+            owner.settings.get_boolean(KEY_TRIM_WHITESPACE_IN_CODE_BLOCKS)
+        );
     }
 
     public void on_editor_content_changed() {
@@ -276,8 +308,14 @@ internal class EditorSaveController : Object {
             owner.current_card.card_id != card_id) {
             return;
         }
+        // Compared trimmed, not raw -- saved_text is already the trimmed text that was
+        // persisted, and the live buffer is never itself rewritten by trimming, so a raw
+        // comparison here would treat "nothing changed since the save" as "stale" on every card
+        // that has any trailing whitespace to trim, permanently skipping the tag-occurrence
+        // refresh below. See EditorDraftState.has_unsaved_changes's doc comment for the same
+        // failure mode in the dirty-check.
         if (saved_text.index_of_char('#') < 0) {
-            if (owner.editor_text.get_text() == saved_text) {
+            if (trim_for_save(owner.editor_text.get_text()) == saved_text) {
                 owner.current_card.tag_occurrences = new CardTagOccurrence[0];
                 owner.editor_state_changed(saved_text, true);
             }
@@ -286,7 +324,7 @@ internal class EditorSaveController : Object {
         try {
             var refreshed = yield ((!) owner.api).get_card(card_id);
             if (owner.current_card == null || owner.current_card.card_id != card_id ||
-                owner.editor_text.get_text() != saved_text) {
+                trim_for_save(owner.editor_text.get_text()) != saved_text) {
                 return;
             }
             if (refreshed.content != saved_text) {
@@ -297,7 +335,7 @@ internal class EditorSaveController : Object {
             owner.editor_state_changed(saved_text, true);
         } catch (Error e) {
             if (owner.current_card != null && owner.current_card.card_id == card_id &&
-                owner.editor_text.get_text() == saved_text) {
+                trim_for_save(owner.editor_text.get_text()) == saved_text) {
                 owner.editor_state_changed(saved_text, true);
             }
         }
