@@ -107,7 +107,7 @@ public class WorkspacePane : Object {
         editor_buffer.get_bounds(out start, out end);
         var current_text = editor_buffer.get_text(start, end, false);
         if (current_text != text) {
-            editor_buffer.set_text(text, -1);
+            inline_resource_images.replace_buffer_text(text);
         }
         if (editor_view.get_editable() != editable) {
             editor_view.set_editable(editable);
@@ -662,6 +662,7 @@ public class WorkspacePane : Object {
         if (checker != null) {
             spelling_adapter = new Spelling.TextBufferAdapter(editor_buffer, checker);
             spelling_adapter.set_enabled(true);
+            inline_resource_images.set_spelling_adapter(spelling_adapter);
             editor_view.insert_action_group("spelling", spelling_adapter);
             editor_view.set_extra_menu(spelling_adapter.get_menu_model());
         }

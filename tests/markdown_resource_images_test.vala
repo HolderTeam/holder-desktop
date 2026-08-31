@@ -87,11 +87,34 @@ private void test_inline_decoration_does_not_change_markdown_text() {
     var controller = new HolderLinux.MarkdownResourceImageController();
     var items = controller.resolve(text, resources);
     var buffer = new GtkSource.Buffer(null);
+    buffer.set_highlight_syntax(true);
+    var language_manager = new GtkSource.LanguageManager();
+    var language_dir = Environment.get_variable("HOLDER_MARKDOWN_LANGUAGE_DIR");
+    assert(language_dir != null);
+    language_manager.prepend_search_path((!) language_dir);
+    var markdown_language = language_manager.get_language("holder-markdown");
+    assert(markdown_language != null);
+    buffer.set_language((!) markdown_language);
     buffer.set_text(text, -1);
     var view = new GtkSource.View.with_buffer(buffer);
+    var window = new Gtk.Window();
+    window.set_default_size(900, 700);
+    window.set_child(view);
+    window.present();
     var renderer = new HolderLinux.InlineResourceImageRenderer(buffer, view);
+    Spelling.init();
+    var checker = Spelling.Checker.get_default();
+    var spelling_adapter = new Spelling.TextBufferAdapter(buffer, checker);
+    spelling_adapter.set_enabled(true);
+    renderer.set_spelling_adapter(spelling_adapter);
 
     renderer.set_items(items);
+    for (int i = 0; i < 20; i++) {
+        while (MainContext.default().pending()) {
+            MainContext.default().iteration(false);
+        }
+        Thread.usleep(1000);
+    }
     Gtk.TextIter start;
     Gtk.TextIter end;
     buffer.get_bounds(out start, out end);
@@ -112,10 +135,18 @@ private void test_inline_decoration_does_not_change_markdown_text() {
     assert(buffer_changes == changes_after_edit);
     assert(renderer.decoration_count() == 2);
 
+    var replacement_text = "# Home\n\nProject overview";
+    renderer.replace_buffer_text(replacement_text);
+    buffer.get_bounds(out start, out end);
+    assert(buffer.get_text(start, end, false) == replacement_text);
+    assert(renderer.decoration_count() == 0);
+
     renderer.clear();
     buffer.get_bounds(out start, out end);
-    assert(buffer.get_text(start, end, false) == updated_text);
+    assert(buffer.get_text(start, end, false) == replacement_text);
     assert(renderer.decoration_count() == 0);
+    assert(spelling_adapter.get_enabled());
+    window.destroy();
 }
 
 public static int main(string[] args) {

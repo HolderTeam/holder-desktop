@@ -2242,6 +2242,7 @@ markdown_resource_images_test_exe = executable(
   dependencies: [
     dependency('gtk4'),
     dependency('gtksourceview-5'),
+    dependency('libspelling-1'),
     dependency('gio-2.0'),
     dependency('gee-0.8'),
   ],
@@ -2251,7 +2252,16 @@ markdown_resource_images_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-markdown-resource-images-tests', markdown_resource_images_test_exe)
+markdown_resource_images_test_env = environment()
+markdown_resource_images_test_env.set(
+  'HOLDER_MARKDOWN_LANGUAGE_DIR',
+  meson.project_source_root() / 'data' / 'gtksourceview-5' / 'language-specs',
+)
+test(
+  'holder-linux-markdown-resource-images-tests',
+  markdown_resource_images_test_exe,
+  env: markdown_resource_images_test_env,
+)
 
 holder_markdown_language_test_exe = executable(
   'holder-linux-holder-markdown-language-tests',
