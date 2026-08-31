@@ -14,6 +14,8 @@ public class AssetPreviewController : Object {
     private uint refresh_serial = 0;
 
     public signal void attachments_loaded(Gee.ArrayList<CardAttachment> attachments);
+    public signal void project_resources_loaded(string project_id,
+                                                Gee.ArrayList<ProjectResource> resources);
     public signal void load_failed(string message);
 
     public async void refresh_card_attachments(IHolderApi? api,
@@ -30,6 +32,7 @@ public class AssetPreviewController : Object {
             if (serial != refresh_serial) {
                 return;
             }
+            project_resources_loaded(project_id, resources);
             attachments_loaded(resolve_attachments(card_id, links, resources));
         } catch (Error e) {
             if (serial == refresh_serial) {

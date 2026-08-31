@@ -97,6 +97,7 @@ sources = [
   'src/views/sidebar.vala',
   'src/views/ai_panel.vala',
   'src/views/asset_preview_pane.vala',
+  'src/views/inline_resource_image_renderer.vala',
   'src/views/preferences_dialog.vala',
   'src/views/search.vala',
   'src/views/flowboard_pane.vala',
@@ -199,6 +200,7 @@ sources = [
   'src/controllers/tag_highlighting.vala',
   'src/controllers/markdown_editing.vala',
   'src/controllers/markdown_links.vala',
+  'src/controllers/markdown_resource_images.vala',
   'src/services/discovery.vala',
   'src/services/recovery_service.vala',
   'src/services/http_transport.vala',
@@ -2228,6 +2230,28 @@ markdown_links_test_exe = executable(
 )
 
 test('holder-linux-markdown-links-tests', markdown_links_test_exe)
+
+markdown_resource_images_test_exe = executable(
+  'holder-linux-markdown-resource-images-tests',
+  [
+    'src/models/project.vala',
+    'src/controllers/markdown_resource_images.vala',
+    'src/views/inline_resource_image_renderer.vala',
+    'tests/markdown_resource_images_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('gtksourceview-5'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-markdown-resource-images-tests', markdown_resource_images_test_exe)
 
 holder_markdown_language_test_exe = executable(
   'holder-linux-holder-markdown-language-tests',

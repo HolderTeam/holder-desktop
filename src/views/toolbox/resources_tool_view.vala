@@ -31,6 +31,8 @@ public class ResourcesToolView : Object, IToolShellAdapter {
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
     public signal void asset_preview_requested(ProjectResource resource, ResourceAsset asset);
+    public signal void project_resources_loaded(string project_id,
+                                                Gee.ArrayList<ProjectResource> resources);
     public signal void activity_requested(string kind,
                                           string message,
                                           string? project_id,
@@ -384,6 +386,9 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             all_resources = result.resources;
             apply_resources_filter();
             has_committed_resources = true;
+            if (project != null) {
+                project_resources_loaded(project.project_id, result.resources);
+            }
             return;
         }
 

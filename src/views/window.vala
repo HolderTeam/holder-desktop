@@ -72,6 +72,13 @@ public class MainWindow : Adw.ApplicationWindow {
     private AiNudgeController ai_nudge_controller;
     private AssetPreviewController asset_preview_controller;
     private AssetCache asset_cache;
+    private MarkdownResourceImageController markdown_resource_image_controller;
+    private InlineResourceImageRenderer inline_resource_image_renderer;
+    private Gee.ArrayList<ProjectResource> inline_project_resources =
+        new Gee.ArrayList<ProjectResource>();
+    private string? inline_resources_project_id;
+    private uint inline_resource_refresh_id = 0;
+    private uint inline_resource_load_serial = 0;
     private Gee.ArrayList<CardAttachment> card_attachments = new Gee.ArrayList<CardAttachment>();
     private int selected_attachment_index = -1;
     private string? selected_asset_cache_path;
@@ -132,11 +139,12 @@ public class MainWindow : Adw.ApplicationWindow {
         set_content(toast_overlay);
 
         workspace = new WorkspacePane(search_store);
-        workspace.file_dropped.connect((file) => {
-            import_dropped_file.begin(file);
+        workspace.file_dropped.connect((file, insertion_mark) => {
+            import_dropped_file.begin(file, insertion_mark);
         });
         editor_buffer = workspace.editor_buffer;
         editor_view = workspace.editor_view;
+        inline_resource_image_renderer = workspace.inline_resource_images;
         editor_font_style = new EditorFontStyle(editor_view);
         spelling_adapter = workspace.spelling_adapter;
         settings = boot_settings;
@@ -158,6 +166,7 @@ public class MainWindow : Adw.ApplicationWindow {
         editor_renderer = new WindowEditorRenderer(this, workspace, search_summary_label, ai_panel);
         editor_renderer.content_rendered.connect(() => {
             refresh_connections_internal_links_from_editor();
+            queue_inline_resource_images_refresh();
         });
         editor_renderer.apply();
         local_info_controller = new LocalInfoController(new WindowLocalInfoLogger(toolbox));
@@ -246,6 +255,7 @@ public class MainWindow : Adw.ApplicationWindow {
         ai_nudge_controller = new AiNudgeController(controller);
         asset_preview_controller = new AssetPreviewController();
         asset_cache = new AssetCache();
+        markdown_resource_image_controller = new MarkdownResourceImageController();
         find_replace_controller = new FindReplaceController(
             new WindowFindReplaceOps(editor_buffer, editor_view)
         );
@@ -278,8 +288,13 @@ public class MainWindow : Adw.ApplicationWindow {
             card_action_dialog_adapter,
             toolbox,
             workspace,
-            toast_overlay
+            toast_overlay,
+            null,
+            markdown_resource_image_controller
         );
+        internal_link_navigator.resource_preview_requested.connect((resource_id) => {
+            preview_inline_resource(resource_id);
+        });
         toolbox_breadcrumb_controller = new ToolboxBreadcrumbController(
             selection_intent_orchestrator,
             toolbox
@@ -382,6 +397,9 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.asset_preview_requested.connect((resource, asset) => {
             preview_resource(resource, asset);
         });
+        toolbox.project_resources_loaded.connect((project_id, resources) => {
+            apply_inline_project_resources(project_id, resources);
+        });
         asset_preview.attachment_selected.connect((index) => {
             load_attachment.begin((int) index);
         });
@@ -393,6 +411,12 @@ public class MainWindow : Adw.ApplicationWindow {
         });
         asset_preview_controller.attachments_loaded.connect((attachments) => {
             apply_card_attachments(attachments);
+        });
+        asset_preview_controller.project_resources_loaded.connect((project_id, resources) => {
+            apply_inline_project_resources(project_id, resources);
+        });
+        inline_resource_image_renderer.preview_requested.connect((resource, asset) => {
+            preview_resource(resource, asset);
         });
         asset_preview_controller.load_failed.connect((message) => {
             if (workspace.is_asset_preview_visible()) {
@@ -779,10 +803,13 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void on_editor_buffer_changed() {
-        if (editor_renderer.is_applying_content || controller.get_current_card() == null) {
+        if (editor_renderer.is_applying_content ||
+            inline_resource_image_renderer.is_applying_buffer_decoration ||
+            controller.get_current_card() == null) {
             return;
         }
         refresh_connections_internal_links_from_editor();
+        queue_inline_resource_images_refresh();
         controller.on_editor_content_changed();
         controller.schedule_autosave();
     }
@@ -853,11 +880,111 @@ public class MainWindow : Adw.ApplicationWindow {
         var api = controller.get_api_client();
         var project = controller.get_current_project();
         var card = controller.get_current_card();
+        var project_id = project != null ? project.project_id : null;
+        if (project_id != inline_resources_project_id) {
+            inline_resources_project_id = project_id;
+            inline_project_resources = new Gee.ArrayList<ProjectResource>();
+            inline_resource_load_serial++;
+            inline_resource_image_renderer.clear();
+        }
         asset_preview_controller.refresh_card_attachments.begin(
             api,
-            project != null ? project.project_id : null,
+            project_id,
             card != null ? card.card_id : null
         );
+    }
+
+    private void queue_inline_resource_images_refresh() {
+        if (inline_resource_refresh_id != 0) {
+            Source.remove(inline_resource_refresh_id);
+        }
+        inline_resource_refresh_id = Timeout.add(180, () => {
+            inline_resource_refresh_id = 0;
+            refresh_inline_resource_images.begin();
+            return Source.REMOVE;
+        });
+    }
+
+    private void apply_inline_project_resources(
+        string project_id,
+        Gee.ArrayList<ProjectResource> resources
+    ) {
+        var project = controller.get_current_project();
+        if (project == null || project.project_id != project_id) {
+            return;
+        }
+        inline_resources_project_id = project_id;
+        inline_project_resources = resources;
+        queue_inline_resource_images_refresh();
+    }
+
+    private async void refresh_inline_resource_images() {
+        var current_card = controller.get_current_card();
+        var current_project = controller.get_current_project();
+        if (current_card == null || current_project == null ||
+            inline_resources_project_id != current_project.project_id) {
+            inline_resource_load_serial++;
+            inline_resource_image_renderer.clear();
+            return;
+        }
+
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        editor_buffer.get_bounds(out start, out end);
+        var markdown = editor_buffer.get_text(start, end, false);
+        var items = markdown_resource_image_controller.resolve(
+            markdown,
+            inline_project_resources
+        );
+        var serial = ++inline_resource_load_serial;
+        inline_resource_image_renderer.set_items(items);
+        var storage_api = controller.get_api_client() as IResourceStorageApi;
+        if (storage_api == null) {
+            foreach (var item in items) {
+                inline_resource_image_renderer.show_error(
+                    item.key(),
+                    "Asset storage is unavailable."
+                );
+            }
+            return;
+        }
+
+        foreach (var item in items) {
+            try {
+                var cached_path = yield asset_cache.ensure_cached(
+                    storage_api,
+                    item.resource,
+                    item.asset
+                );
+                if (serial != inline_resource_load_serial) {
+                    return;
+                }
+                inline_resource_image_renderer.show_image(item.key(), cached_path);
+            } catch (Error e) {
+                if (serial != inline_resource_load_serial) {
+                    return;
+                }
+                inline_resource_image_renderer.show_error(
+                    item.key(),
+                    "Image unavailable: " + e.message
+                );
+            }
+        }
+    }
+
+    private void preview_inline_resource(string resource_id) {
+        foreach (var resource in inline_project_resources) {
+            if (resource.resource_id != resource_id) {
+                continue;
+            }
+            foreach (var asset in resource.assets) {
+                if (asset.media_type.has_prefix("image/")) {
+                    preview_resource(resource, asset);
+                    return;
+                }
+            }
+        }
+        add_toast("This Resource has no image available in the current project.");
     }
 
     private void apply_card_attachments(Gee.ArrayList<CardAttachment> attachments) {
@@ -973,12 +1100,13 @@ public class MainWindow : Adw.ApplicationWindow {
         activity_feedback.set_status(text);
     }
 
-    private async void import_dropped_file(File file) {
+    private async void import_dropped_file(File file, Gtk.TextMark insertion_mark) {
         var storage_api = controller.get_api_client() as IResourceStorageApi;
         var project = controller.get_current_project();
         var card = controller.get_current_card();
         var source_path = file.get_path();
         if (storage_api == null || project == null || card == null || source_path == null) {
+            workspace.discard_file_drop_mark(insertion_mark);
             add_toast("Select a Card before dropping local files.");
             return;
         }
@@ -1001,12 +1129,32 @@ public class MainWindow : Adw.ApplicationWindow {
             for (int attempt = 0; attempt < 600; attempt++) {
                 job = yield storage_api.get_asset_import_job(job.job_id);
                 if (job.status == "completed") {
+                    if (job.resource_id == null) {
+                        throw new ApiError.PROTOCOL(
+                            "Completed Asset import did not return a Resource ID"
+                        );
+                    }
                     set_status("Imported %s".printf(file.get_basename() ?? "asset"));
                     add_toast(AssetPreviewController.import_completion_message(job));
-                    toolbox.show_tool("resources");
-                    toolbox.refresh_resources(job.resource_id);
-                    pending_preview_asset_id = job.asset_id;
-                    refresh_current_card_attachments();
+                    var current_project = controller.get_current_project();
+                    var current_card = controller.get_current_card();
+                    var import_is_still_selected = current_project != null && current_card != null &&
+                        current_project.project_id == project.project_id &&
+                        current_card.card_id == card.card_id;
+                    if (import_is_still_selected) {
+                        var filename = file.get_basename() ?? "image";
+                        if (MarkdownResourceImageController.filename_is_image(filename)) {
+                            workspace.insert_resource_image_markdown(
+                                insertion_mark,
+                                filename,
+                                (!) job.resource_id
+                            );
+                        }
+                        toolbox.show_tool("resources");
+                        toolbox.refresh_resources(job.resource_id);
+                        pending_preview_asset_id = job.asset_id;
+                        refresh_current_card_attachments();
+                    }
                     return;
                 }
                 if (job.status == "failed") {
@@ -1021,6 +1169,8 @@ public class MainWindow : Adw.ApplicationWindow {
             throw new ApiError.TRANSPORT("Asset import timed out");
         } catch (Error e) {
             show_error("Failed to import Asset", e.message);
+        } finally {
+            workspace.discard_file_drop_mark(insertion_mark);
         }
     }
 

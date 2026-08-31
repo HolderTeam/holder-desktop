@@ -50,6 +50,7 @@ public class WorkspacePane : Object {
     public Gtk.Paned ai_split { get; private set; }
     public AiPanel ai_panel { get; private set; }
     public AssetPreviewPane asset_preview { get; private set; }
+    public InlineResourceImageRenderer inline_resource_images { get; private set; }
     public ToolboxPane toolbox { get; private set; }
 
     public signal void refresh_requested();
@@ -68,7 +69,7 @@ public class WorkspacePane : Object {
     public signal void find_next_requested();
     public signal void replace_requested();
     public signal void replace_all_requested();
-    public signal void file_dropped(File file);
+    public signal void file_dropped(File file, Gtk.TextMark insertion_mark);
 
     public WorkspacePane(GLib.ListModel search_model) {
         widget = build_ui(search_model);
@@ -110,6 +111,32 @@ public class WorkspacePane : Object {
         }
         if (editor_view.get_editable() != editable) {
             editor_view.set_editable(editable);
+        }
+    }
+
+    public void insert_resource_image_markdown(Gtk.TextMark insertion_mark,
+                                               string filename,
+                                               string resource_id) {
+        if (insertion_mark.get_deleted()) {
+            return;
+        }
+        Gtk.TextIter iter;
+        editor_buffer.get_iter_at_mark(out iter, insertion_mark);
+        var markdown = MarkdownResourceImageController.markdown_for_file(filename, resource_id);
+        var insertion = MarkdownResourceImageController.block_insertion(
+            markdown,
+            iter.starts_line(),
+            iter.ends_line()
+        );
+        editor_buffer.begin_user_action();
+        editor_buffer.insert(ref iter, insertion, -1);
+        editor_buffer.delete_mark(insertion_mark);
+        editor_buffer.end_user_action();
+    }
+
+    public void discard_file_drop_mark(Gtk.TextMark insertion_mark) {
+        if (!insertion_mark.get_deleted()) {
+            editor_buffer.delete_mark(insertion_mark);
         }
     }
 
@@ -587,6 +614,7 @@ public class WorkspacePane : Object {
         editor_view.set_show_line_numbers(true);
         editor_view.set_vexpand(true);
         editor_view.set_hexpand(true);
+        inline_resource_images = new InlineResourceImageRenderer(editor_buffer, editor_view);
 
         var file_drop = new Gtk.DropTarget(typeof(Gdk.FileList), Gdk.DragAction.COPY);
         file_drop.drop.connect((value, x, y) => {
@@ -594,9 +622,23 @@ public class WorkspacePane : Object {
             if (dropped == null) {
                 return false;
             }
+            int buffer_x;
+            int buffer_y;
+            editor_view.window_to_buffer_coords(
+                Gtk.TextWindowType.WIDGET,
+                (int) x,
+                (int) y,
+                out buffer_x,
+                out buffer_y
+            );
+            Gtk.TextIter drop_iter;
+            if (!editor_view.get_iter_at_location(out drop_iter, buffer_x, buffer_y)) {
+                editor_buffer.get_iter_at_mark(out drop_iter, editor_buffer.get_insert());
+            }
             bool accepted = false;
             foreach (var file in dropped.get_files()) {
-                file_dropped(file);
+                var insertion_mark = editor_buffer.create_mark(null, drop_iter, false);
+                file_dropped(file, insertion_mark);
                 accepted = true;
             }
             return accepted;
