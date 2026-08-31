@@ -7,6 +7,7 @@ public class InlineResourceImageRenderer : Object {
         public Gtk.Button button;
         public Gtk.Stack state_stack;
         public Gtk.Label error_label;
+        public string? displayed_path;
 
         public Decoration(InlineResourceImageItem item,
                           Gtk.TextChildAnchor anchor,
@@ -37,6 +38,9 @@ public class InlineResourceImageRenderer : Object {
     }
 
     public void set_items(Gee.ArrayList<InlineResourceImageItem> items) {
+        if (update_existing_items(items)) {
+            return;
+        }
         is_applying_buffer_decoration = true;
         try {
             clear_internal();
@@ -49,7 +53,11 @@ public class InlineResourceImageRenderer : Object {
                 Gtk.Label error_label;
                 var button = build_decoration(item, out state_stack, out error_label);
                 view.add_child_at_anchor(button, anchor);
-                decorations.add(new Decoration(item, anchor, button, state_stack, error_label));
+                var decoration = new Decoration(item, anchor, button, state_stack, error_label);
+                button.clicked.connect(() => {
+                    preview_requested(decoration.item.resource, decoration.item.asset);
+                });
+                decorations.insert(0, decoration);
             }
         } finally {
             is_applying_buffer_decoration = false;
@@ -62,6 +70,13 @@ public class InlineResourceImageRenderer : Object {
         if (decoration == null) {
             return;
         }
+        if (decoration.displayed_path == cached_path) {
+            var existing_image = decoration.state_stack.get_child_by_name("image");
+            if (existing_image != null) {
+                decoration.state_stack.set_visible_child((!) existing_image);
+                return;
+            }
+        }
         try {
             var texture = Gdk.Texture.from_filename(cached_path);
             var picture = new Gtk.Picture.for_paintable(texture);
@@ -73,8 +88,13 @@ public class InlineResourceImageRenderer : Object {
                     : decoration.item.resource.label
             );
             picture.set_size_request(-1, 280);
+            var previous_image = decoration.state_stack.get_child_by_name("image");
+            if (previous_image != null) {
+                decoration.state_stack.remove((!) previous_image);
+            }
             decoration.state_stack.add_named(picture, "image");
             decoration.state_stack.set_visible_child_name("image");
+            decoration.displayed_path = cached_path;
         } catch (Error e) {
             show_error(key, "Could not display this image: " + e.message);
         }
@@ -87,6 +107,7 @@ public class InlineResourceImageRenderer : Object {
         }
         decoration.error_label.set_text(message);
         decoration.state_stack.set_visible_child_name("error");
+        decoration.displayed_path = null;
     }
 
     public void clear() {
@@ -153,10 +174,36 @@ public class InlineResourceImageRenderer : Object {
         caption.set_ellipsize(Pango.EllipsizeMode.END);
         frame.append(caption);
         button.set_child(frame);
-        button.clicked.connect(() => {
-            preview_requested(item.resource, item.asset);
-        });
         return button;
+    }
+
+    private bool update_existing_items(Gee.ArrayList<InlineResourceImageItem> items) {
+        if (items.size != decorations.size) {
+            return false;
+        }
+        Gtk.TextIter document_start;
+        buffer.get_start_iter(out document_start);
+        for (int i = 0; i < items.size; i++) {
+            var decoration = decorations[i];
+            var item = items[i];
+            if (decoration.anchor.get_deleted() ||
+                decoration.item.resource.resource_id != item.resource.resource_id ||
+                decoration.item.resource.label != item.resource.label ||
+                decoration.item.asset.asset_id != item.asset.asset_id ||
+                decoration.item.reference.alt_text != item.reference.alt_text) {
+                return false;
+            }
+            Gtk.TextIter anchor_iter;
+            buffer.get_iter_at_child_anchor(out anchor_iter, decoration.anchor);
+            var text_before_anchor = buffer.get_text(document_start, anchor_iter, false);
+            if (text_before_anchor.char_count() != item.reference.char_offset) {
+                return false;
+            }
+        }
+        for (int i = 0; i < items.size; i++) {
+            decorations[i].item = items[i];
+        }
+        return true;
     }
 
     private Decoration? find_decoration(string key) {

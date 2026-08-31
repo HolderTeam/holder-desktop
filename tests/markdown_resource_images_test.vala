@@ -67,13 +67,22 @@ private void test_resolves_first_image_asset_only() {
 }
 
 private void test_inline_decoration_does_not_change_markdown_text() {
-    var text = "# Boiler\n\n![Boiler](holder://resource/r1)\n";
+    var text = "# Boiler\n\n![Boiler](holder://resource/r1)\n\n" +
+        "![Pipework](holder://resource/r2)\n";
     var image = new HolderLinux.ResourceAsset("a-image", "r1", "photo.png", "image/png", 12);
     var assets = new Gee.ArrayList<HolderLinux.ResourceAsset>();
     assets.add(image);
+    var second_image = new HolderLinux.ResourceAsset(
+        "a-image-2", "r2", "pipework.png", "image/png", 13
+    );
+    var second_assets = new Gee.ArrayList<HolderLinux.ResourceAsset>();
+    second_assets.add(second_image);
     var resources = new Gee.ArrayList<HolderLinux.ProjectResource>();
     resources.add(new HolderLinux.ProjectResource(
         "r1", "p1", "image", "", "Boiler", null, 1, 2, null, assets
+    ));
+    resources.add(new HolderLinux.ProjectResource(
+        "r2", "p1", "image", "", "Pipework", null, 1, 2, null, second_assets
     ));
     var controller = new HolderLinux.MarkdownResourceImageController();
     var items = controller.resolve(text, resources);
@@ -87,11 +96,25 @@ private void test_inline_decoration_does_not_change_markdown_text() {
     Gtk.TextIter end;
     buffer.get_bounds(out start, out end);
     assert(buffer.get_text(start, end, false) == text);
-    assert(renderer.decoration_count() == 1);
+    assert(renderer.decoration_count() == 2);
+
+    int buffer_changes = 0;
+    buffer.changed.connect(() => {
+        buffer_changes++;
+    });
+    buffer.get_start_iter(out start);
+    buffer.insert(ref start, "Updated\n", -1);
+    var changes_after_edit = buffer_changes;
+    var updated_text = "Updated\n" + text;
+    renderer.set_items(controller.resolve(updated_text, resources));
+    buffer.get_bounds(out start, out end);
+    assert(buffer.get_text(start, end, false) == updated_text);
+    assert(buffer_changes == changes_after_edit);
+    assert(renderer.decoration_count() == 2);
 
     renderer.clear();
     buffer.get_bounds(out start, out end);
-    assert(buffer.get_text(start, end, false) == text);
+    assert(buffer.get_text(start, end, false) == updated_text);
     assert(renderer.decoration_count() == 0);
 }
 
