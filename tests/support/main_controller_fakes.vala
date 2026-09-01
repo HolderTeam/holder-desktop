@@ -83,7 +83,7 @@ public class FakeEditorRecoveryDraftService : Object, HolderLinux.IEditorRecover
     }
 }
 
-public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
+public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux.IMilestoneApi {
     public int list_projects_calls = 0;
     public int list_cards_calls = 0;
     public int get_card_calls = 0;
@@ -130,6 +130,17 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
     public int max_list_card_links_in_flight = 0;
     public int create_card_link_calls = 0;
     public int delete_card_link_calls = 0;
+    public int get_project_calendar_calls = 0;
+    public int add_card_milestone_calls = 0;
+    public int remove_card_milestone_calls = 0;
+    public string last_calendar_project_id = "";
+    public int64 last_calendar_from = 0;
+    public int64 last_calendar_to = 0;
+    public Gee.ArrayList<HolderLinux.Milestone> milestones = new Gee.ArrayList<HolderLinux.Milestone>();
+    public Gee.ArrayList<HolderLinux.CalendarCardActivity> calendar_created_cards =
+        new Gee.ArrayList<HolderLinux.CalendarCardActivity>();
+    public Gee.ArrayList<HolderLinux.CalendarCardActivity> calendar_updated_cards =
+        new Gee.ArrayList<HolderLinux.CalendarCardActivity>();
     public string last_updated_card_id = "";
     public string last_requested_tag = "";
     public Gee.ArrayList<HolderLinux.TagCount> project_tags = new Gee.ArrayList<HolderLinux.TagCount>();
@@ -1082,6 +1093,52 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi {
         last_move_card_id = card_id;
         last_move_parent_card_id = parent_card_id;
         return new HolderLinux.CardMoveResult(card_id, parent_card_id, 0.0, 1, next_move_into_title);
+    }
+
+    public async HolderLinux.ProjectCalendar get_project_calendar(string project_id,
+                                                                  int64 from_epoch,
+                                                                  int64 to_epoch) throws Error {
+        get_project_calendar_calls++;
+        last_calendar_project_id = project_id;
+        last_calendar_from = from_epoch;
+        last_calendar_to = to_epoch;
+        return new HolderLinux.ProjectCalendar(
+            project_id,
+            from_epoch,
+            to_epoch,
+            milestones.to_array(),
+            calendar_created_cards.to_array(),
+            calendar_updated_cards.to_array()
+        );
+    }
+
+    public async Gee.ArrayList<HolderLinux.Milestone> list_card_milestones(string card_id) throws Error {
+        return new Gee.ArrayList<HolderLinux.Milestone>.wrap(milestones.to_array());
+    }
+
+    public async HolderLinux.Milestone add_card_milestone(string card_id,
+                                                          int64 start_at,
+                                                          int64? end_at,
+                                                          bool all_day,
+                                                          string? kind,
+                                                          string? description) throws Error {
+        add_card_milestone_calls++;
+        var milestone = new HolderLinux.Milestone(
+            "m-created", card_id, start_at, end_at, all_day, kind, description, 1, 1, "Card"
+        );
+        milestones.add(milestone);
+        return milestone;
+    }
+
+    public async bool remove_card_milestone(string card_id, string milestone_id) throws Error {
+        remove_card_milestone_calls++;
+        for (var i = 0; i < milestones.size; i++) {
+            if (milestones[i].card_id == card_id && milestones[i].milestone_id == milestone_id) {
+                milestones.remove_at(i);
+                return true;
+            }
+        }
+        return false;
     }
 }
 

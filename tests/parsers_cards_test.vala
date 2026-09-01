@@ -273,6 +273,53 @@ private void test_parse_card_move_result_missing_fields_is_protocol_error() {
     assert(got_protocol);
 }
 
+private void test_parse_project_calendar_and_milestones() {
+    var root = parse_json_object(
+        "{\"data\":{" +
+        "\"project_id\":\"p1\",\"from\":100,\"to\":500," +
+        "\"milestones\":[{\"milestone_id\":\"m1\",\"card_id\":\"c1\"," +
+        "\"start_at\":200,\"end_at\":220,\"all_day\":false,\"kind\":\"Exam\"," +
+        "\"description\":\"Final\",\"created_at\":10,\"updated_at\":11," +
+        "\"card_title\":\"Revision\"}]," +
+        "\"created_cards\":[{\"card_id\":\"c2\",\"title\":\"Created\",\"created_at\":150,\"updated_at\":150}]," +
+        "\"updated_cards\":[{\"card_id\":\"c3\",\"title\":\"Updated\",\"created_at\":120,\"updated_at\":250}]}}"
+    );
+    HolderLinux.ProjectCalendar parsed;
+    try {
+        parsed = HolderLinux.ApiParsersCards.parse_project_calendar(root);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    assert(parsed.project_id == "p1");
+    assert(parsed.from_epoch == 100);
+    assert(parsed.to_epoch == 500);
+    assert(parsed.milestones.length == 1);
+    assert(parsed.milestones[0].milestone_id == "m1");
+    assert(parsed.milestones[0].end_at == 220);
+    assert(parsed.milestones[0].kind == "Exam");
+    assert(parsed.milestones[0].card_title == "Revision");
+    assert(parsed.created_cards.length == 1);
+    assert(parsed.created_cards[0].card_id == "c2");
+    assert(parsed.updated_cards.length == 1);
+    assert(parsed.updated_cards[0].updated_at == 250);
+
+    var list_root = parse_json_object(
+        "{\"data\":[{\"milestone_id\":\"m2\",\"card_id\":\"c2\"," +
+        "\"start_at\":300,\"end_at\":null,\"all_day\":true,\"kind\":null," +
+        "\"description\":null,\"created_at\":1,\"updated_at\":1}]}"
+    );
+    Gee.ArrayList<HolderLinux.Milestone> listed;
+    try {
+        listed = HolderLinux.ApiParsersCards.parse_milestones_response(list_root);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    assert(listed.size == 1);
+    assert(listed[0].all_day);
+    assert(listed[0].end_at == null);
+    assert(listed[0].kind == null);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -287,6 +334,7 @@ public static int main(string[] args) {
     Test.add_func("/parsers/cards/card-links-missing-data-protocol-error", test_parse_card_links_missing_data_is_protocol_error);
     Test.add_func("/parsers/cards/card-move-result-full-and-defaults", test_parse_card_move_result_full_and_defaults);
     Test.add_func("/parsers/cards/card-move-result-missing-fields-protocol-error", test_parse_card_move_result_missing_fields_is_protocol_error);
+    Test.add_func("/parsers/cards/project-calendar-and-milestones", test_parse_project_calendar_and_milestones);
 
     return Test.run();
 }

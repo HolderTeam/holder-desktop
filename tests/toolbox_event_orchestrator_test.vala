@@ -109,6 +109,10 @@ private class FakeToolboxEventSource : Object, IToolboxEventSource {
         resources_card_open_requested(card_id);
     }
 
+    public void emit_milestones_card_open_requested(string card_id) {
+        milestones_card_open_requested(card_id);
+    }
+
     public void emit_resource_references_requested(ProjectResource resource) {
         resource_references_requested(resource);
     }
@@ -331,6 +335,11 @@ private void test_bind_routes_open_card_requests_with_expected_reasons() {
     wait_for_idle();
     assert(selection.last_open_card_id == "card-resource");
     assert(selection.last_open_reason == "toolbox-resources-card-open");
+
+    source.emit_milestones_card_open_requested("card-milestone");
+    wait_for_idle();
+    assert(selection.last_open_card_id == "card-milestone");
+    assert(selection.last_open_reason == "toolbox-milestones-card-open");
 
     var resource = new ProjectResource("r1", "p1", "image", "", "Boiler", null, 1, 2);
     source.emit_resource_references_requested(resource);

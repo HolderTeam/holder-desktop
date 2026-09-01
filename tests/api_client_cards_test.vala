@@ -256,6 +256,67 @@ private void test_project_tags_and_cards_with_tag() {
     assert(transport.last_uri.contains("tag=android%2Fmobile"));
 }
 
+private void test_calendar_and_milestone_endpoints() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200,
+        "{\"ok\":true,\"data\":{\"project_id\":\"p1\",\"from\":100,\"to\":500," +
+        "\"milestones\":[],\"created_cards\":[],\"updated_cards\":[]}}");
+    transport.enqueue_read(200,
+        "{\"ok\":true,\"data\":[{\"milestone_id\":\"m1\",\"card_id\":\"c1\"," +
+        "\"start_at\":200,\"end_at\":null,\"all_day\":true,\"kind\":null," +
+        "\"description\":null,\"created_at\":1,\"updated_at\":1}]}");
+    transport.enqueue_read(201,
+        "{\"ok\":true,\"data\":{\"milestone_id\":\"m2\",\"card_id\":\"c1\"," +
+        "\"start_at\":300,\"end_at\":360,\"all_day\":false,\"kind\":\"Service\"," +
+        "\"description\":\"Boiler\",\"created_at\":2,\"updated_at\":2}}");
+    transport.enqueue_read(200,
+        "{\"ok\":true,\"data\":{\"card_id\":\"c1\",\"milestone_id\":\"m2\",\"removed\":true}}");
+    var client = make_client(transport);
+
+    bool calendar_done = false;
+    HolderLinux.ProjectCalendar? calendar = null;
+    client.get_project_calendar.begin("p1", 100, 500, (obj, res) => {
+        try { calendar = client.get_project_calendar.end(res); } catch (Error e) { calendar = null; }
+        calendar_done = true;
+    });
+    assert(wait_for_condition(() => calendar_done));
+    assert(calendar != null && calendar.project_id == "p1");
+    assert(transport.last_uri.contains("/calendar"));
+    assert(transport.last_uri.contains("project_id=p1"));
+    assert(transport.last_uri.contains("from=100"));
+    assert(transport.last_uri.contains("to=500"));
+
+    bool list_done = false;
+    Gee.ArrayList<HolderLinux.Milestone>? milestones = null;
+    client.list_card_milestones.begin("c1", (obj, res) => {
+        try { milestones = client.list_card_milestones.end(res); } catch (Error e) { milestones = null; }
+        list_done = true;
+    });
+    assert(wait_for_condition(() => list_done));
+    assert(milestones != null && milestones.size == 1);
+
+    bool add_done = false;
+    HolderLinux.Milestone? added = null;
+    client.add_card_milestone.begin("c1", 300, 360, false, " Service ", " Boiler ", (obj, res) => {
+        try { added = client.add_card_milestone.end(res); } catch (Error e) { added = null; }
+        add_done = true;
+    });
+    assert(wait_for_condition(() => add_done));
+    assert(added != null && added.kind == "Service");
+    assert(transport.last_method == "POST");
+
+    bool delete_done = false;
+    bool removed = false;
+    client.remove_card_milestone.begin("c1", "m2", (obj, res) => {
+        try { removed = client.remove_card_milestone.end(res); } catch (Error e) { removed = false; }
+        delete_done = true;
+    });
+    assert(wait_for_condition(() => delete_done));
+    assert(removed);
+    assert(transport.last_method == "DELETE");
+    assert(transport.last_uri.contains("/cards/c1/milestones/m2"));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -271,6 +332,8 @@ public static int main(string[] args) {
                   test_delete_card_sends_delete_to_card_path);
     Test.add_func("/api_client_cards/project_tags_and_cards_with_tag",
                   test_project_tags_and_cards_with_tag);
+    Test.add_func("/api_client_cards/calendar_and_milestone_endpoints",
+                  test_calendar_and_milestone_endpoints);
 
     return Test.run();
 }

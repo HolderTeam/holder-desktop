@@ -6,6 +6,7 @@ public class ToolboxPane : Object {
     private GitSyncToolView git_sync_tool;
     private RecoveryKeyToolView recovery_key_tool;
     private ResourcesToolView resources_tool;
+    private MilestonesToolView milestones_tool;
     private SharingToolView sharing_tool;
     private DebugToolView debug_tool;
     private TerminalToolView terminal_tool;
@@ -30,6 +31,7 @@ public class ToolboxPane : Object {
     public signal void connections_card_open_requested(string card_id);
     public signal void tags_card_open_requested(string card_id);
     public signal void resources_card_open_requested(string card_id);
+    public signal void milestones_card_open_requested(string card_id);
     public signal void resource_references_requested(ProjectResource resource);
     public signal void asset_preview_requested(ProjectResource resource, ResourceAsset asset);
     public signal void project_resources_loaded(string project_id,
@@ -79,6 +81,9 @@ public class ToolboxPane : Object {
         if (resources_tool != null) {
             resources_tool.set_api_client(api);
         }
+        if (milestones_tool != null) {
+            milestones_tool.set_api_client(api);
+        }
         if (trash_tool != null) {
             trash_tool.set_api_client(api);
         }
@@ -113,6 +118,9 @@ public class ToolboxPane : Object {
         }
         if (tags_tool != null) {
             tags_tool.bind_context(project_selection, card_selection);
+        }
+        if (milestones_tool != null) {
+            milestones_tool.bind_context(project_selection, card_store, card_selection);
         }
 
         project_selection.notify["selected"].connect(() => {
@@ -184,6 +192,12 @@ public class ToolboxPane : Object {
     public void refresh_resources(string? select_resource_id = null) {
         if (resources_tool != null) {
             resources_tool.request_refresh(select_resource_id);
+        }
+    }
+
+    public void refresh_milestones() {
+        if (milestones_tool != null) {
+            milestones_tool.refresh();
         }
     }
 
@@ -324,6 +338,27 @@ public class ToolboxPane : Object {
         var resources_page = stack.add_titled(resources_tool.widget, "resources", "Resources");
         resources_page.set_icon_name("view-list-symbolic");
 
+        milestones_tool = new MilestonesToolView();
+        tool_adapters.set("milestones", milestones_tool);
+        milestones_tool.error_reported.connect((title_text, details) => {
+            error_reported(title_text, details);
+        });
+        milestones_tool.toast_requested.connect((message) => {
+            toast_requested(message);
+        });
+        milestones_tool.card_open_requested.connect((card_id) => {
+            milestones_card_open_requested(card_id);
+        });
+        milestones_tool.set_api_client(api);
+        if (project_selection != null && card_store != null && card_selection != null) {
+            milestones_tool.bind_context(project_selection, card_store, card_selection);
+        }
+        var milestones_page = stack.add_titled(
+            milestones_tool.widget, "milestones", "Milestones"
+        );
+        milestones_page.set_icon_name("x-office-calendar-symbolic");
+        milestones_tool.set_tool_visible(false);
+
         var sharing_page = stack.add_titled(
             build_sharing_tab(),
             "sharing",
@@ -411,6 +446,9 @@ public class ToolboxPane : Object {
             if (tags_tool != null) {
                 tags_tool.set_tool_visible(page != null && page.name == "tags");
             }
+            if (milestones_tool != null) {
+                milestones_tool.set_tool_visible(page != null && page.name == "milestones");
+            }
             apply_shell_state();
             if (page.title == "Trash") {
                 refresh_trash();
@@ -425,6 +463,11 @@ public class ToolboxPane : Object {
             var visible = stack.get_visible_child();
             var page = visible != null ? stack.get_page(visible) : null;
             tags_tool.set_tool_visible(page != null && page.name == "tags");
+        }
+        if (milestones_tool != null) {
+            var visible = stack.get_visible_child();
+            var page = visible != null ? stack.get_page(visible) : null;
+            milestones_tool.set_tool_visible(page != null && page.name == "milestones");
         }
         apply_shell_state();
 

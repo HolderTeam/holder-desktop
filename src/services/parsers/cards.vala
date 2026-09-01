@@ -1,6 +1,72 @@
 namespace HolderLinux {
 
 public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage artifact
+    public static Milestone parse_milestone(Json.Object item) {
+        int64? end_at = null;
+        if (item.has_member("end_at") &&
+            item.get_member("end_at").get_node_type() != Json.NodeType.NULL) {
+            end_at = item.get_int_member("end_at");
+        }
+        return new Milestone(
+            item.get_string_member("milestone_id"),
+            item.get_string_member("card_id"),
+            item.get_int_member("start_at"),
+            end_at,
+            item.has_member("all_day") && item.get_boolean_member("all_day"),
+            ApiParsersCommon.nullable_string_member_or_null(item, "kind"),
+            ApiParsersCommon.nullable_string_member_or_null(item, "description"),
+            item.has_member("created_at") ? item.get_int_member("created_at") : 0,
+            item.has_member("updated_at") ? item.get_int_member("updated_at") : 0,
+            ApiParsersCommon.nullable_string_member_or_null(item, "card_title")
+        );
+    }
+
+    public static Gee.ArrayList<Milestone> parse_milestones_response(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for milestones response");
+        }
+        return new Gee.ArrayList<Milestone>.wrap(
+            parse_milestones_array(root.get_array_member("data"))
+        );
+    }
+
+    public static ProjectCalendar parse_project_calendar(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for calendar response");
+        }
+        var data = root.get_object_member("data");
+        return new ProjectCalendar(
+            data.get_string_member("project_id"),
+            data.get_int_member("from"),
+            data.get_int_member("to"),
+            parse_milestones_array(data.get_array_member("milestones")),
+            parse_calendar_card_array(data.get_array_member("created_cards")),
+            parse_calendar_card_array(data.get_array_member("updated_cards"))
+        );
+    }
+
+    private static Milestone[] parse_milestones_array(Json.Array data) {
+        Milestone[] result = {};
+        for (uint i = 0; i < data.get_length(); i++) {
+            result += parse_milestone(data.get_object_element(i));
+        }
+        return result;
+    }
+
+    private static CalendarCardActivity[] parse_calendar_card_array(Json.Array data) {
+        CalendarCardActivity[] result = {};
+        for (uint i = 0; i < data.get_length(); i++) {
+            var item = data.get_object_element(i);
+            result += new CalendarCardActivity(
+                item.get_string_member("card_id"),
+                item.get_string_member("title"),
+                item.get_int_member("created_at"),
+                item.get_int_member("updated_at")
+            );
+        }
+        return result;
+    }
+
     public static Gee.ArrayList<CardSummary> parse_cards(Json.Object root) throws Error { // LCOV_EXCL_BR_LINE: declaration branch artifact
         if (!root.has_member("data")) {
             throw new ApiError.PROTOCOL("Missing data for cards response");

@@ -171,6 +171,23 @@ public interface IResourceStorageApi : Object {
                                               string destination_path) throws Error;
 }
 
+// Calendar work is separate from the broad application API so small controller fakes do not
+// need milestone methods. ApiClient implements this alongside IHolderApi.
+public interface IMilestoneApi : Object {
+    public abstract async ProjectCalendar get_project_calendar(string project_id,
+                                                               int64 from_epoch,
+                                                               int64 to_epoch) throws Error;
+    public abstract async Gee.ArrayList<Milestone> list_card_milestones(string card_id) throws Error;
+    public abstract async Milestone add_card_milestone(string card_id,
+                                                       int64 start_at,
+                                                       int64? end_at,
+                                                       bool all_day,
+                                                       string? kind,
+                                                       string? description) throws Error;
+    public abstract async bool remove_card_milestone(string card_id,
+                                                     string milestone_id) throws Error;
+}
+
 public interface IApiFactory : Object {
     public abstract IHolderApi create(string base_url, string auth_token);
 }

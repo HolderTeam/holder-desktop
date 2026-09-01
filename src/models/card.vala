@@ -150,4 +150,85 @@ public class CardMoveResult : Object {
     }
 }
 
+public class Milestone : Object {
+    public string milestone_id { get; construct; }
+    public string card_id { get; construct; }
+    public int64 start_at { get; construct; }
+    public int64? end_at;
+    public bool all_day { get; construct; }
+    public string? kind { get; construct; }
+    public string? description { get; construct; }
+    public int64 created_at { get; construct; }
+    public int64 updated_at { get; construct; }
+    public string? card_title { get; construct; }
+
+    public Milestone(string milestone_id,
+                     string card_id,
+                     int64 start_at,
+                     int64? end_at,
+                     bool all_day,
+                     string? kind,
+                     string? description,
+                     int64 created_at,
+                     int64 updated_at,
+                     string? card_title = null) {
+        Object(
+            milestone_id: milestone_id,
+            card_id: card_id,
+            start_at: start_at,
+            all_day: all_day,
+            kind: kind,
+            description: description,
+            created_at: created_at,
+            updated_at: updated_at,
+            card_title: card_title
+        );
+        this.end_at = end_at;
+    }
+}
+
+public class CalendarCardActivity : Object {
+    public string card_id { get; construct; }
+    public string title { get; construct; }
+    public int64 created_at { get; construct; }
+    public int64 updated_at { get; construct; }
+
+    public CalendarCardActivity(string card_id,
+                                string title,
+                                int64 created_at,
+                                int64 updated_at) {
+        Object(
+            card_id: card_id,
+            title: title,
+            created_at: created_at,
+            updated_at: updated_at
+        );
+    }
+}
+
+public class ProjectCalendar : Object {
+    public string project_id { get; construct; }
+    public int64 from_epoch { get; construct; }
+    public int64 to_epoch { get; construct; }
+    public Milestone[] milestones;
+    public CalendarCardActivity[] created_cards;
+    public CalendarCardActivity[] updated_cards;
+
+    public ProjectCalendar(string project_id,
+                           int64 from_epoch,
+                           int64 to_epoch,
+                           Milestone[] milestones,
+                           CalendarCardActivity[] created_cards,
+                           CalendarCardActivity[] updated_cards) {
+        Object(
+            project_id: project_id,
+            from_epoch: from_epoch,
+            to_epoch: to_epoch
+        );
+        this.milestones = milestones;
+        this.created_cards = created_cards;
+        this.updated_cards = updated_cards;
+    }
+}
+
 }

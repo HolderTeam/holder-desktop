@@ -1198,6 +1198,9 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void set_editor_save_state_text(string text) {
         editor_renderer.set_save_state_text(text);
+        if (text == "Saved") {
+            toolbox.refresh_milestones();
+        }
     }
 
     internal void set_search_summary_text(string text) {

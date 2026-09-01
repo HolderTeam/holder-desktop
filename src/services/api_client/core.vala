@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-public class ApiClient : Object, IHolderApi, IResourceStorageApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     private IApiHttpTransport transport; // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     private string base_url;
     private string auth_token;
@@ -67,6 +67,34 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi { // LCOV_EXCL_
 
     public async CardDetail get_card(string card_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
         return yield ApiClientCardsEndpoints.get_card(this, card_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async ProjectCalendar get_project_calendar(string project_id,
+                                                      int64 from_epoch,
+                                                      int64 to_epoch) throws Error {
+        return yield ApiClientCardsEndpoints.get_project_calendar(
+            this, project_id, from_epoch, to_epoch
+        );
+    }
+
+    public async Gee.ArrayList<Milestone> list_card_milestones(string card_id) throws Error {
+        return yield ApiClientCardsEndpoints.list_card_milestones(this, card_id);
+    }
+
+    public async Milestone add_card_milestone(string card_id,
+                                              int64 start_at,
+                                              int64? end_at,
+                                              bool all_day,
+                                              string? kind,
+                                              string? description) throws Error {
+        return yield ApiClientCardsEndpoints.add_card_milestone(
+            this, card_id, start_at, end_at, all_day, kind, description
+        );
+    }
+
+    public async bool remove_card_milestone(string card_id,
+                                            string milestone_id) throws Error {
+        return yield ApiClientCardsEndpoints.remove_card_milestone(this, card_id, milestone_id);
     }
 
     public async Gee.ArrayList<TagCount> list_project_tags(string project_id) throws Error {

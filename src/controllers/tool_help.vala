@@ -40,6 +40,8 @@ internal class ToolHelpController : Object {
             return "Connections";
         case "resources":
             return "Resources";
+        case "milestones":
+            return "Milestones";
         case "sharing":
             return "Sharing";
         case "terminals":
