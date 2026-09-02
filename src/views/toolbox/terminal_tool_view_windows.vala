@@ -372,27 +372,27 @@ public class TerminalToolView : Object, IToolShellAdapter {
 
         content_stack.set_visible_child_name("prerequisite");
         install_button.set_visible(false);
+        install_button.set_sensitive(false);
         manual_install_link.set_visible(false);
         switch (((!) current).status) {
         case PowerShellPrerequisiteStatus.POWERSHELL_MISSING:
             prerequisite_title.set_text("PowerShell 7 is required");
             prerequisite_detail.set_text(
-                "Holder uses PowerShell 7 to preserve useful terminal commands and output in your cards."
+                power_shell_install_detail((!) current)
             );
-            install_button.set_visible(true);
-            install_button.set_sensitive(((!) current).winget_path != null
-                                         && ((!) current).windows_terminal_path != null);
+            configure_install_button((!) current);
             manual_install_link.set_visible(true);
             break;
         case PowerShellPrerequisiteStatus.POWERSHELL_UNSUPPORTED:
             prerequisite_title.set_text("A newer PowerShell is required");
             prerequisite_detail.set_text(
-                "Holder found PowerShell %s, but PowerShell 7 or newer is required."
-                    .printf(((!) current).powershell_version ?? "")
+                "Holder found PowerShell %s, but PowerShell 7 or newer is required. %s"
+                    .printf(
+                        ((!) current).powershell_version ?? "",
+                        power_shell_install_detail((!) current)
+                    )
             );
-            install_button.set_visible(true);
-            install_button.set_sensitive(((!) current).winget_path != null
-                                         && ((!) current).windows_terminal_path != null);
+            configure_install_button((!) current);
             manual_install_link.set_visible(true);
             break;
         case PowerShellPrerequisiteStatus.WINDOWS_TERMINAL_MISSING:
@@ -411,6 +411,31 @@ public class TerminalToolView : Object, IToolShellAdapter {
             manual_install_link.set_visible(true);
             break;
         }
+    }
+
+    private void configure_install_button(PowerShellPrerequisites current) {
+        var automatic_install_available = current.winget_path != null
+                                           && current.windows_terminal_path != null;
+        install_button.set_visible(automatic_install_available);
+        install_button.set_sensitive(automatic_install_available);
+    }
+
+    private static string power_shell_install_detail(PowerShellPrerequisites current) {
+        const string PURPOSE =
+            "Holder uses PowerShell 7 to preserve useful terminal commands and output in your cards.";
+        if (current.winget_path == null && current.windows_terminal_path == null) {
+            return "%s Automatic installation is unavailable because Holder could not find Windows Terminal or WinGet; use the Microsoft link below."
+                .printf(PURPOSE);
+        }
+        if (current.windows_terminal_path == null) {
+            return "%s Automatic installation is unavailable because Holder could not find Windows Terminal; use the Microsoft link below."
+                .printf(PURPOSE);
+        }
+        if (current.winget_path == null) {
+            return "%s Automatic installation is unavailable because Holder could not find WinGet; use the Microsoft link below."
+                .printf(PURPOSE);
+        }
+        return PURPOSE;
     }
 
     private void confirm_install() {

@@ -42,10 +42,18 @@ public class PowerShellDiscoveryService : Object {
         return Environment.find_program_in_path(name);
     }
 
+    public virtual string? get_environment_variable(string name) {
+        return Environment.get_variable(name);
+    }
+
+    public virtual bool path_exists(string path) {
+        return FileUtils.test(path, FileTest.EXISTS);
+    }
+
     public virtual async PowerShellPrerequisites discover() {
-        var pwsh_path = find_program("pwsh.exe") ?? find_program("pwsh");
-        var wt_path = find_program("wt.exe") ?? find_program("wt");
-        var winget_path = find_program("winget.exe") ?? find_program("winget");
+        var pwsh_path = find_powershell();
+        var wt_path = find_windows_app("wt.exe", "wt");
+        var winget_path = find_windows_app("winget.exe", "winget");
 
         if (pwsh_path == null) {
             return new PowerShellPrerequisites(
@@ -98,6 +106,50 @@ public class PowerShellDiscoveryService : Object {
             wt_path,
             winget_path
         );
+    }
+
+    internal string? find_powershell() {
+        var discovered = find_program("pwsh.exe") ?? find_program("pwsh");
+        if (discovered != null) {
+            return discovered;
+        }
+
+        string[] program_file_variables = {
+            "ProgramFiles",
+            "ProgramW6432",
+            "ProgramFiles(x86)"
+        };
+        foreach (var variable in program_file_variables) {
+            var base_dir = get_environment_variable(variable);
+            if (base_dir == null || ((!) base_dir).strip().length == 0) {
+                continue;
+            }
+            var candidate = Path.build_filename((!) base_dir, "PowerShell", "7", "pwsh.exe");
+            if (path_exists(candidate)) {
+                return candidate;
+            }
+        }
+
+        return windows_apps_path("pwsh.exe");
+    }
+
+    internal string? find_windows_app(string executable_name, string path_name) {
+        var discovered = find_program(executable_name) ?? find_program(path_name);
+        return discovered ?? windows_apps_path(executable_name);
+    }
+
+    private string? windows_apps_path(string executable_name) {
+        var local_app_data = get_environment_variable("LOCALAPPDATA");
+        if (local_app_data == null || ((!) local_app_data).strip().length == 0) {
+            return null;
+        }
+        var candidate = Path.build_filename(
+            (!) local_app_data,
+            "Microsoft",
+            "WindowsApps",
+            executable_name
+        );
+        return path_exists(candidate) ? candidate : null;
     }
 
     public virtual async string query_version(string powershell_path) throws Error {

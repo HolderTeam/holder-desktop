@@ -2,6 +2,23 @@ using GLib;
 
 namespace HolderLinuxTests {
 
+private class FakePowerShellDiscoveryService : HolderLinux.PowerShellDiscoveryService {
+    public Gee.HashMap<string, string> environment = new Gee.HashMap<string, string>();
+    public Gee.HashSet<string> existing_paths = new Gee.HashSet<string>();
+
+    public override string? find_program(string name) {
+        return null;
+    }
+
+    public override string? get_environment_variable(string name) {
+        return environment.get(name);
+    }
+
+    public override bool path_exists(string path) {
+        return existing_paths.contains(path);
+    }
+}
+
 private string make_temp_dir() {
     try {
         return DirUtils.make_tmp("holder-terminal-sessions-XXXXXX");
@@ -16,6 +33,49 @@ private void test_parse_power_shell_versions() {
     assert(HolderLinux.PowerShellDiscoveryService.parse_major_version("5") == 5);
     assert(HolderLinux.PowerShellDiscoveryService.parse_major_version("") == -1);
     assert(HolderLinux.PowerShellDiscoveryService.parse_major_version("preview") == -1);
+}
+
+private void test_discovery_finds_standard_windows_install_locations() {
+    var discovery = new FakePowerShellDiscoveryService();
+    discovery.environment.set("ProgramFiles", "C:\\Program Files");
+    discovery.environment.set("LOCALAPPDATA", "C:\\Users\\Person\\AppData\\Local");
+
+    var powershell_path = Path.build_filename(
+        "C:\\Program Files", "PowerShell", "7", "pwsh.exe"
+    );
+    var terminal_path = Path.build_filename(
+        "C:\\Users\\Person\\AppData\\Local",
+        "Microsoft",
+        "WindowsApps",
+        "wt.exe"
+    );
+    var winget_path = Path.build_filename(
+        "C:\\Users\\Person\\AppData\\Local",
+        "Microsoft",
+        "WindowsApps",
+        "winget.exe"
+    );
+    discovery.existing_paths.add(powershell_path);
+    discovery.existing_paths.add(terminal_path);
+    discovery.existing_paths.add(winget_path);
+
+    assert(discovery.find_powershell() == powershell_path);
+    assert(discovery.find_windows_app("wt.exe", "wt") == terminal_path);
+    assert(discovery.find_windows_app("winget.exe", "winget") == winget_path);
+}
+
+private void test_discovery_finds_store_powershell_alias() {
+    var discovery = new FakePowerShellDiscoveryService();
+    discovery.environment.set("LOCALAPPDATA", "C:\\Users\\Person\\AppData\\Local");
+    var powershell_path = Path.build_filename(
+        "C:\\Users\\Person\\AppData\\Local",
+        "Microsoft",
+        "WindowsApps",
+        "pwsh.exe"
+    );
+    discovery.existing_paths.add(powershell_path);
+
+    assert(discovery.find_powershell() == powershell_path);
 }
 
 private void test_session_store_round_trip_and_bootstrap() {
@@ -153,6 +213,14 @@ public static int main(string[] args) {
     Test.add_func(
         "/windows_terminal/parse_power_shell_versions",
         test_parse_power_shell_versions
+    );
+    Test.add_func(
+        "/windows_terminal/discovery_finds_standard_install_locations",
+        test_discovery_finds_standard_windows_install_locations
+    );
+    Test.add_func(
+        "/windows_terminal/discovery_finds_store_powershell_alias",
+        test_discovery_finds_store_powershell_alias
     );
     Test.add_func(
         "/windows_terminal/session_store_round_trip_and_bootstrap",
