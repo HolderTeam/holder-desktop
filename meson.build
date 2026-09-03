@@ -790,6 +790,9 @@ windows_terminal_services_test_exe = executable(
   vala_args: [
     '--target-glib=2.70',
   ],
+  # This target is Vala test code; GCC otherwise reports artifacts from the
+  # generated C. Native sources are still warning-checked in holder-desktop.
+  c_args: ['-w'],
   install: false,
 )
 
