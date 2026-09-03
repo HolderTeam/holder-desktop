@@ -105,7 +105,9 @@ private void test_discovery_finds_standard_windows_install_locations() {
     discovery.existing_paths.add(terminal_path);
     discovery.existing_paths.add(winget_path);
 
-    assert(discovery.find_powershell() == powershell_path);
+    var candidates = discovery.find_powershell_candidates();
+    assert(candidates.length > 0);
+    assert(candidates[0] == powershell_path);
     assert(discovery.find_windows_app("wt.exe", "wt") == terminal_path);
     assert(discovery.find_windows_app("winget.exe", "winget") == winget_path);
 }
@@ -121,7 +123,9 @@ private void test_discovery_finds_store_powershell_alias() {
     );
     discovery.existing_paths.add(powershell_path);
 
-    assert(discovery.find_powershell() == powershell_path);
+    var candidates = discovery.find_powershell_candidates();
+    assert(candidates.length > 0);
+    assert(candidates[0] == powershell_path);
 }
 
 private void test_discovery_prefers_program_files_and_falls_back_after_query_failure() {

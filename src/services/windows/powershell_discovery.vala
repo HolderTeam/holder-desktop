@@ -197,11 +197,6 @@ public class PowerShellDiscoveryService : Object {
         current.reset(AppSettings.KEY_TERMINAL_WINGET_PATH);
     }
 
-    internal string? find_powershell() {
-        var candidates = find_powershell_candidates();
-        return candidates.length > 0 ? candidates[0] : null;
-    }
-
     internal string[] find_powershell_candidates() {
         var candidates = new Gee.ArrayList<string>();
 
