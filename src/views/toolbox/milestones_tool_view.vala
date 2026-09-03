@@ -110,7 +110,7 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         var today = new Gtk.Button.with_label("Today");
         today.clicked.connect(() => {
             var now = new DateTime.now_local();
-            calendar.select_day(now);
+            CalendarCompat.set_date(calendar, now);
             upcoming_button.set_active(false);
             queue_refresh();
         });
@@ -548,7 +548,7 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         start_column.set_hexpand(true);
         start_column.append(form_label("Start"));
         var start_calendar = new Gtk.Calendar();
-        start_calendar.select_day(calendar.get_date());
+        CalendarCompat.set_date(start_calendar, calendar.get_date());
         start_column.append(start_calendar);
         date_columns.append(start_column);
 
@@ -557,7 +557,7 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         var include_end = new Gtk.CheckButton.with_label("Add end");
         end_column.append(include_end);
         var end_calendar = new Gtk.Calendar();
-        end_calendar.select_day(calendar.get_date());
+        CalendarCompat.set_date(end_calendar, calendar.get_date());
         end_calendar.set_sensitive(false);
         end_column.append(end_calendar);
         date_columns.append(end_column);

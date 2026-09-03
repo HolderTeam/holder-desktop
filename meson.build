@@ -51,8 +51,14 @@ endforeach
 
 install_man('man/holder-desktop.1')
 
+gtk_dep = dependency('gtk4', version: '>=4.14')
+calendar_compat_vala_args = []
+if gtk_dep.version().version_compare('>=4.20')
+  calendar_compat_vala_args += ['--define=GTK_4_20']
+endif
+
 deps = [
-  dependency('gtk4', version: '>=4.14'),
+  gtk_dep,
   dependency('libadwaita-1', version: '>=1.5'),
   dependency('gtksourceview-5'),
   dependency('libspelling-1'),
@@ -96,6 +102,7 @@ sources = [
   'src/state/activity_log.vala',
   'src/services/core_interfaces.vala',
   'src/services/app_settings.vala',
+  'src/services/calendar_compat.vala',
   'src/services/editor_font_style.vala',
   'src/services/editor_recovery_draft_service.vala',
   'src/services/powershell_transcript.vala',
@@ -260,7 +267,7 @@ executable(
   dependencies: deps,
   vala_args: [
     '--target-glib=2.70',
-  ],
+  ] + calendar_compat_vala_args,
   gui_app: true,
   install: true,
 )
@@ -2803,6 +2810,7 @@ milestones_tool_view_test_exe = executable(
     'src/models/nudges.vala',
     'src/models/toolbox_nav.vala',
     'src/services/core_interfaces.vala',
+    'src/services/calendar_compat.vala',
     'src/views/toolbox/tool_adapter.vala',
     'src/views/toolbox/milestones_tool_view.vala',
     'tests/milestones_tool_view_test.vala',
@@ -2816,7 +2824,7 @@ milestones_tool_view_test_exe = executable(
   ],
   vala_args: [
     '--target-glib=2.70',
-  ],
+  ] + calendar_compat_vala_args,
   install: false,
 )
 
