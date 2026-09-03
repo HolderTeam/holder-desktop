@@ -159,24 +159,11 @@ private void test_discovery_prefers_program_files_and_falls_back_after_query_fai
     assert(candidates[0] == installed_path);
     assert(candidates[1] == alias_path);
 
-    HolderLinux.PowerShellPrerequisites? result = null;
-    Error? failure = null;
-    var loop = new MainLoop();
-    discovery.discover.begin(false, (obj, async_result) => {
-        try {
-            result = discovery.discover.end(async_result);
-        } catch (Error e) {
-            failure = e;
-        }
-        loop.quit();
-    });
-    loop.run();
+    var result = run_discovery(discovery);
 
-    assert(failure == null);
-    assert(result != null);
-    assert(((!) result).ready);
-    assert(((!) result).powershell_path == alias_path);
-    assert(((!) result).powershell_version == "7.6.5");
+    assert(result.ready);
+    assert(result.powershell_path == alias_path);
+    assert(result.powershell_version == "7.6.5");
 }
 
 private void test_discovery_uses_valid_cache_and_force_refresh_bypasses_it() {

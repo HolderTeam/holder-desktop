@@ -1,4 +1,6 @@
 #include <gio/gio.h>
+
+#ifdef G_OS_WIN32
 #include <windows.h>
 
 gboolean
@@ -74,3 +76,20 @@ out:
   g_free (application);
   return success;
 }
+#else
+gboolean
+holder_windows_run_hidden (const gchar *executable,
+                           const gchar *command_line,
+                           gint        *exit_code,
+                           GError     **error)
+{
+  (void) executable;
+  (void) command_line;
+  (void) exit_code;
+  g_set_error_literal (error,
+                       G_IO_ERROR,
+                       G_IO_ERROR_NOT_SUPPORTED,
+                       "Hidden Windows processes are only available on Windows");
+  return FALSE;
+}
+#endif
