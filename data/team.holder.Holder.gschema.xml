@@ -153,5 +153,21 @@
         Unix timestamp of the last upgrade prompt shown to the user.
       </description>
     </key>
+    <key name="terminal-powershell-path" type="s">
+      <default>''</default>
+      <summary>Last verified PowerShell executable path</summary>
+    </key>
+    <key name="terminal-powershell-version" type="s">
+      <default>''</default>
+      <summary>Last verified PowerShell version</summary>
+    </key>
+    <key name="terminal-windows-terminal-path" type="s">
+      <default>''</default>
+      <summary>Last verified Windows Terminal executable path</summary>
+    </key>
+    <key name="terminal-winget-path" type="s">
+      <default>''</default>
+      <summary>Last discovered WinGet executable path</summary>
+    </key>
   </schema>
 </schemalist>

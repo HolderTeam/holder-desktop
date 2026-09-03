@@ -96,7 +96,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
     public signal void copy_to_card_requested(string text);
 
     public TerminalToolView() {
-        discovery = new PowerShellDiscoveryService();
+        discovery = new PowerShellDiscoveryService(AppSettings.open_or_null());
         session_store = new TerminalSessionStore();
         launcher = new WindowsTerminalLauncher();
         widget = build_ui();
@@ -224,7 +224,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
         install_button.clicked.connect(confirm_install);
         buttons.append(install_button);
         check_again_button = new Gtk.Button.with_label("Check Again");
-        check_again_button.clicked.connect(() => refresh_prerequisites.begin());
+        check_again_button.clicked.connect(() => refresh_prerequisites.begin(true));
         buttons.append(check_again_button);
         box.append(buttons);
 
@@ -345,7 +345,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
         return box;
     }
 
-    private async void refresh_prerequisites() {
+    private async void refresh_prerequisites(bool force_refresh = false) {
         if (discovery_in_progress) {
             return;
         }
@@ -353,7 +353,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
         if (prerequisites == null) {
             content_stack.set_visible_child_name("checking");
         }
-        prerequisites = yield discovery.discover();
+        prerequisites = yield discovery.discover(force_refresh);
         discovery_in_progress = false;
         render_prerequisites();
     }
@@ -516,6 +516,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
             toast_requested("Holder terminal opened in Windows Terminal.");
             debug_log_requested("Windows terminal session opened: %s".printf(session.session_id));
         } catch (Error e) {
+            discovery.clear_cache();
             debug_log_requested("Windows terminal launch failed: %s".printf(e.message));
             toast_requested("Could not open Windows Terminal.");
         }

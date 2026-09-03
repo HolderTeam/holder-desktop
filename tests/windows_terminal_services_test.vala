@@ -8,6 +8,11 @@ private class FakePowerShellDiscoveryService : HolderLinux.PowerShellDiscoverySe
     public Gee.HashMap<string, string> programs = new Gee.HashMap<string, string>();
     public Gee.HashMap<string, string> versions = new Gee.HashMap<string, string>();
     public Gee.HashSet<string> failed_queries = new Gee.HashSet<string>();
+    public int query_count = 0;
+
+    public FakePowerShellDiscoveryService(Settings? settings = null) {
+        base(settings);
+    }
 
     public override string? find_program(string name) {
         return programs.get(name);
@@ -22,6 +27,7 @@ private class FakePowerShellDiscoveryService : HolderLinux.PowerShellDiscoverySe
     }
 
     public override async string query_version(string path) throws Error {
+        query_count++;
         if (failed_queries.contains(path)) {
             throw new IOError.FAILED("simulated query failure");
         }
@@ -31,6 +37,20 @@ private class FakePowerShellDiscoveryService : HolderLinux.PowerShellDiscoverySe
         }
         return (!) version;
     }
+}
+
+private HolderLinux.PowerShellPrerequisites run_discovery(
+    HolderLinux.PowerShellDiscoveryService discovery,
+    bool force_refresh = false
+) {
+    HolderLinux.PowerShellPrerequisites? result = null;
+    var loop = new MainLoop();
+    discovery.discover.begin(force_refresh, (obj, async_result) => {
+        result = discovery.discover.end(async_result);
+        loop.quit();
+    });
+    loop.run();
+    return (!) result;
 }
 
 private string make_temp_dir() {
@@ -138,7 +158,7 @@ private void test_discovery_prefers_program_files_and_falls_back_after_query_fai
     HolderLinux.PowerShellPrerequisites? result = null;
     Error? failure = null;
     var loop = new MainLoop();
-    discovery.discover.begin((obj, async_result) => {
+    discovery.discover.begin(false, (obj, async_result) => {
         try {
             result = discovery.discover.end(async_result);
         } catch (Error e) {
@@ -153,6 +173,45 @@ private void test_discovery_prefers_program_files_and_falls_back_after_query_fai
     assert(((!) result).ready);
     assert(((!) result).powershell_path == alias_path);
     assert(((!) result).powershell_version == "7.6.5");
+}
+
+private void test_discovery_uses_valid_cache_and_force_refresh_bypasses_it() {
+    var settings = new Settings(HolderLinux.AppSettings.SCHEMA_ID);
+    var powershell_path = "C:\\Tools\\pwsh.exe";
+    var terminal_path = "C:\\Tools\\wt.exe";
+    settings.set_string(
+        HolderLinux.AppSettings.KEY_TERMINAL_POWERSHELL_PATH,
+        powershell_path
+    );
+    settings.set_string(
+        HolderLinux.AppSettings.KEY_TERMINAL_POWERSHELL_VERSION,
+        "7.5.0"
+    );
+    settings.set_string(
+        HolderLinux.AppSettings.KEY_TERMINAL_WINDOWS_TERMINAL_PATH,
+        terminal_path
+    );
+
+    var discovery = new FakePowerShellDiscoveryService(settings);
+    discovery.existing_paths.add(powershell_path);
+    discovery.existing_paths.add(terminal_path);
+    discovery.programs.set("pwsh.exe", powershell_path);
+    discovery.programs.set("wt.exe", terminal_path);
+    discovery.versions.set(powershell_path, "7.6.5");
+
+    var cached = run_discovery(discovery);
+    assert(cached.ready);
+    assert(cached.powershell_version == "7.5.0");
+    assert(discovery.query_count == 0);
+
+    var refreshed = run_discovery(discovery, true);
+    assert(refreshed.ready);
+    assert(refreshed.powershell_version == "7.6.5");
+    assert(discovery.query_count == 1);
+    assert(settings.get_string(
+        HolderLinux.AppSettings.KEY_TERMINAL_POWERSHELL_VERSION
+    ) == "7.6.5");
+    discovery.clear_cache();
 }
 
 private void test_session_store_round_trip_and_bootstrap() {
@@ -306,6 +365,10 @@ public static int main(string[] args) {
     Test.add_func(
         "/windows_terminal/discovery_prefers_install_and_falls_back",
         test_discovery_prefers_program_files_and_falls_back_after_query_failure
+    );
+    Test.add_func(
+        "/windows_terminal/discovery_cache_and_force_refresh",
+        test_discovery_uses_valid_cache_and_force_refresh_bypasses_it
     );
     Test.add_func(
         "/windows_terminal/session_store_round_trip_and_bootstrap",

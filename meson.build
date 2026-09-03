@@ -774,6 +774,7 @@ windows_terminal_services_test_exe = executable(
   [
     'src/services/windows/hidden_process.c',
     'src/models/terminal_session.vala',
+    'src/services/app_settings.vala',
     'src/services/powershell_transcript.vala',
     'src/services/windows/powershell_discovery.vala',
     'src/services/windows/terminal_session_store.vala',
@@ -781,6 +782,7 @@ windows_terminal_services_test_exe = executable(
     'tests/windows_terminal_services_test.vala',
   ],
   dependencies: [
+    dependency('libadwaita-1'),
     dependency('gio-2.0'),
     dependency('gee-0.8'),
     dependency('json-glib-1.0'),
@@ -801,6 +803,7 @@ windows_terminal_view_compile_test_exe = executable(
     'src/models/card.vala',
     'src/models/toolbox_nav.vala',
     'src/models/terminal_session.vala',
+    'src/services/app_settings.vala',
     'src/services/powershell_transcript.vala',
     'src/services/windows/powershell_discovery.vala',
     'src/services/windows/terminal_session_store.vala',

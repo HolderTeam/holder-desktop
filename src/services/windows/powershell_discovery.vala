@@ -45,6 +45,12 @@ public class PowerShellPrerequisites : Object {
 }
 
 public class PowerShellDiscoveryService : Object {
+    private Settings? settings;
+
+    public PowerShellDiscoveryService(Settings? settings = null) {
+        this.settings = settings;
+    }
+
     public virtual string? find_program(string name) {
         return Environment.find_program_in_path(name);
     }
@@ -57,12 +63,20 @@ public class PowerShellDiscoveryService : Object {
         return FileUtils.test(path, FileTest.EXISTS);
     }
 
-    public virtual async PowerShellPrerequisites discover() {
+    public virtual async PowerShellPrerequisites discover(bool force_refresh = false) {
+        if (!force_refresh) {
+            var cached = load_cached_prerequisites();
+            if (cached != null) {
+                return (!) cached;
+            }
+        }
+
         var powershell_candidates = find_powershell_candidates();
         var wt_path = find_windows_app("wt.exe", "wt");
         var winget_path = find_windows_app("winget.exe", "winget");
 
         if (powershell_candidates.length == 0) {
+            clear_cache();
             return new PowerShellPrerequisites(
                 PowerShellPrerequisiteStatus.POWERSHELL_MISSING,
                 null,
@@ -85,6 +99,7 @@ public class PowerShellDiscoveryService : Object {
             }
         }
         if (pwsh_path == null || version == null) {
+            clear_cache();
             return new PowerShellPrerequisites(
                 PowerShellPrerequisiteStatus.POWERSHELL_QUERY_FAILED,
                 powershell_candidates[0],
@@ -97,6 +112,7 @@ public class PowerShellDiscoveryService : Object {
 
         var major = parse_major_version((!) version);
         if (major < 7) {
+            clear_cache();
             return new PowerShellPrerequisites(
                 PowerShellPrerequisiteStatus.POWERSHELL_UNSUPPORTED,
                 pwsh_path,
@@ -107,6 +123,7 @@ public class PowerShellDiscoveryService : Object {
             );
         }
         if (wt_path == null) {
+            clear_cache();
             return new PowerShellPrerequisites(
                 PowerShellPrerequisiteStatus.WINDOWS_TERMINAL_MISSING,
                 pwsh_path,
@@ -115,13 +132,69 @@ public class PowerShellDiscoveryService : Object {
                 winget_path
             );
         }
-        return new PowerShellPrerequisites(
+        var result = new PowerShellPrerequisites(
             PowerShellPrerequisiteStatus.READY,
             pwsh_path,
             (!) version,
             wt_path,
             winget_path
         );
+        save_cache(result);
+        return result;
+    }
+
+    internal PowerShellPrerequisites? load_cached_prerequisites() {
+        if (settings == null) {
+            return null;
+        }
+        var current = (!) settings;
+        var powershell_path = current.get_string(AppSettings.KEY_TERMINAL_POWERSHELL_PATH);
+        var version = current.get_string(AppSettings.KEY_TERMINAL_POWERSHELL_VERSION);
+        var terminal_path = current.get_string(AppSettings.KEY_TERMINAL_WINDOWS_TERMINAL_PATH);
+        if (powershell_path.length == 0
+            || terminal_path.length == 0
+            || parse_major_version(version) < 7
+            || !path_exists(powershell_path)
+            || !path_exists(terminal_path)) {
+            clear_cache();
+            return null;
+        }
+        var winget_path = current.get_string(AppSettings.KEY_TERMINAL_WINGET_PATH);
+        if (winget_path.length == 0 || !path_exists(winget_path)) {
+            winget_path = "";
+        }
+        return new PowerShellPrerequisites(
+            PowerShellPrerequisiteStatus.READY,
+            powershell_path,
+            version,
+            terminal_path,
+            winget_path.length > 0 ? winget_path : null
+        );
+    }
+
+    private void save_cache(PowerShellPrerequisites result) {
+        if (settings == null || !result.ready) {
+            return;
+        }
+        var current = (!) settings;
+        current.set_string(AppSettings.KEY_TERMINAL_POWERSHELL_PATH, result.powershell_path ?? "");
+        current.set_string(AppSettings.KEY_TERMINAL_POWERSHELL_VERSION, result.powershell_version ?? "");
+        current.set_string(
+            AppSettings.KEY_TERMINAL_WINDOWS_TERMINAL_PATH,
+            result.windows_terminal_path ?? ""
+        );
+        current.set_string(AppSettings.KEY_TERMINAL_WINGET_PATH, result.winget_path ?? "");
+    }
+
+    public void clear_cache() {
+        if (settings == null) {
+            return;
+        }
+        var current = (!) settings;
+        current.reset(AppSettings.KEY_TERMINAL_POWERSHELL_PATH);
+        current.reset(AppSettings.KEY_TERMINAL_POWERSHELL_VERSION);
+        current.reset(AppSettings.KEY_TERMINAL_WINDOWS_TERMINAL_PATH);
+        current.reset(AppSettings.KEY_TERMINAL_WINGET_PATH);
     }
 
     internal string? find_powershell() {
