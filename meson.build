@@ -115,6 +115,7 @@ sources = [
   'src/views/sidebar.vala',
   'src/views/ai_panel.vala',
   'src/views/asset_preview_pane.vala',
+  'src/views/editor_selection_snapshot.vala',
   'src/views/inline_resource_image_renderer.vala',
   'src/views/preferences_dialog.vala',
   'src/views/search.vala',
@@ -292,6 +293,24 @@ test_exe = executable(
 )
 
 test('holder-linux-tests', test_exe)
+
+editor_selection_snapshot_test_exe = executable(
+  'holder-linux-editor-selection-snapshot-tests',
+  [
+    'src/views/editor_selection_snapshot.vala',
+    'tests/editor_selection_snapshot_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-editor-selection-snapshot-tests', editor_selection_snapshot_test_exe)
 
 ai_controller_test_exe = executable(
   'holder-linux-ai-controller-tests',

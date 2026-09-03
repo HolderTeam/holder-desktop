@@ -71,6 +71,7 @@ internal class EditorSaveController : Object {
                 delta_chars,
                 content_fingerprint
             );
+            canonicalize_visible_editor_after_save(saved_card_id, text);
             yield refresh_validated_tag_occurrences(saved_card_id, text);
         } catch (Error e) {
             save_local_recovery_draft(owner.current_card, text);
@@ -301,6 +302,17 @@ internal class EditorSaveController : Object {
         } catch (Error e) {
             warning("Failed to remove local recovery draft for %s: %s", card_id, e.message); // LCOV_EXCL_LINE: warning path is fatal under this test runner
         }
+    }
+
+    private void canonicalize_visible_editor_after_save(string card_id, string saved_text) {
+        if (owner.current_card == null || owner.current_card.card_id != card_id) {
+            return;
+        }
+        var visible_text = owner.editor_text.get_text();
+        if (visible_text == saved_text || trim_for_save(visible_text) != saved_text) {
+            return;
+        }
+        owner.editor_saved_text_canonicalized(saved_text);
     }
 
     private async void refresh_validated_tag_occurrences(string card_id, string saved_text) {

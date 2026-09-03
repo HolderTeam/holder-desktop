@@ -5,6 +5,7 @@ namespace HolderLinux {
 private class FakeMainControllerSignalSource : Object, IMainControllerSignalSource {
     public void emit_status_changed(string text) { status_changed(text); }
     public void emit_editor_state_changed(string text, bool editable) { editor_state_changed(text, editable); }
+    public void emit_editor_saved_text_canonicalized(string text) { editor_saved_text_canonicalized(text); }
     public void emit_editor_save_state_changed(string text) { editor_save_state_changed(text); }
     public void emit_window_title_changed(string title_text) { window_title_changed(title_text); }
     public void emit_toast_requested(string message) { toast_requested(message); }
@@ -33,6 +34,7 @@ private class RecordingMainControllerSignalSink : Object, IMainControllerSignalS
     public string status_text = "";
     public string editor_text = "";
     public bool editor_editable = false;
+    public string canonicalized_editor_text = "";
     public string editor_save_text = "";
     public string window_title = "";
     public string toast_message = "";
@@ -57,6 +59,7 @@ private class RecordingMainControllerSignalSink : Object, IMainControllerSignalS
 
     public void on_status_changed(string text) { status_text = text; }
     public void on_editor_state_changed(string text, bool editable) { editor_text = text; editor_editable = editable; }
+    public void on_editor_saved_text_canonicalized(string text) { canonicalized_editor_text = text; }
     public void on_editor_save_state_changed(string text) { editor_save_text = text; }
     public void on_window_title_changed(string title_text) { window_title = title_text; }
     public void on_toast_requested(string message) { toast_message = message; }
@@ -100,6 +103,7 @@ private void test_bind_forwards_all_main_controller_signals_to_sink() {
 
     source.emit_status_changed("ready");
     source.emit_editor_state_changed("# Card", true);
+    source.emit_editor_saved_text_canonicalized("# Card\n");
     source.emit_editor_save_state_changed("Saved");
     source.emit_window_title_changed("Holder - Card");
     source.emit_toast_requested("Toast");
@@ -120,6 +124,7 @@ private void test_bind_forwards_all_main_controller_signals_to_sink() {
     assert(sink.status_text == "ready");
     assert(sink.editor_text == "# Card");
     assert(sink.editor_editable);
+    assert(sink.canonicalized_editor_text == "# Card\n");
     assert(sink.editor_save_text == "Saved");
     assert(sink.window_title == "Holder - Card");
     assert(sink.toast_message == "Toast");

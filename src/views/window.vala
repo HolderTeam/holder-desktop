@@ -1192,6 +1192,10 @@ public class MainWindow : Adw.ApplicationWindow {
         }
     }
 
+    internal void set_editor_saved_text_canonicalized(string text) {
+        editor_renderer.set_editor_state_preserving_selection(text, true);
+    }
+
     internal void update_window_title(string title_text) {
         editor_renderer.update_window_title(title_text);
     }

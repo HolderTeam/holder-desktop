@@ -16,6 +16,10 @@ internal class WindowMainControllerSignalSink : Object, IMainControllerSignalSin
         owner.set_editor_state(text, editable);
     }
 
+    public void on_editor_saved_text_canonicalized(string text) {
+        owner.set_editor_saved_text_canonicalized(text);
+    }
+
     public void on_editor_save_state_changed(string text) {
         owner.set_editor_save_state_text(text);
     }
@@ -94,6 +98,9 @@ internal class WindowMainControllerSignalSource : Object, IMainControllerSignalS
         });
         controller.editor_state_changed.connect((text, editable) => {
             editor_state_changed(text, editable);
+        });
+        controller.editor_saved_text_canonicalized.connect((text) => {
+            editor_saved_text_canonicalized(text);
         });
         controller.editor_save_state_changed.connect((text) => {
             editor_save_state_changed(text);

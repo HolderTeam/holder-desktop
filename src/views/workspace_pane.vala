@@ -114,6 +114,13 @@ public class WorkspacePane : Object {
         }
     }
 
+    public void set_editor_state_preserving_selection(string text, bool editable) {
+        var selection = EditorSelectionSnapshot.capture(editor_buffer);
+        set_editor_state(text, editable);
+        selection.restore(editor_buffer);
+        editor_view.scroll_mark_onscreen(editor_buffer.get_insert());
+    }
+
     public void insert_resource_image_markdown(Gtk.TextMark insertion_mark,
                                                string filename,
                                                string resource_id) {

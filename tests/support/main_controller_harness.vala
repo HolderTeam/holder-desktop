@@ -57,6 +57,9 @@ public class MainControllerTestHarness : Object {
         controller.editor_state_changed.connect((text, editable) => {
             editor_text.value = text;
         });
+        controller.editor_saved_text_canonicalized.connect((text) => {
+            editor_text.value = text;
+        });
 
         controller.project_selection_requested.connect((project_id) => {
             if (project_id == null || project_id.strip().length == 0) {

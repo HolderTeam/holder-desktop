@@ -1742,6 +1742,10 @@ private void test_autosave_trims_trailing_whitespace_when_settings_enable_it() {
     settings.reset("trim-whitespace-in-code-blocks");
     var harness = make_harness(api, scheduler, clock, null, null, true, null, settings);
     var controller = harness.controller;
+    string canonicalized_text = "";
+    controller.editor_saved_text_canonicalized.connect((text) => {
+        canonicalized_text = text;
+    });
 
     controller.reload_everything.begin();
     assert(wait_for_condition(() => controller.get_current_project() != null));
@@ -1760,6 +1764,7 @@ private void test_autosave_trims_trailing_whitespace_when_settings_enable_it() {
     controller.autosave_current_card.begin();
     assert(wait_for_condition(() => api.update_card_calls > 0));
     assert(api.last_updated_content == "# Title\n\nHard break line\nplain line");
+    assert(canonicalized_text == "# Title\n\nHard break line\nplain line");
 
     // A confirmed save (with no further edits meanwhile) resyncs the visible editor to exactly
     // what was persisted -- so the buffer ends up trimmed too, not left holding invisible

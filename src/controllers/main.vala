@@ -45,6 +45,7 @@ public class MainController : Object, IAiRunContext {
 
     public signal void status_changed(string text);
     public signal void editor_state_changed(string text, bool editable);
+    public signal void editor_saved_text_canonicalized(string text);
     public signal void editor_save_state_changed(string text);
     public signal void window_title_changed(string title_text);
     public signal void toast_requested(string message);
