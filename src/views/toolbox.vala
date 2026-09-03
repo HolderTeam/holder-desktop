@@ -122,6 +122,9 @@ public class ToolboxPane : Object {
         if (milestones_tool != null) {
             milestones_tool.bind_context(project_selection, card_store, card_selection);
         }
+        if (terminal_tool != null) {
+            terminal_tool.bind_context(project_selection, card_selection);
+        }
 
         project_selection.notify["selected"].connect(() => {
             refresh_sharing_action_state();
@@ -377,6 +380,9 @@ public class ToolboxPane : Object {
         terminal_tool.copy_to_card_requested.connect((text) => {
             terminal_copy_to_card_requested(text);
         });
+        if (project_selection != null && card_selection != null) {
+            terminal_tool.bind_context(project_selection, card_selection);
+        }
         var terminals_page = stack.add_titled(terminal_tool.widget, "terminals", "Terminals");
         terminals_page.set_icon_name("utilities-terminal-symbolic");
 

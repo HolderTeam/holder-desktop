@@ -1,4 +1,4 @@
-project('holder-linux', 'vala', version: run_command('cat', 'VERSION', check: true).stdout().strip())
+project('holder-linux', ['vala', 'c'], version: run_command('cat', 'VERSION', check: true).stdout().strip())
 
 gnome = import('gnome')
 datadir = get_option('datadir')
@@ -62,7 +62,16 @@ deps = [
   dependency('json-glib-1.0'),
 ]
 
+terminal_backend = 'disabled'
 if get_option('terminal')
+  if host_machine.system() == 'windows'
+    terminal_backend = 'windows-external'
+  else
+    terminal_backend = 'vte'
+  endif
+endif
+
+if terminal_backend == 'vte'
   deps += dependency('vte-2.91-gtk4')
 endif
 
@@ -80,6 +89,7 @@ sources = [
     'src/models/card_context.vala',
     'src/models/activity_details.vala',
     'src/models/nudges.vala',
+    'src/models/terminal_session.vala',
   'src/models/toolbox_nav.vala',
   'src/state/app_state.vala',
   'src/state/editor_draft_state.vala',
@@ -88,6 +98,7 @@ sources = [
   'src/services/app_settings.vala',
   'src/services/editor_font_style.vala',
   'src/services/editor_recovery_draft_service.vala',
+  'src/services/powershell_transcript.vala',
   'src/services/print_service.vala',
   'src/services/git_sync_service.vala',
   'src/services/resources_service.vala',
@@ -229,8 +240,16 @@ sources = [
   'src/views/window.vala',
 ]
 
-if get_option('terminal')
+if terminal_backend == 'vte'
   sources += 'src/views/toolbox/terminal_tool_view.vala'
+elif terminal_backend == 'windows-external'
+  sources += [
+    'src/services/windows/hidden_process.c',
+    'src/services/windows/powershell_discovery.vala',
+    'src/services/windows/terminal_session_store.vala',
+    'src/services/windows/windows_terminal_launcher.vala',
+    'src/views/toolbox/terminal_tool_view_windows.vala',
+  ]
 else
   sources += 'src/views/toolbox/terminal_tool_view_disabled.vala'
 endif
@@ -731,6 +750,89 @@ terminal_controller_test_exe = executable(
 )
 
 test('holder-linux-terminal-controller-tests', terminal_controller_test_exe)
+
+powershell_transcript_test_exe = executable(
+  'holder-linux-powershell-transcript-tests',
+  [
+    'src/models/terminal_session.vala',
+    'src/services/powershell_transcript.vala',
+    'tests/powershell_transcript_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-powershell-transcript-tests', powershell_transcript_test_exe)
+
+windows_terminal_services_test_exe = executable(
+  'holder-linux-windows-terminal-services-tests',
+  [
+    'src/services/windows/hidden_process.c',
+    'src/models/terminal_session.vala',
+    'src/services/app_settings.vala',
+    'src/services/powershell_transcript.vala',
+    'src/services/windows/powershell_discovery.vala',
+    'src/services/windows/terminal_session_store.vala',
+    'src/services/windows/windows_terminal_launcher.vala',
+    'tests/windows_terminal_services_test.vala',
+  ],
+  dependencies: [
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  # Vala emits unused array-size and property-table bookkeeping in generated C.
+  # Keep every other diagnostic enabled, including for the native Windows helper.
+  c_args: [
+    '-Wno-unused-but-set-variable',
+    '-Wno-unused-variable',
+  ],
+  install: false,
+)
+
+test('holder-linux-windows-terminal-services-tests', windows_terminal_services_test_exe)
+
+windows_terminal_view_compile_test_exe = executable(
+  'holder-linux-windows-terminal-view-compile-tests',
+  [
+    'src/services/windows/hidden_process.c',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/toolbox_nav.vala',
+    'src/models/terminal_session.vala',
+    'src/services/app_settings.vala',
+    'src/services/powershell_transcript.vala',
+    'src/services/windows/powershell_discovery.vala',
+    'src/services/windows/terminal_session_store.vala',
+    'src/services/windows/windows_terminal_launcher.vala',
+    'src/controllers/terminal.vala',
+    'src/views/toolbox/tool_adapter.vala',
+    'src/views/toolbox/terminal_tool_view_windows.vala',
+    'tests/windows_terminal_view_compile_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-windows-terminal-view-compile-tests', windows_terminal_view_compile_test_exe)
 
 git_sync_service_test_exe = executable(
   'holder-linux-git-sync-service-tests',

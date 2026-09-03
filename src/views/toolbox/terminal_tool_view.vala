@@ -72,6 +72,11 @@ public class TerminalToolView : Object, IToolShellAdapter {
         return true;
     }
 
+    public void bind_context(Gtk.SingleSelection project_selection,
+                             Gtk.SingleSelection card_selection) {
+        // VTE terminals retain their independent working directories after launch.
+    }
+
     private Gtk.Widget build_terminal_tab() {
         var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
         terminal_actions_bar = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);

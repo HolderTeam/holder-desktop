@@ -1,2 +1,2 @@
 option('tests', type: 'boolean', value: true, description: 'Build holder-desktop tests')
-option('terminal', type: 'boolean', value: true, description: 'Build the VTE terminal tool')
+option('terminal', type: 'boolean', value: true, description: 'Build the platform terminal tool (VTE or Windows Terminal)')

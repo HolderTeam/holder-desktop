@@ -65,6 +65,10 @@ public class TerminalToolView : Object, IToolShellAdapter {
         return true;
     }
 
+    public void bind_context(Gtk.SingleSelection project_selection,
+                             Gtk.SingleSelection card_selection) {
+    }
+
     private Gtk.Widget build_disabled_view() {
         var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 8);
         box.set_margin_top(24);
@@ -78,7 +82,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
         title.add_css_class("title-4");
         title.set_halign(Gtk.Align.START);
 
-        var detail = new Gtk.Label("The Windows terminal tool will need a ConPTY backend.");
+        var detail = new Gtk.Label("This build was configured without a terminal backend.");
         detail.add_css_class("dim-label");
         detail.set_halign(Gtk.Align.START);
 

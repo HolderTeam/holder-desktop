@@ -24,6 +24,10 @@ public class AppSettings : Object {
     public const string KEY_UPDATE_LAST_CHECK_AT = "update-last-check-at";
     public const string KEY_UPDATE_LAST_PROMPT_VERSION = "update-last-prompt-version";
     public const string KEY_UPDATE_LAST_PROMPT_AT = "update-last-prompt-at";
+    public const string KEY_TERMINAL_POWERSHELL_PATH = "terminal-powershell-path";
+    public const string KEY_TERMINAL_POWERSHELL_VERSION = "terminal-powershell-version";
+    public const string KEY_TERMINAL_WINDOWS_TERMINAL_PATH = "terminal-windows-terminal-path";
+    public const string KEY_TERMINAL_WINGET_PATH = "terminal-winget-path";
     private const string GNOME_INTERFACE_SCHEMA_ID = "org.gnome.desktop.interface";
     private const string GNOME_COLOR_SCHEME_KEY = "color-scheme";
     private static WarningSink? warning_sink = null;
