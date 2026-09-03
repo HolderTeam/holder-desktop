@@ -452,8 +452,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
         if (current == null || parent == null) {
             return;
         }
-        var dialog = new Adw.MessageDialog(
-            parent,
+        var dialog = new Adw.AlertDialog(
             "Install PowerShell 7?",
             "Holder will open Windows Terminal and ask WinGet to install Microsoft's official PowerShell package."
         );
@@ -473,9 +472,8 @@ public class TerminalToolView : Object, IToolShellAdapter {
                     toast_requested("Could not open the PowerShell installer.");
                 }
             }
-            dialog.close();
         });
-        dialog.present();
+        dialog.present(parent);
     }
 
     private void start_install_polling() {

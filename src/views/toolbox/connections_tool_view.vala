@@ -609,7 +609,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             return;
         }
 
-        var dialog = new Adw.MessageDialog(root, "Add Graph Connection", "Create an explicit card-to-card connection.");
+        var dialog = new Adw.AlertDialog("Add Graph Connection", "Create an explicit card-to-card connection.");
         dialog.add_response("cancel", "Cancel");
         dialog.add_response("add", "Add");
         dialog.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED);
@@ -665,7 +665,6 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             if (response == "add") {
                 var selected_index = target_dropdown.get_selected();
                 if (selected_index >= target_ids.size) {
-                    dialog.close();
                     return;
                 }
                 var target_id = target_ids[(int) selected_index];
@@ -692,9 +691,8 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                     remember_kind
                 );
             }
-            dialog.close();
         });
-        dialog.present();
+        dialog.present(root);
     }
 
     private async void create_graph_link(string from_card_id,

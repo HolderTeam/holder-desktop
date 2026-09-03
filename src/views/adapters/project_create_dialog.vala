@@ -10,8 +10,7 @@ internal class ProjectCreateDialogAdapter : Object {
     }
 
     public void show(owned ProjectCreateRequested on_create_requested) {
-        var dialog = new Adw.MessageDialog(
-            parent,
+        var dialog = new Adw.AlertDialog(
             "New Project",
             "Enter a project name."
         );
@@ -56,10 +55,9 @@ internal class ProjectCreateDialogAdapter : Object {
             if (response == "create") {
                 on_create_requested(entry.get_text(), private_btn.get_active());
             }
-            dialog.close();
         });
 
-        dialog.present();
+        dialog.present(parent);
     }
 }
 

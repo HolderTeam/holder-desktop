@@ -23,8 +23,7 @@ internal class WindowActionsAdapter : Object {
     }
 
     public void show_about() {
-        var dialog = new Adw.MessageDialog(
-            parent,
+        var dialog = new Adw.AlertDialog(
             "Holder " + HolderLinux.VERSION,
             "Holder desktop frontend"
         );
@@ -47,7 +46,7 @@ internal class WindowActionsAdapter : Object {
         content.append(logo);
         content.append(link);
         dialog.set_extra_child(content);
-        dialog.present();
+        dialog.present(parent);
     }
 }
 

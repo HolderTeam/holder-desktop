@@ -835,8 +835,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         status_row.append(spinner);
         status_row.append(status_label);
 
-        var dialog = new Adw.MessageDialog(
-            root_window,
+        var dialog = new Adw.AlertDialog(
             "Connect Google Drive",
             "You'll be sent to your browser to sign in and allow access. Come back here " +
                 "when you're done."
@@ -846,7 +845,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         dialog.set_extra_child(status_row);
         bool cancelled = false;
         dialog.response.connect(() => { cancelled = true; });
-        dialog.present();
+        dialog.present(root_window);
 
         try {
             var locations = yield storage_api.list_storage_locations(project_id);
@@ -957,8 +956,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         }
 
         var is_edit = existing != null;
-        var dialog = new Adw.MessageDialog(
-            root_window,
+        var dialog = new Adw.AlertDialog(
             is_edit ? "Edit Resource" : "Add Resource",
             is_edit ? "Update the Resource's basic metadata." : "Describe a thing in this Project."
         );
@@ -999,7 +997,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         content.append(uri_label);
         content.append(uri_entry);
 
-        var label_label = new Gtk.Label("Label") { xalign = 0.0f };
+        var label_label = new Gtk.Label("Label (required)") { xalign = 0.0f };
         var label_entry = new Gtk.Entry();
         content.append(label_label);
         content.append(label_entry);
@@ -1036,6 +1034,9 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         details_expander.set_tooltip_text("One property: value entry per line; repeat a property for multiple values.");
         details_expander.set_child(details_scroll);
         content.append(details_expander);
+        var details_error = new Gtk.Label("") { xalign = 0.0f, wrap = true, visible = false };
+        details_error.add_css_class("error");
+        content.append(details_error);
 
         if (existing != null) {
             uri_entry.set_text(existing.uri);
@@ -1062,9 +1063,15 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         }
 
         dialog.set_extra_child(content);
+        update_resource_dialog_save_state(dialog, label_entry, details_view, details_error);
+        label_entry.changed.connect(() => {
+            update_resource_dialog_save_state(dialog, label_entry, details_view, details_error);
+        });
+        details_view.get_buffer().changed.connect(() => {
+            update_resource_dialog_save_state(dialog, label_entry, details_view, details_error);
+        });
         dialog.response.connect((response) => {
             if (response != "save") {
-                dialog.close();
                 return;
             }
 
@@ -1111,9 +1118,34 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             } else {
                 create_resource.begin(project.project_id, kind, uri, label, desc, extra_metadata);
             }
-            dialog.close();
         });
-        dialog.present();
+        dialog.present(root_window);
+    }
+
+    private void update_resource_dialog_save_state(Adw.AlertDialog dialog,
+                                                   Gtk.Entry label_entry,
+                                                   Gtk.TextView details_view,
+                                                   Gtk.Label details_error) {
+        if (label_entry.get_text().strip().length == 0) {
+            details_error.set_visible(false);
+            dialog.set_response_enabled("save", false);
+            return;
+        }
+
+        Gtk.TextIter details_start;
+        Gtk.TextIter details_end;
+        details_view.get_buffer().get_bounds(out details_start, out details_end);
+        try {
+            controller.parse_additional_metadata(
+                details_view.get_buffer().get_text(details_start, details_end, false)
+            );
+            details_error.set_visible(false);
+            dialog.set_response_enabled("save", true);
+        } catch (Error e) {
+            details_error.set_text(e.message);
+            details_error.set_visible(true);
+            dialog.set_response_enabled("save", false);
+        }
     }
 
     internal async void create_resource(string project_id,
@@ -1201,8 +1233,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             return;
         }
 
-        var dialog = new Adw.MessageDialog(
-            root_window,
+        var dialog = new Adw.AlertDialog(
             "Delete Resource",
             "Delete \"%s\"?".printf(selected.label)
         );
@@ -1213,9 +1244,8 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             if (response == "delete") {
                 delete_resource.begin(selected.resource_id);
             }
-            dialog.close();
         });
-        dialog.present();
+        dialog.present(root_window);
     }
 
     internal async void delete_resource(string resource_id) {
