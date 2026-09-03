@@ -16,7 +16,7 @@ internal class RecoveryDialogAdapter : Object {
     }
 
     public void request_pin(string title, string body, owned RecoveryPinAccepted on_pin) {
-        var dialog = new Adw.MessageDialog(parent, title, body);
+        var dialog = new Adw.AlertDialog(title, body);
         dialog.add_response("cancel", "Cancel");
         dialog.add_response("continue", "Continue");
         dialog.set_response_appearance("continue", Adw.ResponseAppearance.SUGGESTED);
@@ -34,10 +34,13 @@ internal class RecoveryDialogAdapter : Object {
         content.append(pin_label);
         content.append(pin_entry);
         dialog.set_extra_child(content);
+        dialog.set_response_enabled("continue", false);
+        pin_entry.changed.connect(() => {
+            dialog.set_response_enabled("continue", pin_entry.get_text().strip().length > 0);
+        });
 
         dialog.response.connect((response) => {
             if (response != "continue") {
-                dialog.close();
                 return;
             }
             var pin = pin_entry.get_text().strip();
@@ -45,9 +48,8 @@ internal class RecoveryDialogAdapter : Object {
                 return;
             }
             on_pin(pin);
-            dialog.close();
         });
-        dialog.present();
+        dialog.present(parent);
     }
 
     public void open_import_dialog(owned RecoveryImportReady on_import_ready) {
@@ -102,15 +104,14 @@ internal class RecoveryDialogAdapter : Object {
     }
 
     public void show_import_summary(RecoveryTokenImportResult result) {
-        var dialog = new Adw.MessageDialog(
-            parent,
+        var dialog = new Adw.AlertDialog(
             "Recovery Key Imported",
             recovery_ui_controller.import_summary_body(result)
         );
         dialog.add_response("ok", "OK");
         dialog.set_default_response("ok");
         dialog.set_close_response("ok");
-        dialog.present();
+        dialog.present(parent);
     }
 }
 

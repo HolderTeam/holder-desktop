@@ -10,8 +10,7 @@ internal class CardActionDialogAdapter : Object {
     }
 
     public void confirm_move_to_trash(string card_title, owned CardActionConfirmed on_confirmed) {
-        var dialog = new Adw.MessageDialog(
-            parent,
+        var dialog = new Adw.AlertDialog(
             "Move to Trash",
             "Move \"%s\" to Trash?\n\nYou can restore it from the Trash tool.".printf(card_title)
         );
@@ -24,14 +23,12 @@ internal class CardActionDialogAdapter : Object {
             if (response == "trash") {
                 on_confirmed();
             }
-            dialog.close();
         });
-        dialog.present();
+        dialog.present(parent);
     }
 
     public void confirm_create_linked_card(string target, owned CardActionConfirmed on_confirmed) {
-        var dialog = new Adw.MessageDialog(
-            parent,
+        var dialog = new Adw.AlertDialog(
             "Create Linked Card?",
             "No card matches [[%s]] in this project.".printf(target)
         );
@@ -44,9 +41,8 @@ internal class CardActionDialogAdapter : Object {
             if (response == "create") {
                 on_confirmed();
             }
-            dialog.close();
         });
-        dialog.present();
+        dialog.present(parent);
     }
 }
 

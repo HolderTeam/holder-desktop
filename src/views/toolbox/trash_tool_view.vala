@@ -245,8 +245,7 @@ public class TrashToolView : Object, IToolShellAdapter {
         }
         var spec = controller.hard_delete_confirmation(item);
 
-        var dialog = new Adw.MessageDialog(
-            root_window,
+        var dialog = new Adw.AlertDialog(
             spec.title,
             spec.body
         );
@@ -257,9 +256,8 @@ public class TrashToolView : Object, IToolShellAdapter {
             if (response == spec.confirm_response_id) {
                 hard_delete_item.begin(item);
             }
-            dialog.close();
         });
-        dialog.present();
+        dialog.present(root_window);
     }
 
     internal async void restore_item(TrashItem item) {
@@ -282,8 +280,7 @@ public class TrashToolView : Object, IToolShellAdapter {
         }
         var spec = controller.empty_trash_confirmation(project);
 
-        var dialog = new Adw.MessageDialog(
-            root_window,
+        var dialog = new Adw.AlertDialog(
             spec.title,
             spec.body
         );
@@ -294,9 +291,8 @@ public class TrashToolView : Object, IToolShellAdapter {
             if (response == spec.confirm_response_id) {
                 empty_trash.begin(project.project_id);
             }
-            dialog.close();
         });
-        dialog.present();
+        dialog.present(root_window);
     }
 
     internal async void empty_trash(string project_id) {

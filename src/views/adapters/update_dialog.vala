@@ -17,7 +17,7 @@ internal class UpdateDialogAdapter : Object {
             candidate.version,
             current_version
         );
-        var dialog = new Adw.MessageDialog(parent, "Update Available", body);
+        var dialog = new Adw.AlertDialog("Update Available", body);
         dialog.add_response("later", "Later");
         dialog.add_response("download", "Download");
         dialog.set_response_appearance("download", Adw.ResponseAppearance.SUGGESTED);
@@ -34,7 +34,7 @@ internal class UpdateDialogAdapter : Object {
                 warning("Failed to open update URL: %s", e.message);
             }
         });
-        dialog.present();
+        dialog.present(parent);
     }
 }
 

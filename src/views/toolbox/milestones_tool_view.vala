@@ -467,8 +467,7 @@ public class MilestonesToolView : Object, IToolShellAdapter {
     private void confirm_remove(Milestone milestone) {
         var root = widget.get_root() as Gtk.Window;
         if (root == null) return;
-        var dialog = new Adw.MessageDialog(
-            root,
+        var dialog = new Adw.AlertDialog(
             "Remove Milestone?",
             "This removes the milestone from \"%s\". The card itself is unchanged.".printf(
                 milestone.card_title ?? "this card"
@@ -481,9 +480,8 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         dialog.set_close_response("cancel");
         dialog.response.connect((response) => {
             if (response == "remove") remove_milestone.begin(milestone);
-            dialog.close();
         });
-        dialog.present();
+        dialog.present(root);
     }
 
     private async void remove_milestone(Milestone milestone) {

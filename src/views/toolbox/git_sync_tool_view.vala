@@ -631,8 +631,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         if (project == null || root_window == null) {
             return;
         }
-        var dialog = new Adw.MessageDialog(
-            root_window,
+        var dialog = new Adw.AlertDialog(
             "Disconnect Git sync?",
             "Holder will stop syncing “%s”. Your cards and the remote repository will not be deleted.".printf(
                 project.name
@@ -647,9 +646,8 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             if (response == "disconnect") {
                 disconnect_configured_remote.begin(project);
             }
-            dialog.close();
         });
-        dialog.present();
+        dialog.present(root_window);
     }
 
     private async void disconnect_configured_remote(Project project) {
