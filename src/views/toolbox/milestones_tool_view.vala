@@ -332,7 +332,10 @@ public class MilestonesToolView : Object, IToolShellAdapter {
             append_empty("No upcoming milestones in the next five years.");
             return;
         }
-        var sorted = new Gee.ArrayList<Milestone>.wrap(data.milestones);
+        var sorted = new Gee.ArrayList<Milestone>();
+        foreach (var milestone in data.milestones) {
+            sorted.add(milestone);
+        }
         sorted.sort((a, b) => {
             if (a.start_at < b.start_at) return -1;
             if (a.start_at > b.start_at) return 1;

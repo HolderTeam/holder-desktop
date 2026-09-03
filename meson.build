@@ -268,7 +268,7 @@ executable(
   vala_args: [
     '--target-glib=2.70',
   ] + calendar_compat_vala_args,
-  gui_app: true,
+  win_subsystem: 'windows',
   install: true,
 )
 
