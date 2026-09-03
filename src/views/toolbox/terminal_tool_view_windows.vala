@@ -49,6 +49,14 @@ private class TerminalSessionListRow : Gtk.ListBoxRow {
 }
 
 public class TerminalToolView : Object, IToolShellAdapter {
+    private const string WINDOWS_MONOSPACE_CLASS = "holder-windows-monospace";
+    private static bool windows_monospace_css_installed = false;
+    [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
+    private static extern void gtk_style_context_add_provider_for_display(
+        Gdk.Display display,
+        Gtk.StyleProvider provider,
+        uint priority
+    );
     private Gtk.Box actions_bar;
     private Gtk.Button new_terminal_button;
     private Gtk.Stack content_stack;
@@ -306,7 +314,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
         transcript_view = new Gtk.TextView();
         transcript_view.set_editable(false);
         transcript_view.set_cursor_visible(true);
-        transcript_view.set_monospace(true);
+        configure_monospace(transcript_view);
         transcript_view.set_wrap_mode(Gtk.WrapMode.NONE);
         transcript_view.set_left_margin(8);
         transcript_view.set_right_margin(8);
@@ -717,6 +725,38 @@ public class TerminalToolView : Object, IToolShellAdapter {
             return;
         }
         copy_to_card_requested(text);
+    }
+
+    private static void configure_monospace(Gtk.TextView view) {
+        if (Path.DIR_SEPARATOR_S != "\\") {
+            view.set_monospace(true);
+            return;
+        }
+        ensure_windows_monospace_css();
+        view.add_css_class(WINDOWS_MONOSPACE_CLASS);
+    }
+
+    private static void ensure_windows_monospace_css() {
+        if (windows_monospace_css_installed) {
+            return;
+        }
+        var display = Gdk.Display.get_default();
+        if (display == null) {
+            return;
+        }
+        var provider = new Gtk.CssProvider();
+        provider.load_from_string("""
+.holder-windows-monospace,
+.holder-windows-monospace text {
+  font-family: "Cascadia Mono", "Consolas", monospace;
+}
+""");
+        gtk_style_context_add_provider_for_display(
+            display,
+            provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
+        windows_monospace_css_installed = true;
     }
 }
 
