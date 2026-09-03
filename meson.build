@@ -1,4 +1,4 @@
-project('holder-linux', 'vala', version: run_command('cat', 'VERSION', check: true).stdout().strip())
+project('holder-linux', ['vala', 'c'], version: run_command('cat', 'VERSION', check: true).stdout().strip())
 
 gnome = import('gnome')
 datadir = get_option('datadir')
@@ -244,6 +244,7 @@ if terminal_backend == 'vte'
   sources += 'src/views/toolbox/terminal_tool_view.vala'
 elif terminal_backend == 'windows-external'
   sources += [
+    'src/services/windows/hidden_process.c',
     'src/services/windows/powershell_discovery.vala',
     'src/services/windows/terminal_session_store.vala',
     'src/services/windows/windows_terminal_launcher.vala',
@@ -771,6 +772,7 @@ test('holder-linux-powershell-transcript-tests', powershell_transcript_test_exe)
 windows_terminal_services_test_exe = executable(
   'holder-linux-windows-terminal-services-tests',
   [
+    'src/services/windows/hidden_process.c',
     'src/models/terminal_session.vala',
     'src/services/powershell_transcript.vala',
     'src/services/windows/powershell_discovery.vala',
@@ -794,6 +796,7 @@ test('holder-linux-windows-terminal-services-tests', windows_terminal_services_t
 windows_terminal_view_compile_test_exe = executable(
   'holder-linux-windows-terminal-view-compile-tests',
   [
+    'src/services/windows/hidden_process.c',
     'src/models/project.vala',
     'src/models/card.vala',
     'src/models/toolbox_nav.vala',

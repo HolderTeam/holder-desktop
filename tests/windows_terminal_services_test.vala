@@ -5,9 +5,12 @@ namespace HolderLinuxTests {
 private class FakePowerShellDiscoveryService : HolderLinux.PowerShellDiscoveryService {
     public Gee.HashMap<string, string> environment = new Gee.HashMap<string, string>();
     public Gee.HashSet<string> existing_paths = new Gee.HashSet<string>();
+    public Gee.HashMap<string, string> programs = new Gee.HashMap<string, string>();
+    public Gee.HashMap<string, string> versions = new Gee.HashMap<string, string>();
+    public Gee.HashSet<string> failed_queries = new Gee.HashSet<string>();
 
     public override string? find_program(string name) {
-        return null;
+        return programs.get(name);
     }
 
     public override string? get_environment_variable(string name) {
@@ -16,6 +19,17 @@ private class FakePowerShellDiscoveryService : HolderLinux.PowerShellDiscoverySe
 
     public override bool path_exists(string path) {
         return existing_paths.contains(path);
+    }
+
+    public override async string query_version(string path) throws Error {
+        if (failed_queries.contains(path)) {
+            throw new IOError.FAILED("simulated query failure");
+        }
+        var version = versions.get(path);
+        if (version == null) {
+            throw new IOError.INVALID_DATA("simulated missing version");
+        }
+        return (!) version;
     }
 }
 
@@ -33,6 +47,18 @@ private void test_parse_power_shell_versions() {
     assert(HolderLinux.PowerShellDiscoveryService.parse_major_version("5") == 5);
     assert(HolderLinux.PowerShellDiscoveryService.parse_major_version("") == -1);
     assert(HolderLinux.PowerShellDiscoveryService.parse_major_version("preview") == -1);
+}
+
+private void test_windows_apps_alias_detection() {
+    assert(HolderLinux.PowerShellDiscoveryService.is_windows_apps_alias(
+        "C:\\Users\\Person\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe"
+    ));
+    assert(HolderLinux.PowerShellDiscoveryService.is_windows_apps_alias(
+        "C:/Users/Person/AppData/Local/Microsoft/WindowsApps/pwsh.exe"
+    ));
+    assert(!HolderLinux.PowerShellDiscoveryService.is_windows_apps_alias(
+        "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
+    ));
 }
 
 private void test_discovery_finds_standard_windows_install_locations() {
@@ -76,6 +102,57 @@ private void test_discovery_finds_store_powershell_alias() {
     discovery.existing_paths.add(powershell_path);
 
     assert(discovery.find_powershell() == powershell_path);
+}
+
+private void test_discovery_prefers_program_files_and_falls_back_after_query_failure() {
+    var discovery = new FakePowerShellDiscoveryService();
+    discovery.environment.set("ProgramFiles", "C:\\Program Files");
+    discovery.environment.set("LOCALAPPDATA", "C:\\Users\\Person\\AppData\\Local");
+    var installed_path = Path.build_filename(
+        "C:\\Program Files", "PowerShell", "7", "pwsh.exe"
+    );
+    var alias_path = Path.build_filename(
+        "C:\\Users\\Person\\AppData\\Local",
+        "Microsoft",
+        "WindowsApps",
+        "pwsh.exe"
+    );
+    var terminal_path = Path.build_filename(
+        "C:\\Users\\Person\\AppData\\Local",
+        "Microsoft",
+        "WindowsApps",
+        "wt.exe"
+    );
+    discovery.existing_paths.add(installed_path);
+    discovery.existing_paths.add(alias_path);
+    discovery.existing_paths.add(terminal_path);
+    discovery.programs.set("pwsh.exe", alias_path);
+    discovery.failed_queries.add(installed_path);
+    discovery.versions.set(alias_path, "7.6.5");
+
+    var candidates = discovery.find_powershell_candidates();
+    assert(candidates.length == 2);
+    assert(candidates[0] == installed_path);
+    assert(candidates[1] == alias_path);
+
+    HolderLinux.PowerShellPrerequisites? result = null;
+    Error? failure = null;
+    var loop = new MainLoop();
+    discovery.discover.begin((obj, async_result) => {
+        try {
+            result = discovery.discover.end(async_result);
+        } catch (Error e) {
+            failure = e;
+        }
+        loop.quit();
+    });
+    loop.run();
+
+    assert(failure == null);
+    assert(result != null);
+    assert(((!) result).ready);
+    assert(((!) result).powershell_path == alias_path);
+    assert(((!) result).powershell_version == "7.6.5");
 }
 
 private void test_session_store_round_trip_and_bootstrap() {
@@ -215,12 +292,20 @@ public static int main(string[] args) {
         test_parse_power_shell_versions
     );
     Test.add_func(
+        "/windows_terminal/windows_apps_alias_detection",
+        test_windows_apps_alias_detection
+    );
+    Test.add_func(
         "/windows_terminal/discovery_finds_standard_install_locations",
         test_discovery_finds_standard_windows_install_locations
     );
     Test.add_func(
         "/windows_terminal/discovery_finds_store_powershell_alias",
         test_discovery_finds_store_powershell_alias
+    );
+    Test.add_func(
+        "/windows_terminal/discovery_prefers_install_and_falls_back",
+        test_discovery_prefers_program_files_and_falls_back_after_query_failure
     );
     Test.add_func(
         "/windows_terminal/session_store_round_trip_and_bootstrap",
