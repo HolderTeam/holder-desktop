@@ -615,8 +615,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             return;
         }
 
-        var dialog = new Adw.MessageDialog(
-            root_window,
+        var dialog = new Adw.AlertDialog(
             s3_compatible ? "Add S3-compatible Storage" : "Add Storage Folder",
             s3_compatible
                 ? "The endpoint and bucket are shared through Git. Credentials stay in this device's keyring."
@@ -686,9 +685,21 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             content.append(access_key); content.append(secret_key); content.append(session_token);
         }
         dialog.set_extra_child(content);
+        dialog.set_response_enabled("save", location_dialog_can_save(
+            s3_compatible, name, path, endpoint, region, bucket, access_key, secret_key
+        ));
+        Gtk.Entry[] validation_entries = {
+            name, path, endpoint, region, bucket, access_key, secret_key
+        };
+        foreach (var validation_entry in validation_entries) {
+            validation_entry.changed.connect(() => {
+                dialog.set_response_enabled("save", location_dialog_can_save(
+                    s3_compatible, name, path, endpoint, region, bucket, access_key, secret_key
+                ));
+            });
+        }
         dialog.response.connect((response) => {
             if (response != "save") {
-                dialog.close();
                 return;
             }
             var location_name = name.get_text().strip();
@@ -733,9 +744,25 @@ public class ResourcesToolView : Object, IToolShellAdapter {
                 values,
                 preview
             );
-            dialog.close();
         });
-        dialog.present();
+        dialog.present(root_window);
+    }
+
+    private static bool location_dialog_can_save(bool s3_compatible,
+                                                 Gtk.Entry name,
+                                                 Gtk.Entry path,
+                                                 Gtk.Entry endpoint,
+                                                 Gtk.Entry region,
+                                                 Gtk.Entry bucket,
+                                                 Gtk.Entry access_key,
+                                                 Gtk.Entry secret_key) {
+        if (name.get_text().strip().length == 0) return false;
+        if (!s3_compatible) return path.get_text().strip().length > 0;
+        return endpoint.get_text().strip().length > 0 &&
+            region.get_text().strip().length > 0 &&
+            bucket.get_text().strip().length > 0 &&
+            access_key.get_text().strip().length > 0 &&
+            secret_key.get_text().length > 0;
     }
 
     private async void create_and_bind_location(string project_id,
