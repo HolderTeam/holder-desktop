@@ -46,9 +46,10 @@ PS C:\\Work> ping.exe 127.0.0.1 -n 2
 """);
 
     assert(!snapshot.completed);
-    assert(snapshot.useful_text == """PS C:\\Work> Get-ChildItem
-file-one.txt
-PS C:\\Work> ping.exe 127.0.0.1 -n 2""");
+    assert(snapshot.useful_text ==
+        "PS C:\\\\Work> Get-ChildItem\n" +
+        "file-one.txt\n" +
+        "PS C:\\\\Work> ping.exe 127.0.0.1 -n 2");
 }
 
 private void test_plain_text_is_left_useful() {
