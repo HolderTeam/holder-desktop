@@ -790,9 +790,12 @@ windows_terminal_services_test_exe = executable(
   vala_args: [
     '--target-glib=2.70',
   ],
-  # This target is Vala test code; GCC otherwise reports artifacts from the
-  # generated C. Native sources are still warning-checked in holder-desktop.
-  c_args: ['-w'],
+  # Vala emits unused array-size and property-table bookkeeping in generated C.
+  # Keep every other diagnostic enabled, including for the native Windows helper.
+  c_args: [
+    '-Wno-unused-but-set-variable',
+    '-Wno-unused-variable',
+  ],
   install: false,
 )
 
