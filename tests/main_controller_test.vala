@@ -1723,7 +1723,7 @@ private void test_editor_change_emits_unsaved_until_save_confirmation() {
     assert(controller.has_unsaved_editor_changes());
 
     controller.autosave_current_card.begin();
-    assert(wait_for_condition(() => last_save_state == "Saved"));
+    assert(wait_for_condition(() => last_save_state == "Autosaved"));
     assert(!controller.has_unsaved_editor_changes());
 }
 

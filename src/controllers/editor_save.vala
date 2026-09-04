@@ -490,7 +490,7 @@ internal class EditorSaveController : Object {
         owner.update_selected_card_summary(title, updated_at);
         owner.window_title_changed(title);
         note_autosave_success();
-        set_editor_save_state("Saved");
+        set_editor_save_state("Autosaved");
         owner.status_changed("Saved %s".printf(TextUtils.format_relative_time(owner.now_epoch_seconds(), updated_at)));
     }
 
