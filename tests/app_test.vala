@@ -72,6 +72,9 @@ private void test_constructor_registers_expected_accels() {
     assert(save.length == 1);
     assert(contains_strv(save, "<Primary>s") || contains_strv(save, "<Control>s"));
 
+    var toolbox = app.get_accels_for_action("win.toggle-toolbox");
+    assert(toolbox.length == 0);
+
     var flowboard_child = app.get_accels_for_action("win.flowboard-new-child-card");
     assert(flowboard_child.length == 1);
     assert(contains_strv(flowboard_child, "<Primary><Alt>n") || contains_strv(flowboard_child, "<Control><Alt>n"));

@@ -30,6 +30,7 @@ public class WorkspacePane : Object {
     private Gtk.Paned asset_split;
     private Gtk.TextTag validated_tag_style;
     private TagHighlightingController tag_highlighting_controller;
+    private MarkdownEditingController markdown_editing_controller;
     private int last_ai_panel_width = -1;
     private bool ai_panel_width_user_set = false;
     private bool suppress_ai_position_persist = false;
@@ -72,6 +73,7 @@ public class WorkspacePane : Object {
     public signal void file_dropped(File file, Gtk.TextMark insertion_mark);
 
     public WorkspacePane(GLib.ListModel search_model) {
+        markdown_editing_controller = new MarkdownEditingController();
         widget = build_ui(search_model);
     }
 
@@ -655,7 +657,7 @@ public class WorkspacePane : Object {
 
         var markdown_keys = new Gtk.EventControllerKey();
         markdown_keys.key_pressed.connect((keyval, keycode, state) => {
-            return handle_markdown_return(keyval, state);
+            return handle_markdown_key(keyval, state);
         });
         editor_view.add_controller(markdown_keys);
 
@@ -773,6 +775,263 @@ public class WorkspacePane : Object {
         }
     }
 
+    private bool handle_markdown_key(uint keyval, Gdk.ModifierType state) {
+        if (handle_markdown_return(keyval, state)) {
+            return true;
+        }
+        if (!editor_view.get_editable()) {
+            return false;
+        }
+
+        var relevant = state & (
+            Gdk.ModifierType.CONTROL_MASK |
+            Gdk.ModifierType.SHIFT_MASK |
+            Gdk.ModifierType.ALT_MASK |
+            Gdk.ModifierType.SUPER_MASK
+        );
+        var control = (relevant & Gdk.ModifierType.CONTROL_MASK) != 0;
+        var shift = (relevant & Gdk.ModifierType.SHIFT_MASK) != 0;
+        var forbidden = relevant & (
+            Gdk.ModifierType.ALT_MASK |
+            Gdk.ModifierType.SUPER_MASK
+        );
+        if (!control || forbidden != 0) {
+            return false;
+        }
+
+        if (!shift) {
+            if (keyval == Gdk.Key.b || keyval == Gdk.Key.B) {
+                return apply_inline_markdown(MarkdownInlineCommand.BOLD);
+            }
+            if (keyval == Gdk.Key.i || keyval == Gdk.Key.I) {
+                return apply_inline_markdown(MarkdownInlineCommand.ITALIC);
+            }
+            if (keyval == Gdk.Key.k || keyval == Gdk.Key.K) {
+                return apply_inline_markdown(MarkdownInlineCommand.LINK);
+            }
+            if (keyval == Gdk.Key.l || keyval == Gdk.Key.L) {
+                return apply_inline_markdown(MarkdownInlineCommand.WIKILINK);
+            }
+            if (keyval == Gdk.Key.bracketleft) {
+                return apply_line_markdown(MarkdownLineCommand.OUTDENT);
+            }
+            if (keyval == Gdk.Key.bracketright) {
+                return apply_line_markdown(MarkdownLineCommand.INDENT);
+            }
+            if (keyval == Gdk.Key.slash) {
+                return apply_line_markdown(MarkdownLineCommand.CYCLE_HEADING);
+            }
+            if (keyval == Gdk.Key.backslash) {
+                return apply_clear_markdown_formatting();
+            }
+            return false;
+        }
+
+        if (keyval == Gdk.Key.x || keyval == Gdk.Key.X) {
+            return apply_inline_markdown(MarkdownInlineCommand.STRIKETHROUGH);
+        }
+        if (keyval == Gdk.Key.c || keyval == Gdk.Key.C) {
+            return apply_inline_markdown(MarkdownInlineCommand.CODE);
+        }
+        if (keyval == Gdk.Key.ampersand || keyval == (uint) '7') {
+            return apply_line_markdown(MarkdownLineCommand.NUMBERED_LIST);
+        }
+        if (keyval == Gdk.Key.asterisk || keyval == (uint) '8') {
+            return apply_line_markdown(MarkdownLineCommand.BULLETED_LIST);
+        }
+        if (keyval == Gdk.Key.parenleft || keyval == (uint) '9') {
+            return apply_line_markdown(MarkdownLineCommand.TODO_LIST);
+        }
+        if (keyval == Gdk.Key.greater || keyval == Gdk.Key.period) {
+            return apply_line_markdown(MarkdownLineCommand.BLOCKQUOTE);
+        }
+        return false;
+    }
+
+    private bool apply_inline_markdown(MarkdownInlineCommand command) {
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        var has_selection = editor_buffer.get_selection_bounds(out start, out end);
+        if (!has_selection) {
+            editor_buffer.get_iter_at_mark(out start, editor_buffer.get_insert());
+            end = start;
+        } else {
+            var marker = inline_marker_for(command);
+            if (marker != null && !selection_contains_line_break(start, end)) {
+                expand_selection_to_surrounding_marker(ref start, ref end, (!) marker);
+            }
+        }
+
+        var selected_text = editor_buffer.get_text(start, end, false);
+        var edit = markdown_editing_controller.decide_inline_edit(
+            selected_text,
+            has_selection,
+            command
+        );
+        if (!edit.changed) {
+            return true;
+        }
+        apply_text_edit(start, end, edit);
+        return true;
+    }
+
+    private bool apply_clear_markdown_formatting() {
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        if (editor_buffer.get_selection_bounds(out start, out end)) {
+            var selected_text = editor_buffer.get_text(start, end, false);
+            var edit = markdown_editing_controller.decide_inline_edit(
+                selected_text,
+                true,
+                MarkdownInlineCommand.CLEAR_FORMATTING
+            );
+            if (edit.changed) {
+                apply_text_edit(start, end, edit);
+            }
+            return true;
+        }
+        return apply_line_markdown(MarkdownLineCommand.CLEAR_STRUCTURE);
+    }
+
+    private void apply_text_edit(Gtk.TextIter start,
+                                 Gtk.TextIter end,
+                                 MarkdownTextEdit edit) {
+        var insertion_offset = start.get_offset();
+        editor_buffer.begin_user_action();
+        editor_buffer.delete(ref start, ref end);
+        editor_buffer.insert(ref start, edit.replacement, -1);
+
+        Gtk.TextIter selection_start;
+        Gtk.TextIter selection_end;
+        editor_buffer.get_iter_at_offset(
+            out selection_start,
+            insertion_offset + edit.selection_start
+        );
+        editor_buffer.get_iter_at_offset(
+            out selection_end,
+            insertion_offset + edit.selection_end
+        );
+        if (edit.select_replacement) {
+            editor_buffer.select_range(selection_end, selection_start);
+        } else {
+            editor_buffer.place_cursor(selection_end);
+        }
+        editor_buffer.end_user_action();
+    }
+
+    private bool apply_line_markdown(MarkdownLineCommand command) {
+        Gtk.TextIter selection_start;
+        Gtk.TextIter selection_end;
+        var has_selection = editor_buffer.get_selection_bounds(
+            out selection_start,
+            out selection_end
+        );
+        if (!has_selection) {
+            editor_buffer.get_iter_at_mark(
+                out selection_start,
+                editor_buffer.get_insert()
+            );
+            selection_end = selection_start;
+        }
+
+        var first_line = selection_start.get_line();
+        var last_line = selection_end.get_line();
+        if (has_selection && selection_end.get_line_offset() == 0 && last_line > first_line) {
+            last_line--;
+        }
+        var lines = new string[last_line - first_line + 1];
+        for (var index = 0; index < lines.length; index++) {
+            Gtk.TextIter line_start;
+            editor_buffer.get_iter_at_line(out line_start, first_line + index);
+            Gtk.TextIter line_end = line_start;
+            line_end.forward_to_line_end();
+            lines[index] = editor_buffer.get_text(line_start, line_end, false);
+        }
+        var edits = markdown_editing_controller.decide_line_edits(lines, command);
+
+        var start_mark = editor_buffer.create_mark(null, selection_start, has_selection);
+        var end_mark = editor_buffer.create_mark(null, selection_end, false);
+        editor_buffer.begin_user_action();
+        for (var index = edits.length - 1; index >= 0; index--) {
+            var edit = edits[index];
+            if (!edit.changed) {
+                continue;
+            }
+            Gtk.TextIter line_start;
+            editor_buffer.get_iter_at_line(out line_start, first_line + index);
+            Gtk.TextIter remove_end = line_start;
+            if (edit.remove_chars > 0) {
+                remove_end.forward_chars(edit.remove_chars);
+                editor_buffer.delete(ref line_start, ref remove_end);
+            }
+            if (edit.insertion.length > 0) {
+                editor_buffer.insert(ref line_start, edit.insertion, -1);
+            }
+        }
+
+        Gtk.TextIter restored_start;
+        Gtk.TextIter restored_end;
+        editor_buffer.get_iter_at_mark(out restored_start, start_mark);
+        editor_buffer.get_iter_at_mark(out restored_end, end_mark);
+        if (has_selection) {
+            editor_buffer.select_range(restored_end, restored_start);
+        } else {
+            editor_buffer.place_cursor(restored_end);
+        }
+        editor_buffer.delete_mark(start_mark);
+        editor_buffer.delete_mark(end_mark);
+        editor_buffer.end_user_action();
+        return true;
+    }
+
+    private string? inline_marker_for(MarkdownInlineCommand command) {
+        switch (command) {
+            case MarkdownInlineCommand.BOLD:
+                return "**";
+            case MarkdownInlineCommand.ITALIC:
+                return "*";
+            case MarkdownInlineCommand.STRIKETHROUGH:
+                return "~~";
+            case MarkdownInlineCommand.CODE:
+                return "`";
+            default:
+                return null;
+        }
+    }
+
+    private bool selection_contains_line_break(Gtk.TextIter start, Gtk.TextIter end) {
+        return editor_buffer.get_text(start, end, false).index_of_char('\n') >= 0;
+    }
+
+    private void expand_selection_to_surrounding_marker(ref Gtk.TextIter start,
+                                                        ref Gtk.TextIter end,
+                                                        string marker) {
+        var marker_chars = marker.char_count();
+        Gtk.TextIter before = start;
+        Gtk.TextIter after = end;
+        if (!before.backward_chars(marker_chars) || !after.forward_chars(marker_chars)) {
+            return;
+        }
+        if (editor_buffer.get_text(before, start, false) != marker ||
+            editor_buffer.get_text(end, after, false) != marker) {
+            return;
+        }
+
+        // A single '*' adjacent to a bold marker is not an italic wrapper.
+        if (marker == "*") {
+            Gtk.TextIter two_before = start;
+            Gtk.TextIter two_after = end;
+            if ((two_before.backward_chars(2) &&
+                 editor_buffer.get_text(two_before, start, false) == "**") ||
+                (two_after.forward_chars(2) &&
+                 editor_buffer.get_text(end, two_after, false) == "**")) {
+                return;
+            }
+        }
+        start = before;
+        end = after;
+    }
+
     private bool handle_markdown_return(uint keyval, Gdk.ModifierType state) {
         if (keyval != Gdk.Key.Return && keyval != Gdk.Key.KP_Enter) {
             return false;
@@ -796,7 +1055,7 @@ public class WorkspacePane : Object {
         Gtk.TextIter line_start = cursor;
         line_start.set_line_offset(0);
         var line_prefix = editor_buffer.get_text(line_start, cursor, false);
-        var decision = new MarkdownEditingController().decide_return(line_prefix);
+        var decision = markdown_editing_controller.decide_return(line_prefix);
         if (decision.action == MarkdownListAction.NONE) {
             return false;
         }

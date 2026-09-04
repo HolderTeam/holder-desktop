@@ -368,6 +368,7 @@ public class MainWindow : Adw.ApplicationWindow {
         root_paned.set_resize_start_child(true);
         root_paned.set_shrink_start_child(false);
         root_paned.set_position(last_sidebar_position);
+        install_window_shortcuts();
 
         main_controller_signal_binder = new MainControllerSignalBinder(
             new WindowMainControllerSignalSource(controller),
@@ -471,6 +472,28 @@ public class MainWindow : Adw.ApplicationWindow {
             run_update_check.begin();
             return Source.REMOVE;
         });
+    }
+
+    private void install_window_shortcuts() {
+        var shortcuts = new Gtk.EventControllerKey();
+        shortcuts.set_propagation_phase(Gtk.PropagationPhase.CAPTURE);
+        shortcuts.key_pressed.connect((keyval, keycode, state) => {
+            var modifiers = state & (
+                Gdk.ModifierType.CONTROL_MASK |
+                Gdk.ModifierType.SHIFT_MASK |
+                Gdk.ModifierType.ALT_MASK |
+                Gdk.ModifierType.SUPER_MASK
+            );
+            if (keyval != Gdk.Key.F9 || modifiers != 0) {
+                return false;
+            }
+            if (toolbox.terminal_captures_application_shortcuts(get_focus())) {
+                return false;
+            }
+            workspace.toggle_toolbox();
+            return true;
+        });
+        root_paned.add_controller(shortcuts);
     }
 
     private async void run_update_check() {

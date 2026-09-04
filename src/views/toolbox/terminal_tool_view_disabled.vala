@@ -25,6 +25,10 @@ public class TerminalToolView : Object, IToolShellAdapter {
         return widget;
     }
 
+    public bool captures_application_shortcuts(Gtk.Widget? focus) {
+        return false;
+    }
+
     public ToolScopeSnapshot get_scope_snapshot(Project? selected_project, CardSummary? selected_card) {
         var project_id = selected_project != null ? selected_project.project_id : null;
         var project_label = selected_project != null ? selected_project.name : "(none)";

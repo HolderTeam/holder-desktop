@@ -127,6 +127,11 @@ public class TerminalToolView : Object, IToolShellAdapter {
         return widget;
     }
 
+    public bool captures_application_shortcuts(Gtk.Widget? focus) {
+        // The actual PowerShell session runs in an independent Windows Terminal window.
+        return false;
+    }
+
     public ToolScopeSnapshot get_scope_snapshot(Project? selected_project,
                                                  CardSummary? selected_card) {
         var project_id = selected_project != null ? selected_project.project_id : null;

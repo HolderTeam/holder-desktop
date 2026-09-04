@@ -162,6 +162,11 @@ public class ToolboxPane : Object {
         widget.set_reveal_child(reveal);
     }
 
+    public bool terminal_captures_application_shortcuts(Gtk.Widget? focus) {
+        return terminal_tool != null &&
+            terminal_tool.captures_application_shortcuts(focus);
+    }
+
     public void log_debug(string line) {
         if (debug_tool != null) {
             debug_tool.append_log_line(line);
