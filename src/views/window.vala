@@ -611,6 +611,11 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void handle_save_action() {
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        editor_buffer.get_bounds(out start, out end);
+        var visible_text = editor_buffer.get_text(start, end, false);
+        workspace.tidy_editor_text(controller.tidy_text_for_save(visible_text));
         controller.save_now.begin();
     }
 
@@ -1359,8 +1364,8 @@ public class MainWindow : Adw.ApplicationWindow {
         }
     }
 
-    internal void set_editor_saved_text_canonicalized(string text) {
-        editor_renderer.set_editor_state_preserving_selection(text, true);
+    internal void set_validated_tag_occurrences(CardTagOccurrence[] occurrences) {
+        workspace.set_validated_tag_occurrences(occurrences);
     }
 
     internal void update_window_title(string title_text) {

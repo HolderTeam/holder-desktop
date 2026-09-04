@@ -45,7 +45,7 @@ public class MainController : Object, IAiRunContext {
 
     public signal void status_changed(string text);
     public signal void editor_state_changed(string text, bool editable);
-    public signal void editor_saved_text_canonicalized(string text);
+    public signal void validated_tag_occurrences_changed(CardTagOccurrence[] occurrences);
     public signal void editor_save_state_changed(string text);
     public signal void editor_save_settled(bool saved);
     public signal void window_title_changed(string title_text);
@@ -271,6 +271,10 @@ public class MainController : Object, IAiRunContext {
 
     public async bool save_now() {
         return yield editor_save_controller.save_now();
+    }
+
+    public string tidy_text_for_save(string text) {
+        return editor_save_controller.tidy_text_for_save(text);
     }
 
     public bool save_emergency_recovery_draft() throws Error {

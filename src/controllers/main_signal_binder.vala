@@ -3,7 +3,7 @@ namespace HolderLinux {
 internal interface IMainControllerSignalSource : Object {
     public abstract signal void status_changed(string text);
     public abstract signal void editor_state_changed(string text, bool editable);
-    public abstract signal void editor_saved_text_canonicalized(string text);
+    public abstract signal void validated_tag_occurrences_changed(CardTagOccurrence[] occurrences);
     public abstract signal void editor_save_state_changed(string text);
     public abstract signal void window_title_changed(string title_text);
     public abstract signal void toast_requested(string message);
@@ -29,7 +29,7 @@ internal interface IMainControllerSignalSource : Object {
 internal interface IMainControllerSignalSink : Object {
     public abstract void on_status_changed(string text);
     public abstract void on_editor_state_changed(string text, bool editable);
-    public abstract void on_editor_saved_text_canonicalized(string text);
+    public abstract void on_validated_tag_occurrences_changed(CardTagOccurrence[] occurrences);
     public abstract void on_editor_save_state_changed(string text);
     public abstract void on_window_title_changed(string title_text);
     public abstract void on_toast_requested(string message);
@@ -69,8 +69,8 @@ internal class MainControllerSignalBinder : Object {
         controller.editor_state_changed.connect((text, editable) => {
             sink.on_editor_state_changed(text, editable);
         });
-        controller.editor_saved_text_canonicalized.connect((text) => {
-            sink.on_editor_saved_text_canonicalized(text);
+        controller.validated_tag_occurrences_changed.connect((occurrences) => {
+            sink.on_validated_tag_occurrences_changed(occurrences);
         });
         controller.editor_save_state_changed.connect((text) => {
             sink.on_editor_save_state_changed(text);

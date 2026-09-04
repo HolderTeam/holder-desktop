@@ -14,7 +14,6 @@ internal class EditorSaveController : Object {
     private const uint RECOVERY_SNAPSHOT_DELAY_MS = 250;
     // Duplicated for lightweight controller tests; AppSettings depends on Adwaita.
     private const string KEY_NO_PLAINTEXT_RECOVERY_FILES = "no-plaintext-recovery-files";
-    private const string KEY_EXPLICIT_SAVE_COUNT = "explicit-save-count";
 
     private MainController owner; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private IEditorRecoveryDraftService recovery_draft_service; // LCOV_EXCL_LINE: field declaration-only coverage artifact
@@ -111,7 +110,6 @@ internal class EditorSaveController : Object {
                 delta_chars,
                 content_fingerprint
             );
-            canonicalize_visible_editor_after_save(saved_card_id, text);
             yield refresh_validated_tag_occurrences(saved_card_id, text);
             return new EditorSaveAttemptResult(true, recovery_saved);
         } catch (Error e) {
@@ -145,7 +143,7 @@ internal class EditorSaveController : Object {
     public async bool save_now() {
         cancel_scheduled_autosave();
         if (!has_unsaved_editor_changes()) {
-            owner.toast_requested("Already saved — Holder saves as you type.");
+            owner.toast_requested("Card saved");
             return true;
         }
 
@@ -206,6 +204,10 @@ internal class EditorSaveController : Object {
     public bool plaintext_recovery_enabled() {
         return owner.settings == null
             || !owner.settings.get_boolean(KEY_NO_PLAINTEXT_RECOVERY_FILES);
+    }
+
+    public string tidy_text_for_save(string text) {
+        return trim_for_save(text);
     }
 
     public bool is_save_in_flight() {
@@ -380,15 +382,7 @@ internal class EditorSaveController : Object {
     }
 
     private void note_explicit_save() {
-        if (owner.settings == null) {
-            owner.toast_requested("Saved. Holder also saves your changes automatically.");
-            return;
-        }
-        var count = owner.settings.get_int(KEY_EXPLICIT_SAVE_COUNT) + 1;
-        if (count <= 3) {
-            owner.settings.set_int(KEY_EXPLICIT_SAVE_COUNT, count);
-            owner.toast_requested("Saved. Holder also saves your changes automatically.");
-        }
+        owner.toast_requested("Card saved");
     }
 
     private void note_autosave_success() {
@@ -543,17 +537,6 @@ internal class EditorSaveController : Object {
         }
     }
 
-    private void canonicalize_visible_editor_after_save(string card_id, string saved_text) {
-        if (owner.current_card == null || owner.current_card.card_id != card_id) {
-            return;
-        }
-        var visible_text = owner.editor_text.get_text();
-        if (visible_text == saved_text || trim_for_save(visible_text) != saved_text) {
-            return;
-        }
-        owner.editor_saved_text_canonicalized(saved_text);
-    }
-
     private async void refresh_validated_tag_occurrences(string card_id, string saved_text) {
         if (owner.api == null || owner.current_card == null ||
             owner.current_card.card_id != card_id) {
@@ -568,7 +551,7 @@ internal class EditorSaveController : Object {
         if (saved_text.index_of_char('#') < 0) {
             if (trim_for_save(owner.editor_text.get_text()) == saved_text) {
                 owner.current_card.tag_occurrences = new CardTagOccurrence[0];
-                owner.editor_state_changed(saved_text, true);
+                owner.validated_tag_occurrences_changed(owner.current_card.tag_occurrences);
             }
             return;
         }
@@ -579,15 +562,16 @@ internal class EditorSaveController : Object {
                 return;
             }
             if (refreshed.content != saved_text) {
-                owner.editor_state_changed(saved_text, true);
+                owner.current_card.tag_occurrences = new CardTagOccurrence[0];
+                owner.validated_tag_occurrences_changed(owner.current_card.tag_occurrences);
                 return;
             }
             owner.current_card.tag_occurrences = refreshed.tag_occurrences;
-            owner.editor_state_changed(saved_text, true);
+            owner.validated_tag_occurrences_changed(owner.current_card.tag_occurrences);
         } catch (Error e) {
             if (owner.current_card != null && owner.current_card.card_id == card_id &&
                 trim_for_save(owner.editor_text.get_text()) == saved_text) {
-                owner.editor_state_changed(saved_text, true);
+                owner.validated_tag_occurrences_changed(owner.current_card.tag_occurrences);
             }
         }
     }

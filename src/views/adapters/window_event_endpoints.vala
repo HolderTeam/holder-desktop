@@ -16,8 +16,8 @@ internal class WindowMainControllerSignalSink : Object, IMainControllerSignalSin
         owner.set_editor_state(text, editable);
     }
 
-    public void on_editor_saved_text_canonicalized(string text) {
-        owner.set_editor_saved_text_canonicalized(text);
+    public void on_validated_tag_occurrences_changed(CardTagOccurrence[] occurrences) {
+        owner.set_validated_tag_occurrences(occurrences);
     }
 
     public void on_editor_save_state_changed(string text) {
@@ -100,8 +100,8 @@ internal class WindowMainControllerSignalSource : Object, IMainControllerSignalS
         controller.editor_state_changed.connect((text, editable) => {
             editor_state_changed(text, editable);
         });
-        controller.editor_saved_text_canonicalized.connect((text) => {
-            editor_saved_text_canonicalized(text);
+        controller.validated_tag_occurrences_changed.connect((occurrences) => {
+            validated_tag_occurrences_changed(occurrences);
         });
         controller.editor_save_state_changed.connect((text) => {
             editor_save_state_changed(text);

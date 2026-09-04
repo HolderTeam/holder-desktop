@@ -115,7 +115,7 @@ sources = [
   'src/views/sidebar.vala',
   'src/views/ai_panel.vala',
   'src/views/asset_preview_pane.vala',
-  'src/views/editor_selection_snapshot.vala',
+  'src/views/editor_whitespace_cleaner.vala',
   'src/views/inline_resource_image_renderer.vala',
   'src/views/preferences_dialog.vala',
   'src/views/search.vala',
@@ -294,11 +294,11 @@ test_exe = executable(
 
 test('holder-linux-tests', test_exe)
 
-editor_selection_snapshot_test_exe = executable(
-  'holder-linux-editor-selection-snapshot-tests',
+editor_whitespace_cleaner_test_exe = executable(
+  'holder-linux-editor-whitespace-cleaner-tests',
   [
-    'src/views/editor_selection_snapshot.vala',
-    'tests/editor_selection_snapshot_test.vala',
+    'src/views/editor_whitespace_cleaner.vala',
+    'tests/editor_whitespace_cleaner_test.vala',
   ],
   dependencies: [
     dependency('gtk4'),
@@ -310,7 +310,7 @@ editor_selection_snapshot_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-editor-selection-snapshot-tests', editor_selection_snapshot_test_exe)
+test('holder-linux-editor-whitespace-cleaner-tests', editor_whitespace_cleaner_test_exe)
 
 ai_controller_test_exe = executable(
   'holder-linux-ai-controller-tests',

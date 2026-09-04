@@ -44,13 +44,6 @@ internal class WindowEditorRenderer : Object {
         apply_chrome();
     }
 
-    public void set_editor_state_preserving_selection(string text, bool editable) {
-        state.text = text;
-        state.editable = editable;
-        apply_content(true);
-        apply_chrome();
-    }
-
     public void update_window_title(string title_text) {
         state.window_title = title_text;
         apply_chrome();
@@ -81,14 +74,10 @@ internal class WindowEditorRenderer : Object {
         apply_chrome();
     }
 
-    private void apply_content(bool preserve_selection = false) {
+    private void apply_content() {
         is_applying_content = true;
         try {
-            if (preserve_selection) {
-                workspace.set_editor_state_preserving_selection(state.text, state.editable);
-            } else {
-                workspace.set_editor_state(state.text, state.editable);
-            }
+            workspace.set_editor_state(state.text, state.editable);
         } finally {
             is_applying_content = false;
         }

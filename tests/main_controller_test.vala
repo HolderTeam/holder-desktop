@@ -1742,10 +1742,6 @@ private void test_autosave_trims_trailing_whitespace_when_settings_enable_it() {
     settings.reset("trim-whitespace-in-code-blocks");
     var harness = make_harness(api, scheduler, clock, null, null, true, null, settings);
     var controller = harness.controller;
-    string canonicalized_text = "";
-    controller.editor_saved_text_canonicalized.connect((text) => {
-        canonicalized_text = text;
-    });
 
     controller.reload_everything.begin();
     assert(wait_for_condition(() => controller.get_current_project() != null));
@@ -1764,15 +1760,11 @@ private void test_autosave_trims_trailing_whitespace_when_settings_enable_it() {
     controller.autosave_current_card.begin();
     assert(wait_for_condition(() => api.update_card_calls > 0));
     assert(api.last_updated_content == "# Title\n\nHard break line\nplain line");
-    assert(canonicalized_text == "# Title\n\nHard break line\nplain line");
 
-    // A confirmed save (with no further edits meanwhile) resyncs the visible editor to exactly
-    // what was persisted -- so the buffer ends up trimmed too, not left holding invisible
-    // trailing whitespace the save already discarded. This is also the regression case for the
-    // bug where comparing the buffer against an already-trimmed committed baseline left
-    // "Unsaved" permanently stuck on: trim(committed text) == committed text, so this must
-    // settle to false, not loop forever re-triggering autosave.
-    assert(wait_for_condition(() => harness.editor_text.value == "# Title\n\nHard break line\nplain line"));
+    // Saving canonicalizes the durable copy without rewriting the active editor. Replacing the
+    // live Gtk.TextBuffer here would remove an ordinary space while the user pauses between
+    // words and would disturb its cursor, viewport, and inline child anchors.
+    assert(harness.editor_text.value == "# Title \n\nHard break line  \nplain line");
     assert(!controller.has_unsaved_editor_changes());
 
     settings.reset("preserve-trailing-whitespace");
@@ -2897,7 +2889,7 @@ private void test_explicit_save_bypasses_debounce_and_reassures_user() {
     assert(api.update_card_calls == 1);
     assert(api.last_updated_content == "# Explicit save\n\nLatest text");
     assert(draft_service.save_calls >= 1);
-    assert(toast == "Saved. Holder also saves your changes automatically.");
+    assert(toast == "Card saved");
 }
 
 private void test_edit_during_in_flight_save_is_queued_and_newer_draft_survives() {
