@@ -1,13 +1,30 @@
 namespace HolderLinux {
 
+private class EditorSaveAttemptResult : Object {
+    public bool durable_saved { get; construct; }
+    public bool recovery_saved { get; construct; }
+
+    public EditorSaveAttemptResult(bool durable_saved, bool recovery_saved) {
+        Object(durable_saved: durable_saved, recovery_saved: recovery_saved);
+    }
+}
+
 internal class EditorSaveController : Object {
     private const uint AUTOSAVE_DELAY_MS = 900;
+    private const uint RECOVERY_SNAPSHOT_DELAY_MS = 250;
+    // Duplicated for lightweight controller tests; AppSettings depends on Adwaita.
+    private const string KEY_NO_PLAINTEXT_RECOVERY_FILES = "no-plaintext-recovery-files";
+    private const string KEY_EXPLICIT_SAVE_COUNT = "explicit-save-count";
 
     private MainController owner; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private IEditorRecoveryDraftService recovery_draft_service; // LCOV_EXCL_LINE: field declaration-only coverage artifact
     private uint autosave_id = 0;
     private uint autosave_retry_id = 0;
     private uint autosave_retry_attempts = 0;
+    private uint recovery_snapshot_id = 0;
+    private bool save_in_flight = false;
+    private bool save_again_requested = false;
+    private bool recovery_write_failure_reported = false;
 
     public EditorSaveController(MainController owner,
                                 IEditorRecoveryDraftService? recovery_draft_service = null) {
@@ -29,23 +46,46 @@ internal class EditorSaveController : Object {
     }
 
     public async void autosave_current_card() {
+        if (save_in_flight) {
+            save_again_requested = true;
+            return;
+        }
+        save_in_flight = true;
+        var result = yield perform_save_current_card();
+        save_in_flight = false;
+        run_queued_save_if_needed();
+        owner.editor_save_settled(result.durable_saved);
+    }
+
+    private async EditorSaveAttemptResult perform_save_current_card(
+        bool recovery_already_saved = false
+    ) {
         if (owner.current_card == null) {
-            return; // LCOV_EXCL_LINE: defensive race guard if selection changes after async save starts
+            return new EditorSaveAttemptResult(true, false); // LCOV_EXCL_LINE: defensive race guard if selection changes after async save starts
         }
 
+        var saving_card = owner.current_card;
         var previous_content = owner.editor_draft_state.committed_text;
-        var text = trim_for_save(owner.editor_text.get_text());
-        if (!owner.editor_draft_state.has_unsaved_changes(owner.current_card, text)) {
-            return;
+        var raw_text = owner.editor_text.get_text();
+        var text = trim_for_save(raw_text);
+        if (!owner.editor_draft_state.has_unsaved_changes(saving_card, text)) {
+            return new EditorSaveAttemptResult(true, false);
         }
+        var recovery_saved = recovery_already_saved || save_local_recovery_draft(saving_card, raw_text);
         if (owner.api == null) {
-            save_local_recovery_draft(owner.current_card, text);
-            owner.status_changed("Backend unavailable, saved recovery draft locally");
+            if (recovery_saved) {
+                owner.status_changed("Backend unavailable, saved recovery draft locally");
+            } else if (plaintext_recovery_enabled()) {
+                owner.status_changed("Backend unavailable; no local recovery copy could be written");
+            } else {
+                owner.status_changed("Backend unavailable; recovery files are disabled");
+            }
             set_editor_save_state("Unsaved");
-            return;
+            return new EditorSaveAttemptResult(false, recovery_saved);
         }
-        var previous_title = owner.current_card.title;
-        var saved_card_id = owner.current_card.card_id;
+        var previous_title = saving_card.title;
+        var saved_card_id = saving_card.card_id;
+        var saved_project_id = saving_card.project_id;
         var title = TextUtils.title_from_content(text);
         var updated_at = owner.now_epoch_seconds();
         var doc_chars = text.char_count();
@@ -73,26 +113,129 @@ internal class EditorSaveController : Object {
             );
             canonicalize_visible_editor_after_save(saved_card_id, text);
             yield refresh_validated_tag_occurrences(saved_card_id, text);
+            return new EditorSaveAttemptResult(true, recovery_saved);
         } catch (Error e) {
-            save_local_recovery_draft(owner.current_card, text);
             owner.emit_activity(
                 "result.card.autosave_failed",
                 "Autosave failed: %s".printf(e.message),
-                owner.current_project != null ? owner.current_project.project_id : null,
-                owner.current_card.card_id
+                saved_project_id,
+                saved_card_id
             );
             var repeat_failure = autosave_retry_is_repeat_failure();
-            var retry_delay_ms = note_autosave_retry_scheduled(owner.current_card.card_id);
+            var retry_delay_ms = owner.current_card != null
+                && owner.current_card.card_id == saved_card_id
+                ? note_autosave_retry_scheduled(saved_card_id)
+                : 0;
             set_editor_save_state("Unsaved");
+            if (retry_delay_ms == 0) {
+                return new EditorSaveAttemptResult(false, recovery_saved);
+            }
             if (repeat_failure) {
                 owner.status_changed("Autosave failed, retrying in %u s".printf((retry_delay_ms + 999) / 1000));
-                return;
+                return new EditorSaveAttemptResult(false, recovery_saved);
             }
             owner.error_reported(
                 "Autosave failed",
                 "%s\n\nRetrying in %u s.".printf(e.message, (retry_delay_ms + 999) / 1000)
             );
+            return new EditorSaveAttemptResult(false, recovery_saved);
         }
+    }
+
+    public async bool save_now() {
+        cancel_scheduled_autosave();
+        if (!has_unsaved_editor_changes()) {
+            owner.toast_requested("Already saved — Holder saves as you type.");
+            return true;
+        }
+
+        bool recovery_saved = false;
+        try {
+            recovery_saved = save_emergency_recovery_draft();
+        } catch (Error e) {
+            owner.error_reported(
+                "Could not create a recovery copy",
+                "%s\n\nHolder will still try to save through the backend.".printf(e.message)
+            );
+        }
+
+        if (save_in_flight) {
+            save_again_requested = true;
+            owner.status_changed("Saving...");
+            return false;
+        }
+
+        save_in_flight = true;
+        var result = yield perform_save_current_card(recovery_saved);
+        save_in_flight = false;
+        run_queued_save_if_needed();
+        owner.editor_save_settled(result.durable_saved);
+        if (result.durable_saved) {
+            note_explicit_save();
+        } else if (result.recovery_saved) {
+            owner.toast_requested("The backend did not respond; your recovery copy is safe on this device.");
+        }
+        return result.durable_saved;
+    }
+
+    public async void flush_before_navigation() {
+        if (!has_unsaved_editor_changes() && !save_in_flight) {
+            return;
+        }
+
+        try {
+            save_emergency_recovery_draft();
+        } catch (Error e) {
+            report_recovery_write_failure_once(e);
+        }
+        autosave_current_card.begin();
+        while (save_in_flight) {
+            yield wait_for_save_progress();
+        }
+    }
+
+    public bool save_emergency_recovery_draft() throws Error {
+        if (owner.current_card == null || !has_unsaved_editor_changes() || !plaintext_recovery_enabled()) {
+            return false;
+        }
+        recovery_draft_service.save_draft(draft_for_current_editor());
+        recovery_write_failure_reported = false;
+        return true;
+    }
+
+    public bool plaintext_recovery_enabled() {
+        return owner.settings == null
+            || !owner.settings.get_boolean(KEY_NO_PLAINTEXT_RECOVERY_FILES);
+    }
+
+    public bool is_save_in_flight() {
+        return save_in_flight;
+    }
+
+    public EditorRecoveryDraft? recovery_draft_for_card(CardDetail card) throws Error {
+        var draft = recovery_draft_service.load_draft(card.card_id);
+        if (draft == null) {
+            return null;
+        }
+        if (draft.content == card.content) {
+            recovery_draft_service.remove_draft(card.card_id);
+            return null;
+        }
+        return draft;
+    }
+
+    public void discard_recovery_draft(string card_id) throws Error {
+        recovery_draft_service.remove_draft(card_id);
+    }
+
+    public void restore_recovery_draft(EditorRecoveryDraft draft) {
+        if (owner.current_card == null || owner.current_card.card_id != draft.card_id) {
+            return;
+        }
+        owner.editor_state_changed(draft.content, true);
+        owner.editor_save_state_changed("Unsaved");
+        schedule_recovery_snapshot();
+        schedule_autosave();
     }
 
     public bool has_unsaved_editor_changes() {
@@ -137,10 +280,12 @@ internal class EditorSaveController : Object {
             return;
         }
         owner.editor_save_state_changed(has_unsaved_editor_changes() ? "Unsaved" : "");
+        schedule_recovery_snapshot();
     }
 
     public void set_editor_view_state(string text, bool editable) {
         cancel_autosave_retry();
+        cancel_recovery_snapshot();
         owner.editor_draft_state.reset_to_view_state(text, editable);
         owner.editor_state_changed(text, editable);
         owner.editor_save_state_changed("");
@@ -148,6 +293,7 @@ internal class EditorSaveController : Object {
 
     public void set_loaded_card_editor_state(CardDetail card) {
         cancel_autosave_retry();
+        cancel_recovery_snapshot();
         owner.editor_draft_state.load_card_state(card.card_id, card.content);
         owner.editor_state_changed(card.content, true);
         owner.editor_save_state_changed("");
@@ -171,6 +317,78 @@ internal class EditorSaveController : Object {
             autosave_retry_id = 0;
         }
         autosave_retry_attempts = 0;
+    }
+
+    private void cancel_scheduled_autosave() {
+        if (autosave_id != 0) {
+            owner.scheduler.cancel(autosave_id);
+            autosave_id = 0;
+        }
+    }
+
+    private void schedule_recovery_snapshot() {
+        if (!plaintext_recovery_enabled() || owner.current_card == null) {
+            return;
+        }
+        cancel_recovery_snapshot();
+        recovery_snapshot_id = owner.scheduler.schedule_once(RECOVERY_SNAPSHOT_DELAY_MS, () => {
+            recovery_snapshot_id = 0;
+            try {
+                save_emergency_recovery_draft();
+            } catch (Error e) {
+                report_recovery_write_failure_once(e);
+            }
+            return Source.REMOVE;
+        });
+    }
+
+    private void cancel_recovery_snapshot() {
+        if (recovery_snapshot_id != 0) {
+            owner.scheduler.cancel(recovery_snapshot_id);
+            recovery_snapshot_id = 0;
+        }
+    }
+
+    private void run_queued_save_if_needed() {
+        if (!save_again_requested) {
+            return;
+        }
+        save_again_requested = false;
+        if (has_unsaved_editor_changes()) {
+            autosave_current_card.begin();
+        }
+    }
+
+    private async void wait_for_save_progress() {
+        Timeout.add(10, () => {
+            wait_for_save_progress.callback();
+            return Source.REMOVE;
+        });
+        yield;
+    }
+
+    private EditorRecoveryDraft draft_for_current_editor() {
+        var card = (!) owner.current_card;
+        var content = owner.editor_text.get_text();
+        return new EditorRecoveryDraft(
+            card.card_id,
+            card.project_id,
+            TextUtils.title_from_content(content),
+            content,
+            owner.now_epoch_seconds()
+        );
+    }
+
+    private void note_explicit_save() {
+        if (owner.settings == null) {
+            owner.toast_requested("Saved. Holder also saves your changes automatically.");
+            return;
+        }
+        var count = owner.settings.get_int(KEY_EXPLICIT_SAVE_COUNT) + 1;
+        if (count <= 3) {
+            owner.settings.set_int(KEY_EXPLICIT_SAVE_COUNT, count);
+            owner.toast_requested("Saved. Holder also saves your changes automatically.");
+        }
     }
 
     private void note_autosave_success() {
@@ -252,7 +470,7 @@ internal class EditorSaveController : Object {
         owner.current_card.updated_at = updated_at;
         owner.current_card.tag_occurrences = new CardTagOccurrence[0];
         owner.editor_draft_state.mark_save_succeeded(owner.current_card.card_id, text);
-        remove_local_recovery_draft(owner.current_card.card_id);
+        remove_local_recovery_draft_if_current(owner.current_card.card_id, text);
 
         owner.emit_activity(
             "result.card.autosave",
@@ -282,7 +500,10 @@ internal class EditorSaveController : Object {
         owner.status_changed("Saved %s".printf(TextUtils.format_relative_time(owner.now_epoch_seconds(), updated_at)));
     }
 
-    private void save_local_recovery_draft(CardDetail card, string content) {
+    private bool save_local_recovery_draft(CardDetail card, string content) {
+        if (!plaintext_recovery_enabled()) {
+            return false;
+        }
         try {
             recovery_draft_service.save_draft(new EditorRecoveryDraft(
                 card.card_id,
@@ -291,14 +512,32 @@ internal class EditorSaveController : Object {
                 content,
                 owner.now_epoch_seconds()
             ));
+            recovery_write_failure_reported = false;
+            return true;
         } catch (Error e) {
-            warning("Failed to save local recovery draft for %s: %s", card.card_id, e.message); // LCOV_EXCL_LINE: warning path is fatal under this test runner
+            report_recovery_write_failure_once(e);
+            return false;
         }
     }
 
-    private void remove_local_recovery_draft(string card_id) {
+    private void report_recovery_write_failure_once(Error error) {
+        if (recovery_write_failure_reported) {
+            return;
+        }
+        recovery_write_failure_reported = true;
+        owner.error_reported(
+            "Could not create a recovery copy",
+            "%s\n\nHolder will continue trying to save through the backend.".printf(error.message)
+        );
+    }
+
+    private void remove_local_recovery_draft_if_current(string card_id, string saved_content) {
         try {
-            recovery_draft_service.remove_draft(card_id);
+            // A completed older request must never clear recovery for text typed while it was
+            // in flight. If the live editor still matches, however, every older draft is stale.
+            if (trim_for_save(owner.editor_text.get_text()) == saved_content) {
+                recovery_draft_service.remove_draft(card_id);
+            }
         } catch (Error e) {
             warning("Failed to remove local recovery draft for %s: %s", card_id, e.message); // LCOV_EXCL_LINE: warning path is fatal under this test runner
         }

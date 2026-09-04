@@ -4,6 +4,7 @@ namespace HolderLinux.Tests {
 
 private class RecordingWindowActionSink : Object, HolderLinux.IWindowActionSink {
     public int refresh_calls = 0;
+    public int save_calls = 0;
     public int new_project_calls = 0;
     public int new_card_calls = 0;
     public int flowboard_new_child_card_calls = 0;
@@ -16,6 +17,7 @@ private class RecordingWindowActionSink : Object, HolderLinux.IWindowActionSink 
     public int show_about_calls = 0;
 
     public void on_refresh_requested() { refresh_calls++; }
+    public void on_save_requested() { save_calls++; }
     public void on_new_project_requested() { new_project_calls++; }
     public void on_new_card_requested() { new_card_calls++; }
     public void on_flowboard_new_child_card_requested() { flowboard_new_child_card_calls++; }
@@ -42,6 +44,7 @@ private void test_bind_registers_actions_that_call_sink_methods() {
     binder.bind();
 
     activate(action_group, "refresh");
+    activate(action_group, "save");
     activate(action_group, "new-project");
     activate(action_group, "new-card");
     activate(action_group, "flowboard-new-child-card");
@@ -54,6 +57,7 @@ private void test_bind_registers_actions_that_call_sink_methods() {
     activate(action_group, "show-about");
 
     assert(sink.refresh_calls == 1);
+    assert(sink.save_calls == 1);
     assert(sink.new_project_calls == 1);
     assert(sink.new_card_calls == 1);
     assert(sink.flowboard_new_child_card_calls == 1);

@@ -180,6 +180,47 @@ private void test_draft_path_normalizes_unsafe_characters() {
     assert(path.has_suffix("Abc-123__x_y.json"));
 }
 
+private void test_saving_again_atomically_replaces_existing_draft() {
+    var service = new HolderLinux.EditorRecoveryDraftService(make_temp_dir());
+    try {
+        service.save_draft(new HolderLinux.EditorRecoveryDraft("card-1", "project-1", "Old", "old", 1));
+        service.save_draft(new HolderLinux.EditorRecoveryDraft("card-1", "project-1", "New", "new", 2));
+        var loaded = service.load_draft("card-1");
+        assert(loaded != null);
+        assert(loaded.title == "New");
+        assert(loaded.content == "new");
+        assert(loaded.saved_at == 2);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+}
+
+private void test_recovery_draft_uses_private_permissions_when_supported() {
+    var service = new HolderLinux.EditorRecoveryDraftService(make_temp_dir());
+    var path = service.draft_path_for_card_id("card-1");
+    try {
+        service.save_draft(new HolderLinux.EditorRecoveryDraft("card-1", "project-1", "Title", "Body", 1));
+        var file_info = File.new_for_path(path).query_info(
+            "unix::mode",
+            FileQueryInfoFlags.NONE,
+            null
+        );
+        if (file_info.has_attribute("unix::mode")) {
+            var file_mode = file_info.get_attribute_uint32("unix::mode");
+            assert((file_mode & 0777) == 0600);
+
+            var directory_info = File.new_for_path(Path.get_dirname(path)).query_info(
+                "unix::mode",
+                FileQueryInfoFlags.NONE,
+                null
+            );
+            assert((directory_info.get_attribute_uint32("unix::mode") & 0777) == 0700);
+        }
+    } catch (Error e) {
+        assert_not_reached();
+    }
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -218,6 +259,14 @@ public static int main(string[] args) {
     Test.add_func(
         "/editor_recovery_draft_service/draft_path_normalizes_unsafe_characters",
         test_draft_path_normalizes_unsafe_characters
+    );
+    Test.add_func(
+        "/editor_recovery_draft_service/saving_again_atomically_replaces_existing_draft",
+        test_saving_again_atomically_replaces_existing_draft
+    );
+    Test.add_func(
+        "/editor_recovery_draft_service/recovery_draft_uses_private_permissions_when_supported",
+        test_recovery_draft_uses_private_permissions_when_supported
     );
 
     return Test.run();

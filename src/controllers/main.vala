@@ -47,6 +47,7 @@ public class MainController : Object, IAiRunContext {
     public signal void editor_state_changed(string text, bool editable);
     public signal void editor_saved_text_canonicalized(string text);
     public signal void editor_save_state_changed(string text);
+    public signal void editor_save_settled(bool saved);
     public signal void window_title_changed(string title_text);
     public signal void toast_requested(string message);
     public signal void error_reported(string title_text, string details);
@@ -61,6 +62,7 @@ public class MainController : Object, IAiRunContext {
     public signal void ai_thread_selection_requested(string? thread_id);
     public signal void api_client_ready(IHolderApi api);
     public signal void card_trashed(string card_id);
+    public signal void recovery_draft_available(EditorRecoveryDraft draft);
     public signal void activity_requested(string kind,
                                           string message,
                                           string? project_id,
@@ -267,8 +269,28 @@ public class MainController : Object, IAiRunContext {
         yield editor_save_controller.autosave_current_card();
     }
 
+    public async bool save_now() {
+        return yield editor_save_controller.save_now();
+    }
+
+    public bool save_emergency_recovery_draft() throws Error {
+        return editor_save_controller.save_emergency_recovery_draft();
+    }
+
+    public bool plaintext_recovery_enabled() {
+        return editor_save_controller.plaintext_recovery_enabled();
+    }
+
+    public bool is_editor_save_in_flight() {
+        return editor_save_controller.is_save_in_flight();
+    }
+
     public bool has_unsaved_editor_changes() {
         return editor_save_controller.has_unsaved_editor_changes();
+    }
+
+    public async void save_before_navigation() {
+        yield editor_save_controller.flush_before_navigation();
     }
 
     public void on_editor_content_changed() {
@@ -381,6 +403,29 @@ public class MainController : Object, IAiRunContext {
 
     internal void set_loaded_card_editor_state(CardDetail card) {
         editor_save_controller.set_loaded_card_editor_state(card);
+    }
+
+    internal void inspect_recovery_draft(CardDetail card) {
+        try {
+            var draft = editor_save_controller.recovery_draft_for_card(card);
+            if (draft != null) {
+                recovery_draft_available(draft);
+            }
+        } catch (Error e) {
+            error_reported("Could not inspect recovery copy", e.message);
+        }
+    }
+
+    public void restore_recovery_draft(EditorRecoveryDraft draft) {
+        editor_save_controller.restore_recovery_draft(draft);
+    }
+
+    public void discard_recovery_draft(string card_id) {
+        try {
+            editor_save_controller.discard_recovery_draft(card_id);
+        } catch (Error e) {
+            error_reported("Could not discard recovery copy", e.message);
+        }
     }
 
 }

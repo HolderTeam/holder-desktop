@@ -98,6 +98,12 @@ public class MainWindow : Adw.ApplicationWindow {
     private uint flowboard_refresh_idle_id = 0;
     private bool sidebar_visible = true;
     private int last_sidebar_position = WindowGeometry.DEFAULT_SIDEBAR_WIDTH;
+    private bool close_in_progress = false;
+    private bool close_is_authorized = false;
+    private uint close_timeout_id = 0;
+    private bool close_has_recovery_copy = false;
+    private string? close_recovery_error = null;
+    private bool close_decision_visible = false;
 
     private uint applying_state_depth = 0;
     private uint rendered_sidebar_data_version = uint.MAX;
@@ -367,6 +373,22 @@ public class MainWindow : Adw.ApplicationWindow {
             new WindowMainControllerSignalSink(this)
         );
         main_controller_signal_binder.bind();
+        controller.recovery_draft_available.connect((draft) => {
+            show_recovery_draft(draft);
+        });
+        controller.editor_save_settled.connect((saved) => {
+            if (!close_in_progress || controller.is_editor_save_in_flight()) {
+                return;
+            }
+            if (saved && !controller.has_unsaved_editor_changes()) {
+                finish_guarded_close();
+            } else if (close_has_recovery_copy) {
+                finish_guarded_close();
+            } else {
+                show_unsafe_close_dialog(close_recovery_error ??
+                    "The backend did not save this card and local recovery files are disabled.");
+            }
+        });
         ai_panel_event_orchestrator.bind();
         ai_nudge_controller.debug_log_requested.connect((message) => {
             log_debug_line(message);
@@ -586,6 +608,10 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void handle_refresh_action() {
         controller.reload_everything.begin();
+    }
+
+    internal void handle_save_action() {
+        controller.save_now.begin();
     }
 
     internal void handle_new_project_action() {
@@ -854,7 +880,148 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal bool on_window_close_requested() {
         persist_window_state();
-        return false;
+        if (close_is_authorized) {
+            return false;
+        }
+        if (!controller.has_unsaved_editor_changes() && !controller.is_editor_save_in_flight()) {
+            return false;
+        }
+        if (close_in_progress) {
+            return true;
+        }
+
+        close_in_progress = true;
+        close_has_recovery_copy = false;
+        close_recovery_error = null;
+        try {
+            close_has_recovery_copy = controller.save_emergency_recovery_draft();
+        } catch (Error e) {
+            close_recovery_error = e.message;
+        }
+
+        close_timeout_id = Timeout.add(2000, () => {
+            close_timeout_id = 0;
+            if ((!controller.has_unsaved_editor_changes() && !controller.is_editor_save_in_flight())
+                || close_has_recovery_copy) {
+                finish_guarded_close();
+            } else {
+                show_unsafe_close_dialog(close_recovery_error ??
+                    "The backend did not finish saving and local recovery files are disabled.");
+            }
+            return Source.REMOVE;
+        });
+        controller.save_now.begin((obj, result) => {
+            bool saved = controller.save_now.end(result);
+            if (!close_in_progress) {
+                return;
+            }
+            if (saved) {
+                finish_guarded_close();
+                return;
+            }
+            if (controller.is_editor_save_in_flight()) {
+                return;
+            }
+            if (close_has_recovery_copy) {
+                finish_guarded_close();
+                return;
+            }
+            show_unsafe_close_dialog(close_recovery_error ??
+                "The backend did not save this card and local recovery files are disabled.");
+        });
+        return true;
+    }
+
+    private void finish_guarded_close() {
+        if (close_timeout_id != 0) {
+            Source.remove(close_timeout_id);
+            close_timeout_id = 0;
+        }
+        close_in_progress = false;
+        close_is_authorized = true;
+        close();
+    }
+
+    private void cancel_guarded_close() {
+        if (close_timeout_id != 0) {
+            Source.remove(close_timeout_id);
+            close_timeout_id = 0;
+        }
+        close_in_progress = false;
+        close_has_recovery_copy = false;
+        close_recovery_error = null;
+        close_decision_visible = false;
+    }
+
+    private void show_unsafe_close_dialog(string details) {
+        if (close_decision_visible) {
+            return;
+        }
+        close_decision_visible = true;
+        if (close_timeout_id != 0) {
+            Source.remove(close_timeout_id);
+            close_timeout_id = 0;
+        }
+        var dialog = new Adw.AlertDialog(
+            "This card is not safely stored yet",
+            "%s\n\nRetry saving, keep Holder open, or quit and discard the unsaved changes.".printf(details)
+        );
+        dialog.add_response("keep", "Keep Editing");
+        dialog.add_response("retry", "Retry");
+        dialog.add_response("quit", "Quit Without Saving");
+        dialog.set_response_appearance("quit", Adw.ResponseAppearance.DESTRUCTIVE);
+        dialog.set_default_response("retry");
+        dialog.set_close_response("keep");
+        dialog.response.connect((response) => {
+            close_decision_visible = false;
+            cancel_guarded_close();
+            if (response == "retry") {
+                Idle.add(() => {
+                    close();
+                    return Source.REMOVE;
+                });
+            } else if (response == "quit") {
+                close_is_authorized = true;
+                close();
+            }
+        });
+        dialog.present(this);
+    }
+
+    internal void show_recovery_draft(EditorRecoveryDraft draft) {
+        var when = new DateTime.from_unix_local(draft.saved_at);
+        var timestamp = when.format("%c");
+        var dialog = new Adw.AlertDialog(
+            "Recover unsaved changes?",
+            "Holder found a local recovery copy of “%s” from %s.".printf(draft.title, timestamp)
+        );
+        dialog.add_response("later", "Not Now");
+        dialog.add_response("discard", "Keep Saved Version");
+        dialog.add_response("restore", "Restore Changes");
+        dialog.set_response_appearance("restore", Adw.ResponseAppearance.SUGGESTED);
+        dialog.set_default_response("restore");
+        dialog.set_close_response("later");
+
+        var preview = new Gtk.TextView();
+        preview.set_editable(false);
+        preview.set_cursor_visible(false);
+        preview.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
+        preview.get_buffer().set_text(draft.content);
+        var scroll = new Gtk.ScrolledWindow();
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC);
+        scroll.set_min_content_height(180);
+        scroll.set_max_content_height(320);
+        scroll.set_child(preview);
+        dialog.set_extra_child(scroll);
+        dialog.response.connect((response) => {
+            if (response == "restore") {
+                controller.restore_recovery_draft(draft);
+                add_toast("Recovered unsaved changes.");
+            } else if (response == "discard") {
+                controller.discard_recovery_draft(draft.card_id);
+            }
+        });
+        dialog.present(this);
     }
 
     internal void on_root_paned_position_changed(int position) {

@@ -60,6 +60,9 @@ internal class MainController : Object {
     public string? selected_card_id() {
         return selected_card_id_value;
     }
+
+    public async void save_before_navigation() {
+    }
 }
 
 internal class SelectionIntentController : Object {

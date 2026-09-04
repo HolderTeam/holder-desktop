@@ -131,6 +131,7 @@ internal class SelectionIntentOrchestrator : Object {
         if (project_id.strip().length == 0) {
             return;
         }
+        yield controller.save_before_navigation();
         yield selection_intent_controller.on_project_selection(
             project_id,
             selection_transition_controller,
@@ -140,6 +141,7 @@ internal class SelectionIntentOrchestrator : Object {
     }
 
     public async void open_card_with_transition(string card_id, string reason) {
+        yield controller.save_before_navigation();
         yield selection_intent_controller.open_card_with_transition(
             card_id,
             reason,

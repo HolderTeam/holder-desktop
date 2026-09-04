@@ -34,6 +34,7 @@ internal class MainCardLoadController : Object {
             }
             owner.current_card = card;
             owner.set_loaded_card_editor_state(card);
+            owner.inspect_recovery_draft(card);
             owner.show_editor_requested();
             owner.window_title_changed(card.title);
             owner.status_changed("Loaded %s".printf(card.title));

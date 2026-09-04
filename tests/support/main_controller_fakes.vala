@@ -7,6 +7,7 @@ public delegate void HealthBeforeCompleteHook();
 public delegate void ListResourcesBeforeCompleteHook(string project_id);
 public delegate void GetCardBeforeCompleteHook(string card_id);
 public delegate void ListTrashBeforeCompleteHook(string project_id, string type);
+public delegate void UpdateCardBeforeCompleteHook(string card_id);
 
 public class FakeClock : Object, HolderLinux.IClock {
     public int64 now_value = 1000;
@@ -300,6 +301,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public ListResourcesBeforeCompleteHook? list_resources_before_complete_hook = null;
     public GetCardBeforeCompleteHook? get_card_before_complete_hook = null;
     public ListTrashBeforeCompleteHook? list_trash_before_complete_hook = null;
+    public UpdateCardBeforeCompleteHook? update_card_before_complete_hook = null;
     public Gee.ArrayList<string?> health_check_sequence = new Gee.ArrayList<string?>();
 
     public async void health_check() throws Error {
@@ -1054,6 +1056,14 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_updated_title = title;
         last_updated_content = content;
         last_updated_at = updated_at;
+        if (update_card_before_complete_hook != null) {
+            ((!) update_card_before_complete_hook)(card_id);
+            Idle.add(() => {
+                update_card.callback();
+                return Source.REMOVE;
+            });
+            yield;
+        }
     }
 
     public async void update_card_position(string card_id,

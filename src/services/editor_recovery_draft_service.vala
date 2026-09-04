@@ -58,9 +58,22 @@ public class EditorRecoveryDraftService : Object, IEditorRecoveryDraftService {
 
         string payload = generator.to_data(null);
 
+        var destination_path = draft_path_for_card_id(draft.card_id);
         try {
-            FileUtils.set_contents(draft_path_for_card_id(draft.card_id), payload);
-        } catch (FileError e) {
+            string? new_etag = null;
+            var destination = File.new_for_path(destination_path);
+            destination.replace_contents(
+                payload.data,
+                null,
+                false,
+                FileCreateFlags.PRIVATE | FileCreateFlags.REPLACE_DESTINATION,
+                out new_etag,
+                null
+            );
+            if (FileUtils.chmod(destination_path, 0600) != 0) {
+                throw new IOError.FAILED("Could not make recovery draft private.");
+            }
+        } catch (Error e) {
             throw new IOError.FAILED("Could not save recovery draft: %s".printf(e.message));
         }
     }
@@ -120,6 +133,9 @@ public class EditorRecoveryDraftService : Object, IEditorRecoveryDraftService {
     private void ensure_root_dir() throws Error {
         if (DirUtils.create_with_parents(root_dir, 0700) != 0) {
             throw new IOError.FAILED("Could not create recovery draft directory: %s".printf(root_dir));
+        }
+        if (FileUtils.chmod(root_dir, 0700) != 0) {
+            throw new IOError.FAILED("Could not make recovery draft directory private: %s".printf(root_dir));
         }
     }
 

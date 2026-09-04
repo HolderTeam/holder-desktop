@@ -82,6 +82,7 @@ internal class WindowMainControllerSignalSink : Object, IMainControllerSignalSin
         owner.refresh_trash_tool();
     }
 
+
     public void on_activity_requested(string kind,
                                       string message,
                                       string? project_id,
@@ -327,6 +328,10 @@ internal class WindowActionSink : Object, IWindowActionSink {
 
     public void on_refresh_requested() {
         owner.handle_refresh_action();
+    }
+
+    public void on_save_requested() {
+        owner.handle_save_action();
     }
 
     public void on_new_project_requested() {

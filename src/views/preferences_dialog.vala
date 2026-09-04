@@ -9,6 +9,7 @@ public class PreferencesDialog : Adw.PreferencesDialog {
     private Gee.HashMap<string, GtkSource.StyleSchemePreview> scheme_previews;
     internal Adw.SwitchRow custom_font_row { get; private set; }
     internal Adw.ActionRow custom_font_choice_row { get; private set; }
+    internal Adw.SwitchRow no_plaintext_recovery_row { get; private set; }
 
     public PreferencesDialog(GtkSource.Buffer editor_buffer,
                              GtkSource.View editor_view,
@@ -188,6 +189,30 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         });
 
         page.add(editor_group);
+
+        var recovery_group = new Adw.PreferencesGroup();
+        recovery_group.set_title("Saving and Recovery");
+
+        no_plaintext_recovery_row = new Adw.SwitchRow();
+        no_plaintext_recovery_row.set_title("No plaintext recovery files");
+        no_plaintext_recovery_row.set_subtitle(
+            "Do not keep readable emergency copies of unsaved cards. Recent changes may be lost if the backend is unavailable."
+        );
+        no_plaintext_recovery_row.set_active(
+            settings != null
+                ? settings.get_boolean(AppSettings.KEY_NO_PLAINTEXT_RECOVERY_FILES)
+                : false
+        );
+        no_plaintext_recovery_row.notify["active"].connect(() => {
+            if (settings != null) {
+                settings.set_boolean(
+                    AppSettings.KEY_NO_PLAINTEXT_RECOVERY_FILES,
+                    no_plaintext_recovery_row.get_active()
+                );
+            }
+        });
+        recovery_group.add(no_plaintext_recovery_row);
+        page.add(recovery_group);
         add(page);
     }
 

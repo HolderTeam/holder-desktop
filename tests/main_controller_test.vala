@@ -2791,6 +2791,176 @@ private void test_ensure_first_project_without_api_is_noop() {
     assert(api.create_project_calls == 0);
 }
 
+private void test_editor_change_writes_debounced_recovery_snapshot() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var draft_service = new FakeEditorRecoveryDraftService();
+    var harness = make_harness(api, scheduler, new FakeClock(), null, null, true, draft_service);
+    var controller = harness.controller;
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Recovery Title\n\nExact unsaved text  ";
+    controller.on_editor_content_changed();
+    scheduler.run_all_once();
+
+    assert(draft_service.save_calls == 1);
+    assert(draft_service.last_saved_draft.content == "# Recovery Title\n\nExact unsaved text  ");
+    assert(api.update_card_calls == 0);
+}
+
+private void test_plaintext_recovery_opt_out_prevents_snapshot() {
+    var settings = new Settings("team.holder.Holder");
+    settings.set_boolean("no-plaintext-recovery-files", true);
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var draft_service = new FakeEditorRecoveryDraftService();
+    var harness = make_harness(api, scheduler, new FakeClock(), null, null, true, draft_service, settings);
+    var controller = harness.controller;
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Private draft";
+    controller.on_editor_content_changed();
+    scheduler.run_all_once();
+
+    assert(draft_service.save_calls == 0);
+    try {
+        assert(!controller.save_emergency_recovery_draft());
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    controller.autosave_current_card.begin();
+    assert(wait_for_condition(() => api.update_card_calls == 1));
+    assert(draft_service.save_calls == 0);
+    settings.reset("no-plaintext-recovery-files");
+}
+
+private void test_loading_card_offers_and_restores_divergent_recovery_draft() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var draft_service = new FakeEditorRecoveryDraftService();
+    try {
+        draft_service.save_draft(new HolderLinux.EditorRecoveryDraft(
+            "c1", "p1", "Recovered", "# Recovered\n\nUnsaved", 999
+        ));
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    draft_service.save_calls = 0;
+    var harness = make_harness(api, scheduler, new FakeClock(), null, null, true, draft_service);
+    var controller = harness.controller;
+    HolderLinux.EditorRecoveryDraft? offered = null;
+    controller.recovery_draft_available.connect((draft) => { offered = draft; });
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => offered != null));
+    controller.restore_recovery_draft((!) offered);
+
+    assert(harness.editor_text.value == "# Recovered\n\nUnsaved");
+    assert(controller.has_unsaved_editor_changes());
+}
+
+private void test_explicit_save_bypasses_debounce_and_reassures_user() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var draft_service = new FakeEditorRecoveryDraftService();
+    var harness = make_harness(api, scheduler, new FakeClock(), null, null, true, draft_service);
+    var controller = harness.controller;
+    string toast = "";
+    controller.toast_requested.connect((message) => { toast = message; });
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    harness.editor_text.value = "# Explicit save\n\nLatest text";
+    controller.on_editor_content_changed();
+    bool completed = false;
+    controller.save_now.begin((obj, result) => {
+        assert(controller.save_now.end(result));
+        completed = true;
+    });
+
+    assert(wait_for_condition(() => completed));
+    assert(api.update_card_calls == 1);
+    assert(api.last_updated_content == "# Explicit save\n\nLatest text");
+    assert(draft_service.save_calls >= 1);
+    assert(toast == "Saved. Holder also saves your changes automatically.");
+}
+
+private void test_edit_during_in_flight_save_is_queued_and_newer_draft_survives() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var draft_service = new FakeEditorRecoveryDraftService();
+    var harness = make_harness(api, scheduler, new FakeClock(), null, null, true, draft_service);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    api.update_card_before_complete_hook = (card_id) => {
+        if (api.update_card_calls == 1) {
+            harness.editor_text.value = "# Second revision\n\nTyped during save";
+            controller.on_editor_content_changed();
+            controller.autosave_current_card.begin();
+        }
+    };
+
+    harness.editor_text.value = "# First revision\n\nSaving now";
+    controller.on_editor_content_changed();
+    controller.autosave_current_card.begin();
+
+    assert(wait_for_condition(() => api.update_card_calls == 2 && !controller.is_editor_save_in_flight()));
+    assert(api.last_updated_content == "# Second revision\n\nTyped during save");
+    assert(!controller.has_unsaved_editor_changes());
+    assert(draft_service.remove_calls == 1);
+    assert(!draft_service.drafts.has_key("c1"));
+}
+
+private void test_identical_recovery_draft_is_removed_without_prompt() {
+    var api = new MainControllerFakeApi();
+    var scheduler = new TestScheduler();
+    var draft_service = new FakeEditorRecoveryDraftService();
+    try {
+        draft_service.save_draft(new HolderLinux.EditorRecoveryDraft(
+            "c1", "p1", "Card 1", "# Card 1\n\nBody", 999
+        ));
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    draft_service.save_calls = 0;
+    draft_service.remove_calls = 0;
+    var harness = make_harness(api, scheduler, new FakeClock(), null, null, true, draft_service);
+    var controller = harness.controller;
+    bool offered = false;
+    controller.recovery_draft_available.connect((draft) => { offered = true; });
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+    harness.card_selection.set_selected_index(0);
+    load_selected_card_from_store(controller, harness.card_selection, harness.card_store);
+    assert(wait_for_condition(() => controller.get_current_card() != null));
+
+    assert(!offered);
+    assert(draft_service.remove_calls == 1);
+    assert(!draft_service.drafts.has_key("c1"));
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -3065,6 +3235,30 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/autosave_without_api_writes_local_recovery_draft",
         test_autosave_without_api_writes_local_recovery_draft
+    );
+    Test.add_func(
+        "/main_controller/editor_change_writes_debounced_recovery_snapshot",
+        test_editor_change_writes_debounced_recovery_snapshot
+    );
+    Test.add_func(
+        "/main_controller/plaintext_recovery_opt_out_prevents_snapshot",
+        test_plaintext_recovery_opt_out_prevents_snapshot
+    );
+    Test.add_func(
+        "/main_controller/loading_card_offers_and_restores_divergent_recovery_draft",
+        test_loading_card_offers_and_restores_divergent_recovery_draft
+    );
+    Test.add_func(
+        "/main_controller/explicit_save_bypasses_debounce_and_reassures_user",
+        test_explicit_save_bypasses_debounce_and_reassures_user
+    );
+    Test.add_func(
+        "/main_controller/edit_during_in_flight_save_is_queued_and_newer_draft_survives",
+        test_edit_during_in_flight_save_is_queued_and_newer_draft_survives
+    );
+    Test.add_func(
+        "/main_controller/identical_recovery_draft_is_removed_without_prompt",
+        test_identical_recovery_draft_is_removed_without_prompt
     );
     Test.add_func(
         "/main_controller/autosave_failure_keeps_existing_recovery_draft",

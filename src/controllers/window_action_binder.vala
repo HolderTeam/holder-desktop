@@ -4,6 +4,7 @@ private delegate void ActionCallback();
 
 internal interface IWindowActionSink : Object {
     public abstract void on_refresh_requested();
+    public abstract void on_save_requested();
     public abstract void on_new_project_requested();
     public abstract void on_new_card_requested();
     public abstract void on_flowboard_new_child_card_requested();
@@ -28,6 +29,9 @@ internal class WindowActionBinder : Object {
     public void bind() {
         bind_action("refresh", () => {
             sink.on_refresh_requested();
+        });
+        bind_action("save", () => {
+            sink.on_save_requested();
         });
         bind_action("new-project", () => {
             sink.on_new_project_requested();

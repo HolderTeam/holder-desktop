@@ -68,6 +68,10 @@ private void test_constructor_registers_expected_accels() {
     assert(new_card.length == 1);
     assert(contains_strv(new_card, "<Primary>n") || contains_strv(new_card, "<Control>n"));
 
+    var save = app.get_accels_for_action("win.save");
+    assert(save.length == 1);
+    assert(contains_strv(save, "<Primary>s") || contains_strv(save, "<Control>s"));
+
     var flowboard_child = app.get_accels_for_action("win.flowboard-new-child-card");
     assert(flowboard_child.length == 1);
     assert(contains_strv(flowboard_child, "<Primary><Alt>n") || contains_strv(flowboard_child, "<Control><Alt>n"));

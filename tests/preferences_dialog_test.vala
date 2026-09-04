@@ -27,6 +27,7 @@ private void test_preferences_dialog_constructs_appearance_page() {
     assert(!dialog.custom_font_choice_row.get_visible());
     assert(dialog.custom_font_choice_row.get_title() ==
            HolderLinux.EditorFontStyle.DEFAULT_FONT_DESCRIPTION);
+    assert(!dialog.no_plaintext_recovery_row.get_active());
 }
 
 private void test_editor_font_style_canonicalizes_and_builds_css() {
@@ -91,6 +92,25 @@ private void test_custom_font_selection_persists_family_size_and_disabled_choice
     settings.reset(HolderLinux.AppSettings.KEY_CUSTOM_EDITOR_FONT);
 }
 
+private void test_plaintext_recovery_opt_out_is_persisted() {
+    var settings = new Settings(HolderLinux.AppSettings.SCHEMA_ID);
+    settings.reset(HolderLinux.AppSettings.KEY_NO_PLAINTEXT_RECOVERY_FILES);
+    var buffer = new GtkSource.Buffer(null);
+    var view = new GtkSource.View.with_buffer(buffer);
+    var dialog = new HolderLinux.PreferencesDialog(
+        buffer,
+        view,
+        null,
+        settings,
+        new HolderLinux.EditorFontStyle(view)
+    );
+
+    assert(!dialog.no_plaintext_recovery_row.get_active());
+    dialog.no_plaintext_recovery_row.set_active(true);
+    assert(settings.get_boolean(HolderLinux.AppSettings.KEY_NO_PLAINTEXT_RECOVERY_FILES));
+    settings.reset(HolderLinux.AppSettings.KEY_NO_PLAINTEXT_RECOVERY_FILES);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     if (!Gtk.init_check()) {
@@ -111,6 +131,8 @@ public static int main(string[] args) {
                   test_custom_font_toggle_applies_session_only_style);
     Test.add_func("/preferences_dialog/custom_font_selection_persists_family_size_and_disabled_choice",
                   test_custom_font_selection_persists_family_size_and_disabled_choice);
+    Test.add_func("/preferences_dialog/plaintext_recovery_opt_out_is_persisted",
+                  test_plaintext_recovery_opt_out_is_persisted);
 
     return Test.run();
 }
