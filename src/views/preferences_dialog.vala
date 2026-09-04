@@ -9,7 +9,10 @@ public class PreferencesDialog : Adw.PreferencesDialog {
     private Gee.HashMap<string, GtkSource.StyleSchemePreview> scheme_previews;
     internal Adw.SwitchRow custom_font_row { get; private set; }
     internal Adw.ActionRow custom_font_choice_row { get; private set; }
+    internal Adw.SwitchRow inline_image_previews_row { get; private set; }
     internal Adw.SwitchRow no_plaintext_recovery_row { get; private set; }
+
+    public signal void inline_image_previews_changed(bool enabled);
 
     public PreferencesDialog(GtkSource.Buffer editor_buffer,
                              GtkSource.View editor_view,
@@ -101,6 +104,25 @@ public class PreferencesDialog : Adw.PreferencesDialog {
             }
         });
         editor_group.add(line_numbers_row);
+
+        inline_image_previews_row = new Adw.SwitchRow();
+        inline_image_previews_row.set_title("Show inline image previews");
+        inline_image_previews_row.set_subtitle(
+            "Display referenced images inside the editor. Spell checking pauses on cards with previews."
+        );
+        inline_image_previews_row.set_active(
+            settings != null
+                ? settings.get_boolean(AppSettings.KEY_SHOW_INLINE_IMAGE_PREVIEWS)
+                : false
+        );
+        inline_image_previews_row.notify["active"].connect(() => {
+            var enabled = inline_image_previews_row.get_active();
+            if (settings != null) {
+                settings.set_boolean(AppSettings.KEY_SHOW_INLINE_IMAGE_PREVIEWS, enabled);
+            }
+            inline_image_previews_changed(enabled);
+        });
+        editor_group.add(inline_image_previews_row);
 
         var spell_row = new Adw.SwitchRow();
         spell_row.set_title("Show spell checking");

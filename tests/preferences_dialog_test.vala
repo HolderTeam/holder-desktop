@@ -27,6 +27,7 @@ private void test_preferences_dialog_constructs_appearance_page() {
     assert(!dialog.custom_font_choice_row.get_visible());
     assert(dialog.custom_font_choice_row.get_title() ==
            HolderLinux.EditorFontStyle.DEFAULT_FONT_DESCRIPTION);
+    assert(!dialog.inline_image_previews_row.get_active());
     assert(!dialog.no_plaintext_recovery_row.get_active());
 }
 
@@ -111,6 +112,34 @@ private void test_plaintext_recovery_opt_out_is_persisted() {
     settings.reset(HolderLinux.AppSettings.KEY_NO_PLAINTEXT_RECOVERY_FILES);
 }
 
+private void test_inline_image_previews_are_opt_in_and_persisted() {
+    var settings = new Settings(HolderLinux.AppSettings.SCHEMA_ID);
+    settings.reset(HolderLinux.AppSettings.KEY_SHOW_INLINE_IMAGE_PREVIEWS);
+    var buffer = new GtkSource.Buffer(null);
+    var view = new GtkSource.View.with_buffer(buffer);
+    var dialog = new HolderLinux.PreferencesDialog(
+        buffer,
+        view,
+        null,
+        settings,
+        new HolderLinux.EditorFontStyle(view)
+    );
+    bool? changed_to = null;
+    dialog.inline_image_previews_changed.connect((enabled) => {
+        changed_to = enabled;
+    });
+
+    assert(!dialog.inline_image_previews_row.get_active());
+    dialog.inline_image_previews_row.set_active(true);
+    assert(settings.get_boolean(HolderLinux.AppSettings.KEY_SHOW_INLINE_IMAGE_PREVIEWS));
+    assert(changed_to == true);
+
+    dialog.inline_image_previews_row.set_active(false);
+    assert(!settings.get_boolean(HolderLinux.AppSettings.KEY_SHOW_INLINE_IMAGE_PREVIEWS));
+    assert(changed_to == false);
+    settings.reset(HolderLinux.AppSettings.KEY_SHOW_INLINE_IMAGE_PREVIEWS);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     if (!Gtk.init_check()) {
@@ -133,6 +162,8 @@ public static int main(string[] args) {
                   test_custom_font_selection_persists_family_size_and_disabled_choice);
     Test.add_func("/preferences_dialog/plaintext_recovery_opt_out_is_persisted",
                   test_plaintext_recovery_opt_out_is_persisted);
+    Test.add_func("/preferences_dialog/inline_image_previews_are_opt_in_and_persisted",
+                  test_inline_image_previews_are_opt_in_and_persisted);
 
     return Test.run();
 }

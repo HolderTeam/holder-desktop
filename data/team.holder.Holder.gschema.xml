@@ -43,6 +43,14 @@
         If true, misspelled words are underlined in the editor.
       </description>
     </key>
+    <key name="show-inline-image-previews" type="b">
+      <default>false</default>
+      <summary>Show inline image previews</summary>
+      <description>
+        If true, images referenced by Holder resource links are displayed inside the editor.
+        Spell checking is paused on cards while inline previews are present.
+      </description>
+    </key>
     <key name="preserve-trailing-whitespace" type="b">
       <default>false</default>
       <summary>Preserve trailing whitespace on save</summary>

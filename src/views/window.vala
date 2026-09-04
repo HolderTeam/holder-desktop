@@ -78,6 +78,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private string? inline_resources_project_id;
     private uint inline_resource_refresh_id = 0;
     private uint inline_resource_load_serial = 0;
+    private bool show_inline_image_previews = false;
     private Gee.ArrayList<CardAttachment> card_attachments = new Gee.ArrayList<CardAttachment>();
     private int selected_attachment_index = -1;
     private string? selected_asset_cache_path;
@@ -1066,7 +1067,27 @@ public class MainWindow : Adw.ApplicationWindow {
         );
     }
 
+    private void set_inline_image_previews_enabled(bool enabled) {
+        if (show_inline_image_previews == enabled) {
+            return;
+        }
+        show_inline_image_previews = enabled;
+        if (enabled) {
+            queue_inline_resource_images_refresh();
+            return;
+        }
+        if (inline_resource_refresh_id != 0) {
+            Source.remove(inline_resource_refresh_id);
+            inline_resource_refresh_id = 0;
+        }
+        inline_resource_load_serial++;
+        inline_resource_image_renderer.clear();
+    }
+
     private void queue_inline_resource_images_refresh() {
+        if (!show_inline_image_previews) {
+            return;
+        }
         if (inline_resource_refresh_id != 0) {
             Source.remove(inline_resource_refresh_id);
         }
@@ -1091,6 +1112,11 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private async void refresh_inline_resource_images() {
+        if (!show_inline_image_previews) {
+            inline_resource_load_serial++;
+            inline_resource_image_renderer.clear();
+            return;
+        }
         var current_card = controller.get_current_card();
         var current_project = controller.get_current_project();
         if (current_card == null || current_project == null ||
@@ -1488,6 +1514,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private void apply_persisted_preferences() {
         if (settings == null) {
             Adw.StyleManager.get_default().set_color_scheme(AppSettings.resolve_default_color_scheme());
+            set_inline_image_previews_enabled(false);
             return;
         }
 
@@ -1501,6 +1528,9 @@ public class MainWindow : Adw.ApplicationWindow {
         );
         workspace.set_spell_check_enabled(
             settings.get_boolean(AppSettings.KEY_SHOW_SPELL_CHECKING)
+        );
+        set_inline_image_previews_enabled(
+            settings.get_boolean(AppSettings.KEY_SHOW_INLINE_IMAGE_PREVIEWS)
         );
 
         var scheme_id = settings.get_string(AppSettings.KEY_STYLE_SCHEME_ID);
@@ -1560,13 +1590,16 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void show_preferences_dialog() {
-        window_actions_adapter.show_preferences(
+        var dialog = window_actions_adapter.show_preferences(
             editor_buffer,
             editor_view,
             workspace.editor_spellcheck,
             settings,
             editor_font_style
         );
+        dialog.inline_image_previews_changed.connect((enabled) => {
+            set_inline_image_previews_enabled(enabled);
+        });
     }
 
     internal void send_current_card_as_email() {

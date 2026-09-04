@@ -9,6 +9,7 @@ public class AppSettings : Object {
     public const string KEY_CUSTOM_EDITOR_FONT = "custom-editor-font";
     public const string KEY_SHOW_LINE_NUMBERS = "show-line-numbers";
     public const string KEY_SHOW_SPELL_CHECKING = "show-spell-checking";
+    public const string KEY_SHOW_INLINE_IMAGE_PREVIEWS = "show-inline-image-previews";
     public const string KEY_PRESERVE_TRAILING_WHITESPACE = "preserve-trailing-whitespace";
     public const string KEY_TRIM_TWO_SPACE_HARD_BREAKS = "trim-two-space-hard-breaks";
     public const string KEY_TRIM_WHITESPACE_IN_CODE_BLOCKS = "trim-whitespace-in-code-blocks";

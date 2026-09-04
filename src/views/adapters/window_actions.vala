@@ -7,11 +7,11 @@ internal class WindowActionsAdapter : Object {
         this.parent = parent;
     }
 
-    public void show_preferences(GtkSource.Buffer editor_buffer,
-                                 GtkSource.View editor_view,
-                                 EditorSpellcheckController? editor_spellcheck,
-                                 Settings? settings,
-                                 EditorFontStyle editor_font_style) {
+    public PreferencesDialog show_preferences(GtkSource.Buffer editor_buffer,
+                                              GtkSource.View editor_view,
+                                              EditorSpellcheckController? editor_spellcheck,
+                                              Settings? settings,
+                                              EditorFontStyle editor_font_style) {
         var dialog = new PreferencesDialog(
             editor_buffer,
             editor_view,
@@ -20,6 +20,7 @@ internal class WindowActionsAdapter : Object {
             editor_font_style
         );
         dialog.present(parent);
+        return dialog;
     }
 
     public void show_about() {
