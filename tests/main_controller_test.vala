@@ -1706,8 +1706,14 @@ private void test_editor_change_emits_unsaved_until_save_confirmation() {
     var controller = harness.controller;
 
     string last_save_state = "";
+    string saved_project_id = "";
+    string saved_card_id = "";
     controller.editor_save_state_changed.connect((text) => {
         last_save_state = text;
+    });
+    controller.card_durable_save_completed.connect((project_id, card_id, updated_at) => {
+        saved_project_id = project_id;
+        saved_card_id = card_id;
     });
 
     controller.reload_everything.begin();
@@ -1725,6 +1731,8 @@ private void test_editor_change_emits_unsaved_until_save_confirmation() {
     controller.autosave_current_card.begin();
     assert(wait_for_condition(() => last_save_state == "Autosaved"));
     assert(!controller.has_unsaved_editor_changes());
+    assert(saved_project_id == "p1");
+    assert(saved_card_id == "c1");
 }
 
 private void test_autosave_trims_trailing_whitespace_when_settings_enable_it() {

@@ -492,6 +492,7 @@ internal class EditorSaveController : Object {
         note_autosave_success();
         set_editor_save_state("Autosaved");
         owner.status_changed("Saved %s".printf(TextUtils.format_relative_time(owner.now_epoch_seconds(), updated_at)));
+        owner.card_durable_save_completed(owner.current_card.project_id, saved_card_id, updated_at);
     }
 
     private bool save_local_recovery_draft(CardDetail card, string content) {

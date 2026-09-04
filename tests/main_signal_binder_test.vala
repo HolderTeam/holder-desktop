@@ -9,6 +9,9 @@ private class FakeMainControllerSignalSource : Object, IMainControllerSignalSour
         validated_tag_occurrences_changed(occurrences);
     }
     public void emit_editor_save_state_changed(string text) { editor_save_state_changed(text); }
+    public void emit_card_durable_save_completed(string project_id, string card_id, int64 updated_at) {
+        card_durable_save_completed(project_id, card_id, updated_at);
+    }
     public void emit_window_title_changed(string title_text) { window_title_changed(title_text); }
     public void emit_toast_requested(string message) { toast_requested(message); }
     public void emit_error_reported(string title_text, string details) { error_reported(title_text, details); }
@@ -38,6 +41,9 @@ private class RecordingMainControllerSignalSink : Object, IMainControllerSignalS
     public bool editor_editable = false;
     public CardTagOccurrence[] tag_occurrences = {};
     public string editor_save_text = "";
+    public string saved_project_id = "";
+    public string saved_card_id = "";
+    public int64 saved_updated_at = 0;
     public string window_title = "";
     public string toast_message = "";
     public string error_title = "";
@@ -65,6 +71,11 @@ private class RecordingMainControllerSignalSink : Object, IMainControllerSignalS
         tag_occurrences = occurrences;
     }
     public void on_editor_save_state_changed(string text) { editor_save_text = text; }
+    public void on_card_durable_save_completed(string project_id, string card_id, int64 updated_at) {
+        saved_project_id = project_id;
+        saved_card_id = card_id;
+        saved_updated_at = updated_at;
+    }
     public void on_window_title_changed(string title_text) { window_title = title_text; }
     public void on_toast_requested(string message) { toast_message = message; }
     public void on_error_reported(string title_text, string details) { error_title = title_text; error_details = details; }
@@ -109,6 +120,7 @@ private void test_bind_forwards_all_main_controller_signals_to_sink() {
     source.emit_editor_state_changed("# Card", true);
     source.emit_validated_tag_occurrences_changed({ new CardTagOccurrence("todo", 7, 12) });
     source.emit_editor_save_state_changed("Saved");
+    source.emit_card_durable_save_completed("proj-1", "card-1", 1234);
     source.emit_window_title_changed("Holder - Card");
     source.emit_toast_requested("Toast");
     source.emit_error_reported("Error", "Details");
@@ -131,6 +143,9 @@ private void test_bind_forwards_all_main_controller_signals_to_sink() {
     assert(sink.tag_occurrences.length == 1);
     assert(sink.tag_occurrences[0].tag == "todo");
     assert(sink.editor_save_text == "Saved");
+    assert(sink.saved_project_id == "proj-1");
+    assert(sink.saved_card_id == "card-1");
+    assert(sink.saved_updated_at == 1234);
     assert(sink.window_title == "Holder - Card");
     assert(sink.toast_message == "Toast");
     assert(sink.error_title == "Error");

@@ -48,6 +48,9 @@ public class MainController : Object, IAiRunContext {
     public signal void validated_tag_occurrences_changed(CardTagOccurrence[] occurrences);
     public signal void editor_save_state_changed(string text);
     public signal void editor_save_settled(bool saved);
+    public signal void card_durable_save_completed(string project_id,
+                                                   string card_id,
+                                                   int64 updated_at);
     public signal void window_title_changed(string title_text);
     public signal void toast_requested(string message);
     public signal void error_reported(string title_text, string details);

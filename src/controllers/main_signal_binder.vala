@@ -5,6 +5,9 @@ internal interface IMainControllerSignalSource : Object {
     public abstract signal void editor_state_changed(string text, bool editable);
     public abstract signal void validated_tag_occurrences_changed(CardTagOccurrence[] occurrences);
     public abstract signal void editor_save_state_changed(string text);
+    public abstract signal void card_durable_save_completed(string project_id,
+                                                            string card_id,
+                                                            int64 updated_at);
     public abstract signal void window_title_changed(string title_text);
     public abstract signal void toast_requested(string message);
     public abstract signal void error_reported(string title_text, string details);
@@ -31,6 +34,9 @@ internal interface IMainControllerSignalSink : Object {
     public abstract void on_editor_state_changed(string text, bool editable);
     public abstract void on_validated_tag_occurrences_changed(CardTagOccurrence[] occurrences);
     public abstract void on_editor_save_state_changed(string text);
+    public abstract void on_card_durable_save_completed(string project_id,
+                                                        string card_id,
+                                                        int64 updated_at);
     public abstract void on_window_title_changed(string title_text);
     public abstract void on_toast_requested(string message);
     public abstract void on_error_reported(string title_text, string details);
@@ -74,6 +80,9 @@ internal class MainControllerSignalBinder : Object {
         });
         controller.editor_save_state_changed.connect((text) => {
             sink.on_editor_save_state_changed(text);
+        });
+        controller.card_durable_save_completed.connect((project_id, card_id, updated_at) => {
+            sink.on_card_durable_save_completed(project_id, card_id, updated_at);
         });
         controller.window_title_changed.connect((title_text) => {
             sink.on_window_title_changed(title_text);

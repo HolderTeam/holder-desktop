@@ -24,6 +24,12 @@ internal class WindowMainControllerSignalSink : Object, IMainControllerSignalSin
         owner.set_editor_save_state_text(text);
     }
 
+    public void on_card_durable_save_completed(string project_id,
+                                               string card_id,
+                                               int64 updated_at) {
+        owner.refresh_milestones_after_card_save();
+    }
+
     public void on_window_title_changed(string title_text) {
         owner.update_window_title(title_text);
     }
@@ -105,6 +111,9 @@ internal class WindowMainControllerSignalSource : Object, IMainControllerSignalS
         });
         controller.editor_save_state_changed.connect((text) => {
             editor_save_state_changed(text);
+        });
+        controller.card_durable_save_completed.connect((project_id, card_id, updated_at) => {
+            card_durable_save_completed(project_id, card_id, updated_at);
         });
         controller.window_title_changed.connect((title_text) => {
             window_title_changed(title_text);
