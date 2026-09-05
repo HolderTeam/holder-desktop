@@ -11,6 +11,7 @@ private class FakeHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
     public bool paginate = false;
     public bool newest_is_head = false;
     public bool newest_is_creation = false;
+    public bool merge_graph = false;
     public string? expected_from_oid = "saved-oid";
     public string expected_to_oid = "head-oid";
     public string expected_mode = "since";
@@ -24,6 +25,36 @@ private class FakeHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
         last_project_id = project_id;
         last_card_id = card_id;
         last_cursor = cursor;
+        if (merge_graph) {
+            string[] merge_parents = { "main-oid", "side-oid" };
+            string[] main_parents = { "autosave-oid" };
+            string[] side_parents = { "side-base-oid" };
+            HolderLinux.CardHistoryEntry[] merge_entries = {
+                new HolderLinux.CardHistoryEntry(
+                    "merge-oid", "merge-oid", merge_parents, "Alice", "alice@example.test",
+                    30, 30, "merged", "Combined changes", 1, true,
+                    { new HolderLinux.CardHistorySave("merge-oid", merge_parents, 30) },
+                    merge_parents
+                ),
+                new HolderLinux.CardHistoryEntry(
+                    "main-oid", "main-oid", main_parents, "Alice", "alice@example.test",
+                    20, 20, "updated", "Main branch", 1, false,
+                    { new HolderLinux.CardHistorySave("main-oid", main_parents, 20) },
+                    main_parents
+                ),
+                new HolderLinux.CardHistoryEntry(
+                    "side-oid", "side-oid", side_parents, "Bob", "bob@example.test",
+                    19, 19, "updated", "Side branch", 1, false,
+                    { new HolderLinux.CardHistorySave("side-oid", side_parents, 19) }
+                ),
+                new HolderLinux.CardHistoryEntry(
+                    "autosave-oid", "autosave-oid", {}, "Alice", "alice@example.test",
+                    10, 10, "created", "Card created", 1, false,
+                    { new HolderLinux.CardHistorySave("autosave-oid", {}, 10) }
+                )
+            };
+            return new HolderLinux.CardHistoryPage("merge-oid", merge_entries, null);
+        }
         if (cursor != null) {
             string[] older_parents = { "older-parent" };
             HolderLinux.CardHistorySave[] older_saves = {
@@ -171,6 +202,15 @@ private Gtk.Widget? history_find_lane_gutter(Gtk.Widget root) {
     return null;
 }
 
+private void history_collect_lane_gutters(Gtk.Widget root, Gee.ArrayList<Gtk.Widget> gutters) {
+    if (root.has_css_class("history-lane-gutter")) gutters.add(root);
+    var child = root.get_first_child();
+    while (child != null) {
+        history_collect_lane_gutters(child, gutters);
+        child = child.get_next_sibling();
+    }
+}
+
 private string text_view_contents(Gtk.TextView view) {
     var buffer = view.get_buffer();
     Gtk.TextIter start;
@@ -244,7 +284,8 @@ private void test_history_loads_timeline_and_selected_comparison() {
     assert(history_find_label(view.widget, "Changed one line") != null);
     var lane_gutter = history_find_lane_gutter(view.widget);
     assert(lane_gutter != null);
-    assert(((!) lane_gutter).get_tooltip_text() == "No visible history connection on this page");
+    assert(((!) lane_gutter).get_tooltip_text().contains("lane 1 of 1"));
+    assert(((!) lane_gutter).get_tooltip_text().contains("no direct visible parents"));
     var contents = text_view_contents((!) text_view);
     assert(contents.contains("- Old wording"));
     assert(contents.contains("+ New wording"));
@@ -331,9 +372,43 @@ private void test_history_loads_older_page() {
     assert(history_find_label(view.widget, "Card created") != null);
     var lane_gutter = history_find_lane_gutter(view.widget);
     assert(lane_gutter != null);
-    assert(((!) lane_gutter).get_tooltip_text() == "Known history connection");
+    assert(((!) lane_gutter).get_tooltip_text().contains("1 direct visible parent"));
     button = history_find_button(view.widget, "Load older history");
     assert(button != null && !((!) button).get_visible());
+}
+
+private void test_history_merge_uses_aligned_page_lanes() {
+    var api = new FakeHistoryApi() {
+        merge_graph = true,
+        expected_from_oid = "main-oid",
+        expected_to_oid = "merge-oid",
+        expected_mode = "change"
+    };
+    var projects = new GLib.ListStore(typeof(HolderLinux.Project));
+    projects.append(new HolderLinux.Project("p1", "Home", "plain_git", "/tmp/p1", 1, 1));
+    var project_selection = new Gtk.SingleSelection(projects);
+    project_selection.set_selected(0);
+    var cards = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    cards.append(new HolderLinux.CardSummary("c1", "p1", "Card", "", 0, null, 1, 1));
+    var card_selection = new Gtk.SingleSelection(cards);
+    card_selection.set_selected(0);
+
+    var view = new HolderLinux.HistoryToolView();
+    view.set_api_client(api);
+    view.bind_context(project_selection, card_selection);
+    view.set_tool_visible(true);
+    assert(wait_for_condition(() => api.list_history_calls == 1));
+    assert(wait_for_condition(() => api.compare_history_calls == 1));
+
+    var gutters = new Gee.ArrayList<Gtk.Widget>();
+    history_collect_lane_gutters(view.widget, gutters);
+    assert(gutters.size == 4);
+    var merge_gutter = gutters[0] as Gtk.DrawingArea;
+    assert(merge_gutter != null && ((!) merge_gutter).get_content_width() == 56);
+    assert(gutters[0].get_tooltip_text().contains("lane 1 of 2"));
+    assert(gutters[0].get_tooltip_text().contains("2 direct visible parents"));
+    assert(gutters[1].get_tooltip_text().contains("lane 1 of 2"));
+    assert(gutters[2].get_tooltip_text().contains("lane 2 of 2"));
 }
 
 private void test_current_head_compares_its_change() {
@@ -417,6 +492,10 @@ public static int main(string[] args) {
     );
     Test.add_func("/holder/history-tool/no-card", test_history_without_card_does_not_call_api);
     Test.add_func("/holder/history-tool/load-older-page", test_history_loads_older_page);
+    Test.add_func(
+        "/holder/history-tool/merge-aligned-page-lanes",
+        test_history_merge_uses_aligned_page_lanes
+    );
     Test.add_func("/holder/history-tool/current-head-change", test_current_head_compares_its_change);
     Test.add_func(
         "/holder/history-tool/creation-change", test_creation_change_compares_from_missing_card

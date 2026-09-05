@@ -1,12 +1,29 @@
 namespace HolderLinux {
 
+private class HistoryLaneLayout : Object {
+    public int node_lane { get; construct; }
+    public int[] incoming_lanes;
+    public int[] outgoing_lanes;
+    public int[] parent_lanes;
+
+    public HistoryLaneLayout(int node_lane,
+                             int[] incoming_lanes,
+                             int[] outgoing_lanes,
+                             int[] parent_lanes) {
+        Object(node_lane: node_lane);
+        this.incoming_lanes = incoming_lanes;
+        this.outgoing_lanes = outgoing_lanes;
+        this.parent_lanes = parent_lanes;
+    }
+}
+
 private class HistoryLaneGutter : Gtk.DrawingArea {
-    private bool has_visible_child = false;
-    private int visible_parent_count = 0;
+    private HistoryLaneLayout? layout;
+    private int lane_count = 1;
     private bool is_merge = false;
 
     public HistoryLaneGutter() {
-        set_content_width(34);
+        set_content_width(36);
         set_content_height(36);
         set_hexpand(false);
         set_vexpand(true);
@@ -16,50 +33,63 @@ private class HistoryLaneGutter : Gtk.DrawingArea {
         });
     }
 
-    public void set_topology(bool has_visible_child,
-                             int visible_parent_count,
-                             bool is_merge) {
-        this.has_visible_child = has_visible_child;
-        this.visible_parent_count = visible_parent_count;
+    public void set_layout(HistoryLaneLayout layout, int lane_count, bool is_merge) {
+        this.layout = layout;
+        this.lane_count = lane_count;
         this.is_merge = is_merge;
-        if (has_visible_child || visible_parent_count > 0) {
-            set_tooltip_text("Known history connection");
-        } else {
-            set_tooltip_text("No visible history connection on this page");
-        }
+        set_content_width(16 + (lane_count * 20));
+        var parent_description = layout.parent_lanes.length == 0
+            ? "no direct visible parents"
+            : "%d direct visible parent%s".printf(
+                layout.parent_lanes.length, layout.parent_lanes.length == 1 ? "" : "s"
+            );
+        set_tooltip_text(
+            "History graph: lane %d of %d; %s".printf(
+                layout.node_lane + 1, lane_count, parent_description
+            )
+        );
         queue_draw();
     }
 
     private void draw_lane(Gtk.DrawingArea area, Cairo.Context cr, int width, int height) {
+        if (layout == null) return;
+        var lane_layout = (!) layout;
         var color = area.get_color();
-        double x = width / 2.0;
+        double x = lane_x(lane_layout.node_lane, width);
         double y = double.min(18.0, height / 2.0);
         cr.set_line_width(1.5);
         cr.set_source_rgba(color.red, color.green, color.blue, 0.58);
 
-        if (has_visible_child) {
-            cr.move_to(x, 0.0);
-            cr.line_to(x, y);
+        foreach (var lane in lane_layout.incoming_lanes) {
+            double incoming_x = lane_x(lane, width);
+            cr.move_to(incoming_x, 0.0);
+            cr.line_to(incoming_x, y);
             cr.stroke();
         }
-        if (visible_parent_count == 1) {
-            cr.move_to(x, y);
-            cr.line_to(x, height);
+
+        foreach (var lane in lane_layout.outgoing_lanes) {
+            if (contains_lane(lane_layout.parent_lanes, lane)) continue;
+            double outgoing_x = lane_x(lane, width);
+            cr.move_to(outgoing_x, y);
+            cr.line_to(outgoing_x, height);
             cr.stroke();
-        } else if (visible_parent_count > 1) {
-            double spread = width * 0.24;
-            double bend_y = double.min(y + 9.0, height - 4.0);
-            cr.move_to(x, y);
-            cr.line_to(x - spread, bend_y);
-            cr.line_to(x - spread, height);
-            cr.move_to(x, y);
-            cr.line_to(x + spread, bend_y);
-            cr.line_to(x + spread, height);
+        }
+        foreach (var lane in lane_layout.parent_lanes) {
+            double parent_x = lane_x(lane, width);
+            if (lane == lane_layout.node_lane) {
+                cr.move_to(x, y);
+                cr.line_to(x, height);
+            } else {
+                double bend_y = double.min(y + 9.0, height - 4.0);
+                cr.move_to(x, y);
+                cr.line_to(parent_x, bend_y);
+                cr.line_to(parent_x, height);
+            }
             cr.stroke();
         }
 
         cr.set_source_rgba(color.red, color.green, color.blue, 0.92);
-        if (is_merge || visible_parent_count > 1) {
+        if (is_merge || lane_layout.parent_lanes.length > 1) {
             cr.move_to(x, y - 5.0);
             cr.line_to(x + 5.0, y);
             cr.line_to(x, y + 5.0);
@@ -70,6 +100,17 @@ private class HistoryLaneGutter : Gtk.DrawingArea {
             cr.arc(x, y, 4.0, 0.0, 2.0 * Math.PI);
             cr.fill();
         }
+    }
+
+    private double lane_x(int lane, int width) {
+        return ((width - ((lane_count - 1) * 20)) / 2.0) + (lane * 20.0);
+    }
+
+    private bool contains_lane(int[] lanes, int candidate) {
+        foreach (var lane in lanes) {
+            if (lane == candidate) return true;
+        }
+        return false;
     }
 }
 
@@ -124,10 +165,8 @@ private class HistoryEntryRow : Gtk.ListBoxRow {
         set_child(row_box);
     }
 
-    public void update_lane(bool has_visible_child) {
-        lane_gutter.set_topology(
-            has_visible_child, entry.visible_parent_oids.length, entry.is_merge
-        );
+    public void update_lane(HistoryLaneLayout layout, int lane_count) {
+        lane_gutter.set_layout(layout, lane_count, entry.is_merge);
     }
 }
 
@@ -629,29 +668,77 @@ public class HistoryToolView : Object, IToolShellAdapter {
     }
 
     private void update_timeline_lanes() {
+        HistoryEntryRow[] rows = {};
         var index = 0;
         while (true) {
             var row = timeline.get_row_at_index(index++);
-            if (row == null) return;
+            if (row == null) break;
             var history_row = row as HistoryEntryRow;
-            if (history_row == null) continue;
-            bool has_visible_child = false;
-            var child_index = 0;
-            while (true) {
-                var child = timeline.get_row_at_index(child_index++);
-                if (child == null) break;
-                var child_history_row = child as HistoryEntryRow;
-                if (child_history_row == null) continue;
-                foreach (var parent_oid in child_history_row.entry.visible_parent_oids) {
-                    if (parent_oid == history_row.entry.last_oid) {
-                        has_visible_child = true;
-                        break;
-                    }
-                }
-                if (has_visible_child) break;
-            }
-            history_row.update_lane(has_visible_child);
+            if (history_row != null) rows += history_row;
         }
+
+        HistoryLaneLayout[] layouts = {};
+        string?[] active_lanes = {};
+        int lane_count = 1;
+        foreach (var row in rows) {
+            int[] incoming_lanes = {};
+            for (int lane = 0; lane < active_lanes.length; lane++) {
+                if (active_lanes[lane] != null) incoming_lanes += lane;
+            }
+
+            int node_lane = find_lane(active_lanes, row.entry.last_oid);
+            if (node_lane < 0) {
+                node_lane = first_free_lane(active_lanes);
+                if (node_lane < 0) {
+                    node_lane = active_lanes.length;
+                    active_lanes += null;
+                }
+            }
+            active_lanes[node_lane] = null;
+
+            int[] parent_lanes = {};
+            foreach (var parent_oid in row.entry.visible_parent_oids) {
+                int parent_lane = find_lane(active_lanes, parent_oid);
+                if (parent_lane < 0) {
+                    parent_lane = parent_lanes.length == 0
+                        ? node_lane
+                        : first_free_lane(active_lanes);
+                    if (parent_lane < 0) {
+                        parent_lane = active_lanes.length;
+                        active_lanes += null;
+                    }
+                    active_lanes[parent_lane] = parent_oid;
+                }
+                parent_lanes += parent_lane;
+            }
+
+            int[] outgoing_lanes = {};
+            for (int lane = 0; lane < active_lanes.length; lane++) {
+                if (active_lanes[lane] != null) outgoing_lanes += lane;
+            }
+            if (active_lanes.length > lane_count) lane_count = active_lanes.length;
+            layouts += new HistoryLaneLayout(
+                node_lane, incoming_lanes, outgoing_lanes, parent_lanes
+            );
+        }
+
+        for (int row_index = 0; row_index < rows.length; row_index++) {
+            rows[row_index].update_lane(layouts[row_index], lane_count);
+        }
+    }
+
+    private int find_lane(string?[] lanes, string oid) {
+        for (int lane = 0; lane < lanes.length; lane++) {
+            if (lanes[lane] == oid) return lane;
+        }
+        return -1;
+    }
+
+    private int first_free_lane(string?[] lanes) {
+        for (int lane = 0; lane < lanes.length; lane++) {
+            if (lanes[lane] == null) return lane;
+        }
+        return -1;
     }
 
     private void select_save(CardHistoryEntry group, CardHistorySave save) {
