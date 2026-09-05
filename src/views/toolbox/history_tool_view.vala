@@ -2,6 +2,7 @@ namespace HolderLinux {
 
 private class HistoryEntryRow : Gtk.ListBoxRow {
     public CardHistoryEntry entry { get; construct; }
+    public signal void save_activated(CardHistorySave save);
 
     public HistoryEntryRow(CardHistoryEntry entry) {
         Object(entry: entry);
@@ -27,6 +28,22 @@ private class HistoryEntryRow : Gtk.ListBoxRow {
         meta.add_css_class("dim-label");
         meta.add_css_class("caption");
         box.append(meta);
+        if (entry.saves.length > 1) {
+            var saves = new Gtk.Expander("Show %d exact saves".printf(entry.saves.length));
+            var saves_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
+            foreach (var save in entry.saves) {
+                var saved_at = new DateTime.from_unix_local(save.committed_at);
+                var button = new Gtk.Button.with_label(
+                    "Saved %s".printf(saved_at.format("%e %b %Y, %H:%M"))
+                );
+                button.add_css_class("flat");
+                button.set_halign(Gtk.Align.START);
+                button.clicked.connect(() => { save_activated(save); });
+                saves_box.append(button);
+            }
+            saves.set_child(saves_box);
+            box.append(saves);
+        }
         set_child(box);
     }
 }
@@ -54,6 +71,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private bool tool_visible = false;
     private bool selecting_initial_row = false;
     private bool setting_comparison_mode = false;
+    private CardHistoryEntry? detail_entry;
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id { owned get { return "history"; } }
@@ -266,7 +284,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
             content_stack.set_visible_child_name("empty");
             return;
         }
-        var selected_oid = selected_timeline_oid();
+        var selected_oid = selected_detail_oid();
         content_stack.set_visible_child_name("loading");
         try {
             var page = yield history_api.list_card_history(project.project_id, card.card_id);
@@ -288,10 +306,13 @@ public class HistoryToolView : Object, IToolShellAdapter {
                     // Keep the user's explicit choice only when this is the same row
                     // restored by a background refresh. New selections use their
                     // context-sensitive default.
-                    if (restored_row == null) set_default_comparison_mode(history_row.entry);
-                    request_comparison(history_row.entry);
+                    var restored_entry = find_timeline_entry(selected_oid);
+                    var entry = restored_entry ?? history_row.entry;
+                    if (restored_entry == null) set_default_comparison_mode(entry);
+                    request_comparison(entry);
                 }
             } else {
+                detail_entry = null;
                 detail_title.set_text("No saved history yet");
                 detail_meta.set_text("The card has no matching commits in this project repository.");
                 diff_view.get_buffer().set_text("");
@@ -305,11 +326,16 @@ public class HistoryToolView : Object, IToolShellAdapter {
     }
 
     private void request_comparison(CardHistoryEntry entry) {
+        detail_entry = entry;
         comparison_serial++;
         load_comparison.begin(entry, comparison_serial);
     }
 
     private void request_selected_comparison() {
+        if (detail_entry != null) {
+            request_comparison((!) detail_entry);
+            return;
+        }
         var row = timeline.get_selected_row() as HistoryEntryRow;
         if (row != null) request_comparison(row.entry);
     }
@@ -435,10 +461,31 @@ public class HistoryToolView : Object, IToolShellAdapter {
     }
 
     private void append_entries(CardHistoryEntry[] entries) {
-        foreach (var entry in entries) timeline.append(new HistoryEntryRow(entry));
+        foreach (var entry in entries) {
+            var row = new HistoryEntryRow(entry);
+            row.save_activated.connect((save) => { select_save(entry, save); });
+            timeline.append(row);
+        }
     }
 
-    private string? selected_timeline_oid() {
+    private void select_save(CardHistoryEntry group, CardHistorySave save) {
+        var entry = entry_for_save(group, save);
+        set_default_comparison_mode(entry);
+        request_comparison(entry);
+    }
+
+    private CardHistoryEntry entry_for_save(CardHistoryEntry group, CardHistorySave save) {
+        return new CardHistoryEntry(
+            save.oid, save.oid, save.parent_oids,
+            group.author_name, group.author_email,
+            save.committed_at, save.committed_at,
+            "updated", "Saved version", 1, false,
+            { save }
+        );
+    }
+
+    private string? selected_detail_oid() {
+        if (detail_entry != null) return ((!) detail_entry).last_oid;
         var row = timeline.get_selected_row() as HistoryEntryRow;
         return row != null ? row.entry.last_oid : null;
     }
@@ -450,7 +497,26 @@ public class HistoryToolView : Object, IToolShellAdapter {
             var row = timeline.get_row_at_index(index++);
             if (row == null) return null;
             var history_row = row as HistoryEntryRow;
-            if (history_row != null && history_row.entry.last_oid == oid) return row;
+            if (history_row == null) continue;
+            if (history_row.entry.last_oid == oid) return row;
+            foreach (var save in history_row.entry.saves) {
+                if (save.oid == oid) return row;
+            }
+        }
+    }
+
+    private CardHistoryEntry? find_timeline_entry(string? oid) {
+        if (oid == null) return null;
+        var index = 0;
+        while (true) {
+            var row = timeline.get_row_at_index(index++);
+            if (row == null) return null;
+            var history_row = row as HistoryEntryRow;
+            if (history_row == null) continue;
+            if (history_row.entry.last_oid == oid) return history_row.entry;
+            foreach (var save in history_row.entry.saves) {
+                if (save.oid == oid) return entry_for_save(history_row.entry, save);
+            }
         }
     }
 

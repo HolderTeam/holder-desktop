@@ -231,6 +231,17 @@ public class ProjectCalendar : Object {
     }
 }
 
+public class CardHistorySave : Object {
+    public string oid { get; construct; }
+    public string[] parent_oids;
+    public int64 committed_at { get; construct; }
+
+    public CardHistorySave(string oid, string[] parent_oids, int64 committed_at) {
+        Object(oid: oid, committed_at: committed_at);
+        this.parent_oids = parent_oids;
+    }
+}
+
 public class CardHistoryEntry : Object {
     public string first_oid { get; construct; }
     public string last_oid { get; construct; }
@@ -243,6 +254,7 @@ public class CardHistoryEntry : Object {
     public string summary { get; construct; }
     public int commit_count { get; construct; }
     public bool is_merge { get; construct; }
+    public CardHistorySave[] saves;
 
     public CardHistoryEntry(string first_oid,
                             string last_oid,
@@ -254,7 +266,8 @@ public class CardHistoryEntry : Object {
                             string kind,
                             string summary,
                             int commit_count,
-                            bool is_merge) {
+                            bool is_merge,
+                            CardHistorySave[] saves = {}) {
         Object(
             first_oid: first_oid,
             last_oid: last_oid,
@@ -268,6 +281,7 @@ public class CardHistoryEntry : Object {
             is_merge: is_merge
         );
         this.parent_oids = parent_oids;
+        this.saves = saves;
     }
 }
 

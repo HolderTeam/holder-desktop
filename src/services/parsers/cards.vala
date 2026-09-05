@@ -25,6 +25,28 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
                 parents += parent_array.get_string_element(j);
             }
             var author = item.get_object_member("author");
+            CardHistorySave[] saves = {};
+            if (item.has_member("saves")) {
+                var saves_array = item.get_array_member("saves");
+                for (uint save_index = 0; save_index < saves_array.get_length(); save_index++) {
+                    var save = saves_array.get_object_element(save_index);
+                    string[] save_parents = {};
+                    var save_parent_array = save.get_array_member("parent_oids");
+                    for (uint parent_index = 0;
+                         parent_index < save_parent_array.get_length(); parent_index++) {
+                        save_parents += save_parent_array.get_string_element(parent_index);
+                    }
+                    saves += new CardHistorySave(
+                        save.get_string_member("oid"),
+                        save_parents,
+                        save.get_int_member("committed_at")
+                    );
+                }
+            } else {
+                saves += new CardHistorySave(
+                    item.get_string_member("last_oid"), parents, item.get_int_member("ended_at")
+                );
+            }
             entries += new CardHistoryEntry(
                 item.get_string_member("first_oid"),
                 item.get_string_member("last_oid"),
@@ -36,7 +58,8 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
                 item.get_string_member("kind"),
                 item.get_string_member("summary"),
                 (int) item.get_int_member("commit_count"),
-                item.get_boolean_member("is_merge")
+                item.get_boolean_member("is_merge"),
+                saves
             );
         }
         return new CardHistoryPage(

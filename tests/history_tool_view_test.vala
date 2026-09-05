@@ -26,10 +26,13 @@ private class FakeHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
         last_cursor = cursor;
         if (cursor != null) {
             string[] older_parents = { "older-parent" };
+            HolderLinux.CardHistorySave[] older_saves = {
+                new HolderLinux.CardHistorySave("older-oid", older_parents, 5)
+            };
             HolderLinux.CardHistoryEntry[] older_entries = {
                 new HolderLinux.CardHistoryEntry(
                     "older-oid", "older-oid", older_parents, "Ezra", "ezra@example.test",
-                    5, 5, "created", "Card created", 1, false
+                    5, 5, "created", "Card created", 1, false, older_saves
                 )
             };
             return new HolderLinux.CardHistoryPage("head-oid", older_entries, null);
@@ -40,6 +43,15 @@ private class FakeHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
         }
         var oid = newest_is_head || newest_is_creation ? "head-oid" : "saved-oid";
         var first_oid = newest_is_creation ? oid : "first-session-oid";
+        HolderLinux.CardHistorySave[] saves = {};
+        if (newest_is_creation) {
+            saves += new HolderLinux.CardHistorySave(oid, parents, 10);
+        } else {
+            string[] first_parents = { "parent-oid" };
+            saves += new HolderLinux.CardHistorySave(first_oid, first_parents, 9);
+            string[] last_parents = { first_oid };
+            saves += new HolderLinux.CardHistorySave(oid, last_parents, 10);
+        }
         HolderLinux.CardHistoryEntry[] entries = {
             new HolderLinux.CardHistoryEntry(
                 first_oid, oid, parents, "Ezra", "ezra@example.test",
@@ -47,7 +59,8 @@ private class FakeHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
                 newest_is_creation ? "created" : "updated",
                 newest_is_creation ? "Card created" : "Changed one line",
                 newest_is_creation ? 1 : 2,
-                false
+                false,
+                saves
             )
         };
         return new HolderLinux.CardHistoryPage(
@@ -116,6 +129,19 @@ private Gtk.Button? history_find_button(Gtk.Widget root, string label) {
     return null;
 }
 
+private Gtk.Expander? history_find_expander(Gtk.Widget root, string label) {
+    if (root is Gtk.Expander && ((Gtk.Expander) root).get_label() == label) {
+        return (Gtk.Expander) root;
+    }
+    var child = root.get_first_child();
+    while (child != null) {
+        var found = history_find_expander(child, label);
+        if (found != null) return found;
+        child = child.get_next_sibling();
+    }
+    return null;
+}
+
 private string text_view_contents(Gtk.TextView view) {
     var buffer = view.get_buffer();
     Gtk.TextIter start;
@@ -152,13 +178,25 @@ private void test_history_loads_timeline_and_selected_comparison() {
     assert(contents.contains("- Old wording"));
     assert(contents.contains("+ New wording"));
 
-    api.expected_from_oid = "saved-oid";
-    api.expected_to_oid = "saved-oid";
+    var expander = history_find_expander(view.widget, "Show 2 exact saves");
+    assert(expander != null);
+    ((!) expander).set_expanded(true);
+    var save_time = new DateTime.from_unix_local(9);
+    var first_save_button = history_find_button(
+        view.widget, "Saved %s".printf(save_time.format("%e %b %Y, %H:%M"))
+    );
+    assert(first_save_button != null);
+    api.expected_from_oid = "first-session-oid";
+    api.expected_to_oid = "head-oid";
     api.expected_mode = "since";
+    ((!) first_save_button).clicked();
+    assert(wait_for_condition(() => api.compare_history_calls == 2));
+
+    api.expected_to_oid = "first-session-oid";
     var version_button = history_find_button(view.widget, "View version");
     assert(version_button != null);
     ((!) version_button).clicked();
-    assert(wait_for_condition(() => api.compare_history_calls == 2));
+    assert(wait_for_condition(() => api.compare_history_calls == 3));
     assert(history_find_label(view.widget, "Card") != null);
     contents = text_view_contents((!) text_view);
     assert(contents == "New wording");
@@ -166,22 +204,22 @@ private void test_history_loads_timeline_and_selected_comparison() {
     // A restored selection keeps an explicit View version choice.
     view.refresh();
     assert(wait_for_condition(() => api.list_history_calls == 2));
-    assert(wait_for_condition(() => api.compare_history_calls == 3));
+    assert(wait_for_condition(() => api.compare_history_calls == 4));
     contents = text_view_contents((!) text_view);
     assert(contents == "New wording");
 
     api.expected_from_oid = "parent-oid";
-    api.expected_to_oid = "saved-oid";
+    api.expected_to_oid = "first-session-oid";
     api.expected_mode = "change";
     var change_button = history_find_button(view.widget, "This change");
     assert(change_button != null);
     ((!) change_button).clicked();
-    assert(wait_for_condition(() => api.compare_history_calls == 4));
+    assert(wait_for_condition(() => api.compare_history_calls == 5));
 
     // Refreshing and rendering another comparison must reuse the existing text tags.
     view.refresh();
     assert(wait_for_condition(() => api.list_history_calls == 3));
-    assert(wait_for_condition(() => api.compare_history_calls == 5));
+    assert(wait_for_condition(() => api.compare_history_calls == 6));
     contents = text_view_contents((!) text_view);
     assert(contents.contains("+ New wording"));
 }
