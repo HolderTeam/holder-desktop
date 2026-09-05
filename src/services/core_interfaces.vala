@@ -188,6 +188,18 @@ public interface IMilestoneApi : Object {
                                                      string milestone_id) throws Error;
 }
 
+// Git history is a separate read-only capability so small API fakes need not implement it.
+public interface IHistoryApi : Object {
+    public abstract async CardHistoryPage list_card_history(string project_id,
+                                                            string card_id,
+                                                            int limit = 50,
+                                                            string? cursor = null) throws Error;
+    public abstract async CardHistoryComparison compare_card_history(string project_id,
+                                                                     string card_id,
+                                                                     string from_oid,
+                                                                     string to_oid) throws Error;
+}
+
 public interface IApiFactory : Object {
     public abstract IHolderApi create(string base_url, string auth_token);
 }

@@ -317,6 +317,45 @@ private void test_calendar_and_milestone_endpoints() {
     assert(transport.last_uri.contains("/cards/c1/milestones/m2"));
 }
 
+private void test_card_history_endpoints() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200,
+        "{\"ok\":true,\"data\":{\"head_oid\":\"head\",\"entries\":[]," +
+        "\"next_cursor\":\"older\"}}");
+    transport.enqueue_read(200,
+        "{\"ok\":true,\"data\":{\"from\":{\"exists\":true,\"oid\":\"old\"," +
+        "\"title\":\"Card\",\"body\":\"Before\"},\"to\":{\"exists\":true," +
+        "\"oid\":\"head\",\"title\":\"Card\",\"body\":\"After\"}," +
+        "\"summary\":\"Changed card\",\"lines\":[],\"truncated\":false}}");
+    var client = make_client(transport);
+
+    bool list_done = false;
+    HolderLinux.CardHistoryPage? page = null;
+    client.list_card_history.begin("project one", "card/one", 25, "cursor oid", (obj, res) => {
+        try { page = client.list_card_history.end(res); } catch (Error e) { page = null; }
+        list_done = true;
+    });
+    assert(wait_for_condition(() => list_done));
+    assert(page != null && page.next_cursor == "older");
+    assert(transport.last_uri.contains("/projects/project%20one/history/cards/card%2Fone"));
+    assert(transport.last_uri.contains("limit=25"));
+    assert(transport.last_uri.contains("cursor=cursor%20oid"));
+
+    bool compare_done = false;
+    HolderLinux.CardHistoryComparison? comparison = null;
+    client.compare_card_history.begin("project one", "card/one", "old", "head", (obj, res) => {
+        try { comparison = client.compare_card_history.end(res); }
+        catch (Error e) { comparison = null; }
+        compare_done = true;
+    });
+    assert(wait_for_condition(() => compare_done));
+    assert(comparison != null && ((!) comparison).to_version.body == "After");
+    assert(transport.last_uri.contains("/projects/project%20one/history/cards/card%2Fone/compare"));
+    assert(transport.last_uri.contains("from=old"));
+    assert(transport.last_uri.contains("to=head"));
+    assert(transport.last_uri.contains("mode=since"));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -334,6 +373,8 @@ public static int main(string[] args) {
                   test_project_tags_and_cards_with_tag);
     Test.add_func("/api_client_cards/calendar_and_milestone_endpoints",
                   test_calendar_and_milestone_endpoints);
+    Test.add_func("/api_client_cards/card_history_endpoints",
+                  test_card_history_endpoints);
 
     return Test.run();
 }

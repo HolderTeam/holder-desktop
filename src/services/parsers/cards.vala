@@ -1,6 +1,81 @@
 namespace HolderLinux {
 
 public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage artifact
+    private static CardHistoryVersion parse_history_version(Json.Object item) {
+        return new CardHistoryVersion(
+            item.get_boolean_member("exists"),
+            ApiParsersCommon.string_member_or_empty(item, "oid"),
+            ApiParsersCommon.string_member_or_empty(item, "title"),
+            ApiParsersCommon.string_member_or_empty(item, "body")
+        );
+    }
+
+    public static CardHistoryPage parse_card_history_page(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for card history response");
+        }
+        var data = root.get_object_member("data");
+        CardHistoryEntry[] entries = {};
+        var array = data.get_array_member("entries");
+        for (uint i = 0; i < array.get_length(); i++) {
+            var item = array.get_object_element(i);
+            string[] parents = {};
+            var parent_array = item.get_array_member("parent_oids");
+            for (uint j = 0; j < parent_array.get_length(); j++) {
+                parents += parent_array.get_string_element(j);
+            }
+            var author = item.get_object_member("author");
+            entries += new CardHistoryEntry(
+                item.get_string_member("first_oid"),
+                item.get_string_member("last_oid"),
+                parents,
+                ApiParsersCommon.string_member_or_empty(author, "name"),
+                ApiParsersCommon.string_member_or_empty(author, "email"),
+                item.get_int_member("started_at"),
+                item.get_int_member("ended_at"),
+                item.get_string_member("kind"),
+                item.get_string_member("summary"),
+                (int) item.get_int_member("commit_count"),
+                item.get_boolean_member("is_merge")
+            );
+        }
+        return new CardHistoryPage(
+            ApiParsersCommon.nullable_string_member_or_null(data, "head_oid"),
+            entries,
+            ApiParsersCommon.nullable_string_member_or_null(data, "next_cursor")
+        );
+    }
+
+    public static CardHistoryComparison parse_card_history_comparison(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for card history comparison");
+        }
+        var data = root.get_object_member("data");
+        CardHistoryDiffLine[] lines = {};
+        var array = data.get_array_member("lines");
+        for (uint i = 0; i < array.get_length(); i++) {
+            var item = array.get_object_element(i);
+            int64? old_line = null;
+            int64? new_line = null;
+            if (item.get_member("old_line").get_node_type() != Json.NodeType.NULL) {
+                old_line = item.get_int_member("old_line");
+            }
+            if (item.get_member("new_line").get_node_type() != Json.NodeType.NULL) {
+                new_line = item.get_int_member("new_line");
+            }
+            lines += new CardHistoryDiffLine(
+                item.get_string_member("origin"), item.get_string_member("text"), old_line, new_line
+            );
+        }
+        return new CardHistoryComparison(
+            parse_history_version(data.get_object_member("from")),
+            parse_history_version(data.get_object_member("to")),
+            ApiParsersCommon.string_member_or_empty(data, "summary"),
+            lines,
+            data.has_member("truncated") && data.get_boolean_member("truncated")
+        );
+    }
+
     public static Milestone parse_milestone(Json.Object item) {
         int64? end_at = null;
         if (item.has_member("end_at") &&

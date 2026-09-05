@@ -231,4 +231,103 @@ public class ProjectCalendar : Object {
     }
 }
 
+public class CardHistoryEntry : Object {
+    public string first_oid { get; construct; }
+    public string last_oid { get; construct; }
+    public string[] parent_oids;
+    public string author_name { get; construct; }
+    public string author_email { get; construct; }
+    public int64 started_at { get; construct; }
+    public int64 ended_at { get; construct; }
+    public string kind { get; construct; }
+    public string summary { get; construct; }
+    public int commit_count { get; construct; }
+    public bool is_merge { get; construct; }
+
+    public CardHistoryEntry(string first_oid,
+                            string last_oid,
+                            string[] parent_oids,
+                            string author_name,
+                            string author_email,
+                            int64 started_at,
+                            int64 ended_at,
+                            string kind,
+                            string summary,
+                            int commit_count,
+                            bool is_merge) {
+        Object(
+            first_oid: first_oid,
+            last_oid: last_oid,
+            author_name: author_name,
+            author_email: author_email,
+            started_at: started_at,
+            ended_at: ended_at,
+            kind: kind,
+            summary: summary,
+            commit_count: commit_count,
+            is_merge: is_merge
+        );
+        this.parent_oids = parent_oids;
+    }
+}
+
+public class CardHistoryPage : Object {
+    public string? head_oid { get; construct; }
+    public CardHistoryEntry[] entries;
+    public string? next_cursor { get; construct; }
+
+    public CardHistoryPage(string? head_oid,
+                           CardHistoryEntry[] entries,
+                           string? next_cursor) {
+        Object(head_oid: head_oid, next_cursor: next_cursor);
+        this.entries = entries;
+    }
+}
+
+public class CardHistoryVersion : Object {
+    public bool exists { get; construct; }
+    public string oid { get; construct; }
+    public string title { get; construct; }
+    public string body { get; construct; }
+
+    public CardHistoryVersion(bool exists, string oid, string title, string body) {
+        Object(exists: exists, oid: oid, title: title, body: body);
+    }
+}
+
+public class CardHistoryDiffLine : Object {
+    public string origin { get; construct; }
+    public string text { get; construct; }
+    public int64? old_line;
+    public int64? new_line;
+
+    public CardHistoryDiffLine(string origin, string text, int64? old_line, int64? new_line) {
+        Object(origin: origin, text: text);
+        this.old_line = old_line;
+        this.new_line = new_line;
+    }
+}
+
+public class CardHistoryComparison : Object {
+    public CardHistoryVersion from_version { get; construct; }
+    public CardHistoryVersion to_version { get; construct; }
+    public string summary { get; construct; }
+    public CardHistoryDiffLine[] lines;
+    public bool truncated { get; construct; }
+
+    public CardHistoryComparison(CardHistoryVersion from_version,
+                                 CardHistoryVersion to_version,
+                                 string summary,
+                                 CardHistoryDiffLine[] lines,
+                                 bool truncated) {
+        Object(
+            from_version: from_version,
+            to_version: to_version,
+            summary: summary,
+            truncated: truncated
+        );
+        this.lines = lines;
+    }
+}
+
 }

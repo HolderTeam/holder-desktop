@@ -94,6 +94,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
 
     public signal void error_reported(string title, string details);
     public signal void toast_requested(string message);
+    public signal void repository_history_changed(string project_id);
     public signal void activity_requested(string kind,
                                           string message,
                                           string? project_id,
@@ -570,8 +571,10 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             var result = yield api.push_project_git(project.project_id, "", true);
             if (result.status == "pushed") {
                 toast_requested("Project synced.");
+                repository_history_changed(project.project_id);
             } else if (result.status == "up_to_date") {
                 toast_requested("Project is already up to date.");
+                repository_history_changed(project.project_id);
             } else {
                 var details = result.error_message.strip();
                 if (details.length == 0) {
@@ -977,6 +980,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
                 toast_requested(flow_result.toast_message);
             }
             if (flow_result.error_title.strip().length == 0) {
+                repository_history_changed(selected_project.project_id);
                 git_locally_disconnected_project_id = "";
                 git_editing_remote = false;
                 git_sync_stack.set_visible_child_name("start");
@@ -1621,6 +1625,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             if (result.toast_message.strip().length > 0) {
                 toast_requested(result.toast_message);
             }
+            repository_history_changed(selected_project.project_id);
             git_locally_disconnected_project_id = "";
             git_editing_remote = false;
             git_sync_stack.set_visible_child_name("start");

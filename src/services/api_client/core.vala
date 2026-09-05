@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi, IHistoryApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     private IApiHttpTransport transport; // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     private string base_url;
     private string auth_token;
@@ -67,6 +67,24 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi 
 
     public async CardDetail get_card(string card_id) throws Error { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
         return yield ApiClientCardsEndpoints.get_card(this, card_id); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+    }
+
+    public async CardHistoryPage list_card_history(string project_id,
+                                                   string card_id,
+                                                   int limit = 50,
+                                                   string? cursor = null) throws Error {
+        return yield ApiClientCardsEndpoints.list_card_history(
+            this, project_id, card_id, limit, cursor
+        );
+    }
+
+    public async CardHistoryComparison compare_card_history(string project_id,
+                                                            string card_id,
+                                                            string from_oid,
+                                                            string to_oid) throws Error {
+        return yield ApiClientCardsEndpoints.compare_card_history(
+            this, project_id, card_id, from_oid, to_oid
+        );
     }
 
     public async ProjectCalendar get_project_calendar(string project_id,

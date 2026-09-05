@@ -1429,6 +1429,10 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.refresh_milestones();
     }
 
+    internal void refresh_history_after_card_save(string project_id, string card_id) {
+        toolbox.refresh_history(project_id, card_id);
+    }
+
     internal void set_search_summary_text(string text) {
         editor_renderer.set_search_summary_text(text);
     }

@@ -320,6 +320,69 @@ private void test_parse_project_calendar_and_milestones() {
     assert(listed[0].kind == null);
 }
 
+private void test_parse_card_history_page_and_comparison() {
+    var page_root = parse_json_object(
+        "{\"data\":{" +
+        "\"head_oid\":\"head1\",\"next_cursor\":null,\"entries\":[{" +
+        "\"first_oid\":\"old1\",\"last_oid\":\"new1\",\"parent_oids\":[\"parent1\"]," +
+        "\"author\":{\"name\":\"Ezra\",\"email\":\"ezra@example.test\"}," +
+        "\"started_at\":10,\"ended_at\":20,\"kind\":\"updated\"," +
+        "\"summary\":\"Changed 2 lines\",\"commit_count\":3,\"is_merge\":false}]}}"
+    );
+    HolderLinux.CardHistoryPage page;
+    try {
+        page = HolderLinux.ApiParsersCards.parse_card_history_page(page_root);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    assert(page.head_oid == "head1");
+    assert(page.next_cursor == null);
+    assert(page.entries.length == 1);
+    assert(page.entries[0].first_oid == "old1");
+    assert(page.entries[0].parent_oids.length == 1);
+    assert(page.entries[0].author_name == "Ezra");
+    assert(page.entries[0].commit_count == 3);
+
+    var comparison_root = parse_json_object(
+        "{\"data\":{" +
+        "\"from\":{\"exists\":true,\"oid\":\"old1\",\"title\":\"Old\",\"body\":\"before\"}," +
+        "\"to\":{\"exists\":true,\"oid\":\"head1\",\"title\":\"New\",\"body\":\"after\"}," +
+        "\"summary\":\"Changed 1 line\",\"truncated\":false,\"lines\":[" +
+        "{\"origin\":\"-\",\"text\":\"before\",\"old_line\":1,\"new_line\":null}," +
+        "{\"origin\":\"+\",\"text\":\"after\",\"old_line\":null,\"new_line\":1}]}}"
+    );
+    HolderLinux.CardHistoryComparison comparison;
+    try {
+        comparison = HolderLinux.ApiParsersCards.parse_card_history_comparison(comparison_root);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    assert(comparison.from_version.body == "before");
+    assert(comparison.to_version.body == "after");
+    assert(comparison.lines.length == 2);
+    assert(comparison.lines[0].old_line == 1);
+    assert(comparison.lines[0].new_line == null);
+    assert(comparison.lines[1].origin == "+");
+    assert(!comparison.truncated);
+}
+
+private void test_parse_card_history_missing_data_is_protocol_error() {
+    bool page_error = false;
+    bool comparison_error = false;
+    try {
+        HolderLinux.ApiParsersCards.parse_card_history_page(parse_json_object("{\"ok\":true}"));
+    } catch (Error e) {
+        page_error = e.message.contains("Missing data for card history response");
+    }
+    try {
+        HolderLinux.ApiParsersCards.parse_card_history_comparison(parse_json_object("{\"ok\":true}"));
+    } catch (Error e) {
+        comparison_error = e.message.contains("Missing data for card history comparison");
+    }
+    assert(page_error);
+    assert(comparison_error);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -335,6 +398,8 @@ public static int main(string[] args) {
     Test.add_func("/parsers/cards/card-move-result-full-and-defaults", test_parse_card_move_result_full_and_defaults);
     Test.add_func("/parsers/cards/card-move-result-missing-fields-protocol-error", test_parse_card_move_result_missing_fields_is_protocol_error);
     Test.add_func("/parsers/cards/project-calendar-and-milestones", test_parse_project_calendar_and_milestones);
+    Test.add_func("/parsers/cards/card-history-page-and-comparison", test_parse_card_history_page_and_comparison);
+    Test.add_func("/parsers/cards/card-history-missing-data-protocol-error", test_parse_card_history_missing_data_is_protocol_error);
 
     return Test.run();
 }

@@ -152,6 +152,7 @@ sources = [
   'src/views/toolbox/recovery_key_tool_view.vala',
   'src/views/toolbox/resources_tool_view.vala',
   'src/views/toolbox/milestones_tool_view.vala',
+  'src/views/toolbox/history_tool_view.vala',
   'src/views/toolbox/sharing_tool_view.vala',
   'src/views/toolbox/trash_tool_view.vala',
   'src/services/ui_adapters.vala',
@@ -2848,6 +2849,43 @@ milestones_tool_view_test_exe = executable(
 )
 
 test('holder-linux-milestones-tool-view-tests', milestones_tool_view_test_exe)
+
+history_tool_view_test_exe = executable(
+  'holder-linux-history-tool-view-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/models/toolbox_nav.vala',
+    'src/services/core_interfaces.vala',
+    'src/views/toolbox/tool_adapter.vala',
+    'src/views/toolbox/history_tool_view.vala',
+    'tests/history_tool_view_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-history-tool-view-tests', history_tool_view_test_exe)
 
 git_sync_tool_view_test_exe = executable(
   'holder-linux-git-sync-tool-view-tests',

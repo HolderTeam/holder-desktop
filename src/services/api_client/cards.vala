@@ -37,6 +37,47 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
         return ApiParsersCards.parse_card_detail(root); // LCOV_EXCL_BR_LINE: call/return branch artifact
     }
 
+    public static async CardHistoryPage list_card_history(ApiClient client,
+                                                          string project_id,
+                                                          string card_id,
+                                                          int limit = 50,
+                                                          string? cursor = null) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("limit", limit.to_string());
+        if (cursor != null && ((!) cursor).strip().length > 0) {
+            query.insert("cursor", (!) cursor);
+        }
+        var root = yield client.request_json(
+            "GET",
+            "/projects/%s/history/cards/%s".printf(
+                Uri.escape_string(project_id), Uri.escape_string(card_id)
+            ),
+            null,
+            query
+        );
+        return ApiParsersCards.parse_card_history_page(root);
+    }
+
+    public static async CardHistoryComparison compare_card_history(ApiClient client,
+                                                                   string project_id,
+                                                                   string card_id,
+                                                                   string from_oid,
+                                                                   string to_oid) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("from", from_oid);
+        query.insert("to", to_oid);
+        query.insert("mode", "since");
+        var root = yield client.request_json(
+            "GET",
+            "/projects/%s/history/cards/%s/compare".printf(
+                Uri.escape_string(project_id), Uri.escape_string(card_id)
+            ),
+            null,
+            query
+        );
+        return ApiParsersCards.parse_card_history_comparison(root);
+    }
+
     public static async ProjectCalendar get_project_calendar(ApiClient client,
                                                              string project_id,
                                                              int64 from_epoch,

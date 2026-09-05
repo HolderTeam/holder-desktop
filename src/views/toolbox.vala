@@ -7,6 +7,7 @@ public class ToolboxPane : Object {
     private RecoveryKeyToolView recovery_key_tool;
     private ResourcesToolView resources_tool;
     private MilestonesToolView milestones_tool;
+    private HistoryToolView history_tool;
     private SharingToolView sharing_tool;
     private DebugToolView debug_tool;
     private TerminalToolView terminal_tool;
@@ -84,6 +85,9 @@ public class ToolboxPane : Object {
         if (milestones_tool != null) {
             milestones_tool.set_api_client(api);
         }
+        if (history_tool != null) {
+            history_tool.set_api_client(api);
+        }
         if (trash_tool != null) {
             trash_tool.set_api_client(api);
         }
@@ -121,6 +125,9 @@ public class ToolboxPane : Object {
         }
         if (milestones_tool != null) {
             milestones_tool.bind_context(project_selection, card_store, card_selection);
+        }
+        if (history_tool != null) {
+            history_tool.bind_context(project_selection, card_selection);
         }
         if (terminal_tool != null) {
             terminal_tool.bind_context(project_selection, card_selection);
@@ -206,6 +213,17 @@ public class ToolboxPane : Object {
     public void refresh_milestones() {
         if (milestones_tool != null) {
             milestones_tool.refresh();
+        }
+    }
+
+    public void refresh_history(string project_id, string card_id) {
+        var project = project_selection != null
+            ? project_selection.get_selected_item() as Project : null;
+        var card = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary : null;
+        if (history_tool != null && project != null && card != null &&
+            project.project_id == project_id && card.card_id == card_id) {
+            history_tool.refresh();
         }
     }
 
@@ -367,6 +385,19 @@ public class ToolboxPane : Object {
         milestones_page.set_icon_name("x-office-calendar-symbolic");
         milestones_tool.set_tool_visible(false);
 
+        history_tool = new HistoryToolView();
+        tool_adapters.set("history", history_tool);
+        history_tool.error_reported.connect((title_text, details) => {
+            error_reported(title_text, details);
+        });
+        history_tool.set_api_client(api);
+        if (project_selection != null && card_selection != null) {
+            history_tool.bind_context(project_selection, card_selection);
+        }
+        var history_page = stack.add_titled(history_tool.widget, "history", "History");
+        history_page.set_icon_name("document-open-recent-symbolic");
+        history_tool.set_tool_visible(false);
+
         var sharing_page = stack.add_titled(
             build_sharing_tab(),
             "sharing",
@@ -398,6 +429,11 @@ public class ToolboxPane : Object {
         });
         git_sync_tool.toast_requested.connect((message) => {
             toast_requested(message);
+        });
+        git_sync_tool.repository_history_changed.connect((project_id) => {
+            var card = card_selection != null
+                ? card_selection.get_selected_item() as CardSummary : null;
+            if (card != null) refresh_history(project_id, card.card_id);
         });
         git_sync_tool.activity_requested.connect((kind, message, project_id, card_id, details) => {
             activity_requested(kind, message, project_id, card_id, details);
@@ -459,6 +495,9 @@ public class ToolboxPane : Object {
             }
             if (milestones_tool != null) {
                 milestones_tool.set_tool_visible(page != null && page.name == "milestones");
+            }
+            if (history_tool != null) {
+                history_tool.set_tool_visible(page != null && page.name == "history");
             }
             apply_shell_state();
             if (page.title == "Trash") {

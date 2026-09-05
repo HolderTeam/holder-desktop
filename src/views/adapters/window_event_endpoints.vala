@@ -28,6 +28,7 @@ internal class WindowMainControllerSignalSink : Object, IMainControllerSignalSin
                                                string card_id,
                                                int64 updated_at) {
         owner.refresh_milestones_after_card_save();
+        owner.refresh_history_after_card_save(project_id, card_id);
     }
 
     public void on_window_title_changed(string title_text) {
