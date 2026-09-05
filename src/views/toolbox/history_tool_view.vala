@@ -67,6 +67,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private Gtk.Label git_authored_label;
     private Gtk.Label git_committed_label;
     private Gtk.Label git_message_label;
+    private Gtk.Button copy_as_card_button;
     private Gtk.Button copy_text_button;
     private Gtk.Button copy_commit_button;
     private Gtk.TextView diff_view;
@@ -87,6 +88,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
 
     public signal void error_reported(string title, string details);
     public signal void history_text_copied(string text);
+    public signal void toast_requested(string message);
 
     public HistoryToolView() {
         widget = build_ui();
@@ -239,6 +241,10 @@ public class HistoryToolView : Object, IToolShellAdapter {
         detail.append(detail_meta);
 
         var copy_actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        copy_as_card_button = new Gtk.Button.with_label("Copy as card");
+        copy_as_card_button.set_sensitive(false);
+        copy_as_card_button.clicked.connect(() => { copy_detail_as_card.begin(); });
+        copy_actions.append(copy_as_card_button);
         copy_text_button = new Gtk.Button.with_label("Copy text");
         copy_text_button.set_sensitive(false);
         copy_text_button.clicked.connect(copy_detail_text);
@@ -573,6 +579,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private void render_diff(CardHistoryComparison comparison) {
         var buffer = diff_view.get_buffer();
         buffer.set_text("");
+        copy_as_card_button.set_sensitive(true);
         copy_text_button.set_sensitive(true);
         if (comparison.lines.length == 0) {
             buffer.set_text("No text changes were recorded between these saved versions.");
@@ -593,6 +600,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
 
     private void render_version(CardHistoryVersion version) {
         var buffer = diff_view.get_buffer();
+        copy_as_card_button.set_sensitive(true);
         copy_text_button.set_sensitive(true);
         if (!version.exists) {
             buffer.set_text("This event does not contain a saved card version to view.");
@@ -606,6 +614,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
     }
 
     private void update_git_details(CardHistoryEntry entry) {
+        copy_as_card_button.set_sensitive(false);
         copy_text_button.set_sensitive(false);
         var save = entry.saves.length > 0 ? entry.saves[entry.saves.length - 1] : null;
         if (save == null) {
@@ -647,6 +656,49 @@ public class HistoryToolView : Object, IToolShellAdapter {
         Gtk.TextIter end;
         buffer.get_bounds(out start, out end);
         copy_to_clipboard(buffer.get_text(start, end, false));
+    }
+
+    private async void copy_detail_as_card() {
+        var project = selected_project();
+        var card = selected_card();
+        var entry = detail_entry;
+        if (api == null || project == null || card == null || entry == null) return;
+        var text = detail_text();
+        if (text.length == 0) return;
+        var title = copied_card_title(project, card, (!) entry);
+        copy_as_card_button.set_sensitive(false);
+        copy_as_card_button.set_label("Copying as card…");
+        try {
+            yield api.create_card(project.project_id, title, text);
+            toast_requested("Historical text copied to a new card.");
+        } catch (Error e) {
+            error_reported("Could not copy history to a card", e.message);
+        } finally {
+            copy_as_card_button.set_label("Copy as card");
+            copy_as_card_button.set_sensitive(true);
+        }
+    }
+
+    private string detail_text() {
+        var buffer = diff_view.get_buffer();
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        buffer.get_bounds(out start, out end);
+        return buffer.get_text(start, end, false);
+    }
+
+    private string copied_card_title(Project project, CardSummary card, CardHistoryEntry entry) {
+        var saved_at = entry.ended_at;
+        var version = "unsaved";
+        if (entry.saves.length > 0) {
+            var save = entry.saves[entry.saves.length - 1];
+            saved_at = save.committed_at;
+            version = save.oid.length > 8 ? save.oid.substring(0, 8) : save.oid;
+        }
+        var when = new DateTime.from_unix_local(saved_at);
+        return "Copy of %s from %s · %s · %s".printf(
+            card.title, project.name, version, when.format("%e %b %Y, %H:%M")
+        );
     }
 
     private void copy_commit_id() {

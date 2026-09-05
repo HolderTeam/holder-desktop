@@ -390,6 +390,9 @@ public class ToolboxPane : Object {
         history_tool.error_reported.connect((title_text, details) => {
             error_reported(title_text, details);
         });
+        history_tool.toast_requested.connect((message) => {
+            toast_requested(message);
+        });
         history_tool.set_api_client(api);
         if (project_selection != null && card_selection != null) {
             history_tool.bind_context(project_selection, card_selection);

@@ -178,7 +178,9 @@ private void test_history_loads_timeline_and_selected_comparison() {
 
     var view = new HolderLinux.HistoryToolView();
     string? copied_text = null;
+    string? copy_as_card_toast = null;
     view.history_text_copied.connect((text) => { copied_text = text; });
+    view.toast_requested.connect((message) => { copy_as_card_toast = message; });
     view.set_api_client(api);
     view.bind_context(project_selection, card_selection);
     view.set_tool_visible(true);
@@ -196,18 +198,26 @@ private void test_history_loads_timeline_and_selected_comparison() {
     assert(history_find_label(view.widget, "Parents: first-session-oid") != null);
     assert(history_find_label(view.widget, "Author: Ezra <ezra@example.test>") != null);
     assert(history_find_label(view.widget, "Message: Update card Card") != null);
+    var text_view = history_find_text_view(view.widget);
+    assert(text_view != null);
     var copy_text_button = history_find_button(view.widget, "Copy text");
     var copy_commit_button = history_find_button(view.widget, "Copy commit ID");
+    var copy_as_card_button = history_find_button(view.widget, "Copy as card");
+    assert(copy_as_card_button != null && ((!) copy_as_card_button).get_sensitive());
     assert(copy_text_button != null && ((!) copy_text_button).get_sensitive());
     assert(copy_commit_button != null && ((!) copy_commit_button).get_sensitive());
     ((!) copy_text_button).clicked();
     assert(copied_text != null && ((!) copied_text).contains("- Old wording"));
     ((!) copy_commit_button).clicked();
     assert(copied_text == "saved-oid");
+    ((!) copy_as_card_button).clicked();
+    assert(wait_for_condition(() => api.create_card_calls == 1));
+    assert(api.last_created_project_id == "p1");
+    assert(api.last_created_title.contains("Copy of Card from Home"));
+    assert(api.last_created_content == text_view_contents((!) text_view));
+    assert(copy_as_card_toast == "Historical text copied to a new card.");
     assert(history_find_label(view.widget, "●  Changed one line") != null);
     assert(history_find_label(view.widget, "Changed one line") != null);
-    var text_view = history_find_text_view(view.widget);
-    assert(text_view != null);
     var contents = text_view_contents((!) text_view);
     assert(contents.contains("- Old wording"));
     assert(contents.contains("+ New wording"));
