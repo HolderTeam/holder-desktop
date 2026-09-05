@@ -180,11 +180,13 @@ private void test_history_loads_timeline_and_selected_comparison() {
     string? copied_text = null;
     string? copied_card_title = null;
     string? copied_card_content = null;
+    var debug_lines = new Gee.ArrayList<string>();
     view.history_text_copied.connect((text) => { copied_text = text; });
     view.copy_as_card_requested.connect((title, content) => {
         copied_card_title = title;
         copied_card_content = content;
     });
+    view.debug_log_requested.connect((line) => { debug_lines.add(line); });
     view.set_api_client(api);
     view.bind_context(project_selection, card_selection);
     view.set_tool_visible(true);
@@ -193,6 +195,10 @@ private void test_history_loads_timeline_and_selected_comparison() {
     assert(wait_for_condition(() => api.compare_history_calls == 1));
     assert(api.last_project_id == "p1");
     assert(api.last_card_id == "c1");
+    assert(debug_lines.any_match((line) => line.contains("History loaded: 1 entries at head-oid")));
+    assert(debug_lines.any_match((line) => line.contains(
+        "History compared saved-oi to head-oid (since; 2 lines)"
+    )));
     var timeline_scroll = history_find_timeline_scroll(view.widget);
     assert(timeline_scroll != null && ((!) timeline_scroll).get_vexpand());
     var git_details = history_find_expander(view.widget, "Git details");
@@ -218,6 +224,9 @@ private void test_history_loads_timeline_and_selected_comparison() {
     assert(copied_card_title != null && ((!) copied_card_title).contains("Copy of Card from Home"));
     assert(copied_card_title != null && ((!) copied_card_title).contains("saved-oi"));
     assert(copied_card_content == text_view_contents((!) text_view));
+    assert(debug_lines.any_match((line) => line.contains(
+        "History copy as card requested from saved-oi"
+    )));
     assert(history_find_label(view.widget, "●  Changed one line") != null);
     assert(history_find_label(view.widget, "Changed one line") != null);
     var contents = text_view_contents((!) text_view);

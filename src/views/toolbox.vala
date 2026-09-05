@@ -394,6 +394,9 @@ public class ToolboxPane : Object {
         history_tool.copy_as_card_requested.connect((title, content) => {
             history_copy_as_card_requested(title, content);
         });
+        history_tool.debug_log_requested.connect((line) => {
+            log_debug(line);
+        });
         history_tool.set_api_client(api);
         if (project_selection != null && card_selection != null) {
             history_tool.bind_context(project_selection, card_selection);

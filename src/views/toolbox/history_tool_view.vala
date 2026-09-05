@@ -89,6 +89,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
     public signal void error_reported(string title, string details);
     public signal void history_text_copied(string text);
     public signal void copy_as_card_requested(string title, string text);
+    public signal void debug_log_requested(string line);
 
     public HistoryToolView() {
         widget = build_ui();
@@ -344,6 +345,13 @@ public class HistoryToolView : Object, IToolShellAdapter {
             append_entries(page.entries);
             update_load_older_button();
             content_stack.set_visible_child_name("history");
+            debug_log_requested(
+                "History loaded: %d entries at %s%s".printf(
+                    page.entries.length,
+                    short_oid(page.head_oid),
+                    page.next_cursor != null ? "; older history available" : ""
+                )
+            );
             if (page.entries.length > 0) {
                 var restored_row = find_timeline_row(selected_oid);
                 var row = restored_row ?? timeline.get_row_at_index(0);
@@ -371,6 +379,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
             clear_timeline();
             content_stack.set_visible_child_name("error");
             error_reported("Failed to load card history", e.message);
+            debug_log_requested("History load failed: %s".printf(e.message));
         }
     }
 
@@ -470,11 +479,21 @@ public class HistoryToolView : Object, IToolShellAdapter {
             } else {
                 render_diff(comparison);
             }
+            debug_log_requested(
+                "History compared %s to %s (%s; %d lines%s)".printf(
+                    short_oid(from_oid),
+                    short_oid(to_oid),
+                    mode,
+                    comparison.lines.length,
+                    comparison.truncated ? "; shortened" : ""
+                )
+            );
         } catch (Error e) {
             if (serial != comparison_serial) return;
             detail_title.set_text("Could not compare this version");
             detail_meta.set_text(e.message);
             diff_view.get_buffer().set_text("");
+            debug_log_requested("History comparison failed: %s".printf(e.message));
         }
     }
 
@@ -501,9 +520,16 @@ public class HistoryToolView : Object, IToolShellAdapter {
             }
             append_entries(page.entries);
             next_cursor = page.next_cursor;
+            debug_log_requested(
+                "History loaded %d older entries%s".printf(
+                    page.entries.length,
+                    page.next_cursor != null ? "; more available" : ""
+                )
+            );
         } catch (Error e) {
             if (serial == refresh_serial) {
                 error_reported("Failed to load older card history", e.message);
+                debug_log_requested("History older-page load failed: %s".printf(e.message));
             }
         } finally {
             if (serial == refresh_serial) update_load_older_button();
@@ -667,6 +693,11 @@ public class HistoryToolView : Object, IToolShellAdapter {
         if (text.length == 0) return;
         var title = copied_card_title(project, card, (!) entry);
         copy_as_card_requested(title, text);
+        debug_log_requested(
+            "History copy as card requested from %s (%d characters)".printf(
+                short_oid(((!) entry).last_oid), text.length
+            )
+        );
     }
 
     private string detail_text() {
@@ -705,6 +736,12 @@ public class HistoryToolView : Object, IToolShellAdapter {
         }
         display.get_clipboard().set_text(text);
         history_text_copied(text);
+        debug_log_requested("History copied %d characters to clipboard".printf(text.length));
+    }
+
+    private string short_oid(string? oid) {
+        if (oid == null || ((!) oid).length == 0) return "no parent";
+        return ((!) oid).length > 8 ? ((!) oid).substring(0, 8) : (!) oid;
     }
 
     private void clear_timeline() {
