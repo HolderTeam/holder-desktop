@@ -31,7 +31,7 @@ private class HistoryLaneGutter : Gtk.DrawingArea {
     }
 
     private void draw_lane(Gtk.DrawingArea area, Cairo.Context cr, int width, int height) {
-        var color = area.get_style_context().get_color();
+        var color = area.get_color();
         double x = width / 2.0;
         double y = double.min(18.0, height / 2.0);
         cr.set_line_width(1.5);
