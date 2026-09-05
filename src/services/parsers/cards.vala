@@ -24,6 +24,13 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
             for (uint j = 0; j < parent_array.get_length(); j++) {
                 parents += parent_array.get_string_element(j);
             }
+            string[] visible_parents = {};
+            if (item.has_member("visible_parent_oids")) {
+                var visible_parent_array = item.get_array_member("visible_parent_oids");
+                for (uint j = 0; j < visible_parent_array.get_length(); j++) {
+                    visible_parents += visible_parent_array.get_string_element(j);
+                }
+            }
             var author = item.get_object_member("author");
             CardHistorySave[] saves = {};
             if (item.has_member("saves")) {
@@ -63,7 +70,8 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
                 item.get_string_member("summary"),
                 (int) item.get_int_member("commit_count"),
                 item.get_boolean_member("is_merge"),
-                saves
+                saves,
+                visible_parents
             );
         }
         return new CardHistoryPage(

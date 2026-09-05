@@ -43,6 +43,8 @@ private class FakeHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
         }
         var oid = newest_is_head || newest_is_creation ? "head-oid" : "saved-oid";
         var first_oid = newest_is_creation ? oid : "first-session-oid";
+        string[] visible_parents = {};
+        if (paginate && !newest_is_creation) visible_parents += "older-oid";
         HolderLinux.CardHistorySave[] saves = {};
         if (newest_is_creation) {
             saves += new HolderLinux.CardHistorySave(oid, parents, 10, 9, "Add card Card");
@@ -62,7 +64,8 @@ private class FakeHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
                 newest_is_creation ? "Card created" : "Changed one line",
                 newest_is_creation ? 1 : 2,
                 false,
-                saves
+                saves,
+                visible_parents
             )
         };
         return new HolderLinux.CardHistoryPage(
@@ -157,6 +160,17 @@ private Gtk.ScrolledWindow? history_find_timeline_scroll(Gtk.Widget root) {
     return null;
 }
 
+private Gtk.Widget? history_find_lane_gutter(Gtk.Widget root) {
+    if (root.has_css_class("history-lane-gutter")) return root;
+    var child = root.get_first_child();
+    while (child != null) {
+        var found = history_find_lane_gutter(child);
+        if (found != null) return found;
+        child = child.get_next_sibling();
+    }
+    return null;
+}
+
 private string text_view_contents(Gtk.TextView view) {
     var buffer = view.get_buffer();
     Gtk.TextIter start;
@@ -227,8 +241,10 @@ private void test_history_loads_timeline_and_selected_comparison() {
     assert(debug_lines.any_match((line) => line.contains(
         "History copy as card requested from saved-oi"
     )));
-    assert(history_find_label(view.widget, "●  Changed one line") != null);
     assert(history_find_label(view.widget, "Changed one line") != null);
+    var lane_gutter = history_find_lane_gutter(view.widget);
+    assert(lane_gutter != null);
+    assert(((!) lane_gutter).get_tooltip_text() == "No visible history connection on this page");
     var contents = text_view_contents((!) text_view);
     assert(contents.contains("- Old wording"));
     assert(contents.contains("+ New wording"));
@@ -312,7 +328,10 @@ private void test_history_loads_older_page() {
     ((!) button).clicked();
     assert(wait_for_condition(() => api.list_history_calls == 2));
     assert(api.last_cursor == "page-cursor");
-    assert(history_find_label(view.widget, "●  Card created") != null);
+    assert(history_find_label(view.widget, "Card created") != null);
+    var lane_gutter = history_find_lane_gutter(view.widget);
+    assert(lane_gutter != null);
+    assert(((!) lane_gutter).get_tooltip_text() == "Known history connection");
     button = history_find_button(view.widget, "Load older history");
     assert(button != null && !((!) button).get_visible());
 }

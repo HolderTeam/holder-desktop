@@ -1,18 +1,91 @@
 namespace HolderLinux {
 
+private class HistoryLaneGutter : Gtk.DrawingArea {
+    private bool has_visible_child = false;
+    private int visible_parent_count = 0;
+    private bool is_merge = false;
+
+    public HistoryLaneGutter() {
+        set_content_width(34);
+        set_content_height(36);
+        set_hexpand(false);
+        set_vexpand(true);
+        add_css_class("history-lane-gutter");
+        set_draw_func((area, cr, width, height) => {
+            draw_lane(area, cr, width, height);
+        });
+    }
+
+    public void set_topology(bool has_visible_child,
+                             int visible_parent_count,
+                             bool is_merge) {
+        this.has_visible_child = has_visible_child;
+        this.visible_parent_count = visible_parent_count;
+        this.is_merge = is_merge;
+        if (has_visible_child || visible_parent_count > 0) {
+            set_tooltip_text("Known history connection");
+        } else {
+            set_tooltip_text("No visible history connection on this page");
+        }
+        queue_draw();
+    }
+
+    private void draw_lane(Gtk.DrawingArea area, Cairo.Context cr, int width, int height) {
+        var color = area.get_style_context().get_color();
+        double x = width / 2.0;
+        double y = double.min(18.0, height / 2.0);
+        cr.set_line_width(1.5);
+        cr.set_source_rgba(color.red, color.green, color.blue, 0.58);
+
+        if (has_visible_child) {
+            cr.move_to(x, 0.0);
+            cr.line_to(x, y);
+            cr.stroke();
+        }
+        if (visible_parent_count == 1) {
+            cr.move_to(x, y);
+            cr.line_to(x, height);
+            cr.stroke();
+        } else if (visible_parent_count > 1) {
+            double spread = width * 0.24;
+            double bend_y = double.min(y + 9.0, height - 4.0);
+            cr.move_to(x, y);
+            cr.line_to(x - spread, bend_y);
+            cr.line_to(x - spread, height);
+            cr.move_to(x, y);
+            cr.line_to(x + spread, bend_y);
+            cr.line_to(x + spread, height);
+            cr.stroke();
+        }
+
+        cr.set_source_rgba(color.red, color.green, color.blue, 0.92);
+        if (is_merge || visible_parent_count > 1) {
+            cr.move_to(x, y - 5.0);
+            cr.line_to(x + 5.0, y);
+            cr.line_to(x, y + 5.0);
+            cr.line_to(x - 5.0, y);
+            cr.close_path();
+            cr.fill();
+        } else {
+            cr.arc(x, y, 4.0, 0.0, 2.0 * Math.PI);
+            cr.fill();
+        }
+    }
+}
+
 private class HistoryEntryRow : Gtk.ListBoxRow {
     public CardHistoryEntry entry { get; construct; }
     public signal void save_activated(CardHistorySave save);
+    private HistoryLaneGutter lane_gutter;
 
     public HistoryEntryRow(CardHistoryEntry entry) {
         Object(entry: entry);
         var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 3);
         box.set_margin_top(8);
         box.set_margin_bottom(8);
-        box.set_margin_start(8);
         box.set_margin_end(8);
 
-        var summary = new Gtk.Label((entry.is_merge ? "◆  " : "●  ") + entry.summary) {
+        var summary = new Gtk.Label(entry.is_merge ? "Merged: " + entry.summary : entry.summary) {
             xalign = 0.0f,
             wrap = true
         };
@@ -44,7 +117,17 @@ private class HistoryEntryRow : Gtk.ListBoxRow {
             saves.set_child(saves_box);
             box.append(saves);
         }
-        set_child(box);
+        lane_gutter = new HistoryLaneGutter();
+        var row_box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        row_box.append(lane_gutter);
+        row_box.append(box);
+        set_child(row_box);
+    }
+
+    public void update_lane(bool has_visible_child) {
+        lane_gutter.set_topology(
+            has_visible_child, entry.visible_parent_oids.length, entry.is_merge
+        );
     }
 }
 
@@ -541,6 +624,33 @@ public class HistoryToolView : Object, IToolShellAdapter {
             var row = new HistoryEntryRow(entry);
             row.save_activated.connect((save) => { select_save(entry, save); });
             timeline.append(row);
+        }
+        update_timeline_lanes();
+    }
+
+    private void update_timeline_lanes() {
+        var index = 0;
+        while (true) {
+            var row = timeline.get_row_at_index(index++);
+            if (row == null) return;
+            var history_row = row as HistoryEntryRow;
+            if (history_row == null) continue;
+            bool has_visible_child = false;
+            var child_index = 0;
+            while (true) {
+                var child = timeline.get_row_at_index(child_index++);
+                if (child == null) break;
+                var child_history_row = child as HistoryEntryRow;
+                if (child_history_row == null) continue;
+                foreach (var parent_oid in child_history_row.entry.visible_parent_oids) {
+                    if (parent_oid == history_row.entry.last_oid) {
+                        has_visible_child = true;
+                        break;
+                    }
+                }
+                if (has_visible_child) break;
+            }
+            history_row.update_lane(has_visible_child);
         }
     }
 

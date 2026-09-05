@@ -322,6 +322,7 @@ private void test_card_history_endpoints() {
     transport.enqueue_read(200,
         "{\"ok\":true,\"data\":{\"head_oid\":\"head\",\"entries\":[{" +
         "\"first_oid\":\"old\",\"last_oid\":\"head\",\"parent_oids\":[\"parent\"]," +
+        "\"visible_parent_oids\":[\"parent\"]," +
         "\"author\":{\"name\":\"Ezra\",\"email\":\"ezra@example.test\"}," +
         "\"started_at\":1,\"ended_at\":2,\"kind\":\"updated\",\"summary\":\"Changed\"," +
         "\"commit_count\":2,\"is_merge\":false,\"saves\":[{" +
@@ -350,6 +351,8 @@ private void test_card_history_endpoints() {
     });
     assert(wait_for_condition(() => list_done));
     assert(page != null && page.next_cursor == "older");
+    assert(((!) page).entries[0].visible_parent_oids.length == 1);
+    assert(((!) page).entries[0].visible_parent_oids[0] == "parent");
     assert(((!) page).entries[0].saves.length == 2);
     assert(((!) page).entries[0].saves[0].oid == "old");
     assert(((!) page).entries[0].saves[1].message == "Final save");

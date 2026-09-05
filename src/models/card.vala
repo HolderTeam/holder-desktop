@@ -257,6 +257,8 @@ public class CardHistoryEntry : Object {
     public string first_oid { get; construct; }
     public string last_oid { get; construct; }
     public string[] parent_oids;
+    // Direct parents that are also present in the current history page.
+    public string[] visible_parent_oids;
     public string author_name { get; construct; }
     public string author_email { get; construct; }
     public int64 started_at { get; construct; }
@@ -278,7 +280,8 @@ public class CardHistoryEntry : Object {
                             string summary,
                             int commit_count,
                             bool is_merge,
-                            CardHistorySave[] saves = {}) {
+                            CardHistorySave[] saves = {},
+                            string[] visible_parent_oids = {}) {
         Object(
             first_oid: first_oid,
             last_oid: last_oid,
@@ -292,6 +295,7 @@ public class CardHistoryEntry : Object {
             is_merge: is_merge
         );
         this.parent_oids = parent_oids;
+        this.visible_parent_oids = visible_parent_oids;
         this.saves = saves;
     }
 }
