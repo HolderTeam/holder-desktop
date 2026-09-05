@@ -325,8 +325,10 @@ private void test_card_history_endpoints() {
         "\"author\":{\"name\":\"Ezra\",\"email\":\"ezra@example.test\"}," +
         "\"started_at\":1,\"ended_at\":2,\"kind\":\"updated\",\"summary\":\"Changed\"," +
         "\"commit_count\":2,\"is_merge\":false,\"saves\":[{" +
-        "\"oid\":\"old\",\"parent_oids\":[\"parent\"],\"committed_at\":1},{" +
-        "\"oid\":\"head\",\"parent_oids\":[\"old\"],\"committed_at\":2}]}]," +
+        "\"oid\":\"old\",\"parent_oids\":[\"parent\"],\"authored_at\":1," +
+        "\"committed_at\":1,\"message\":\"First save\"},{" +
+        "\"oid\":\"head\",\"parent_oids\":[\"old\"],\"authored_at\":2," +
+        "\"committed_at\":2,\"message\":\"Final save\"}]}]," +
         "\"next_cursor\":\"older\"}}");
     transport.enqueue_read(200,
         "{\"ok\":true,\"data\":{\"from\":{\"exists\":true,\"oid\":\"old\"," +
@@ -350,6 +352,7 @@ private void test_card_history_endpoints() {
     assert(page != null && page.next_cursor == "older");
     assert(((!) page).entries[0].saves.length == 2);
     assert(((!) page).entries[0].saves[0].oid == "old");
+    assert(((!) page).entries[0].saves[1].message == "Final save");
     assert(transport.last_uri.contains("/projects/project%20one/history/cards/card%2Fone"));
     assert(transport.last_uri.contains("limit=25"));
     assert(transport.last_uri.contains("cursor=cursor%20oid"));

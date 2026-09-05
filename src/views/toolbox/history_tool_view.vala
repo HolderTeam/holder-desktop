@@ -61,6 +61,14 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private Gtk.ToggleButton version_button;
     private Gtk.Label detail_title;
     private Gtk.Label detail_meta;
+    private Gtk.Label git_oid_label;
+    private Gtk.Label git_parents_label;
+    private Gtk.Label git_author_label;
+    private Gtk.Label git_authored_label;
+    private Gtk.Label git_committed_label;
+    private Gtk.Label git_message_label;
+    private Gtk.Button copy_text_button;
+    private Gtk.Button copy_commit_button;
     private Gtk.TextView diff_view;
     private Gtk.TextTag diff_added_tag;
     private Gtk.TextTag diff_removed_tag;
@@ -78,6 +86,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
     public string tool_label { owned get { return "History"; } }
 
     public signal void error_reported(string title, string details);
+    public signal void history_text_copied(string text);
 
     public HistoryToolView() {
         widget = build_ui();
@@ -229,6 +238,34 @@ public class HistoryToolView : Object, IToolShellAdapter {
         detail_meta.add_css_class("dim-label");
         detail.append(detail_meta);
 
+        var copy_actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        copy_text_button = new Gtk.Button.with_label("Copy text");
+        copy_text_button.set_sensitive(false);
+        copy_text_button.clicked.connect(copy_detail_text);
+        copy_actions.append(copy_text_button);
+        copy_commit_button = new Gtk.Button.with_label("Copy commit ID");
+        copy_commit_button.set_sensitive(false);
+        copy_commit_button.clicked.connect(copy_commit_id);
+        copy_actions.append(copy_commit_button);
+        detail.append(copy_actions);
+
+        var git_details = new Gtk.Expander("Git details");
+        var git_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
+        git_oid_label = git_detail_label();
+        git_parents_label = git_detail_label();
+        git_author_label = git_detail_label();
+        git_authored_label = git_detail_label();
+        git_committed_label = git_detail_label();
+        git_message_label = git_detail_label();
+        git_box.append(git_oid_label);
+        git_box.append(git_parents_label);
+        git_box.append(git_author_label);
+        git_box.append(git_authored_label);
+        git_box.append(git_committed_label);
+        git_box.append(git_message_label);
+        git_details.set_child(git_box);
+        detail.append(git_details);
+
         diff_view = new Gtk.TextView();
         diff_view.set_editable(false);
         diff_view.set_cursor_visible(false);
@@ -257,6 +294,10 @@ public class HistoryToolView : Object, IToolShellAdapter {
         status.set_title(title_text);
         status.set_description(body_text);
         return status;
+    }
+
+    private Gtk.Label git_detail_label() {
+        return new Gtk.Label("") { xalign = 0.0f, selectable = true, wrap = true };
     }
 
     private Project? selected_project() {
@@ -329,6 +370,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
 
     private void request_comparison(CardHistoryEntry entry) {
         detail_entry = entry;
+        update_git_details(entry);
         comparison_serial++;
         load_comparison.begin(entry, comparison_serial);
     }
@@ -531,6 +573,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private void render_diff(CardHistoryComparison comparison) {
         var buffer = diff_view.get_buffer();
         buffer.set_text("");
+        copy_text_button.set_sensitive(true);
         if (comparison.lines.length == 0) {
             buffer.set_text("No text changes were recorded between these saved versions.");
             return;
@@ -550,6 +593,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
 
     private void render_version(CardHistoryVersion version) {
         var buffer = diff_view.get_buffer();
+        copy_text_button.set_sensitive(true);
         if (!version.exists) {
             buffer.set_text("This event does not contain a saved card version to view.");
             return;
@@ -559,6 +603,66 @@ public class HistoryToolView : Object, IToolShellAdapter {
             return;
         }
         buffer.set_text(version.body);
+    }
+
+    private void update_git_details(CardHistoryEntry entry) {
+        copy_text_button.set_sensitive(false);
+        var save = entry.saves.length > 0 ? entry.saves[entry.saves.length - 1] : null;
+        if (save == null) {
+            git_oid_label.set_text("");
+            git_parents_label.set_text("");
+            git_author_label.set_text("");
+            git_authored_label.set_text("");
+            git_committed_label.set_text("");
+            git_message_label.set_text("");
+            copy_commit_button.set_sensitive(false);
+            return;
+        }
+        var authored = new DateTime.from_unix_local(((!) save).authored_at);
+        var committed = new DateTime.from_unix_local(((!) save).committed_at);
+        git_oid_label.set_text("Commit: " + ((!) save).oid);
+        git_parents_label.set_text(
+            "Parents: " + (((!) save).parent_oids.length > 0
+                ? string.joinv(", ", ((!) save).parent_oids)
+                : "None (card created)")
+        );
+        git_author_label.set_text(
+            "Author: %s <%s>".printf(entry.author_name, entry.author_email)
+        );
+        git_authored_label.set_text(
+            "Authored: " + authored.format("%e %b %Y, %H:%M:%S %z")
+        );
+        git_committed_label.set_text(
+            "Committed: " + committed.format("%e %b %Y, %H:%M:%S %z")
+        );
+        git_message_label.set_text(
+            "Message: " + (((!) save).message.length > 0 ? ((!) save).message : "(none)")
+        );
+        copy_commit_button.set_sensitive(true);
+    }
+
+    private void copy_detail_text() {
+        var buffer = diff_view.get_buffer();
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        buffer.get_bounds(out start, out end);
+        copy_to_clipboard(buffer.get_text(start, end, false));
+    }
+
+    private void copy_commit_id() {
+        if (detail_entry == null || ((!) detail_entry).saves.length == 0) return;
+        copy_to_clipboard(((!) detail_entry).saves[((!) detail_entry).saves.length - 1].oid);
+    }
+
+    private void copy_to_clipboard(string text) {
+        if (text.length == 0) return;
+        var display = Gdk.Display.get_default();
+        if (display == null) {
+            error_reported("Clipboard unavailable", "No display available.");
+            return;
+        }
+        display.get_clipboard().set_text(text);
+        history_text_copied(text);
     }
 
     private void clear_timeline() {

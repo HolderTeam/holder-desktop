@@ -45,12 +45,14 @@ private class FakeHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
         var first_oid = newest_is_creation ? oid : "first-session-oid";
         HolderLinux.CardHistorySave[] saves = {};
         if (newest_is_creation) {
-            saves += new HolderLinux.CardHistorySave(oid, parents, 10);
+            saves += new HolderLinux.CardHistorySave(oid, parents, 10, 9, "Add card Card");
         } else {
             string[] first_parents = { "parent-oid" };
-            saves += new HolderLinux.CardHistorySave(first_oid, first_parents, 9);
+            saves += new HolderLinux.CardHistorySave(
+                first_oid, first_parents, 9, 8, "Update card Card"
+            );
             string[] last_parents = { first_oid };
-            saves += new HolderLinux.CardHistorySave(oid, last_parents, 10);
+            saves += new HolderLinux.CardHistorySave(oid, last_parents, 10, 9, "Update card Card");
         }
         HolderLinux.CardHistoryEntry[] entries = {
             new HolderLinux.CardHistoryEntry(
@@ -175,6 +177,8 @@ private void test_history_loads_timeline_and_selected_comparison() {
     card_selection.set_selected(0);
 
     var view = new HolderLinux.HistoryToolView();
+    string? copied_text = null;
+    view.history_text_copied.connect((text) => { copied_text = text; });
     view.set_api_client(api);
     view.bind_context(project_selection, card_selection);
     view.set_tool_visible(true);
@@ -185,6 +189,21 @@ private void test_history_loads_timeline_and_selected_comparison() {
     assert(api.last_card_id == "c1");
     var timeline_scroll = history_find_timeline_scroll(view.widget);
     assert(timeline_scroll != null && ((!) timeline_scroll).get_vexpand());
+    var git_details = history_find_expander(view.widget, "Git details");
+    assert(git_details != null);
+    ((!) git_details).set_expanded(true);
+    assert(history_find_label(view.widget, "Commit: saved-oid") != null);
+    assert(history_find_label(view.widget, "Parents: first-session-oid") != null);
+    assert(history_find_label(view.widget, "Author: Ezra <ezra@example.test>") != null);
+    assert(history_find_label(view.widget, "Message: Update card Card") != null);
+    var copy_text_button = history_find_button(view.widget, "Copy text");
+    var copy_commit_button = history_find_button(view.widget, "Copy commit ID");
+    assert(copy_text_button != null && ((!) copy_text_button).get_sensitive());
+    assert(copy_commit_button != null && ((!) copy_commit_button).get_sensitive());
+    ((!) copy_text_button).clicked();
+    assert(copied_text != null && ((!) copied_text).contains("- Old wording"));
+    ((!) copy_commit_button).clicked();
+    assert(copied_text == "saved-oid");
     assert(history_find_label(view.widget, "●  Changed one line") != null);
     assert(history_find_label(view.widget, "Changed one line") != null);
     var text_view = history_find_text_view(view.widget);

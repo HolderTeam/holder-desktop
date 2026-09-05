@@ -39,7 +39,11 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
                     saves += new CardHistorySave(
                         save.get_string_member("oid"),
                         save_parents,
-                        save.get_int_member("committed_at")
+                        save.get_int_member("committed_at"),
+                        save.has_member("authored_at")
+                            ? save.get_int_member("authored_at")
+                            : save.get_int_member("committed_at"),
+                        ApiParsersCommon.string_member_or_empty(save, "message")
                     );
                 }
             } else {

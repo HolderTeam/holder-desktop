@@ -234,10 +234,21 @@ public class ProjectCalendar : Object {
 public class CardHistorySave : Object {
     public string oid { get; construct; }
     public string[] parent_oids;
+    public int64 authored_at { get; construct; }
     public int64 committed_at { get; construct; }
+    public string message { get; construct; }
 
-    public CardHistorySave(string oid, string[] parent_oids, int64 committed_at) {
-        Object(oid: oid, committed_at: committed_at);
+    public CardHistorySave(string oid,
+                           string[] parent_oids,
+                           int64 committed_at,
+                           int64 authored_at = 0,
+                           string message = "") {
+        Object(
+            oid: oid,
+            authored_at: authored_at > 0 ? authored_at : committed_at,
+            committed_at: committed_at,
+            message: message
+        );
         this.parent_oids = parent_oids;
     }
 }

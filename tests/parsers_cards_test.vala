@@ -329,8 +329,9 @@ private void test_parse_card_history_page_and_comparison() {
         "\"started_at\":10,\"ended_at\":20,\"kind\":\"updated\"," +
         "\"summary\":\"Changed 2 lines\",\"commit_count\":3,\"is_merge\":false," +
         "\"saves\":[{\"oid\":\"old1\",\"parent_oids\":[\"parent1\"]," +
-        "\"committed_at\":10},{\"oid\":\"new1\",\"parent_oids\":[\"old1\"]," +
-        "\"committed_at\":20}]}]}}"
+        "\"authored_at\":9,\"committed_at\":10,\"message\":\"First save\"},{" +
+        "\"oid\":\"new1\",\"parent_oids\":[\"old1\"],\"authored_at\":19," +
+        "\"committed_at\":20,\"message\":\"Final save\"}]}]}}"
     );
     HolderLinux.CardHistoryPage page;
     try {
@@ -348,6 +349,8 @@ private void test_parse_card_history_page_and_comparison() {
     assert(page.entries[0].saves.length == 2);
     assert(page.entries[0].saves[0].oid == "old1");
     assert(page.entries[0].saves[1].parent_oids[0] == "old1");
+    assert(page.entries[0].saves[0].authored_at == 9);
+    assert(page.entries[0].saves[1].message == "Final save");
 
     var comparison_root = parse_json_object(
         "{\"data\":{" +
