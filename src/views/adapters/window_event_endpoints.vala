@@ -292,6 +292,9 @@ internal class WindowToolboxEventSource : Object, IToolboxEventSource {
         toolbox.flowboard_new_card_requested.connect((parent_card_id) => {
             flowboard_new_card_requested(parent_card_id);
         });
+        toolbox.history_copy_as_card_requested.connect((title, content) => {
+            history_copy_as_card_requested(title, content);
+        });
         toolbox.send_card_as_email_requested.connect(() => {
             send_card_as_email_requested();
         });

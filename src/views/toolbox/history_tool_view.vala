@@ -88,7 +88,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
 
     public signal void error_reported(string title, string details);
     public signal void history_text_copied(string text);
-    public signal void toast_requested(string message);
+    public signal void copy_as_card_requested(string title, string text);
 
     public HistoryToolView() {
         widget = build_ui();
@@ -243,7 +243,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
         var copy_actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         copy_as_card_button = new Gtk.Button.with_label("Copy as card");
         copy_as_card_button.set_sensitive(false);
-        copy_as_card_button.clicked.connect(() => { copy_detail_as_card.begin(); });
+        copy_as_card_button.clicked.connect(copy_detail_as_card);
         copy_actions.append(copy_as_card_button);
         copy_text_button = new Gtk.Button.with_label("Copy text");
         copy_text_button.set_sensitive(false);
@@ -658,25 +658,15 @@ public class HistoryToolView : Object, IToolShellAdapter {
         copy_to_clipboard(buffer.get_text(start, end, false));
     }
 
-    private async void copy_detail_as_card() {
+    private void copy_detail_as_card() {
         var project = selected_project();
         var card = selected_card();
         var entry = detail_entry;
-        if (api == null || project == null || card == null || entry == null) return;
+        if (project == null || card == null || entry == null) return;
         var text = detail_text();
         if (text.length == 0) return;
         var title = copied_card_title(project, card, (!) entry);
-        copy_as_card_button.set_sensitive(false);
-        copy_as_card_button.set_label("Copying as card…");
-        try {
-            yield api.create_card(project.project_id, title, text);
-            toast_requested("Historical text copied to a new card.");
-        } catch (Error e) {
-            error_reported("Could not copy history to a card", e.message);
-        } finally {
-            copy_as_card_button.set_label("Copy as card");
-            copy_as_card_button.set_sensitive(true);
-        }
+        copy_as_card_requested(title, text);
     }
 
     private string detail_text() {

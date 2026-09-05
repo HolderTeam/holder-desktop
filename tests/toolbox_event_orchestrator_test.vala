@@ -48,6 +48,9 @@ public class MainController : Object {
     public int create_card_calls = 0;
     public string? first_created_parent_card_id = "unset";
     public string? last_created_parent_card_id = "unset";
+    public string last_created_title = "";
+    public string last_created_content = "";
+    public string last_create_success_toast = "";
     public string last_move_card_id = "";
     public string last_move_intent = "";
     public string? last_move_target_card_id = "unset";
@@ -60,6 +63,17 @@ public class MainController : Object {
             first_created_parent_card_id = parent_card_id;
         }
         last_created_parent_card_id = parent_card_id;
+    }
+
+    public async void create_card_with_content(string title,
+                                               string content,
+                                               string? parent_card_id,
+                                               string success_toast) {
+        create_card_calls++;
+        last_created_title = title;
+        last_created_content = content;
+        last_created_parent_card_id = parent_card_id;
+        last_create_success_toast = success_toast;
     }
 
     public async void move_card_by_intent(string card_id,
@@ -135,6 +149,10 @@ private class FakeToolboxEventSource : Object, IToolboxEventSource {
 
     public void emit_flowboard_new_card_requested(string? parent_card_id) {
         flowboard_new_card_requested(parent_card_id);
+    }
+
+    public void emit_history_copy_as_card_requested(string title, string content) {
+        history_copy_as_card_requested(title, content);
     }
 
     public void emit_send_card_as_email_requested() {
@@ -269,6 +287,7 @@ private void test_bind_routes_toolbox_events_to_sink_and_controllers() {
     source.emit_flowboard_card_move_to_trash_requested("card-trash");
     source.emit_flowboard_move_intent_requested("card-1", "proj-1", "left", "target-1", "parent-1");
     source.emit_flowboard_new_card_requested("parent-2");
+    source.emit_history_copy_as_card_requested("Copied history", "Saved text");
     source.emit_send_card_as_email_requested();
     source.emit_send_recovery_key_as_email_requested();
     source.emit_save_recovery_key_to_usb_requested();
@@ -280,9 +299,12 @@ private void test_bind_routes_toolbox_events_to_sink_and_controllers() {
     assert(sink.error_title == "Bad");
     assert(sink.error_details == "Broken");
     assert(sink.toast_message == "Saved");
-    assert(controller.create_card_calls == 2);
+    assert(controller.create_card_calls == 3);
     assert(controller.first_created_parent_card_id == "card-parent");
-    assert(controller.last_created_parent_card_id == "parent-2");
+    assert(controller.last_created_parent_card_id == null);
+    assert(controller.last_created_title == "Copied history");
+    assert(controller.last_created_content == "Saved text");
+    assert(controller.last_create_success_toast == "Historical text copied to a new card.");
     assert(sink.move_to_trash_card_id == "card-trash");
     assert(controller.last_move_card_id == "card-1");
     assert(controller.last_move_intent == "left");

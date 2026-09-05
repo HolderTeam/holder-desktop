@@ -178,9 +178,13 @@ private void test_history_loads_timeline_and_selected_comparison() {
 
     var view = new HolderLinux.HistoryToolView();
     string? copied_text = null;
-    string? copy_as_card_toast = null;
+    string? copied_card_title = null;
+    string? copied_card_content = null;
     view.history_text_copied.connect((text) => { copied_text = text; });
-    view.toast_requested.connect((message) => { copy_as_card_toast = message; });
+    view.copy_as_card_requested.connect((title, content) => {
+        copied_card_title = title;
+        copied_card_content = content;
+    });
     view.set_api_client(api);
     view.bind_context(project_selection, card_selection);
     view.set_tool_visible(true);
@@ -211,11 +215,9 @@ private void test_history_loads_timeline_and_selected_comparison() {
     ((!) copy_commit_button).clicked();
     assert(copied_text == "saved-oid");
     ((!) copy_as_card_button).clicked();
-    assert(wait_for_condition(() => api.create_card_calls == 1));
-    assert(api.last_created_project_id == "p1");
-    assert(api.last_created_title.contains("Copy of Card from Home"));
-    assert(api.last_created_content == text_view_contents((!) text_view));
-    assert(copy_as_card_toast == "Historical text copied to a new card.");
+    assert(copied_card_title != null && ((!) copied_card_title).contains("Copy of Card from Home"));
+    assert(copied_card_title != null && ((!) copied_card_title).contains("saved-oi"));
+    assert(copied_card_content == text_view_contents((!) text_view));
     assert(history_find_label(view.widget, "●  Changed one line") != null);
     assert(history_find_label(view.widget, "Changed one line") != null);
     var contents = text_view_contents((!) text_view);

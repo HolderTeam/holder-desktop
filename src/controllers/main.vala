@@ -202,6 +202,15 @@ public class MainController : Object, IAiRunContext {
         yield cards_controller.create_card_with_title(title, parent_card_id);
     }
 
+    public async void create_card_with_content(string title,
+                                               string content,
+                                               string? parent_card_id,
+                                               string success_toast) {
+        yield cards_controller.create_card_with_content(
+            title, content, parent_card_id, success_toast
+        );
+    }
+
     public async void run_search() {
         yield search_controller.run_search();
     }

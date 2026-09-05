@@ -433,6 +433,38 @@ private void test_create_card_with_title_success_trims_and_sets_content() {
     assert(api.last_created_parent_card_id == null);
 }
 
+private void test_create_card_with_content_refreshes_and_selects_created_card() {
+    var api = new MainControllerFakeApi();
+    api.include_created_card = true;
+    var scheduler = new TestScheduler();
+    var clock = new FakeClock();
+    var harness = make_harness(api, scheduler, clock);
+    var controller = harness.controller;
+
+    controller.reload_everything.begin();
+    assert(wait_for_condition(() => controller.get_current_project() != null));
+
+    bool saw_toast = false;
+    controller.toast_requested.connect((message) => {
+        if (message == "Historical text copied to a new card.") {
+            saw_toast = true;
+        }
+    });
+
+    controller.create_card_with_content.begin(
+        "Copy of Card 1 from Home · saved-oi · 5 Sep 2026, 21:26",
+        "Saved historical text",
+        null,
+        "Historical text copied to a new card."
+    );
+    assert(wait_for_condition(() => saw_toast));
+
+    assert(api.create_card_calls == 1);
+    assert(api.last_created_title.contains("Copy of Card 1 from Home"));
+    assert(api.last_created_content == "Saved historical text");
+    assert(controller.selected_card_id() == "c-created");
+}
+
 private void test_create_card_with_title_empty_emits_error_and_skips_create() {
     var api = new MainControllerFakeApi();
     var scheduler = new TestScheduler();
@@ -3015,6 +3047,10 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/create_card_with_title_success_trims_and_sets_content",
         test_create_card_with_title_success_trims_and_sets_content
+    );
+    Test.add_func(
+        "/main_controller/create_card_with_content_refreshes_and_selects_created_card",
+        test_create_card_with_content_refreshes_and_selects_created_card
     );
     Test.add_func(
         "/main_controller/create_card_with_title_empty_emits_error_and_skips_create",

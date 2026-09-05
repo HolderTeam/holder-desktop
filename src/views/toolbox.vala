@@ -45,6 +45,7 @@ public class ToolboxPane : Object {
                                                        string? target_card_id,
                                                        string? parent_card_id);
     public signal void flowboard_new_card_requested(string? parent_card_id);
+    public signal void history_copy_as_card_requested(string title, string content);
     public signal void send_card_as_email_requested();
     public signal void send_recovery_key_as_email_requested();
     public signal void save_recovery_key_to_usb_requested();
@@ -390,8 +391,8 @@ public class ToolboxPane : Object {
         history_tool.error_reported.connect((title_text, details) => {
             error_reported(title_text, details);
         });
-        history_tool.toast_requested.connect((message) => {
-            toast_requested(message);
+        history_tool.copy_as_card_requested.connect((title, content) => {
+            history_copy_as_card_requested(title, content);
         });
         history_tool.set_api_client(api);
         if (project_selection != null && card_selection != null) {
