@@ -14,6 +14,7 @@ private class FakeHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
     public string? expected_from_oid = "saved-oid";
     public string expected_to_oid = "head-oid";
     public string expected_mode = "since";
+    public bool return_empty_comparison = false;
 
     public async HolderLinux.CardHistoryPage list_card_history(string project_id,
                                                                string card_id,
@@ -63,10 +64,11 @@ private class FakeHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
         assert(from_oid == expected_from_oid);
         assert(to_oid == expected_to_oid);
         assert(mode == expected_mode);
-        HolderLinux.CardHistoryDiffLine[] lines = {
-            new HolderLinux.CardHistoryDiffLine("-", "Old wording", 1, null),
-            new HolderLinux.CardHistoryDiffLine("+", "New wording", null, 1)
-        };
+        HolderLinux.CardHistoryDiffLine[] lines = {};
+        if (!return_empty_comparison) {
+            lines += new HolderLinux.CardHistoryDiffLine("-", "Old wording", 1, null);
+            lines += new HolderLinux.CardHistoryDiffLine("+", "New wording", null, 1);
+        }
         return new HolderLinux.CardHistoryComparison(
             new HolderLinux.CardHistoryVersion(
                 from_oid != null, from_oid ?? "", "Card", "Old wording"
@@ -224,16 +226,30 @@ private void test_current_head_compares_its_change() {
     view.bind_context(project_selection, card_selection);
     view.set_tool_visible(true);
     assert(wait_for_condition(() => api.list_history_calls == 1));
-    while (MainContext.default().iteration(false)) {}
-    assert(api.compare_history_calls == 0);
-    assert(history_find_label(
-        view.widget,
-        "This is the current saved version. Choose This change to see how it was made."
-    ) != null);
-    var change_button = history_find_button(view.widget, "This change");
-    assert(change_button != null);
-    ((!) change_button).clicked();
     assert(wait_for_condition(() => api.compare_history_calls == 1));
+}
+
+private void test_empty_comparison_explains_unchanged_text() {
+    var api = new FakeHistoryApi() { return_empty_comparison = true };
+    var projects = new GLib.ListStore(typeof(HolderLinux.Project));
+    projects.append(new HolderLinux.Project("p1", "Home", "plain_git", "/tmp/p1", 1, 1));
+    var project_selection = new Gtk.SingleSelection(projects);
+    project_selection.set_selected(0);
+    var cards = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    cards.append(new HolderLinux.CardSummary("c1", "p1", "Card", "", 0, null, 1, 1));
+    var card_selection = new Gtk.SingleSelection(cards);
+    card_selection.set_selected(0);
+
+    var view = new HolderLinux.HistoryToolView();
+    view.set_api_client(api);
+    view.bind_context(project_selection, card_selection);
+    view.set_tool_visible(true);
+    assert(wait_for_condition(() => api.compare_history_calls == 1));
+    var text_view = history_find_text_view(view.widget);
+    assert(text_view != null);
+    assert(text_view_contents((!) text_view).contains(
+        "No text changes were recorded between these saved versions."
+    ));
 }
 
 private void test_creation_change_compares_from_missing_card() {
@@ -274,6 +290,9 @@ public static int main(string[] args) {
     Test.add_func("/holder/history-tool/current-head-change", test_current_head_compares_its_change);
     Test.add_func(
         "/holder/history-tool/creation-change", test_creation_change_compares_from_missing_card
+    );
+    Test.add_func(
+        "/holder/history-tool/empty-comparison", test_empty_comparison_explains_unchanged_text
     );
     return Test.run();
 }

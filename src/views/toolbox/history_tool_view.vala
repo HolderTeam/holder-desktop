@@ -52,6 +52,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private uint comparison_serial = 0;
     private bool tool_visible = false;
     private bool selecting_initial_row = false;
+    private bool setting_comparison_mode = false;
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id { owned get { return "history"; } }
@@ -143,7 +144,10 @@ public class HistoryToolView : Object, IToolShellAdapter {
         timeline.row_selected.connect((row) => {
             if (selecting_initial_row) return;
             var history_row = row as HistoryEntryRow;
-            if (history_row != null) request_comparison(history_row.entry);
+            if (history_row != null) {
+                set_default_comparison_mode(history_row.entry);
+                request_comparison(history_row.entry);
+            }
         });
         var timeline_scroll = new Gtk.ScrolledWindow();
         timeline_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC);
@@ -171,13 +175,17 @@ public class HistoryToolView : Object, IToolShellAdapter {
         since_button = new Gtk.ToggleButton.with_label("Since this version");
         since_button.set_active(true);
         since_button.toggled.connect(() => {
-            if (since_button.get_active()) request_selected_comparison();
+            if (!setting_comparison_mode && since_button.get_active()) {
+                request_selected_comparison();
+            }
         });
         comparison_modes.append(since_button);
         change_button = new Gtk.ToggleButton.with_label("This change");
         change_button.set_group(since_button);
         change_button.toggled.connect(() => {
-            if (change_button.get_active()) request_selected_comparison();
+            if (!setting_comparison_mode && change_button.get_active()) {
+                request_selected_comparison();
+            }
         });
         comparison_modes.append(change_button);
         detail.append(comparison_modes);
@@ -261,12 +269,19 @@ public class HistoryToolView : Object, IToolShellAdapter {
             update_load_older_button();
             content_stack.set_visible_child_name("history");
             if (page.entries.length > 0) {
-                var row = find_timeline_row(selected_oid) ?? timeline.get_row_at_index(0);
+                var restored_row = find_timeline_row(selected_oid);
+                var row = restored_row ?? timeline.get_row_at_index(0);
                 selecting_initial_row = true;
                 timeline.select_row(row);
                 selecting_initial_row = false;
                 var history_row = row as HistoryEntryRow;
-                if (history_row != null) request_comparison(history_row.entry);
+                if (history_row != null) {
+                    // Keep the user's explicit choice only when this is the same row
+                    // restored by a background refresh. New selections use their
+                    // context-sensitive default.
+                    if (restored_row == null) set_default_comparison_mode(history_row.entry);
+                    request_comparison(history_row.entry);
+                }
             } else {
                 detail_title.set_text("No saved history yet");
                 detail_meta.set_text("The card has no matching commits in this project repository.");
@@ -288,6 +303,12 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private void request_selected_comparison() {
         var row = timeline.get_selected_row() as HistoryEntryRow;
         if (row != null) request_comparison(row.entry);
+    }
+
+    private void set_default_comparison_mode(CardHistoryEntry entry) {
+        setting_comparison_mode = true;
+        change_button.set_active(entry.last_oid == captured_head_oid);
+        setting_comparison_mode = false;
     }
 
     private async void load_comparison(CardHistoryEntry entry, uint serial) {
@@ -406,6 +427,10 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private void render_diff(CardHistoryComparison comparison) {
         var buffer = diff_view.get_buffer();
         buffer.set_text("");
+        if (comparison.lines.length == 0) {
+            buffer.set_text("No text changes were recorded between these saved versions.");
+            return;
+        }
         foreach (var line in comparison.lines) {
             Gtk.TextIter end;
             buffer.get_end_iter(out end);
