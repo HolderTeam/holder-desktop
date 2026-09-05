@@ -171,8 +171,10 @@ public class HistoryToolView : Object, IToolShellAdapter {
         var timeline_scroll = new Gtk.ScrolledWindow();
         timeline_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC);
         timeline_scroll.set_min_content_width(280);
+        timeline_scroll.set_vexpand(true);
         timeline_scroll.set_child(timeline);
         var timeline_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        timeline_box.set_vexpand(true);
         timeline_box.append(timeline_scroll);
         load_older_button = new Gtk.Button.with_label("Load older history");
         load_older_button.set_margin_start(6);

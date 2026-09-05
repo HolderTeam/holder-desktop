@@ -142,6 +142,19 @@ private Gtk.Expander? history_find_expander(Gtk.Widget root, string label) {
     return null;
 }
 
+private Gtk.ScrolledWindow? history_find_timeline_scroll(Gtk.Widget root) {
+    if (root is Gtk.ScrolledWindow && ((Gtk.ScrolledWindow) root).get_min_content_width() == 280) {
+        return (Gtk.ScrolledWindow) root;
+    }
+    var child = root.get_first_child();
+    while (child != null) {
+        var found = history_find_timeline_scroll(child);
+        if (found != null) return found;
+        child = child.get_next_sibling();
+    }
+    return null;
+}
+
 private string text_view_contents(Gtk.TextView view) {
     var buffer = view.get_buffer();
     Gtk.TextIter start;
@@ -170,6 +183,8 @@ private void test_history_loads_timeline_and_selected_comparison() {
     assert(wait_for_condition(() => api.compare_history_calls == 1));
     assert(api.last_project_id == "p1");
     assert(api.last_card_id == "c1");
+    var timeline_scroll = history_find_timeline_scroll(view.widget);
+    assert(timeline_scroll != null && ((!) timeline_scroll).get_vexpand());
     assert(history_find_label(view.widget, "●  Changed one line") != null);
     assert(history_find_label(view.widget, "Changed one line") != null);
     var text_view = history_find_text_view(view.widget);
