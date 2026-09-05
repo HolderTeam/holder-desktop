@@ -61,12 +61,15 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
     public static async CardHistoryComparison compare_card_history(ApiClient client,
                                                                    string project_id,
                                                                    string card_id,
-                                                                   string from_oid,
-                                                                   string to_oid) throws Error {
+                                                                   string? from_oid,
+                                                                   string to_oid,
+                                                                   string mode = "since") throws Error {
         var query = new HashTable<string, string>(str_hash, str_equal);
-        query.insert("from", from_oid);
+        if (from_oid != null && ((!) from_oid).strip().length > 0) {
+            query.insert("from", (!) from_oid);
+        }
         query.insert("to", to_oid);
-        query.insert("mode", "since");
+        query.insert("mode", mode);
         var root = yield client.request_json(
             "GET",
             "/projects/%s/history/cards/%s/compare".printf(

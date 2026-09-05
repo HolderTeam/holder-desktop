@@ -327,6 +327,11 @@ private void test_card_history_endpoints() {
         "\"title\":\"Card\",\"body\":\"Before\"},\"to\":{\"exists\":true," +
         "\"oid\":\"head\",\"title\":\"Card\",\"body\":\"After\"}," +
         "\"summary\":\"Changed card\",\"lines\":[],\"truncated\":false}}");
+    transport.enqueue_read(200,
+        "{\"ok\":true,\"data\":{\"from\":{\"exists\":false,\"oid\":\"\"," +
+        "\"title\":\"\",\"body\":\"\"},\"to\":{\"exists\":true," +
+        "\"oid\":\"created\",\"title\":\"Card\",\"body\":\"After\"}," +
+        "\"summary\":\"Card created\",\"lines\":[],\"truncated\":false}}");
     var client = make_client(transport);
 
     bool list_done = false;
@@ -343,17 +348,33 @@ private void test_card_history_endpoints() {
 
     bool compare_done = false;
     HolderLinux.CardHistoryComparison? comparison = null;
-    client.compare_card_history.begin("project one", "card/one", "old", "head", (obj, res) => {
-        try { comparison = client.compare_card_history.end(res); }
-        catch (Error e) { comparison = null; }
-        compare_done = true;
-    });
+    client.compare_card_history.begin(
+        "project one", "card/one", "old", "head", "since", (obj, res) => {
+            try { comparison = client.compare_card_history.end(res); }
+            catch (Error e) { comparison = null; }
+            compare_done = true;
+        }
+    );
     assert(wait_for_condition(() => compare_done));
     assert(comparison != null && ((!) comparison).to_version.body == "After");
     assert(transport.last_uri.contains("/projects/project%20one/history/cards/card%2Fone/compare"));
     assert(transport.last_uri.contains("from=old"));
     assert(transport.last_uri.contains("to=head"));
     assert(transport.last_uri.contains("mode=since"));
+
+    compare_done = false;
+    client.compare_card_history.begin(
+        "project one", "card/one", null, "created", "change", (obj, res) => {
+            try { comparison = client.compare_card_history.end(res); }
+            catch (Error e) { comparison = null; }
+            compare_done = true;
+        }
+    );
+    assert(wait_for_condition(() => compare_done));
+    assert(comparison != null);
+    assert(!transport.last_uri.contains("from="));
+    assert(transport.last_uri.contains("to=created"));
+    assert(transport.last_uri.contains("mode=change"));
 }
 
 public static int main(string[] args) {

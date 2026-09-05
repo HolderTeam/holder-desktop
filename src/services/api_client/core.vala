@@ -80,10 +80,11 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
 
     public async CardHistoryComparison compare_card_history(string project_id,
                                                             string card_id,
-                                                            string from_oid,
-                                                            string to_oid) throws Error {
+                                                            string? from_oid,
+                                                            string to_oid,
+                                                            string mode = "since") throws Error {
         return yield ApiClientCardsEndpoints.compare_card_history(
-            this, project_id, card_id, from_oid, to_oid
+            this, project_id, card_id, from_oid, to_oid, mode
         );
     }
 

@@ -39,6 +39,8 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private Gtk.Stack content_stack;
     private Gtk.ListBox timeline;
     private Gtk.Button load_older_button;
+    private Gtk.ToggleButton since_button;
+    private Gtk.ToggleButton change_button;
     private Gtk.Label detail_title;
     private Gtk.Label detail_meta;
     private Gtk.TextView diff_view;
@@ -163,6 +165,23 @@ public class HistoryToolView : Object, IToolShellAdapter {
         detail.set_margin_bottom(12);
         detail.set_margin_start(12);
         detail.set_margin_end(12);
+
+        var comparison_modes = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        comparison_modes.add_css_class("linked");
+        since_button = new Gtk.ToggleButton.with_label("Since this version");
+        since_button.set_active(true);
+        since_button.toggled.connect(() => {
+            if (since_button.get_active()) request_selected_comparison();
+        });
+        comparison_modes.append(since_button);
+        change_button = new Gtk.ToggleButton.with_label("This change");
+        change_button.set_group(since_button);
+        change_button.toggled.connect(() => {
+            if (change_button.get_active()) request_selected_comparison();
+        });
+        comparison_modes.append(change_button);
+        detail.append(comparison_modes);
+
         detail_title = new Gtk.Label("Select a saved version") { xalign = 0.0f };
         detail_title.add_css_class("title-3");
         detail.append(detail_title);
@@ -266,6 +285,11 @@ public class HistoryToolView : Object, IToolShellAdapter {
         load_comparison.begin(entry, comparison_serial);
     }
 
+    private void request_selected_comparison() {
+        var row = timeline.get_selected_row() as HistoryEntryRow;
+        if (row != null) request_comparison(row.entry);
+    }
+
     private async void load_comparison(CardHistoryEntry entry, uint serial) {
         var history_api = api as IHistoryApi;
         var project = selected_project();
@@ -274,13 +298,21 @@ public class HistoryToolView : Object, IToolShellAdapter {
         var expected_project = project.project_id;
         var expected_card = card.card_id;
         var expected_head = (!) captured_head_oid;
-        var from_oid = entry.last_oid;
-        var showing_current_change = entry.last_oid == expected_head;
-        if (showing_current_change && entry.parent_oids.length > 0) {
-            from_oid = entry.parent_oids[0];
-        } else if (showing_current_change) {
+        var mode = change_button.get_active() ? "change" : "since";
+        string? from_oid;
+        string to_oid;
+        if (mode == "change") {
+            from_oid = entry.parent_oids.length > 0 ? entry.parent_oids[0] : null;
+            to_oid = entry.last_oid;
+        } else {
+            from_oid = entry.last_oid;
+            to_oid = expected_head;
+        }
+        if (mode == "since" && entry.last_oid == expected_head) {
             detail_title.set_text("Current saved version");
-            detail_meta.set_text("This is the first saved version of the card.");
+            detail_meta.set_text(
+                "This is the current saved version. Choose This change to see how it was made."
+            );
             diff_view.get_buffer().set_text("");
             return;
         }
@@ -288,7 +320,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
         detail_meta.set_text(entry.summary);
         try {
             var comparison = yield history_api.compare_card_history(
-                expected_project, expected_card, from_oid, expected_head
+                expected_project, expected_card, from_oid, to_oid, mode
             );
             var current_project = selected_project();
             var current_card = selected_card();
@@ -297,8 +329,8 @@ public class HistoryToolView : Object, IToolShellAdapter {
                 current_project.project_id != expected_project || current_card.card_id != expected_card) return;
             detail_title.set_text(entry.summary);
             var when = new DateTime.from_unix_local(entry.ended_at);
-            var meta = showing_current_change
-                ? "%s by %s · Current saved change".printf(
+            var meta = mode == "change"
+                ? "%s by %s · This change".printf(
                     when.format("%e %b %Y, %H:%M"), entry.author_name)
                 : "%s by %s  →  Current saved version".printf(
                     when.format("%e %b %Y, %H:%M"), entry.author_name);

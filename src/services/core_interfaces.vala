@@ -196,8 +196,9 @@ public interface IHistoryApi : Object {
                                                             string? cursor = null) throws Error;
     public abstract async CardHistoryComparison compare_card_history(string project_id,
                                                                      string card_id,
-                                                                     string from_oid,
-                                                                     string to_oid) throws Error;
+                                                                     string? from_oid,
+                                                                     string to_oid,
+                                                                     string mode = "since") throws Error;
 }
 
 public interface IApiFactory : Object {
