@@ -41,6 +41,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private Gtk.Button load_older_button;
     private Gtk.ToggleButton since_button;
     private Gtk.ToggleButton change_button;
+    private Gtk.ToggleButton version_button;
     private Gtk.Label detail_title;
     private Gtk.Label detail_meta;
     private Gtk.TextView diff_view;
@@ -188,6 +189,14 @@ public class HistoryToolView : Object, IToolShellAdapter {
             }
         });
         comparison_modes.append(change_button);
+        version_button = new Gtk.ToggleButton.with_label("View version");
+        version_button.set_group(since_button);
+        version_button.toggled.connect(() => {
+            if (!setting_comparison_mode && version_button.get_active()) {
+                request_selected_comparison();
+            }
+        });
+        comparison_modes.append(version_button);
         detail.append(comparison_modes);
 
         detail_title = new Gtk.Label("Select a saved version") { xalign = 0.0f };
@@ -307,7 +316,11 @@ public class HistoryToolView : Object, IToolShellAdapter {
 
     private void set_default_comparison_mode(CardHistoryEntry entry) {
         setting_comparison_mode = true;
-        change_button.set_active(entry.last_oid == captured_head_oid);
+        if (entry.last_oid == captured_head_oid) {
+            change_button.set_active(true);
+        } else {
+            since_button.set_active(true);
+        }
         setting_comparison_mode = false;
     }
 
@@ -319,11 +332,19 @@ public class HistoryToolView : Object, IToolShellAdapter {
         var expected_project = project.project_id;
         var expected_card = card.card_id;
         var expected_head = (!) captured_head_oid;
-        var mode = change_button.get_active() ? "change" : "since";
+        var mode = version_button.get_active()
+            ? "version"
+            : (change_button.get_active() ? "change" : "since");
         string? from_oid;
         string to_oid;
         if (mode == "change") {
             from_oid = entry.parent_oids.length > 0 ? entry.parent_oids[0] : null;
+            to_oid = entry.last_oid;
+        } else if (mode == "version") {
+            // The comparison endpoint also returns its stable `to` snapshot. Using
+            // the selected OID for both endpoints avoids a moving HEAD and needs no
+            // separate historical-card route.
+            from_oid = entry.last_oid;
             to_oid = entry.last_oid;
         } else {
             from_oid = entry.last_oid;
@@ -341,23 +362,38 @@ public class HistoryToolView : Object, IToolShellAdapter {
         detail_meta.set_text(entry.summary);
         try {
             var comparison = yield history_api.compare_card_history(
-                expected_project, expected_card, from_oid, to_oid, mode
+                expected_project, expected_card, from_oid, to_oid,
+                mode == "version" ? "since" : mode
             );
             var current_project = selected_project();
             var current_card = selected_card();
             if (serial != comparison_serial || captured_head_oid != expected_head ||
                 current_project == null || current_card == null ||
                 current_project.project_id != expected_project || current_card.card_id != expected_card) return;
-            detail_title.set_text(entry.summary);
             var when = new DateTime.from_unix_local(entry.ended_at);
-            var meta = mode == "change"
-                ? "%s by %s · This change".printf(
+            string meta;
+            if (mode == "version") {
+                detail_title.set_text(
+                    comparison.to_version.exists ? comparison.to_version.title : "No saved card"
+                );
+                meta = "%s by %s · Saved version".printf(
+                    when.format("%e %b %Y, %H:%M"), entry.author_name
+                );
+            } else {
+                detail_title.set_text(entry.summary);
+                meta = mode == "change"
+                    ? "%s by %s · This change".printf(
                     when.format("%e %b %Y, %H:%M"), entry.author_name)
-                : "%s by %s  →  Current saved version".printf(
+                    : "%s by %s  →  Current saved version".printf(
                     when.format("%e %b %Y, %H:%M"), entry.author_name);
-            if (comparison.truncated) meta += " · Diff shortened";
+            }
+            if (comparison.truncated && mode != "version") meta += " · Diff shortened";
             detail_meta.set_text(meta);
-            render_diff(comparison);
+            if (mode == "version") {
+                render_version(comparison.to_version);
+            } else {
+                render_diff(comparison);
+            }
         } catch (Error e) {
             if (serial != comparison_serial) return;
             detail_title.set_text("Could not compare this version");
@@ -442,6 +478,19 @@ public class HistoryToolView : Object, IToolShellAdapter {
             }
             else buffer.insert(ref end, rendered, -1);
         }
+    }
+
+    private void render_version(CardHistoryVersion version) {
+        var buffer = diff_view.get_buffer();
+        if (!version.exists) {
+            buffer.set_text("This event does not contain a saved card version to view.");
+            return;
+        }
+        if (version.body.length == 0) {
+            buffer.set_text("This saved version has no card text.");
+            return;
+        }
+        buffer.set_text(version.body);
     }
 
     private void clear_timeline() {

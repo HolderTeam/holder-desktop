@@ -152,18 +152,36 @@ private void test_history_loads_timeline_and_selected_comparison() {
     assert(contents.contains("- Old wording"));
     assert(contents.contains("+ New wording"));
 
+    api.expected_from_oid = "saved-oid";
+    api.expected_to_oid = "saved-oid";
+    api.expected_mode = "since";
+    var version_button = history_find_button(view.widget, "View version");
+    assert(version_button != null);
+    ((!) version_button).clicked();
+    assert(wait_for_condition(() => api.compare_history_calls == 2));
+    assert(history_find_label(view.widget, "Card") != null);
+    contents = text_view_contents((!) text_view);
+    assert(contents == "New wording");
+
+    // A restored selection keeps an explicit View version choice.
+    view.refresh();
+    assert(wait_for_condition(() => api.list_history_calls == 2));
+    assert(wait_for_condition(() => api.compare_history_calls == 3));
+    contents = text_view_contents((!) text_view);
+    assert(contents == "New wording");
+
     api.expected_from_oid = "parent-oid";
     api.expected_to_oid = "saved-oid";
     api.expected_mode = "change";
     var change_button = history_find_button(view.widget, "This change");
     assert(change_button != null);
     ((!) change_button).clicked();
-    assert(wait_for_condition(() => api.compare_history_calls == 2));
+    assert(wait_for_condition(() => api.compare_history_calls == 4));
 
     // Refreshing and rendering another comparison must reuse the existing text tags.
     view.refresh();
-    assert(wait_for_condition(() => api.list_history_calls == 2));
-    assert(wait_for_condition(() => api.compare_history_calls == 3));
+    assert(wait_for_condition(() => api.list_history_calls == 3));
+    assert(wait_for_condition(() => api.compare_history_calls == 5));
     contents = text_view_contents((!) text_view);
     assert(contents.contains("+ New wording"));
 }
