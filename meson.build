@@ -2391,6 +2391,7 @@ markdown_resource_images_test_env.set(
   'HOLDER_MARKDOWN_LANGUAGE_DIR',
   meson.project_source_root() / 'data' / 'gtksourceview-5' / 'language-specs',
 )
+markdown_resource_images_test_env.set('GTK_A11Y', 'none')
 test(
   'holder-linux-markdown-resource-images-tests',
   markdown_resource_images_test_exe,
