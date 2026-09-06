@@ -77,7 +77,8 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
         return new CardHistoryPage(
             ApiParsersCommon.nullable_string_member_or_null(data, "head_oid"),
             entries,
-            ApiParsersCommon.nullable_string_member_or_null(data, "next_cursor")
+            ApiParsersCommon.nullable_string_member_or_null(data, "next_cursor"),
+            data.has_member("scan_limited") && data.get_boolean_member("scan_limited")
         );
     }
 

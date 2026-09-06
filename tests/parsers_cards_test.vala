@@ -323,7 +323,7 @@ private void test_parse_project_calendar_and_milestones() {
 private void test_parse_card_history_page_and_comparison() {
     var page_root = parse_json_object(
         "{\"data\":{" +
-        "\"head_oid\":\"head1\",\"next_cursor\":null,\"entries\":[{" +
+        "\"head_oid\":\"head1\",\"next_cursor\":null,\"scan_limited\":true,\"entries\":[{" +
         "\"first_oid\":\"old1\",\"last_oid\":\"new1\",\"parent_oids\":[\"parent1\"]," +
         "\"visible_parent_oids\":[\"parent1\",\"parent2\"]," +
         "\"author\":{\"name\":\"Ezra\",\"email\":\"ezra@example.test\"}," +
@@ -342,6 +342,7 @@ private void test_parse_card_history_page_and_comparison() {
     }
     assert(page.head_oid == "head1");
     assert(page.next_cursor == null);
+    assert(page.scan_limited);
     assert(page.entries.length == 1);
     assert(page.entries[0].first_oid == "old1");
     assert(page.entries[0].parent_oids.length == 1);

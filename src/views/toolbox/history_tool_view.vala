@@ -197,6 +197,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private Gtk.TextTag diff_removed_tag;
     private string? captured_head_oid;
     private string? next_cursor;
+    private bool scan_limited = false;
     private uint refresh_serial = 0;
     private uint comparison_serial = 0;
     private bool tool_visible = false;
@@ -464,6 +465,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
             clear_timeline();
             captured_head_oid = page.head_oid;
             next_cursor = page.next_cursor;
+            scan_limited = page.scan_limited;
             append_entries(page.entries);
             update_load_older_button();
             content_stack.set_visible_child_name("history");
@@ -471,7 +473,10 @@ public class HistoryToolView : Object, IToolShellAdapter {
                 "History loaded: %d entries at %s%s".printf(
                     page.entries.length,
                     short_oid(page.head_oid),
-                    page.next_cursor != null ? "; older history available" : ""
+                    page.next_cursor != null
+                        ? page.scan_limited ? "; continue scanning older history"
+                                            : "; older history available"
+                        : ""
                 )
             );
             if (page.entries.length > 0) {
@@ -642,10 +647,13 @@ public class HistoryToolView : Object, IToolShellAdapter {
             }
             append_entries(page.entries);
             next_cursor = page.next_cursor;
+            scan_limited = page.scan_limited;
             debug_log_requested(
                 "History loaded %d older entries%s".printf(
                     page.entries.length,
-                    page.next_cursor != null ? "; more available" : ""
+                    page.next_cursor != null
+                        ? page.scan_limited ? "; continue scanning" : "; more available"
+                        : ""
                 )
             );
         } catch (Error e) {
@@ -794,7 +802,9 @@ public class HistoryToolView : Object, IToolShellAdapter {
     }
 
     private void update_load_older_button() {
-        load_older_button.set_label("Load older history");
+        load_older_button.set_label(
+            scan_limited ? "Continue scanning older history" : "Load older history"
+        );
         load_older_button.set_sensitive(next_cursor != null);
         load_older_button.set_visible(next_cursor != null);
     }
@@ -950,6 +960,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
         }
         captured_head_oid = null;
         next_cursor = null;
+        scan_limited = false;
         update_load_older_button();
     }
 }

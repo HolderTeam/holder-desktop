@@ -304,11 +304,13 @@ public class CardHistoryPage : Object {
     public string? head_oid { get; construct; }
     public CardHistoryEntry[] entries;
     public string? next_cursor { get; construct; }
+    public bool scan_limited { get; construct; }
 
     public CardHistoryPage(string? head_oid,
                            CardHistoryEntry[] entries,
-                           string? next_cursor) {
-        Object(head_oid: head_oid, next_cursor: next_cursor);
+                           string? next_cursor,
+                           bool scan_limited = false) {
+        Object(head_oid: head_oid, next_cursor: next_cursor, scan_limited: scan_limited);
         this.entries = entries;
     }
 }
