@@ -27,6 +27,11 @@ def step_project_visible(context, name):
     )
 
 
+@when('I select project "{name}"')
+def step_select_project(context, name):
+    context.driver.select_project(name)
+
+
 @when("I replace the editor text with")
 def step_replace_editor_text(context):
     context.driver.replace_editor_text(context.text)
@@ -188,6 +193,13 @@ def step_switch_toolbox_tool(context, tool_name):
 def step_toolbox_content_visible(context, text):
     assert context.driver.can_see_text(text), (
         f"Expected toolbox content '{text}' to be visible"
+    )
+
+
+@then('I should see History diff "{text}"')
+def step_history_diff_visible(context, text):
+    assert context.driver.history_diff_contains(text), (
+        f"Expected History comparison to contain '{text}'"
     )
 
 

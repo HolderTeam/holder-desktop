@@ -49,6 +49,17 @@ Feature: Core app run book
     Then I should see toolbox content "Since this version"
     And I should see toolbox content "This change"
 
+  @isolated @history_fixture
+  Scenario: Show a fixture-backed History comparison
+    Given the Holder frontend is running
+    When I select project "History Fixture Project"
+    And I search cards for "History Fixture Card"
+    And I open search result "History Fixture Card"
+    And I open the toolbox panel
+    And I switch to toolbox tool "History"
+    Then I should see toolbox content "This change"
+    And I should see History diff "Fixture revised history body"
+
   Scenario: Toggle find and replace panel visibility
     Given the Holder frontend is running
     When I open find and replace
