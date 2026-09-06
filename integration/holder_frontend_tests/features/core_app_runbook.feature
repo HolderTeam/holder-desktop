@@ -59,6 +59,14 @@ Feature: Core app run book
     And I switch to toolbox tool "History"
     Then I should see toolbox content "This change"
     And I should see History diff "Fixture revised history body"
+    When I replace the editor text with
+      """
+      # History Fixture Card
+
+      Fixture saved while History is open.
+      """
+    Then I should see save state "Saved"
+    And I should see History diff "Fixture saved while History is open"
 
   Scenario: Toggle find and replace panel visibility
     Given the Holder frontend is running

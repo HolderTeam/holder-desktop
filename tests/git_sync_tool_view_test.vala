@@ -204,6 +204,10 @@ private void test_git_sync_tool_view_sync_now_uses_configured_project() {
     var selection = new Gtk.SingleSelection(store);
     var api = new MainControllerFakeApi();
     var view = new HolderLinux.GitSyncToolView(false);
+    string? history_project_id = null;
+    view.repository_history_changed.connect((project_id) => {
+        history_project_id = project_id;
+    });
     view.set_api_client(api);
     view.set_project_selection(selection);
 
@@ -213,6 +217,8 @@ private void test_git_sync_tool_view_sync_now_uses_configured_project() {
 
     assert(wait_for_condition(() => api.push_project_git_calls == 1));
     assert(api.last_git_project_id == "p1");
+    assert(wait_for_condition(() => history_project_id != null));
+    assert(history_project_id == "p1");
 }
 
 private void test_git_sync_tool_view_setup_success_becomes_persistent_state() {
