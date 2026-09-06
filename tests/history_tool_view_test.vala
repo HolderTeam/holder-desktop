@@ -204,7 +204,8 @@ private class FakeProjectHistoryApi : MainControllerFakeApi, HolderLinux.IProjec
         project_history_calls++;
         HolderLinux.ProjectHistoryAffectedObject[] affected = {
             new HolderLinux.ProjectHistoryAffectedObject("card", { "cards/ab/cd/card.md" }),
-            new HolderLinux.ProjectHistoryAffectedObject("resource", { "resources/ab/cd/resource.json" })
+            new HolderLinux.ProjectHistoryAffectedObject("resource", { "resources/ab/cd/resource.json" }),
+            new HolderLinux.ProjectHistoryAffectedObject("unknown", { "notes/external.txt" })
         };
         HolderLinux.ProjectHistoryActivity[] activities = {
             new HolderLinux.ProjectHistoryActivity(
@@ -511,6 +512,7 @@ private void test_project_history_renders_without_a_card() {
 
     assert(wait_for_condition(() => api.project_history_calls == 1));
     assert(history_find_label(view.widget, "Attach project resource") != null);
+    assert(history_find_label(view.widget, "Other Git changes (1)") != null);
 }
 
 private void test_history_loads_older_page() {

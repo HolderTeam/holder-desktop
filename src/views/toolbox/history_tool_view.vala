@@ -1006,7 +1006,12 @@ public class HistoryToolView : Object, IToolShellAdapter {
             title.add_css_class("heading");
             box.append(title);
             var kinds = "";
+            int unknown_paths = 0;
             foreach (var object in activity.affected_objects) {
+                if (object.kind == "unknown") {
+                    unknown_paths += object.paths.length;
+                    continue;
+                }
                 var label = object.kind.replace("_", " ");
                 if (kinds.length > 0) kinds += " · ";
                 kinds += "%s (%d)".printf(label, object.paths.length);
@@ -1018,6 +1023,14 @@ public class HistoryToolView : Object, IToolShellAdapter {
             meta.add_css_class("dim-label");
             meta.add_css_class("caption");
             box.append(meta);
+            if (unknown_paths > 0) {
+                var unknown = new Gtk.Label("Other Git changes (%d)".printf(unknown_paths)) {
+                    xalign = 0.0f
+                };
+                unknown.add_css_class("dim-label");
+                unknown.add_css_class("caption");
+                box.append(unknown);
+            }
             row.set_child(box);
             project_timeline.append(row);
         }
