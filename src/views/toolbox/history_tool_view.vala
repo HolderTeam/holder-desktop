@@ -178,6 +178,8 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private Gtk.Stack content_stack;
     private Gtk.ListBox timeline;
     private Gtk.ListBox project_timeline;
+    private Gtk.DropDown project_kind_filter;
+    private Gtk.StringList project_kind_options;
     private Gtk.Button load_older_button;
     private Gtk.ToggleButton since_button;
     private Gtk.ToggleButton change_button;
@@ -421,6 +423,29 @@ public class HistoryToolView : Object, IToolShellAdapter {
     }
 
     private Gtk.Widget build_project_history() {
+        var page = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
+        page.set_margin_top(8);
+        page.set_margin_start(8);
+        page.set_margin_end(8);
+        var filter_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+        filter_row.append(new Gtk.Label("Show:") { xalign = 0.0f });
+        project_kind_options = new Gtk.StringList(null);
+        string[] filter_labels = { "All activity", "Cards", "Resources", "Locations", "AI data",
+                                   "Project settings", "Other Git changes" };
+        foreach (var label in filter_labels) {
+            project_kind_options.append(label);
+        }
+        project_kind_filter = new Gtk.DropDown(project_kind_options, null);
+        project_kind_filter.set_tooltip_text("Filter project history by affected object kind");
+        project_kind_filter.notify["selected"].connect(() => {
+            var project = selected_project();
+            var card = selected_card();
+            if (tool_visible && project != null && (card == null || card.project_id != project.project_id)) {
+                queue_refresh();
+            }
+        });
+        filter_row.append(project_kind_filter);
+        page.append(filter_row);
         project_timeline = new Gtk.ListBox();
         project_timeline.set_selection_mode(Gtk.SelectionMode.NONE);
         project_timeline.add_css_class("boxed-list");
@@ -428,7 +453,20 @@ public class HistoryToolView : Object, IToolShellAdapter {
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC);
         scroll.set_vexpand(true);
         scroll.set_child(project_timeline);
-        return scroll;
+        page.append(scroll);
+        return page;
+    }
+
+    private string? selected_project_kind() {
+        switch (project_kind_filter.get_selected()) {
+            case 1: return "card";
+            case 2: return "resource";
+            case 3: return "location";
+            case 4: return "ai_data";
+            case 5: return "project_settings";
+            case 6: return "unknown";
+            default: return null;
+        }
     }
 
     private Gtk.Widget message_page(string icon_name, string title_text, string body_text) {
@@ -478,7 +516,9 @@ public class HistoryToolView : Object, IToolShellAdapter {
             }
             content_stack.set_visible_child_name("loading");
             try {
-                var project_page = yield project_history_api.list_project_history(project.project_id);
+                var project_page = yield project_history_api.list_project_history(
+                    project.project_id, 50, null, selected_project_kind()
+                );
                 if (serial != refresh_serial) return;
                 render_project_activities(project_page.activities);
                 content_stack.set_visible_child_name("project");

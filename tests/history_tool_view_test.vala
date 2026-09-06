@@ -197,11 +197,13 @@ private class DelayedHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi
 
 private class FakeProjectHistoryApi : MainControllerFakeApi, HolderLinux.IProjectHistoryApi {
     public int project_history_calls = 0;
+    public string? last_kind;
     public async HolderLinux.ProjectHistoryPage list_project_history(string project_id,
                                                                       int limit = 50,
                                                                       string? cursor = null,
                                                                       string? kind = null) throws Error {
         project_history_calls++;
+        last_kind = kind;
         HolderLinux.ProjectHistoryAffectedObject[] affected = {
             new HolderLinux.ProjectHistoryAffectedObject("card", { "cards/ab/cd/card.md" }),
             new HolderLinux.ProjectHistoryAffectedObject("resource", { "resources/ab/cd/resource.json" }),
@@ -246,6 +248,17 @@ private Gtk.Button? history_find_button(Gtk.Widget root, string label) {
     var child = root.get_first_child();
     while (child != null) {
         var found = history_find_button(child, label);
+        if (found != null) return found;
+        child = child.get_next_sibling();
+    }
+    return null;
+}
+
+private Gtk.DropDown? history_find_dropdown(Gtk.Widget root) {
+    if (root is Gtk.DropDown) return (Gtk.DropDown) root;
+    var child = root.get_first_child();
+    while (child != null) {
+        var found = history_find_dropdown(child);
         if (found != null) return found;
         child = child.get_next_sibling();
     }
@@ -519,6 +532,11 @@ private void test_project_history_renders_without_a_card() {
     assert(history_find_label(view.widget, "card: cards/ab/cd/card.md") != null);
     assert(history_find_label(view.widget, "resource: resources/ab/cd/resource.json") != null);
     assert(history_find_label(view.widget, "Other Git change: notes/external.txt") != null);
+    var filter = history_find_dropdown(view.widget);
+    assert(filter != null);
+    ((!) filter).set_selected(2);
+    assert(wait_for_condition(() => api.project_history_calls == 2));
+    assert(api.last_kind == "resource");
 }
 
 private void test_history_loads_older_page() {
