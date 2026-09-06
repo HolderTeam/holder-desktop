@@ -1,6 +1,43 @@
 namespace HolderLinux {
 
 public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage artifact
+    public static ProjectHistoryPage parse_project_history_page(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for project history response");
+        }
+        var data = root.get_object_member("data");
+        ProjectHistoryActivity[] activities = {};
+        var array = data.get_array_member("activities");
+        for (uint i = 0; i < array.get_length(); i++) {
+            var item = array.get_object_element(i);
+            string[] parents = {};
+            var parent_array = item.get_array_member("parent_oids");
+            for (uint j = 0; j < parent_array.get_length(); j++) parents += parent_array.get_string_element(j);
+            var author = item.get_object_member("author");
+            ProjectHistoryAffectedObject[] affected = {};
+            var affected_array = item.get_array_member("affected_objects");
+            for (uint j = 0; j < affected_array.get_length(); j++) {
+                var object = affected_array.get_object_element(j);
+                string[] paths = {};
+                var paths_array = object.get_array_member("paths");
+                for (uint k = 0; k < paths_array.get_length(); k++) paths += paths_array.get_string_element(k);
+                affected += new ProjectHistoryAffectedObject(object.get_string_member("kind"), paths);
+            }
+            activities += new ProjectHistoryActivity(
+                item.get_string_member("oid"), parents,
+                ApiParsersCommon.string_member_or_empty(author, "name"),
+                ApiParsersCommon.string_member_or_empty(author, "email"),
+                item.get_int_member("committed_at"), item.get_string_member("message"),
+                affected, item.get_boolean_member("is_merge")
+            );
+        }
+        return new ProjectHistoryPage(
+            ApiParsersCommon.nullable_string_member_or_null(data, "head_oid"), activities,
+            ApiParsersCommon.nullable_string_member_or_null(data, "next_cursor"),
+            data.has_member("scan_limited") && data.get_boolean_member("scan_limited")
+        );
+    }
+
     private static CardHistoryVersion parse_history_version(Json.Object item) {
         return new CardHistoryVersion(
             item.get_boolean_member("exists"),

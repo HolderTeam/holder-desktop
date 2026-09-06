@@ -201,6 +201,13 @@ public interface IHistoryApi : Object {
                                                                      string mode = "since") throws Error;
 }
 
+public interface IProjectHistoryApi : Object {
+    public abstract async ProjectHistoryPage list_project_history(string project_id,
+                                                                   int limit = 50,
+                                                                   string? cursor = null,
+                                                                   string? kind = null) throws Error;
+}
+
 public interface IApiFactory : Object {
     public abstract IHolderApi create(string base_url, string auth_token);
 }

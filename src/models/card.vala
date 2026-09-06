@@ -361,4 +361,44 @@ public class CardHistoryComparison : Object {
     }
 }
 
+public class ProjectHistoryAffectedObject : Object {
+    public string kind { get; construct; }
+    public string[] paths;
+    public ProjectHistoryAffectedObject(string kind, string[] paths) {
+        Object(kind: kind);
+        this.paths = paths;
+    }
+}
+
+public class ProjectHistoryActivity : Object {
+    public string oid { get; construct; }
+    public string[] parent_oids;
+    public string author_name { get; construct; }
+    public string author_email { get; construct; }
+    public int64 committed_at { get; construct; }
+    public string message { get; construct; }
+    public ProjectHistoryAffectedObject[] affected_objects;
+    public bool is_merge { get; construct; }
+    public ProjectHistoryActivity(string oid, string[] parent_oids, string author_name,
+                                  string author_email, int64 committed_at, string message,
+                                  ProjectHistoryAffectedObject[] affected_objects, bool is_merge) {
+        Object(oid: oid, author_name: author_name, author_email: author_email,
+               committed_at: committed_at, message: message, is_merge: is_merge);
+        this.parent_oids = parent_oids;
+        this.affected_objects = affected_objects;
+    }
+}
+
+public class ProjectHistoryPage : Object {
+    public string? head_oid { get; construct; }
+    public ProjectHistoryActivity[] activities;
+    public string? next_cursor { get; construct; }
+    public bool scan_limited { get; construct; }
+    public ProjectHistoryPage(string? head_oid, ProjectHistoryActivity[] activities,
+                              string? next_cursor, bool scan_limited = false) {
+        Object(head_oid: head_oid, next_cursor: next_cursor, scan_limited: scan_limited);
+        this.activities = activities;
+    }
+}
+
 }

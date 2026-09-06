@@ -177,6 +177,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private Gtk.Box actions_bar;
     private Gtk.Stack content_stack;
     private Gtk.ListBox timeline;
+    private Gtk.ListBox project_timeline;
     private Gtk.Button load_older_button;
     private Gtk.ToggleButton since_button;
     private Gtk.ToggleButton change_button;
@@ -282,6 +283,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
             "History unavailable",
             "Holder could not read this card's saved history. Try refreshing it."
         ), "error");
+        content_stack.add_named(build_project_history(), "project");
         content_stack.add_named(build_history(), "history");
         content_stack.set_visible_child_name("empty");
         return content_stack;
@@ -418,6 +420,17 @@ public class HistoryToolView : Object, IToolShellAdapter {
         return paned;
     }
 
+    private Gtk.Widget build_project_history() {
+        project_timeline = new Gtk.ListBox();
+        project_timeline.set_selection_mode(Gtk.SelectionMode.NONE);
+        project_timeline.add_css_class("boxed-list");
+        var scroll = new Gtk.ScrolledWindow();
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC);
+        scroll.set_vexpand(true);
+        scroll.set_child(project_timeline);
+        return scroll;
+    }
+
     private Gtk.Widget message_page(string icon_name, string title_text, string body_text) {
         var status = new Adw.StatusPage();
         status.set_icon_name(icon_name);
@@ -449,10 +462,37 @@ public class HistoryToolView : Object, IToolShellAdapter {
 
     private async void refresh_async(uint serial) {
         var history_api = api as IHistoryApi;
+        var project_history_api = api as IProjectHistoryApi;
         var project = selected_project();
         var card = selected_card();
-        if (history_api == null || project == null || card == null ||
-            card.project_id != project.project_id) {
+        if (project == null) {
+            clear_timeline();
+            content_stack.set_visible_child_name("empty");
+            return;
+        }
+        if (card == null || card.project_id != project.project_id) {
+            if (project_history_api == null) {
+                clear_project_timeline();
+                content_stack.set_visible_child_name("empty");
+                return;
+            }
+            content_stack.set_visible_child_name("loading");
+            try {
+                var project_page = yield project_history_api.list_project_history(project.project_id);
+                if (serial != refresh_serial) return;
+                render_project_activities(project_page.activities);
+                content_stack.set_visible_child_name("project");
+                debug_log_requested("Project history loaded: %d activities at %s".printf(
+                    project_page.activities.length, short_oid(project_page.head_oid)
+                ));
+            } catch (Error e) {
+                if (serial != refresh_serial) return;
+                content_stack.set_visible_child_name("error");
+                error_reported("Failed to load project history", e.message);
+            }
+            return;
+        }
+        if (history_api == null) {
             clear_timeline();
             content_stack.set_visible_child_name("empty");
             return;
@@ -949,6 +989,54 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private string short_oid(string? oid) {
         if (oid == null || ((!) oid).length == 0) return "no parent";
         return ((!) oid).length > 8 ? ((!) oid).substring(0, 8) : (!) oid;
+    }
+
+    private void render_project_activities(ProjectHistoryActivity[] activities) {
+        clear_project_timeline();
+        foreach (var activity in activities) {
+            var row = new Gtk.ListBoxRow();
+            var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 3);
+            box.set_margin_top(8);
+            box.set_margin_bottom(8);
+            box.set_margin_start(10);
+            box.set_margin_end(10);
+            var title = new Gtk.Label(activity.is_merge ? "Merged: " + activity.message : activity.message) {
+                xalign = 0.0f, wrap = true
+            };
+            title.add_css_class("heading");
+            box.append(title);
+            var kinds = "";
+            foreach (var object in activity.affected_objects) {
+                var label = object.kind.replace("_", " ");
+                if (kinds.length > 0) kinds += " · ";
+                kinds += "%s (%d)".printf(label, object.paths.length);
+            }
+            var when = new DateTime.from_unix_local(activity.committed_at);
+            var meta = new Gtk.Label("%s · %s · %s".printf(
+                when.format("%e %b %Y, %H:%M"), activity.author_name, kinds
+            )) { xalign = 0.0f, wrap = true };
+            meta.add_css_class("dim-label");
+            meta.add_css_class("caption");
+            box.append(meta);
+            row.set_child(box);
+            project_timeline.append(row);
+        }
+        if (activities.length == 0) {
+            var row = new Gtk.ListBoxRow();
+            row.set_child(new Gtk.Label("No project activity yet") {
+                xalign = 0.0f, margin_top = 12, margin_bottom = 12, margin_start = 12
+            });
+            project_timeline.append(row);
+        }
+    }
+
+    private void clear_project_timeline() {
+        Gtk.Widget? child = project_timeline.get_first_child();
+        while (child != null) {
+            var next = child.get_next_sibling();
+            project_timeline.remove(child);
+            child = next;
+        }
     }
 
     private void clear_timeline() {

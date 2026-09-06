@@ -195,6 +195,27 @@ private class DelayedHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi
     }
 }
 
+private class FakeProjectHistoryApi : MainControllerFakeApi, HolderLinux.IProjectHistoryApi {
+    public int project_history_calls = 0;
+    public async HolderLinux.ProjectHistoryPage list_project_history(string project_id,
+                                                                      int limit = 50,
+                                                                      string? cursor = null,
+                                                                      string? kind = null) throws Error {
+        project_history_calls++;
+        HolderLinux.ProjectHistoryAffectedObject[] affected = {
+            new HolderLinux.ProjectHistoryAffectedObject("card", { "cards/ab/cd/card.md" }),
+            new HolderLinux.ProjectHistoryAffectedObject("resource", { "resources/ab/cd/resource.json" })
+        };
+        HolderLinux.ProjectHistoryActivity[] activities = {
+            new HolderLinux.ProjectHistoryActivity(
+                "project-head", { "project-parent" }, "Ezra", "ezra@example.test", 10,
+                "Attach project resource", affected, false
+            )
+        };
+        return new HolderLinux.ProjectHistoryPage("project-head", activities, null);
+    }
+}
+
 private Gtk.Label? history_find_label(Gtk.Widget root, string text) {
     if (root is Gtk.Label && ((Gtk.Label) root).get_text() == text) return (Gtk.Label) root;
     var child = root.get_first_child();
@@ -475,6 +496,23 @@ private void test_history_without_card_does_not_call_api() {
     ) != null);
 }
 
+private void test_project_history_renders_without_a_card() {
+    var api = new FakeProjectHistoryApi();
+    var projects = new GLib.ListStore(typeof(HolderLinux.Project));
+    projects.append(new HolderLinux.Project("p1", "Home", "plain_git", "/tmp/p1", 1, 1));
+    var project_selection = new Gtk.SingleSelection(projects);
+    project_selection.set_selected(0);
+    var cards = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    var card_selection = new Gtk.SingleSelection(cards);
+    var view = new HolderLinux.HistoryToolView();
+    view.set_api_client(api);
+    view.bind_context(project_selection, card_selection);
+    view.set_tool_visible(true);
+
+    assert(wait_for_condition(() => api.project_history_calls == 1));
+    assert(history_find_label(view.widget, "Attach project resource") != null);
+}
+
 private void test_history_loads_older_page() {
     var api = new FakeHistoryApi() { paginate = true };
     var projects = new GLib.ListStore(typeof(HolderLinux.Project));
@@ -618,6 +656,7 @@ public static int main(string[] args) {
         test_history_loads_timeline_and_selected_comparison
     );
     Test.add_func("/holder/history-tool/no-card", test_history_without_card_does_not_call_api);
+    Test.add_func("/holder/history-tool/project-history", test_project_history_renders_without_a_card);
     Test.add_func("/holder/history-tool/load-older-page", test_history_loads_older_page);
     Test.add_func(
         "/holder/history-tool/merge-aligned-page-lanes",

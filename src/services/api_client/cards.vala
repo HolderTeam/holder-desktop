@@ -1,6 +1,21 @@
 namespace HolderLinux {
 
 public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration branch artifact
+    public static async ProjectHistoryPage list_project_history(ApiClient client,
+                                                                 string project_id,
+                                                                 int limit = 50,
+                                                                 string? cursor = null,
+                                                                 string? kind = null) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("limit", limit.to_string());
+        if (cursor != null && ((!) cursor).strip().length > 0) query.insert("cursor", (!) cursor);
+        if (kind != null && ((!) kind).strip().length > 0) query.insert("kind", (!) kind);
+        var root = yield client.request_json(
+            "GET", "/projects/%s/history".printf(Uri.escape_string(project_id)), null, query
+        );
+        return ApiParsersCards.parse_project_history_page(root);
+    }
+
     public static async Gee.ArrayList<CardSummary> list_cards(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
                                                               string project_id,
                                                               string view = "tree",
