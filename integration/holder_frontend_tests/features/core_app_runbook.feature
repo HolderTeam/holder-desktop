@@ -42,6 +42,13 @@ Feature: Core app run book
     When I search cards for "runbook-replaced-token"
     Then I should see search result "Runbook Search Card"
 
+  Scenario: Open History for a saved card
+    Given the Holder frontend is running
+    When I open the toolbox panel
+    And I switch to toolbox tool "History"
+    Then I should see toolbox content "Since this version"
+    And I should see toolbox content "This change"
+
   Scenario: Toggle find and replace panel visibility
     Given the Holder frontend is running
     When I open find and replace
