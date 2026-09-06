@@ -180,6 +180,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private Gtk.ListBox project_timeline;
     private Gtk.DropDown project_kind_filter;
     private Gtk.StringList project_kind_options;
+    private Gtk.Button load_older_project_button;
     private Gtk.Button load_older_button;
     private Gtk.ToggleButton since_button;
     private Gtk.ToggleButton change_button;
@@ -201,6 +202,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private string? captured_head_oid;
     private string? next_cursor;
     private bool scan_limited = false;
+    private string? project_next_cursor;
     private uint refresh_serial = 0;
     private uint comparison_serial = 0;
     private bool tool_visible = false;
@@ -454,6 +456,10 @@ public class HistoryToolView : Object, IToolShellAdapter {
         scroll.set_vexpand(true);
         scroll.set_child(project_timeline);
         page.append(scroll);
+        load_older_project_button = new Gtk.Button.with_label("Load older activity");
+        load_older_project_button.set_visible(false);
+        load_older_project_button.clicked.connect(() => { load_older_project.begin(); });
+        page.append(load_older_project_button);
         return page;
     }
 
@@ -521,6 +527,8 @@ public class HistoryToolView : Object, IToolShellAdapter {
                 );
                 if (serial != refresh_serial) return;
                 render_project_activities(project_page.activities);
+                project_next_cursor = project_page.next_cursor;
+                update_load_older_project_button();
                 content_stack.set_visible_child_name("project");
                 debug_log_requested("Project history loaded: %d activities at %s".printf(
                     project_page.activities.length, short_oid(project_page.head_oid)
@@ -1031,8 +1039,35 @@ public class HistoryToolView : Object, IToolShellAdapter {
         return ((!) oid).length > 8 ? ((!) oid).substring(0, 8) : (!) oid;
     }
 
+    private async void load_older_project() {
+        var history_api = api as IProjectHistoryApi;
+        var project = selected_project();
+        if (history_api == null || project == null || project_next_cursor == null) return;
+        var cursor = (!) project_next_cursor;
+        load_older_project_button.set_sensitive(false);
+        try {
+            var page = yield history_api.list_project_history(
+                project.project_id, 50, cursor, selected_project_kind()
+            );
+            append_project_activities(page.activities);
+            project_next_cursor = page.next_cursor;
+        } catch (Error e) {
+            error_reported("Failed to load older project activity", e.message);
+        }
+        update_load_older_project_button();
+    }
+
+    private void update_load_older_project_button() {
+        load_older_project_button.set_visible(project_next_cursor != null);
+        load_older_project_button.set_sensitive(project_next_cursor != null);
+    }
+
     private void render_project_activities(ProjectHistoryActivity[] activities) {
         clear_project_timeline();
+        append_project_activities(activities);
+    }
+
+    private void append_project_activities(ProjectHistoryActivity[] activities) {
         foreach (var activity in activities) {
             var row = new Gtk.ListBoxRow();
             var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 3);
@@ -1096,7 +1131,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
             row.set_child(box);
             project_timeline.append(row);
         }
-        if (activities.length == 0) {
+        if (activities.length == 0 && project_timeline.get_first_child() == null) {
             var row = new Gtk.ListBoxRow();
             row.set_child(new Gtk.Label("No project activity yet") {
                 xalign = 0.0f, margin_top = 12, margin_bottom = 12, margin_start = 12
@@ -1112,6 +1147,8 @@ public class HistoryToolView : Object, IToolShellAdapter {
             project_timeline.remove(child);
             child = next;
         }
+        project_next_cursor = null;
+        update_load_older_project_button();
     }
 
     private void clear_timeline() {

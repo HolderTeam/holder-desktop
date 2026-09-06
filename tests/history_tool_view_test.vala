@@ -204,6 +204,15 @@ private class FakeProjectHistoryApi : MainControllerFakeApi, HolderLinux.IProjec
                                                                       string? kind = null) throws Error {
         project_history_calls++;
         last_kind = kind;
+        if (cursor == "older-project") {
+            HolderLinux.ProjectHistoryActivity[] older = {
+                new HolderLinux.ProjectHistoryActivity(
+                    "older-project", {}, "Ezra", "ezra@example.test", 9,
+                    "Older project activity", {}, false
+                )
+            };
+            return new HolderLinux.ProjectHistoryPage("project-head", older, null);
+        }
         HolderLinux.ProjectHistoryAffectedObject[] affected = {
             new HolderLinux.ProjectHistoryAffectedObject("card", { "cards/ab/cd/card.md" }),
             new HolderLinux.ProjectHistoryAffectedObject("resource", { "resources/ab/cd/resource.json" }),
@@ -215,7 +224,7 @@ private class FakeProjectHistoryApi : MainControllerFakeApi, HolderLinux.IProjec
                 "Attach project resource", affected, false
             )
         };
-        return new HolderLinux.ProjectHistoryPage("project-head", activities, null);
+        return new HolderLinux.ProjectHistoryPage("project-head", activities, "older-project");
     }
 }
 
@@ -537,6 +546,11 @@ private void test_project_history_renders_without_a_card() {
     ((!) filter).set_selected(2);
     assert(wait_for_condition(() => api.project_history_calls == 2));
     assert(api.last_kind == "resource");
+    var older = history_find_button(view.widget, "Load older activity");
+    assert(older != null);
+    ((!) older).clicked();
+    assert(wait_for_condition(() => api.project_history_calls == 3));
+    assert(history_find_label(view.widget, "Older project activity") != null);
 }
 
 private void test_history_loads_older_page() {
