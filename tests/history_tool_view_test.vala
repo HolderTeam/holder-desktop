@@ -130,6 +130,71 @@ private class FakeHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
     }
 }
 
+private class DelayedHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
+    public int list_history_calls = 0;
+    public int compare_history_calls = 0;
+    public string? delayed_list_card_id;
+    public string? delayed_compare_card_id;
+    public uint delay_ms = 50;
+    public bool delayed_list_completed = false;
+    public bool delayed_compare_completed = false;
+
+    public async HolderLinux.CardHistoryPage list_card_history(string project_id,
+                                                               string card_id,
+                                                               int limit = 50,
+                                                               string? cursor = null) throws Error {
+        list_history_calls++;
+        if (card_id == delayed_list_card_id) {
+            SourceFunc resume = list_card_history.callback;
+            Timeout.add(delay_ms, () => {
+                delayed_list_completed = true;
+                resume();
+                return Source.REMOVE;
+            });
+            yield;
+        }
+        var oid = "%s-oid".printf(card_id);
+        string[] parents = { "%s-parent".printf(card_id) };
+        HolderLinux.CardHistoryEntry[] entries = {
+            new HolderLinux.CardHistoryEntry(
+                oid, oid, parents, "Fixture", "fixture@example.test", 10, 10,
+                "updated", "History for %s".printf(card_id), 1, false,
+                { new HolderLinux.CardHistorySave(oid, parents, 10) }
+            )
+        };
+        return new HolderLinux.CardHistoryPage(oid, entries, null);
+    }
+
+    public async HolderLinux.CardHistoryComparison compare_card_history(string project_id,
+                                                                         string card_id,
+                                                                         string? from_oid,
+                                                                         string to_oid,
+                                                                         string mode = "since") throws Error {
+        compare_history_calls++;
+        if (card_id == delayed_compare_card_id) {
+            SourceFunc resume = compare_card_history.callback;
+            Timeout.add(delay_ms, () => {
+                delayed_compare_completed = true;
+                resume();
+                return Source.REMOVE;
+            });
+            yield;
+        }
+        HolderLinux.CardHistoryDiffLine[] lines = {
+            new HolderLinux.CardHistoryDiffLine(
+                "+", "New wording for %s".printf(card_id), null, 1
+            )
+        };
+        return new HolderLinux.CardHistoryComparison(
+            new HolderLinux.CardHistoryVersion(
+                from_oid != null, from_oid ?? "", "Card %s".printf(card_id), "Old wording"
+            ),
+            new HolderLinux.CardHistoryVersion(true, to_oid, "Card %s".printf(card_id), lines[0].text),
+            "History for %s".printf(card_id), lines, false
+        );
+    }
+}
+
 private Gtk.Label? history_find_label(Gtk.Widget root, string text) {
     if (root is Gtk.Label && ((Gtk.Label) root).get_text() == text) return (Gtk.Label) root;
     var child = root.get_first_child();
@@ -217,6 +282,68 @@ private string text_view_contents(Gtk.TextView view) {
     Gtk.TextIter end;
     buffer.get_bounds(out start, out end);
     return buffer.get_text(start, end, false);
+}
+
+private void setup_history_context(out Gtk.SingleSelection project_selection,
+                                   out Gtk.SingleSelection card_selection) {
+    var projects = new GLib.ListStore(typeof(HolderLinux.Project));
+    projects.append(new HolderLinux.Project("p1", "Home", "plain_git", "/tmp/p1", 1, 1));
+    project_selection = new Gtk.SingleSelection(projects);
+    project_selection.set_selected(0);
+    var cards = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    cards.append(new HolderLinux.CardSummary("c1", "p1", "Card A", "", 0, null, 1, 1));
+    cards.append(new HolderLinux.CardSummary("c2", "p1", "Card B", "", 0, null, 1, 1));
+    card_selection = new Gtk.SingleSelection(cards);
+    card_selection.set_selected(0);
+}
+
+private void test_history_late_list_response_keeps_newer_card() {
+    var api = new DelayedHistoryApi() { delayed_list_card_id = "c1" };
+    Gtk.SingleSelection project_selection;
+    Gtk.SingleSelection card_selection;
+    setup_history_context(out project_selection, out card_selection);
+    var view = new HolderLinux.HistoryToolView();
+    view.set_api_client(api);
+    view.bind_context(project_selection, card_selection);
+    view.set_tool_visible(true);
+
+    assert(wait_for_condition(() => api.list_history_calls == 1));
+    card_selection.set_selected(1);
+    assert(wait_for_condition(() => api.list_history_calls == 2));
+    assert(wait_for_condition(() => api.compare_history_calls == 1));
+    assert(wait_for_condition(() => api.delayed_list_completed));
+
+    var text_view = history_find_text_view(view.widget);
+    assert(text_view != null);
+    assert(history_find_label(view.widget, "History for c2") != null);
+    var contents = text_view_contents((!) text_view);
+    assert(contents.contains("New wording for c2"));
+    assert(!contents.contains("New wording for c1"));
+}
+
+private void test_history_late_comparison_response_keeps_newer_card() {
+    var api = new DelayedHistoryApi() { delayed_compare_card_id = "c1" };
+    Gtk.SingleSelection project_selection;
+    Gtk.SingleSelection card_selection;
+    setup_history_context(out project_selection, out card_selection);
+    var view = new HolderLinux.HistoryToolView();
+    view.set_api_client(api);
+    view.bind_context(project_selection, card_selection);
+    view.set_tool_visible(true);
+
+    assert(wait_for_condition(() => api.list_history_calls == 1));
+    assert(wait_for_condition(() => api.compare_history_calls == 1));
+    card_selection.set_selected(1);
+    assert(wait_for_condition(() => api.list_history_calls == 2));
+    assert(wait_for_condition(() => api.compare_history_calls == 2));
+    assert(wait_for_condition(() => api.delayed_compare_completed));
+
+    var text_view = history_find_text_view(view.widget);
+    assert(text_view != null);
+    assert(history_find_label(view.widget, "History for c2") != null);
+    var contents = text_view_contents((!) text_view);
+    assert(contents.contains("New wording for c2"));
+    assert(!contents.contains("New wording for c1"));
 }
 
 private void test_history_loads_timeline_and_selected_comparison() {
@@ -502,6 +629,14 @@ public static int main(string[] args) {
     );
     Test.add_func(
         "/holder/history-tool/empty-comparison", test_empty_comparison_explains_unchanged_text
+    );
+    Test.add_func(
+        "/holder/history-tool/late-list-response-keeps-newer-card",
+        test_history_late_list_response_keeps_newer_card
+    );
+    Test.add_func(
+        "/holder/history-tool/late-comparison-response-keeps-newer-card",
+        test_history_late_comparison_response_keeps_newer_card
     );
     return Test.run();
 }
