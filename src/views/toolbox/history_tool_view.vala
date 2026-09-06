@@ -1031,6 +1031,28 @@ public class HistoryToolView : Object, IToolShellAdapter {
                 unknown.add_css_class("caption");
                 box.append(unknown);
             }
+            int affected_count = 0;
+            foreach (var object in activity.affected_objects) affected_count += object.paths.length;
+            if (affected_count > 0) {
+                var affected = new Gtk.Expander("Show %d affected item%s".printf(
+                    affected_count, affected_count == 1 ? "" : "s"
+                ));
+                var affected_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
+                foreach (var object in activity.affected_objects) {
+                    var kind = object.kind == "unknown" ? "Other Git change"
+                                                        : object.kind.replace("_", " ");
+                    foreach (var path in object.paths) {
+                        var item = new Gtk.Label("%s: %s".printf(kind, path)) {
+                            xalign = 0.0f, selectable = true, wrap = true
+                        };
+                        item.add_css_class("caption");
+                        if (object.kind == "unknown") item.add_css_class("dim-label");
+                        affected_box.append(item);
+                    }
+                }
+                affected.set_child(affected_box);
+                box.append(affected);
+            }
             row.set_child(box);
             project_timeline.append(row);
         }

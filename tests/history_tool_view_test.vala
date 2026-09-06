@@ -513,6 +513,12 @@ private void test_project_history_renders_without_a_card() {
     assert(wait_for_condition(() => api.project_history_calls == 1));
     assert(history_find_label(view.widget, "Attach project resource") != null);
     assert(history_find_label(view.widget, "Other Git changes (1)") != null);
+    var affected = history_find_expander(view.widget, "Show 3 affected items");
+    assert(affected != null);
+    ((!) affected).set_expanded(true);
+    assert(history_find_label(view.widget, "card: cards/ab/cd/card.md") != null);
+    assert(history_find_label(view.widget, "resource: resources/ab/cd/resource.json") != null);
+    assert(history_find_label(view.widget, "Other Git change: notes/external.txt") != null);
 }
 
 private void test_history_loads_older_page() {
