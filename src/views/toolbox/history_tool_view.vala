@@ -170,6 +170,24 @@ private class HistoryEntryRow : Gtk.ListBoxRow {
     }
 }
 
+private class ProjectHistoryActivityRow : Gtk.ListBoxRow {
+    public ProjectHistoryActivity activity { get; construct; }
+    private HistoryLaneGutter lane_gutter;
+
+    public ProjectHistoryActivityRow(ProjectHistoryActivity activity, Gtk.Widget content) {
+        Object(activity: activity);
+        lane_gutter = new HistoryLaneGutter();
+        var row_box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+        row_box.append(lane_gutter);
+        row_box.append(content);
+        set_child(row_box);
+    }
+
+    public void update_lane(HistoryLaneLayout layout, int lane_count) {
+        lane_gutter.set_layout(layout, lane_count, activity.is_merge);
+    }
+}
+
 public class HistoryToolView : Object, IToolShellAdapter {
     private IHolderApi? api;
     private Gtk.SingleSelection? project_selection;
@@ -1069,7 +1087,6 @@ public class HistoryToolView : Object, IToolShellAdapter {
 
     private void append_project_activities(ProjectHistoryActivity[] activities) {
         foreach (var activity in activities) {
-            var row = new Gtk.ListBoxRow();
             var box = new Gtk.Box(Gtk.Orientation.VERTICAL, 3);
             box.set_margin_top(8);
             box.set_margin_bottom(8);
@@ -1145,7 +1162,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
                 affected.set_child(affected_box);
                 box.append(affected);
             }
-            row.set_child(box);
+            var row = new ProjectHistoryActivityRow(activity, box);
             project_timeline.append(row);
         }
         if (activities.length == 0 && project_timeline.get_first_child() == null) {
@@ -1155,6 +1172,79 @@ public class HistoryToolView : Object, IToolShellAdapter {
             });
             project_timeline.append(row);
         }
+        update_project_timeline_lanes();
+    }
+
+    private void update_project_timeline_lanes() {
+        ProjectHistoryActivityRow[] rows = {};
+        string[] visible_oids = {};
+        var index = 0;
+        while (true) {
+            var row = project_timeline.get_row_at_index(index++);
+            if (row == null) break;
+            var activity_row = row as ProjectHistoryActivityRow;
+            if (activity_row != null) {
+                rows += activity_row;
+                visible_oids += activity_row.activity.oid;
+            }
+        }
+
+        HistoryLaneLayout[] layouts = {};
+        string?[] active_lanes = {};
+        int lane_count = 1;
+        foreach (var row in rows) {
+            int[] incoming_lanes = {};
+            for (int lane = 0; lane < active_lanes.length; lane++) {
+                if (active_lanes[lane] != null) incoming_lanes += lane;
+            }
+
+            int node_lane = find_lane(active_lanes, row.activity.oid);
+            if (node_lane < 0) {
+                node_lane = first_free_lane(active_lanes);
+                if (node_lane < 0) {
+                    node_lane = active_lanes.length;
+                    active_lanes += null;
+                }
+            }
+            active_lanes[node_lane] = null;
+
+            int[] parent_lanes = {};
+            foreach (var parent_oid in row.activity.parent_oids) {
+                if (!contains_oid(visible_oids, parent_oid)) continue;
+                int parent_lane = find_lane(active_lanes, parent_oid);
+                if (parent_lane < 0) {
+                    parent_lane = parent_lanes.length == 0
+                        ? node_lane
+                        : first_free_lane(active_lanes);
+                    if (parent_lane < 0) {
+                        parent_lane = active_lanes.length;
+                        active_lanes += null;
+                    }
+                    active_lanes[parent_lane] = parent_oid;
+                }
+                parent_lanes += parent_lane;
+            }
+
+            int[] outgoing_lanes = {};
+            for (int lane = 0; lane < active_lanes.length; lane++) {
+                if (active_lanes[lane] != null) outgoing_lanes += lane;
+            }
+            if (active_lanes.length > lane_count) lane_count = active_lanes.length;
+            layouts += new HistoryLaneLayout(
+                node_lane, incoming_lanes, outgoing_lanes, parent_lanes
+            );
+        }
+
+        for (int row_index = 0; row_index < rows.length; row_index++) {
+            rows[row_index].update_lane(layouts[row_index], lane_count);
+        }
+    }
+
+    private bool contains_oid(string[] oids, string candidate) {
+        foreach (var oid in oids) {
+            if (oid == candidate) return true;
+        }
+        return false;
     }
 
     private void clear_project_timeline() {

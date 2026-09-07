@@ -240,8 +240,20 @@ private class FakeProjectHistoryApi : MainControllerFakeApi, HolderLinux.IProjec
         };
         HolderLinux.ProjectHistoryActivity[] activities = {
             new HolderLinux.ProjectHistoryActivity(
-                "project-head", { "project-parent", "side-parent" }, "Ezra", "ezra@example.test", 10,
+                "project-head", { "project-main", "project-side" }, "Ezra", "ezra@example.test", 10,
                 "Attach project resource", affected, true
+            ),
+            new HolderLinux.ProjectHistoryActivity(
+                "project-main", { "project-base" }, "Ezra", "ezra@example.test", 9,
+                "Update main project work", {}, false
+            ),
+            new HolderLinux.ProjectHistoryActivity(
+                "project-side", { "project-base" }, "Mina", "mina@example.test", 8,
+                "Update side project work", {}, false
+            ),
+            new HolderLinux.ProjectHistoryActivity(
+                "project-base", {}, "Ezra", "ezra@example.test", 7,
+                "Project created", {}, false
             )
         };
         return new HolderLinux.ProjectHistoryPage("project-head", activities, "older-project");
@@ -565,6 +577,13 @@ private void test_project_history_renders_without_a_card() {
     assert(wait_for_condition(() => api.project_history_calls == 1));
     assert(history_find_label(view.widget, "Merged: Attach project resource") != null);
     assert(history_has_label_containing(view.widget, "Merged from 2 parents"));
+    var gutters = new Gee.ArrayList<Gtk.Widget>();
+    history_collect_lane_gutters(view.widget, gutters);
+    assert(gutters.size == 4);
+    assert(gutters[0].get_tooltip_text().contains("lane 1 of 2"));
+    assert(gutters[0].get_tooltip_text().contains("2 direct visible parents"));
+    assert(gutters[1].get_tooltip_text().contains("lane 1 of 2"));
+    assert(gutters[2].get_tooltip_text().contains("lane 2 of 2"));
     assert(history_find_label(view.widget, "Other Git changes (1)") != null);
     var affected = history_find_expander(view.widget, "Show 5 affected items");
     assert(affected != null);
