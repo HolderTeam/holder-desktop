@@ -1092,9 +1092,15 @@ public class HistoryToolView : Object, IToolShellAdapter {
                 kinds += "%s (%d)".printf(label, object.items.length);
             }
             var when = new DateTime.from_unix_local(activity.committed_at);
-            var meta = new Gtk.Label("%s · %s · %s".printf(
-                when.format("%e %b %Y, %H:%M"), activity.author_name, kinds
-            )) { xalign = 0.0f, wrap = true };
+            var merge_context = activity.is_merge
+                ? "Merged from %d parent%s".printf(
+                    activity.parent_oids.length, activity.parent_oids.length == 1 ? "" : "s"
+                )
+                : "";
+            var meta_text = "%s · %s".printf(when.format("%e %b %Y, %H:%M"), activity.author_name);
+            if (merge_context != "") meta_text += " · " + merge_context;
+            if (kinds != "") meta_text += " · " + kinds;
+            var meta = new Gtk.Label(meta_text) { xalign = 0.0f, wrap = true };
             meta.add_css_class("dim-label");
             meta.add_css_class("caption");
             box.append(meta);

@@ -240,8 +240,8 @@ private class FakeProjectHistoryApi : MainControllerFakeApi, HolderLinux.IProjec
         };
         HolderLinux.ProjectHistoryActivity[] activities = {
             new HolderLinux.ProjectHistoryActivity(
-                "project-head", { "project-parent" }, "Ezra", "ezra@example.test", 10,
-                "Attach project resource", affected, false
+                "project-head", { "project-parent", "side-parent" }, "Ezra", "ezra@example.test", 10,
+                "Attach project resource", affected, true
             )
         };
         return new HolderLinux.ProjectHistoryPage("project-head", activities, "older-project");
@@ -257,6 +257,16 @@ private Gtk.Label? history_find_label(Gtk.Widget root, string text) {
         child = child.get_next_sibling();
     }
     return null;
+}
+
+private bool history_has_label_containing(Gtk.Widget root, string text) {
+    if (root is Gtk.Label && ((Gtk.Label) root).get_text().contains(text)) return true;
+    var child = root.get_first_child();
+    while (child != null) {
+        if (history_has_label_containing(child, text)) return true;
+        child = child.get_next_sibling();
+    }
+    return false;
 }
 
 private Gtk.TextView? history_find_text_view(Gtk.Widget root) {
@@ -553,7 +563,8 @@ private void test_project_history_renders_without_a_card() {
     view.set_tool_visible(true);
 
     assert(wait_for_condition(() => api.project_history_calls == 1));
-    assert(history_find_label(view.widget, "Attach project resource") != null);
+    assert(history_find_label(view.widget, "Merged: Attach project resource") != null);
+    assert(history_has_label_containing(view.widget, "Merged from 2 parents"));
     assert(history_find_label(view.widget, "Other Git changes (1)") != null);
     var affected = history_find_expander(view.widget, "Show 5 affected items");
     assert(affected != null);
