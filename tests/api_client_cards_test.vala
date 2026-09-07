@@ -326,7 +326,8 @@ private void test_card_history_endpoints() {
         "\"authored_at\":1,\"committed_at\":2,\"message\":\"Attach\"," +
         "\"affected_objects\":[{\"kind\":\"resource\",\"paths\":[\"resources/a.json\"]," +
         "\"items\":[{\"path\":\"resources/a.json\",\"title\":\"Example resource\",\"detail\":\"Attachment: a.pdf\"}]},{\"kind\":\"ai_data\",\"paths\":[\"ai_messages/a.md\"]," +
-        "\"items\":[{\"path\":\"ai_messages/a.md\",\"title\":\"Release review\",\"detail\":\"user: Can you review?\"}]}]," +
+        "\"items\":[{\"path\":\"ai_messages/a.md\",\"title\":\"Release review\",\"detail\":\"user: Can you review?\"}]},{\"kind\":\"project_settings\",\"paths\":[\".holder/privacy.json\"]," +
+        "\"items\":[{\"path\":\".holder/privacy.json\",\"title\":\"Privacy settings\",\"detail\":\"Mode: plain Git\"}]}]," +
         "\"is_merge\":false}]}}");
     transport.enqueue_read(200,
         "{\"ok\":true,\"data\":{\"head_oid\":\"head\",\"entries\":[{" +
@@ -365,6 +366,8 @@ private void test_card_history_endpoints() {
     assert(((!) project_page).activities[0].affected_objects[0].items[0].detail == "Attachment: a.pdf");
     assert(((!) project_page).activities[0].affected_objects[1].kind == "ai_data");
     assert(((!) project_page).activities[0].affected_objects[1].items[0].title == "Release review");
+    assert(((!) project_page).activities[0].affected_objects[2].kind == "project_settings");
+    assert(((!) project_page).activities[0].affected_objects[2].items[0].detail == "Mode: plain Git");
     assert(transport.last_uri.contains("/projects/project%20one/history"));
     assert(transport.last_uri.contains("kind=resource"));
 

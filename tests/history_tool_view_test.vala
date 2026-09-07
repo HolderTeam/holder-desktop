@@ -229,6 +229,11 @@ private class FakeProjectHistoryApi : MainControllerFakeApi, HolderLinux.IProjec
                     "ai_messages/ab/cd/message.md", "Release review", "user: Can you review the release notes?"
                 )
             }),
+            new HolderLinux.ProjectHistoryAffectedObject("project_settings", {
+                new HolderLinux.ProjectHistoryAffectedPath(
+                    ".holder/privacy.json", "Privacy settings", "Mode: plain Git"
+                )
+            }),
             new HolderLinux.ProjectHistoryAffectedObject("unknown", {
                 new HolderLinux.ProjectHistoryAffectedPath("notes/external.txt")
             })
@@ -550,7 +555,7 @@ private void test_project_history_renders_without_a_card() {
     assert(wait_for_condition(() => api.project_history_calls == 1));
     assert(history_find_label(view.widget, "Attach project resource") != null);
     assert(history_find_label(view.widget, "Other Git changes (1)") != null);
-    var affected = history_find_expander(view.widget, "Show 4 affected items");
+    var affected = history_find_expander(view.widget, "Show 5 affected items");
     assert(affected != null);
     ((!) affected).set_expanded(true);
     assert(history_find_label(
@@ -564,6 +569,9 @@ private void test_project_history_renders_without_a_card() {
     assert(history_find_label(
         view.widget,
         "ai data: Release review — ai_messages/ab/cd/message.md · user: Can you review the release notes?"
+    ) != null);
+    assert(history_find_label(
+        view.widget, "project settings: Privacy settings — .holder/privacy.json · Mode: plain Git"
     ) != null);
     assert(history_find_label(view.widget, "Other Git change: notes/external.txt") != null);
     var filter = history_find_dropdown(view.widget);
