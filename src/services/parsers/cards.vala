@@ -18,9 +18,22 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
             var affected_array = item.get_array_member("affected_objects");
             for (uint j = 0; j < affected_array.get_length(); j++) {
                 var object = affected_array.get_object_element(j);
-                string[] paths = {};
-                var paths_array = object.get_array_member("paths");
-                for (uint k = 0; k < paths_array.get_length(); k++) paths += paths_array.get_string_element(k);
+                ProjectHistoryAffectedPath[] paths = {};
+                if (object.has_member("items")) {
+                    var items_array = object.get_array_member("items");
+                    for (uint k = 0; k < items_array.get_length(); k++) {
+                        var path = items_array.get_object_element(k);
+                        paths += new ProjectHistoryAffectedPath(
+                            path.get_string_member("path"),
+                            ApiParsersCommon.nullable_string_member_or_null(path, "title")
+                        );
+                    }
+                } else {
+                    var paths_array = object.get_array_member("paths");
+                    for (uint k = 0; k < paths_array.get_length(); k++) {
+                        paths += new ProjectHistoryAffectedPath(paths_array.get_string_element(k));
+                    }
+                }
                 affected += new ProjectHistoryAffectedObject(object.get_string_member("kind"), paths);
             }
             activities += new ProjectHistoryActivity(

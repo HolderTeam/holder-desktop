@@ -1084,12 +1084,12 @@ public class HistoryToolView : Object, IToolShellAdapter {
             int unknown_paths = 0;
             foreach (var object in activity.affected_objects) {
                 if (object.kind == "unknown") {
-                    unknown_paths += object.paths.length;
+                    unknown_paths += object.items.length;
                     continue;
                 }
                 var label = object.kind.replace("_", " ");
                 if (kinds.length > 0) kinds += " · ";
-                kinds += "%s (%d)".printf(label, object.paths.length);
+                kinds += "%s (%d)".printf(label, object.items.length);
             }
             var when = new DateTime.from_unix_local(activity.committed_at);
             var meta = new Gtk.Label("%s · %s · %s".printf(
@@ -1107,7 +1107,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
                 box.append(unknown);
             }
             int affected_count = 0;
-            foreach (var object in activity.affected_objects) affected_count += object.paths.length;
+            foreach (var object in activity.affected_objects) affected_count += object.items.length;
             if (affected_count > 0) {
                 var affected = new Gtk.Expander("Show %d affected item%s".printf(
                     affected_count, affected_count == 1 ? "" : "s"
@@ -1116,8 +1116,12 @@ public class HistoryToolView : Object, IToolShellAdapter {
                 foreach (var object in activity.affected_objects) {
                     var kind = object.kind == "unknown" ? "Other Git change"
                                                         : object.kind.replace("_", " ");
-                    foreach (var path in object.paths) {
-                        var item = new Gtk.Label("%s: %s".printf(kind, path)) {
+                    foreach (var path in object.items) {
+                        var text = "%s: %s".printf(kind, path.path);
+                        if (object.kind == "card" && path.title != null && path.title != "") {
+                            text = "%s: %s — %s".printf(kind, path.title, path.path);
+                        }
+                        var item = new Gtk.Label(text) {
                             xalign = 0.0f, selectable = true, wrap = true
                         };
                         item.add_css_class("caption");

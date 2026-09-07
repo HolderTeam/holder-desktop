@@ -214,9 +214,15 @@ private class FakeProjectHistoryApi : MainControllerFakeApi, HolderLinux.IProjec
             return new HolderLinux.ProjectHistoryPage("project-head", older, null);
         }
         HolderLinux.ProjectHistoryAffectedObject[] affected = {
-            new HolderLinux.ProjectHistoryAffectedObject("card", { "cards/ab/cd/card.md" }),
-            new HolderLinux.ProjectHistoryAffectedObject("resource", { "resources/ab/cd/resource.json" }),
-            new HolderLinux.ProjectHistoryAffectedObject("unknown", { "notes/external.txt" })
+            new HolderLinux.ProjectHistoryAffectedObject("card", {
+                new HolderLinux.ProjectHistoryAffectedPath("cards/ab/cd/card.md", "Project card")
+            }),
+            new HolderLinux.ProjectHistoryAffectedObject("resource", {
+                new HolderLinux.ProjectHistoryAffectedPath("resources/ab/cd/resource.json")
+            }),
+            new HolderLinux.ProjectHistoryAffectedObject("unknown", {
+                new HolderLinux.ProjectHistoryAffectedPath("notes/external.txt")
+            })
         };
         HolderLinux.ProjectHistoryActivity[] activities = {
             new HolderLinux.ProjectHistoryActivity(
@@ -538,7 +544,7 @@ private void test_project_history_renders_without_a_card() {
     var affected = history_find_expander(view.widget, "Show 3 affected items");
     assert(affected != null);
     ((!) affected).set_expanded(true);
-    assert(history_find_label(view.widget, "card: cards/ab/cd/card.md") != null);
+    assert(history_find_label(view.widget, "card: Project card — cards/ab/cd/card.md") != null);
     assert(history_find_label(view.widget, "resource: resources/ab/cd/resource.json") != null);
     assert(history_find_label(view.widget, "Other Git change: notes/external.txt") != null);
     var filter = history_find_dropdown(view.widget);

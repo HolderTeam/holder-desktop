@@ -324,7 +324,8 @@ private void test_card_history_endpoints() {
         "\"scan_limited\":false,\"activities\":[{\"oid\":\"project-head\"," +
         "\"parent_oids\":[],\"author\":{\"name\":\"Ezra\",\"email\":\"e@test\"}," +
         "\"authored_at\":1,\"committed_at\":2,\"message\":\"Attach\"," +
-        "\"affected_objects\":[{\"kind\":\"resource\",\"paths\":[\"resources/a.json\"]}]," +
+        "\"affected_objects\":[{\"kind\":\"resource\",\"paths\":[\"resources/a.json\"]," +
+        "\"items\":[{\"path\":\"resources/a.json\",\"title\":\"Example resource\"}]}]," +
         "\"is_merge\":false}]}}");
     transport.enqueue_read(200,
         "{\"ok\":true,\"data\":{\"head_oid\":\"head\",\"entries\":[{" +
@@ -359,6 +360,7 @@ private void test_card_history_endpoints() {
     assert(wait_for_condition(() => project_done));
     assert(project_page != null && ((!) project_page).activities.length == 1);
     assert(((!) project_page).activities[0].affected_objects[0].kind == "resource");
+    assert(((!) project_page).activities[0].affected_objects[0].items[0].title == "Example resource");
     assert(transport.last_uri.contains("/projects/project%20one/history"));
     assert(transport.last_uri.contains("kind=resource"));
 

@@ -361,12 +361,20 @@ public class CardHistoryComparison : Object {
     }
 }
 
+public class ProjectHistoryAffectedPath : Object {
+    public string path { get; construct; }
+    public string? title { get; construct; }
+    public ProjectHistoryAffectedPath(string path, string? title = null) {
+        Object(path: path, title: title);
+    }
+}
+
 public class ProjectHistoryAffectedObject : Object {
     public string kind { get; construct; }
-    public string[] paths;
-    public ProjectHistoryAffectedObject(string kind, string[] paths) {
+    public ProjectHistoryAffectedPath[] items;
+    public ProjectHistoryAffectedObject(string kind, ProjectHistoryAffectedPath[] items) {
         Object(kind: kind);
-        this.paths = paths;
+        this.items = items;
     }
 }
 
