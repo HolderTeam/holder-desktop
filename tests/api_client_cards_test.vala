@@ -325,7 +325,8 @@ private void test_card_history_endpoints() {
         "\"parent_oids\":[],\"author\":{\"name\":\"Ezra\",\"email\":\"e@test\"}," +
         "\"authored_at\":1,\"committed_at\":2,\"message\":\"Attach\"," +
         "\"affected_objects\":[{\"kind\":\"resource\",\"paths\":[\"resources/a.json\"]," +
-        "\"items\":[{\"path\":\"resources/a.json\",\"title\":\"Example resource\",\"detail\":\"Attachment: a.pdf\"}]}]," +
+        "\"items\":[{\"path\":\"resources/a.json\",\"title\":\"Example resource\",\"detail\":\"Attachment: a.pdf\"}]},{\"kind\":\"ai_data\",\"paths\":[\"ai_messages/a.md\"]," +
+        "\"items\":[{\"path\":\"ai_messages/a.md\",\"title\":\"Release review\",\"detail\":\"user: Can you review?\"}]}]," +
         "\"is_merge\":false}]}}");
     transport.enqueue_read(200,
         "{\"ok\":true,\"data\":{\"head_oid\":\"head\",\"entries\":[{" +
@@ -362,6 +363,8 @@ private void test_card_history_endpoints() {
     assert(((!) project_page).activities[0].affected_objects[0].kind == "resource");
     assert(((!) project_page).activities[0].affected_objects[0].items[0].title == "Example resource");
     assert(((!) project_page).activities[0].affected_objects[0].items[0].detail == "Attachment: a.pdf");
+    assert(((!) project_page).activities[0].affected_objects[1].kind == "ai_data");
+    assert(((!) project_page).activities[0].affected_objects[1].items[0].title == "Release review");
     assert(transport.last_uri.contains("/projects/project%20one/history"));
     assert(transport.last_uri.contains("kind=resource"));
 

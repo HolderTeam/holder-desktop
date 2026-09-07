@@ -224,6 +224,11 @@ private class FakeProjectHistoryApi : MainControllerFakeApi, HolderLinux.IProjec
                     "resources/ab/cd/resource.json", "Project notes", "Attachment: project-notes.pdf"
                 )
             }),
+            new HolderLinux.ProjectHistoryAffectedObject("ai_data", {
+                new HolderLinux.ProjectHistoryAffectedPath(
+                    "ai_messages/ab/cd/message.md", "Release review", "user: Can you review the release notes?"
+                )
+            }),
             new HolderLinux.ProjectHistoryAffectedObject("unknown", {
                 new HolderLinux.ProjectHistoryAffectedPath("notes/external.txt")
             })
@@ -545,7 +550,7 @@ private void test_project_history_renders_without_a_card() {
     assert(wait_for_condition(() => api.project_history_calls == 1));
     assert(history_find_label(view.widget, "Attach project resource") != null);
     assert(history_find_label(view.widget, "Other Git changes (1)") != null);
-    var affected = history_find_expander(view.widget, "Show 3 affected items");
+    var affected = history_find_expander(view.widget, "Show 4 affected items");
     assert(affected != null);
     ((!) affected).set_expanded(true);
     assert(history_find_label(
@@ -555,6 +560,10 @@ private void test_project_history_renders_without_a_card() {
     assert(history_find_label(
         view.widget,
         "resource: Project notes — resources/ab/cd/resource.json · Attachment: project-notes.pdf"
+    ) != null);
+    assert(history_find_label(
+        view.widget,
+        "ai data: Release review — ai_messages/ab/cd/message.md · user: Can you review the release notes?"
     ) != null);
     assert(history_find_label(view.widget, "Other Git change: notes/external.txt") != null);
     var filter = history_find_dropdown(view.widget);
