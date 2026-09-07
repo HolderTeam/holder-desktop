@@ -1122,7 +1122,8 @@ public class HistoryToolView : Object, IToolShellAdapter {
                             path.title != null && path.title != "") {
                             text = "%s: %s — %s".printf(kind, path.title, path.path);
                         }
-                        if (object.kind == "resource" && path.detail != null && path.detail != "") {
+                        if ((object.kind == "card" || object.kind == "resource") &&
+                            path.detail != null && path.detail != "") {
                             text += " · " + path.detail;
                         }
                         var item = new Gtk.Label(text) {

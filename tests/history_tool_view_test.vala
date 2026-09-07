@@ -215,7 +215,9 @@ private class FakeProjectHistoryApi : MainControllerFakeApi, HolderLinux.IProjec
         }
         HolderLinux.ProjectHistoryAffectedObject[] affected = {
             new HolderLinux.ProjectHistoryAffectedObject("card", {
-                new HolderLinux.ProjectHistoryAffectedPath("cards/ab/cd/card.md", "Project card")
+                new HolderLinux.ProjectHistoryAffectedPath(
+                    "cards/ab/cd/card.md", "Project card", "Milestone: Review — Project review"
+                )
             }),
             new HolderLinux.ProjectHistoryAffectedObject("resource", {
                 new HolderLinux.ProjectHistoryAffectedPath(
@@ -546,7 +548,10 @@ private void test_project_history_renders_without_a_card() {
     var affected = history_find_expander(view.widget, "Show 3 affected items");
     assert(affected != null);
     ((!) affected).set_expanded(true);
-    assert(history_find_label(view.widget, "card: Project card — cards/ab/cd/card.md") != null);
+    assert(history_find_label(
+        view.widget,
+        "card: Project card — cards/ab/cd/card.md · Milestone: Review — Project review"
+    ) != null);
     assert(history_find_label(
         view.widget,
         "resource: Project notes — resources/ab/cd/resource.json · Attachment: project-notes.pdf"
