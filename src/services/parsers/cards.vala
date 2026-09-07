@@ -25,7 +25,8 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
                         var path = items_array.get_object_element(k);
                         paths += new ProjectHistoryAffectedPath(
                             path.get_string_member("path"),
-                            ApiParsersCommon.nullable_string_member_or_null(path, "title")
+                            ApiParsersCommon.nullable_string_member_or_null(path, "title"),
+                            ApiParsersCommon.nullable_string_member_or_null(path, "detail")
                         );
                     }
                 } else {

@@ -218,7 +218,9 @@ private class FakeProjectHistoryApi : MainControllerFakeApi, HolderLinux.IProjec
                 new HolderLinux.ProjectHistoryAffectedPath("cards/ab/cd/card.md", "Project card")
             }),
             new HolderLinux.ProjectHistoryAffectedObject("resource", {
-                new HolderLinux.ProjectHistoryAffectedPath("resources/ab/cd/resource.json")
+                new HolderLinux.ProjectHistoryAffectedPath(
+                    "resources/ab/cd/resource.json", "Project notes", "Attachment: project-notes.pdf"
+                )
             }),
             new HolderLinux.ProjectHistoryAffectedObject("unknown", {
                 new HolderLinux.ProjectHistoryAffectedPath("notes/external.txt")
@@ -545,7 +547,10 @@ private void test_project_history_renders_without_a_card() {
     assert(affected != null);
     ((!) affected).set_expanded(true);
     assert(history_find_label(view.widget, "card: Project card — cards/ab/cd/card.md") != null);
-    assert(history_find_label(view.widget, "resource: resources/ab/cd/resource.json") != null);
+    assert(history_find_label(
+        view.widget,
+        "resource: Project notes — resources/ab/cd/resource.json · Attachment: project-notes.pdf"
+    ) != null);
     assert(history_find_label(view.widget, "Other Git change: notes/external.txt") != null);
     var filter = history_find_dropdown(view.widget);
     assert(filter != null);

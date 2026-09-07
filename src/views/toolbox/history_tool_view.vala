@@ -1118,8 +1118,12 @@ public class HistoryToolView : Object, IToolShellAdapter {
                                                         : object.kind.replace("_", " ");
                     foreach (var path in object.items) {
                         var text = "%s: %s".printf(kind, path.path);
-                        if (object.kind == "card" && path.title != null && path.title != "") {
+                        if ((object.kind == "card" || object.kind == "resource") &&
+                            path.title != null && path.title != "") {
                             text = "%s: %s — %s".printf(kind, path.title, path.path);
+                        }
+                        if (object.kind == "resource" && path.detail != null && path.detail != "") {
+                            text += " · " + path.detail;
                         }
                         var item = new Gtk.Label(text) {
                             xalign = 0.0f, selectable = true, wrap = true

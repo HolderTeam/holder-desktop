@@ -364,8 +364,9 @@ public class CardHistoryComparison : Object {
 public class ProjectHistoryAffectedPath : Object {
     public string path { get; construct; }
     public string? title { get; construct; }
-    public ProjectHistoryAffectedPath(string path, string? title = null) {
-        Object(path: path, title: title);
+    public string? detail { get; construct; }
+    public ProjectHistoryAffectedPath(string path, string? title = null, string? detail = null) {
+        Object(path: path, title: title, detail: detail);
     }
 }
 
