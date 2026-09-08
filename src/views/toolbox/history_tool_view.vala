@@ -214,6 +214,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
     private Gtk.Button copy_as_card_button;
     private Gtk.Button copy_text_button;
     private Gtk.Button copy_commit_button;
+    private Gtk.Button restore_version_button;
     private Gtk.TextView diff_view;
     private Gtk.TextTag diff_added_tag;
     private Gtk.TextTag diff_removed_tag;
@@ -401,6 +402,11 @@ public class HistoryToolView : Object, IToolShellAdapter {
         copy_commit_button.set_sensitive(false);
         copy_commit_button.clicked.connect(copy_commit_id);
         copy_actions.append(copy_commit_button);
+        restore_version_button = new Gtk.Button.with_label("Restore this version");
+        restore_version_button.set_sensitive(false);
+        restore_version_button.add_css_class("suggested-action");
+        restore_version_button.clicked.connect(confirm_restore_selected_version);
+        copy_actions.append(restore_version_button);
         detail.append(copy_actions);
 
         var git_details = new Gtk.Expander("Git details");
@@ -618,6 +624,9 @@ public class HistoryToolView : Object, IToolShellAdapter {
 
     private void request_comparison(CardHistoryEntry entry) {
         detail_entry = entry;
+        restore_version_button.set_sensitive(
+            captured_head_oid != null && entry.last_oid != (!) captured_head_oid
+        );
         update_git_details(entry);
         comparison_serial++;
         load_comparison.begin(entry, comparison_serial);
@@ -987,6 +996,51 @@ public class HistoryToolView : Object, IToolShellAdapter {
             "Message: " + (((!) save).message.length > 0 ? ((!) save).message : "(none)")
         );
         copy_commit_button.set_sensitive(true);
+    }
+
+    private void confirm_restore_selected_version() {
+        var entry = detail_entry;
+        var card = selected_card();
+        if (entry == null || card == null || captured_head_oid == null ||
+            ((!) entry).last_oid == (!) captured_head_oid) return;
+        var root_window = widget.get_root() as Gtk.Window;
+        if (root_window == null) return;
+        var dialog = new Adw.AlertDialog(
+            "Restore this card version?",
+            "Restore \"%s\" to the selected saved version? Your current saved version will remain in History and can be restored again later."
+                .printf(card.title)
+        );
+        dialog.add_response("cancel", "Cancel");
+        dialog.add_response("restore", "Restore version");
+        dialog.set_response_appearance("restore", Adw.ResponseAppearance.SUGGESTED);
+        var oid = ((!) entry).last_oid;
+        dialog.response.connect((response) => {
+            if (response == "restore") restore_selected_version.begin(oid);
+        });
+        dialog.present(root_window);
+    }
+
+    internal async void restore_selected_version(string oid) {
+        var history_api = api as IHistoryApi;
+        var project = selected_project();
+        var card = selected_card();
+        if (history_api == null || project == null || card == null) return;
+        var project_id = project.project_id;
+        var card_id = card.card_id;
+        restore_version_button.set_sensitive(false);
+        try {
+            yield history_api.restore_card_history(project_id, card_id, oid);
+            debug_log_requested("History restored %s".printf(short_oid(oid)));
+            detail_title.set_text("Version restored");
+            detail_meta.set_text("Refreshing saved history and comparison…");
+            queue_refresh();
+        } catch (Error e) {
+            error_reported("Could not restore this version", e.message);
+            debug_log_requested("History restore failed: %s".printf(e.message));
+            if (detail_entry != null && captured_head_oid != null) {
+                restore_version_button.set_sensitive(((!) detail_entry).last_oid != (!) captured_head_oid);
+            }
+        }
     }
 
     private void copy_detail_text() {

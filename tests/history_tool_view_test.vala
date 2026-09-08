@@ -5,6 +5,7 @@ namespace HolderLinuxTests {
 private class FakeHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
     public int list_history_calls = 0;
     public int compare_history_calls = 0;
+    public int restore_history_calls = 0;
     public string? last_project_id;
     public string? last_card_id;
     public string? last_cursor;
@@ -130,6 +131,7 @@ private class FakeHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
     }
 
     public async bool restore_card_history(string project_id, string card_id, string oid) throws Error {
+        restore_history_calls++;
         return true;
     }
 }
@@ -653,6 +655,26 @@ private void test_history_loads_older_page() {
     assert(button != null && !((!) button).get_visible());
 }
 
+private void test_history_restores_selected_version_and_refreshes() {
+    var api = new FakeHistoryApi();
+    var projects = new GLib.ListStore(typeof(HolderLinux.Project));
+    projects.append(new HolderLinux.Project("p1", "Home", "plain_git", "/tmp/p1", 1, 1));
+    var project_selection = new Gtk.SingleSelection(projects);
+    project_selection.set_selected(0);
+    var cards = new GLib.ListStore(typeof(HolderLinux.CardSummary));
+    cards.append(new HolderLinux.CardSummary("c1", "p1", "Card", "", 0, null, 1, 1));
+    var card_selection = new Gtk.SingleSelection(cards);
+    card_selection.set_selected(0);
+    var view = new HolderLinux.HistoryToolView();
+    view.set_api_client(api);
+    view.bind_context(project_selection, card_selection);
+    view.set_tool_visible(true);
+    assert(wait_for_condition(() => api.list_history_calls == 1));
+    view.restore_selected_version.begin("saved-oid");
+    assert(wait_for_condition(() => api.restore_history_calls == 1));
+    assert(wait_for_condition(() => api.list_history_calls == 2));
+}
+
 private void test_history_merge_uses_aligned_page_lanes() {
     var api = new FakeHistoryApi() {
         merge_graph = true,
@@ -768,6 +790,7 @@ public static int main(string[] args) {
     );
     Test.add_func("/holder/history-tool/no-card", test_history_without_card_does_not_call_api);
     Test.add_func("/holder/history-tool/project-history", test_project_history_renders_without_a_card);
+    Test.add_func("/holder/history-tool/restore-refresh", test_history_restores_selected_version_and_refreshes);
     Test.add_func("/holder/history-tool/load-older-page", test_history_loads_older_page);
     Test.add_func(
         "/holder/history-tool/merge-aligned-page-lanes",
