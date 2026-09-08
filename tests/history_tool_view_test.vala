@@ -666,12 +666,17 @@ private void test_history_restores_selected_version_and_refreshes() {
     var card_selection = new Gtk.SingleSelection(cards);
     card_selection.set_selected(0);
     var view = new HolderLinux.HistoryToolView();
+    bool restore_notified = false;
+    view.restore_succeeded.connect((project_id, card_id) => {
+        restore_notified = project_id == "p1" && card_id == "c1";
+    });
     view.set_api_client(api);
     view.bind_context(project_selection, card_selection);
     view.set_tool_visible(true);
     assert(wait_for_condition(() => api.list_history_calls == 1));
     view.restore_selected_version.begin("saved-oid");
     assert(wait_for_condition(() => api.restore_history_calls == 1));
+    assert(wait_for_condition(() => restore_notified));
     assert(wait_for_condition(() => api.list_history_calls == 2));
 }
 

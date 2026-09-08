@@ -22,6 +22,7 @@ internal interface IToolboxEventSource : Object {
                                                                 string? parent_card_id);
     public abstract signal void flowboard_new_card_requested(string? parent_card_id);
     public abstract signal void history_copy_as_card_requested(string title, string content);
+    public abstract signal void history_restore_succeeded(string card_id);
     public abstract signal void send_card_as_email_requested();
     public abstract signal void send_recovery_key_as_email_requested();
     public abstract signal void save_recovery_key_to_usb_requested();
@@ -146,6 +147,9 @@ internal class ToolboxEventOrchestrator : Object {
                 null,
                 "Historical text copied to a new card."
             );
+        });
+        toolbox.history_restore_succeeded.connect((card_id) => {
+            controller.load_card_by_id.begin(card_id);
         });
         toolbox.send_card_as_email_requested.connect(() => {
             sink.send_current_card_as_email();

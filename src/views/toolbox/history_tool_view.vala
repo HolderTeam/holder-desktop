@@ -236,6 +236,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
     public signal void error_reported(string title, string details);
     public signal void history_text_copied(string text);
     public signal void copy_as_card_requested(string title, string text);
+    public signal void restore_succeeded(string project_id, string card_id);
     public signal void debug_log_requested(string line);
 
     public HistoryToolView() {
@@ -1030,9 +1031,14 @@ public class HistoryToolView : Object, IToolShellAdapter {
         restore_version_button.set_sensitive(false);
         try {
             yield history_api.restore_card_history(project_id, card_id, oid);
+            var current_project = selected_project();
+            var current_card = selected_card();
+            if (current_project == null || current_card == null ||
+                current_project.project_id != project_id || current_card.card_id != card_id) return;
             debug_log_requested("History restored %s".printf(short_oid(oid)));
             detail_title.set_text("Version restored");
             detail_meta.set_text("Refreshing saved history and comparison…");
+            restore_succeeded(project_id, card_id);
             queue_refresh();
         } catch (Error e) {
             error_reported("Could not restore this version", e.message);

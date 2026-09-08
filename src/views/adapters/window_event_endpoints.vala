@@ -295,6 +295,9 @@ internal class WindowToolboxEventSource : Object, IToolboxEventSource {
         toolbox.history_copy_as_card_requested.connect((title, content) => {
             history_copy_as_card_requested(title, content);
         });
+        toolbox.history_restore_succeeded.connect((_project_id, card_id) => {
+            history_restore_succeeded(card_id);
+        });
         toolbox.send_card_as_email_requested.connect(() => {
             send_card_as_email_requested();
         });
