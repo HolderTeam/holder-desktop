@@ -196,6 +196,15 @@ private void test_saving_again_atomically_replaces_existing_draft() {
 }
 
 private void test_recovery_draft_uses_private_permissions_when_supported() {
+    // GLib's Win32 GIO backend reports a synthesized "unix::mode" attribute even though
+    // Windows has no real per-owner/group/other permission bits, so has_attribute() alone
+    // doesn't mean chmod(0600) actually took effect there -- it doesn't, since NTFS has
+    // nothing for FileUtils.chmod to set. Skip on Windows rather than asserting an exact
+    // mode the platform can't produce; every other platform this runs on is POSIX.
+    if (Environment.get_variable("HOLDER_DESKTOP_TEST_PLATFORM") == "windows") {
+        return;
+    }
+
     var service = new HolderLinux.EditorRecoveryDraftService(make_temp_dir());
     var path = service.draft_path_for_card_id("card-1");
     try {
