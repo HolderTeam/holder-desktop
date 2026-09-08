@@ -42,6 +42,8 @@ internal interface IToolboxEventSink : Object {
     public abstract void add_toast(string message);
     public abstract void show_tool_help_page(string tool_id);
     public abstract void confirm_move_card_to_trash(string card_id);
+    public abstract void reload_card_after_history_restore(string card_id);
+    public abstract void select_ai_thread_from_history(string thread_id);
     public abstract void send_current_card_as_email();
     public abstract void request_send_recovery_key_as_email();
     public abstract void request_save_recovery_key_to_usb();
@@ -151,13 +153,13 @@ internal class ToolboxEventOrchestrator : Object {
             );
         });
         toolbox.history_restore_succeeded.connect((card_id) => {
-            controller.load_card_by_id.begin(card_id);
+            sink.reload_card_after_history_restore(card_id);
         });
         toolbox.history_card_open_requested.connect((card_id) => {
             selection_intent_orchestrator.open_card_with_transition.begin(card_id, "project-history-card-open");
         });
         toolbox.history_ai_thread_open_requested.connect((thread_id) => {
-            controller.select_ai_thread_by_id(thread_id);
+            sink.select_ai_thread_from_history(thread_id);
         });
         toolbox.send_card_as_email_requested.connect(() => {
             sink.send_current_card_as_email();

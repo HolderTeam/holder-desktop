@@ -222,6 +222,14 @@ internal class WindowToolboxEventSink : Object, IToolboxEventSink {
         owner.confirm_move_card_to_trash(card_id);
     }
 
+    public void reload_card_after_history_restore(string card_id) {
+        owner.reload_card_after_history_restore(card_id);
+    }
+
+    public void select_ai_thread_from_history(string thread_id) {
+        owner.select_ai_thread_from_history(thread_id);
+    }
+
     public void send_current_card_as_email() {
         owner.send_current_card_as_email();
     }
