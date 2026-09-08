@@ -298,6 +298,8 @@ internal class WindowToolboxEventSource : Object, IToolboxEventSource {
         toolbox.history_restore_succeeded.connect((_project_id, card_id) => {
             history_restore_succeeded(card_id);
         });
+        toolbox.history_card_open_requested.connect((card_id) => { history_card_open_requested(card_id); });
+        toolbox.history_ai_thread_open_requested.connect((thread_id) => { history_ai_thread_open_requested(thread_id); });
         toolbox.send_card_as_email_requested.connect(() => {
             send_card_as_email_requested();
         });

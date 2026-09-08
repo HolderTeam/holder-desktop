@@ -47,6 +47,8 @@ public class ToolboxPane : Object {
     public signal void flowboard_new_card_requested(string? parent_card_id);
     public signal void history_copy_as_card_requested(string title, string content);
     public signal void history_restore_succeeded(string project_id, string card_id);
+    public signal void history_card_open_requested(string card_id);
+    public signal void history_ai_thread_open_requested(string thread_id);
     public signal void send_card_as_email_requested();
     public signal void send_recovery_key_as_email_requested();
     public signal void save_recovery_key_to_usb_requested();
@@ -397,6 +399,16 @@ public class ToolboxPane : Object {
         });
         history_tool.restore_succeeded.connect((project_id, card_id) => {
             history_restore_succeeded(project_id, card_id);
+        });
+        history_tool.project_history_card_open_requested.connect((card_id) => {
+            history_card_open_requested(card_id);
+        });
+        history_tool.project_history_resource_open_requested.connect((resource_id) => {
+            show_tool("resources");
+            refresh_resources(resource_id);
+        });
+        history_tool.project_history_ai_thread_open_requested.connect((thread_id) => {
+            history_ai_thread_open_requested(thread_id);
         });
         history_tool.debug_log_requested.connect((line) => {
             log_debug(line);

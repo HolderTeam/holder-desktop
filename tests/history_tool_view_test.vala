@@ -580,6 +580,10 @@ private void test_project_history_renders_without_a_card() {
     var cards = new GLib.ListStore(typeof(HolderLinux.CardSummary));
     var card_selection = new Gtk.SingleSelection(cards);
     var view = new HolderLinux.HistoryToolView();
+    string? opened_card = null;
+    string? opened_resource = null;
+    view.project_history_card_open_requested.connect((card_id) => { opened_card = card_id; });
+    view.project_history_resource_open_requested.connect((resource_id) => { opened_resource = resource_id; });
     view.set_api_client(api);
     view.bind_context(project_selection, card_selection);
     view.set_tool_visible(true);
@@ -598,14 +602,18 @@ private void test_project_history_renders_without_a_card() {
     var affected = history_find_expander(view.widget, "Show 5 affected items");
     assert(affected != null);
     ((!) affected).set_expanded(true);
-    assert(history_find_label(
-        view.widget,
-        "card: Project card — cards/ab/cd/card.md · Milestone: Review — Project review"
-    ) != null);
-    assert(history_find_label(
-        view.widget,
-        "resource: Project notes — resources/ab/cd/resource.json · Attachment: project-notes.pdf"
-    ) != null);
+    var card_button = history_find_button(
+        view.widget, "card: Project card — cards/ab/cd/card.md · Milestone: Review — Project review"
+    );
+    assert(card_button != null);
+    ((!) card_button).clicked();
+    assert(opened_card == "card");
+    var resource_button = history_find_button(
+        view.widget, "resource: Project notes — resources/ab/cd/resource.json · Attachment: project-notes.pdf"
+    );
+    assert(resource_button != null);
+    ((!) resource_button).clicked();
+    assert(opened_resource == "resource");
     assert(history_find_label(
         view.widget,
         "ai data: Release review — ai_messages/ab/cd/message.md · user: Can you review the release notes?"

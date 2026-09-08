@@ -23,6 +23,8 @@ internal interface IToolboxEventSource : Object {
     public abstract signal void flowboard_new_card_requested(string? parent_card_id);
     public abstract signal void history_copy_as_card_requested(string title, string content);
     public abstract signal void history_restore_succeeded(string card_id);
+    public abstract signal void history_card_open_requested(string card_id);
+    public abstract signal void history_ai_thread_open_requested(string thread_id);
     public abstract signal void send_card_as_email_requested();
     public abstract signal void send_recovery_key_as_email_requested();
     public abstract signal void save_recovery_key_to_usb_requested();
@@ -150,6 +152,12 @@ internal class ToolboxEventOrchestrator : Object {
         });
         toolbox.history_restore_succeeded.connect((card_id) => {
             controller.load_card_by_id.begin(card_id);
+        });
+        toolbox.history_card_open_requested.connect((card_id) => {
+            selection_intent_orchestrator.open_card_with_transition.begin(card_id, "project-history-card-open");
+        });
+        toolbox.history_ai_thread_open_requested.connect((thread_id) => {
+            controller.select_ai_thread_by_id(thread_id);
         });
         toolbox.send_card_as_email_requested.connect(() => {
             sink.send_current_card_as_email();

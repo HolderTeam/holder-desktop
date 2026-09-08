@@ -237,6 +237,9 @@ public class HistoryToolView : Object, IToolShellAdapter {
     public signal void history_text_copied(string text);
     public signal void copy_as_card_requested(string title, string text);
     public signal void restore_succeeded(string project_id, string card_id);
+    public signal void project_history_card_open_requested(string card_id);
+    public signal void project_history_resource_open_requested(string resource_id);
+    public signal void project_history_ai_thread_open_requested(string thread_id);
     public signal void debug_log_requested(string line);
 
     public HistoryToolView() {
@@ -1211,12 +1214,36 @@ public class HistoryToolView : Object, IToolShellAdapter {
                             path.detail != null && path.detail != "") {
                             text += " · " + path.detail;
                         }
-                        var item = new Gtk.Label(text) {
-                            xalign = 0.0f, selectable = true, wrap = true
-                        };
-                        item.add_css_class("caption");
-                        if (object.kind == "unknown") item.add_css_class("dim-label");
-                        affected_box.append(item);
+                        var card_id = project_history_path_id(object.kind, path.path, "cards/", ".md");
+                        var resource_id = project_history_path_id(object.kind, path.path, "resources/", ".json");
+                        var thread_id = project_history_path_id(object.kind, path.path, "ai_threads/", ".json");
+                        if (card_id != null) {
+                            var item = new Gtk.Button.with_label(text);
+                            item.add_css_class("flat");
+                            item.add_css_class("caption");
+                            item.set_halign(Gtk.Align.START);
+                            item.clicked.connect(() => { project_history_card_open_requested((!) card_id); });
+                            affected_box.append(item);
+                        } else if (resource_id != null) {
+                            var item = new Gtk.Button.with_label(text);
+                            item.add_css_class("flat");
+                            item.add_css_class("caption");
+                            item.set_halign(Gtk.Align.START);
+                            item.clicked.connect(() => { project_history_resource_open_requested((!) resource_id); });
+                            affected_box.append(item);
+                        } else if (thread_id != null) {
+                            var item = new Gtk.Button.with_label(text);
+                            item.add_css_class("flat");
+                            item.add_css_class("caption");
+                            item.set_halign(Gtk.Align.START);
+                            item.clicked.connect(() => { project_history_ai_thread_open_requested((!) thread_id); });
+                            affected_box.append(item);
+                        } else {
+                            var item = new Gtk.Label(text) { xalign = 0.0f, selectable = true, wrap = true };
+                            item.add_css_class("caption");
+                            if (object.kind == "unknown") item.add_css_class("dim-label");
+                            affected_box.append(item);
+                        }
                     }
                 }
                 affected.set_child(affected_box);
@@ -1233,6 +1260,15 @@ public class HistoryToolView : Object, IToolShellAdapter {
             project_timeline.append(row);
         }
         update_project_timeline_lanes();
+    }
+
+    private string? project_history_path_id(string kind, string path, string prefix, string suffix) {
+        if ((kind != "card" && prefix == "cards/") ||
+            (kind != "resource" && prefix == "resources/") ||
+            (kind != "ai_data" && prefix == "ai_threads/")) return null;
+        if (!path.has_prefix(prefix) || !path.has_suffix(suffix)) return null;
+        var filename = Path.get_basename(path);
+        return filename.substring(0, filename.length - suffix.length);
     }
 
     private void update_project_timeline_lanes() {
