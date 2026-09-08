@@ -95,6 +95,10 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
         );
     }
 
+    public async bool restore_card_history(string project_id, string card_id, string oid) throws Error {
+        return yield ApiClientCardsEndpoints.restore_card_history(this, project_id, card_id, oid);
+    }
+
     public async ProjectCalendar get_project_calendar(string project_id,
                                                       int64 from_epoch,
                                                       int64 to_epoch) throws Error {

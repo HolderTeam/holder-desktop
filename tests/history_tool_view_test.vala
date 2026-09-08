@@ -128,6 +128,10 @@ private class FakeHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
             false
         );
     }
+
+    public async bool restore_card_history(string project_id, string card_id, string oid) throws Error {
+        return true;
+    }
 }
 
 private class DelayedHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi {
@@ -192,6 +196,10 @@ private class DelayedHistoryApi : MainControllerFakeApi, HolderLinux.IHistoryApi
             new HolderLinux.CardHistoryVersion(true, to_oid, "Card %s".printf(card_id), lines[0].text),
             "History for %s".printf(card_id), lines, false
         );
+    }
+
+    public async bool restore_card_history(string project_id, string card_id, string oid) throws Error {
+        return true;
     }
 }
 

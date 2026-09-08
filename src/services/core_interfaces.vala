@@ -199,6 +199,9 @@ public interface IHistoryApi : Object {
                                                                      string? from_oid,
                                                                      string to_oid,
                                                                      string mode = "since") throws Error;
+    public abstract async bool restore_card_history(string project_id,
+                                                    string card_id,
+                                                    string oid) throws Error;
 }
 
 public interface IProjectHistoryApi : Object {

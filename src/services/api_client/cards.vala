@@ -96,6 +96,23 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
         return ApiParsersCards.parse_card_history_comparison(root);
     }
 
+    public static async bool restore_card_history(ApiClient client,
+                                                  string project_id,
+                                                  string card_id,
+                                                  string oid) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("oid", oid);
+        yield client.request_json(
+            "POST",
+            "/projects/%s/history/cards/%s/restore".printf(
+                Uri.escape_string(project_id), Uri.escape_string(card_id)
+            ),
+            null,
+            query
+        );
+        return true;
+    }
+
     public static async ProjectCalendar get_project_calendar(ApiClient client,
                                                              string project_id,
                                                              int64 from_epoch,

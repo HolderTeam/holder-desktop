@@ -351,6 +351,7 @@ private void test_card_history_endpoints() {
         "\"title\":\"\",\"body\":\"\"},\"to\":{\"exists\":true," +
         "\"oid\":\"created\",\"title\":\"Card\",\"body\":\"After\"}," +
         "\"summary\":\"Card created\",\"lines\":[],\"truncated\":false}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"card_id\":\"card/one\"}}");
     var client = make_client(transport);
 
     bool project_done = false;
@@ -417,6 +418,18 @@ private void test_card_history_endpoints() {
     assert(!transport.last_uri.contains("from="));
     assert(transport.last_uri.contains("to=created"));
     assert(transport.last_uri.contains("mode=change"));
+
+    bool restore_done = false;
+    bool restored = false;
+    client.restore_card_history.begin("project one", "card/one", "restore oid", (obj, res) => {
+        try { restored = client.restore_card_history.end(res); } catch (Error e) { restored = false; }
+        restore_done = true;
+    });
+    assert(wait_for_condition(() => restore_done));
+    assert(restored);
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.contains("/projects/project%20one/history/cards/card%2Fone/restore"));
+    assert(transport.last_uri.contains("oid=restore%20oid"));
 }
 
 public static int main(string[] args) {
