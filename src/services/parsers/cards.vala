@@ -1,6 +1,57 @@
 namespace HolderLinux {
 
 public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage artifact
+    public static ProjectHistoryPage parse_project_history_page(Json.Object root) throws Error {
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for project history response");
+        }
+        var data = root.get_object_member("data");
+        ProjectHistoryActivity[] activities = {};
+        var array = data.get_array_member("activities");
+        for (uint i = 0; i < array.get_length(); i++) {
+            var item = array.get_object_element(i);
+            string[] parents = {};
+            var parent_array = item.get_array_member("parent_oids");
+            for (uint j = 0; j < parent_array.get_length(); j++) parents += parent_array.get_string_element(j);
+            var author = item.get_object_member("author");
+            ProjectHistoryAffectedObject[] affected = {};
+            var affected_array = item.get_array_member("affected_objects");
+            for (uint j = 0; j < affected_array.get_length(); j++) {
+                var object = affected_array.get_object_element(j);
+                ProjectHistoryAffectedPath[] paths = {};
+                if (object.has_member("items")) {
+                    var items_array = object.get_array_member("items");
+                    for (uint k = 0; k < items_array.get_length(); k++) {
+                        var path = items_array.get_object_element(k);
+                        paths += new ProjectHistoryAffectedPath(
+                            path.get_string_member("path"),
+                            ApiParsersCommon.nullable_string_member_or_null(path, "title"),
+                            ApiParsersCommon.nullable_string_member_or_null(path, "detail")
+                        );
+                    }
+                } else {
+                    var paths_array = object.get_array_member("paths");
+                    for (uint k = 0; k < paths_array.get_length(); k++) {
+                        paths += new ProjectHistoryAffectedPath(paths_array.get_string_element(k));
+                    }
+                }
+                affected += new ProjectHistoryAffectedObject(object.get_string_member("kind"), paths);
+            }
+            activities += new ProjectHistoryActivity(
+                item.get_string_member("oid"), parents,
+                ApiParsersCommon.string_member_or_empty(author, "name"),
+                ApiParsersCommon.string_member_or_empty(author, "email"),
+                item.get_int_member("committed_at"), item.get_string_member("message"),
+                affected, item.get_boolean_member("is_merge")
+            );
+        }
+        return new ProjectHistoryPage(
+            ApiParsersCommon.nullable_string_member_or_null(data, "head_oid"), activities,
+            ApiParsersCommon.nullable_string_member_or_null(data, "next_cursor"),
+            data.has_member("scan_limited") && data.get_boolean_member("scan_limited")
+        );
+    }
+
     private static CardHistoryVersion parse_history_version(Json.Object item) {
         return new CardHistoryVersion(
             item.get_boolean_member("exists"),
@@ -24,7 +75,40 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
             for (uint j = 0; j < parent_array.get_length(); j++) {
                 parents += parent_array.get_string_element(j);
             }
+            string[] visible_parents = {};
+            if (item.has_member("visible_parent_oids")) {
+                var visible_parent_array = item.get_array_member("visible_parent_oids");
+                for (uint j = 0; j < visible_parent_array.get_length(); j++) {
+                    visible_parents += visible_parent_array.get_string_element(j);
+                }
+            }
             var author = item.get_object_member("author");
+            CardHistorySave[] saves = {};
+            if (item.has_member("saves")) {
+                var saves_array = item.get_array_member("saves");
+                for (uint save_index = 0; save_index < saves_array.get_length(); save_index++) {
+                    var save = saves_array.get_object_element(save_index);
+                    string[] save_parents = {};
+                    var save_parent_array = save.get_array_member("parent_oids");
+                    for (uint parent_index = 0;
+                         parent_index < save_parent_array.get_length(); parent_index++) {
+                        save_parents += save_parent_array.get_string_element(parent_index);
+                    }
+                    saves += new CardHistorySave(
+                        save.get_string_member("oid"),
+                        save_parents,
+                        save.get_int_member("committed_at"),
+                        save.has_member("authored_at")
+                            ? save.get_int_member("authored_at")
+                            : save.get_int_member("committed_at"),
+                        ApiParsersCommon.string_member_or_empty(save, "message")
+                    );
+                }
+            } else {
+                saves += new CardHistorySave(
+                    item.get_string_member("last_oid"), parents, item.get_int_member("ended_at")
+                );
+            }
             entries += new CardHistoryEntry(
                 item.get_string_member("first_oid"),
                 item.get_string_member("last_oid"),
@@ -36,13 +120,16 @@ public class ApiParsersCards { // LCOV_EXCL_LINE: declaration-only coverage arti
                 item.get_string_member("kind"),
                 item.get_string_member("summary"),
                 (int) item.get_int_member("commit_count"),
-                item.get_boolean_member("is_merge")
+                item.get_boolean_member("is_merge"),
+                saves,
+                visible_parents
             );
         }
         return new CardHistoryPage(
             ApiParsersCommon.nullable_string_member_or_null(data, "head_oid"),
             entries,
-            ApiParsersCommon.nullable_string_member_or_null(data, "next_cursor")
+            ApiParsersCommon.nullable_string_member_or_null(data, "next_cursor"),
+            data.has_member("scan_limited") && data.get_boolean_member("scan_limited")
         );
     }
 

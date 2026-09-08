@@ -2,6 +2,22 @@ using GLib;
 
 namespace HolderLinuxTests {
 
+private bool wait_for_buffer_text(Gtk.TextBuffer buffer, string expected) {
+    for (int i = 0; i < 200; i++) {
+        Gtk.TextIter start;
+        Gtk.TextIter end;
+        buffer.get_bounds(out start, out end);
+        if (buffer.get_text(start, end, false) == expected) {
+            return true;
+        }
+        while (MainContext.default().pending()) {
+            MainContext.default().iteration(false);
+        }
+        Thread.usleep(10 * 1000);
+    }
+    return false;
+}
+
 private void test_extracts_standalone_holder_images() {
     var controller = new HolderLinux.MarkdownResourceImageController();
     var markdown = "Before\n![Boiler photograph](holder://resource/abc123)\n" +
@@ -122,16 +138,9 @@ private void test_inline_decoration_does_not_change_markdown_text() {
     assert(!spellcheck.buffer_safe);
     assert(spellcheck.adapter == null);
     assert(retired_adapter_destroyed);
-    for (int i = 0; i < 20; i++) {
-        while (MainContext.default().pending()) {
-            MainContext.default().iteration(false);
-        }
-        Thread.usleep(1000);
-    }
     Gtk.TextIter start;
     Gtk.TextIter end;
-    buffer.get_bounds(out start, out end);
-    assert(buffer.get_text(start, end, false) == text);
+    assert(wait_for_buffer_text(buffer, text));
     assert(renderer.decoration_count() == 2);
 
     int buffer_changes = 0;

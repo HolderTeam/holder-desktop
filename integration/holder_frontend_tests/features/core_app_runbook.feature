@@ -42,6 +42,32 @@ Feature: Core app run book
     When I search cards for "runbook-replaced-token"
     Then I should see search result "Runbook Search Card"
 
+  Scenario: Open History for a saved card
+    Given the Holder frontend is running
+    When I open the toolbox panel
+    And I switch to toolbox tool "History"
+    Then I should see toolbox content "Since this version"
+    And I should see toolbox content "This change"
+
+  @isolated @history_fixture
+  Scenario: Show a fixture-backed History comparison
+    Given the Holder frontend is running
+    When I select project "History Fixture Project"
+    And I search cards for "History Fixture Card"
+    And I open search result "History Fixture Card"
+    And I open the toolbox panel
+    And I switch to toolbox tool "History"
+    Then I should see toolbox content "This change"
+    And I should see History diff "Fixture revised history body"
+    When I replace the editor text with
+      """
+      # History Fixture Card
+
+      Fixture saved while History is open.
+      """
+    Then I should see save state "Saved"
+    And I should see History diff "Fixture saved while History is open"
+
   Scenario: Toggle find and replace panel visibility
     Given the Holder frontend is running
     When I open find and replace

@@ -21,6 +21,10 @@ internal interface IToolboxEventSource : Object {
                                                                 string? target_card_id,
                                                                 string? parent_card_id);
     public abstract signal void flowboard_new_card_requested(string? parent_card_id);
+    public abstract signal void history_copy_as_card_requested(string title, string content);
+    public abstract signal void history_restore_succeeded(string card_id);
+    public abstract signal void history_card_open_requested(string card_id);
+    public abstract signal void history_ai_thread_open_requested(string thread_id);
     public abstract signal void send_card_as_email_requested();
     public abstract signal void send_recovery_key_as_email_requested();
     public abstract signal void save_recovery_key_to_usb_requested();
@@ -38,6 +42,8 @@ internal interface IToolboxEventSink : Object {
     public abstract void add_toast(string message);
     public abstract void show_tool_help_page(string tool_id);
     public abstract void confirm_move_card_to_trash(string card_id);
+    public abstract void reload_card_after_history_restore(string card_id);
+    public abstract void select_ai_thread_from_history(string thread_id);
     public abstract void send_current_card_as_email();
     public abstract void request_send_recovery_key_as_email();
     public abstract void request_save_recovery_key_to_usb();
@@ -137,6 +143,23 @@ internal class ToolboxEventOrchestrator : Object {
         });
         toolbox.flowboard_new_card_requested.connect((parent_card_id) => {
             controller.create_card.begin(parent_card_id);
+        });
+        toolbox.history_copy_as_card_requested.connect((title, content) => {
+            controller.create_card_with_content.begin(
+                title,
+                content,
+                null,
+                "Historical text copied to a new card."
+            );
+        });
+        toolbox.history_restore_succeeded.connect((card_id) => {
+            sink.reload_card_after_history_restore(card_id);
+        });
+        toolbox.history_card_open_requested.connect((card_id) => {
+            selection_intent_orchestrator.open_card_with_transition.begin(card_id, "project-history-card-open");
+        });
+        toolbox.history_ai_thread_open_requested.connect((thread_id) => {
+            sink.select_ai_thread_from_history(thread_id);
         });
         toolbox.send_card_as_email_requested.connect(() => {
             sink.send_current_card_as_email();

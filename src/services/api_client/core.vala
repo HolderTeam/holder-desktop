@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi, IHistoryApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
+public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi, IHistoryApi, IProjectHistoryApi { // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     private IApiHttpTransport transport; // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: delegation-only branch artifact
     private string base_url;
     private string auth_token;
@@ -78,13 +78,25 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
         );
     }
 
+    public async ProjectHistoryPage list_project_history(string project_id,
+                                                          int limit = 50,
+                                                          string? cursor = null,
+                                                          string? kind = null) throws Error {
+        return yield ApiClientCardsEndpoints.list_project_history(this, project_id, limit, cursor, kind);
+    }
+
     public async CardHistoryComparison compare_card_history(string project_id,
                                                             string card_id,
-                                                            string from_oid,
-                                                            string to_oid) throws Error {
+                                                            string? from_oid,
+                                                            string to_oid,
+                                                            string mode = "since") throws Error {
         return yield ApiClientCardsEndpoints.compare_card_history(
-            this, project_id, card_id, from_oid, to_oid
+            this, project_id, card_id, from_oid, to_oid, mode
         );
+    }
+
+    public async bool restore_card_history(string project_id, string card_id, string oid) throws Error {
+        return yield ApiClientCardsEndpoints.restore_card_history(this, project_id, card_id, oid);
     }
 
     public async ProjectCalendar get_project_calendar(string project_id,

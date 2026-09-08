@@ -1616,6 +1616,14 @@ public class MainWindow : Adw.ApplicationWindow {
         });
     }
 
+    internal void reload_card_after_history_restore(string card_id) {
+        controller.load_card_by_id.begin(card_id);
+    }
+
+    internal void select_ai_thread_from_history(string thread_id) {
+        controller.select_ai_thread_by_id(thread_id);
+    }
+
     private void show_preferences_dialog() {
         var dialog = window_actions_adapter.show_preferences(
             editor_buffer,

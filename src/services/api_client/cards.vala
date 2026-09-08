@@ -1,6 +1,21 @@
 namespace HolderLinux {
 
 public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaration branch artifact
+    public static async ProjectHistoryPage list_project_history(ApiClient client,
+                                                                 string project_id,
+                                                                 int limit = 50,
+                                                                 string? cursor = null,
+                                                                 string? kind = null) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("limit", limit.to_string());
+        if (cursor != null && ((!) cursor).strip().length > 0) query.insert("cursor", (!) cursor);
+        if (kind != null && ((!) kind).strip().length > 0) query.insert("kind", (!) kind);
+        var root = yield client.request_json(
+            "GET", "/projects/%s/history".printf(Uri.escape_string(project_id)), null, query
+        );
+        return ApiParsersCards.parse_project_history_page(root);
+    }
+
     public static async Gee.ArrayList<CardSummary> list_cards(ApiClient client, // LCOV_EXCL_BR_LINE: async declaration branch artifact
                                                               string project_id,
                                                               string view = "tree",
@@ -61,12 +76,15 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
     public static async CardHistoryComparison compare_card_history(ApiClient client,
                                                                    string project_id,
                                                                    string card_id,
-                                                                   string from_oid,
-                                                                   string to_oid) throws Error {
+                                                                   string? from_oid,
+                                                                   string to_oid,
+                                                                   string mode = "since") throws Error {
         var query = new HashTable<string, string>(str_hash, str_equal);
-        query.insert("from", from_oid);
+        if (from_oid != null && ((!) from_oid).strip().length > 0) {
+            query.insert("from", (!) from_oid);
+        }
         query.insert("to", to_oid);
-        query.insert("mode", "since");
+        query.insert("mode", mode);
         var root = yield client.request_json(
             "GET",
             "/projects/%s/history/cards/%s/compare".printf(
@@ -76,6 +94,23 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
             query
         );
         return ApiParsersCards.parse_card_history_comparison(root);
+    }
+
+    public static async bool restore_card_history(ApiClient client,
+                                                  string project_id,
+                                                  string card_id,
+                                                  string oid) throws Error {
+        var query = new HashTable<string, string>(str_hash, str_equal);
+        query.insert("oid", oid);
+        yield client.request_json(
+            "POST",
+            "/projects/%s/history/cards/%s/restore".printf(
+                Uri.escape_string(project_id), Uri.escape_string(card_id)
+            ),
+            null,
+            query
+        );
+        return true;
     }
 
     public static async ProjectCalendar get_project_calendar(ApiClient client,

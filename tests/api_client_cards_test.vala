@@ -320,14 +320,57 @@ private void test_calendar_and_milestone_endpoints() {
 private void test_card_history_endpoints() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(200,
-        "{\"ok\":true,\"data\":{\"head_oid\":\"head\",\"entries\":[]," +
+        "{\"ok\":true,\"data\":{\"head_oid\":\"project-head\",\"next_cursor\":null," +
+        "\"scan_limited\":false,\"activities\":[{\"oid\":\"project-head\"," +
+        "\"parent_oids\":[],\"author\":{\"name\":\"Ezra\",\"email\":\"e@test\"}," +
+        "\"authored_at\":1,\"committed_at\":2,\"message\":\"Attach\"," +
+        "\"affected_objects\":[{\"kind\":\"resource\",\"paths\":[\"resources/a.json\"]," +
+        "\"items\":[{\"path\":\"resources/a.json\",\"title\":\"Example resource\",\"detail\":\"Attachment: a.pdf\"}]},{\"kind\":\"ai_data\",\"paths\":[\"ai_messages/a.md\"]," +
+        "\"items\":[{\"path\":\"ai_messages/a.md\",\"title\":\"Release review\",\"detail\":\"user: Can you review?\"}]},{\"kind\":\"project_settings\",\"paths\":[\".holder/privacy.json\"]," +
+        "\"items\":[{\"path\":\".holder/privacy.json\",\"title\":\"Privacy settings\",\"detail\":\"Mode: plain Git\"}]}]," +
+        "\"is_merge\":false}]}}");
+    transport.enqueue_read(200,
+        "{\"ok\":true,\"data\":{\"head_oid\":\"head\",\"entries\":[{" +
+        "\"first_oid\":\"old\",\"last_oid\":\"head\",\"parent_oids\":[\"parent\"]," +
+        "\"visible_parent_oids\":[\"parent\"]," +
+        "\"author\":{\"name\":\"Ezra\",\"email\":\"ezra@example.test\"}," +
+        "\"started_at\":1,\"ended_at\":2,\"kind\":\"updated\",\"summary\":\"Changed\"," +
+        "\"commit_count\":2,\"is_merge\":false,\"saves\":[{" +
+        "\"oid\":\"old\",\"parent_oids\":[\"parent\"],\"authored_at\":1," +
+        "\"committed_at\":1,\"message\":\"First save\"},{" +
+        "\"oid\":\"head\",\"parent_oids\":[\"old\"],\"authored_at\":2," +
+        "\"committed_at\":2,\"message\":\"Final save\"}]}]," +
         "\"next_cursor\":\"older\"}}");
     transport.enqueue_read(200,
         "{\"ok\":true,\"data\":{\"from\":{\"exists\":true,\"oid\":\"old\"," +
         "\"title\":\"Card\",\"body\":\"Before\"},\"to\":{\"exists\":true," +
         "\"oid\":\"head\",\"title\":\"Card\",\"body\":\"After\"}," +
         "\"summary\":\"Changed card\",\"lines\":[],\"truncated\":false}}");
+    transport.enqueue_read(200,
+        "{\"ok\":true,\"data\":{\"from\":{\"exists\":false,\"oid\":\"\"," +
+        "\"title\":\"\",\"body\":\"\"},\"to\":{\"exists\":true," +
+        "\"oid\":\"created\",\"title\":\"Card\",\"body\":\"After\"}," +
+        "\"summary\":\"Card created\",\"lines\":[],\"truncated\":false}}");
+    transport.enqueue_read(200, "{\"ok\":true,\"data\":{\"card_id\":\"card/one\"}}");
     var client = make_client(transport);
+
+    bool project_done = false;
+    HolderLinux.ProjectHistoryPage? project_page = null;
+    client.list_project_history.begin("project one", 25, "cursor oid", "resource", (obj, res) => {
+        try { project_page = client.list_project_history.end(res); } catch (Error e) { project_page = null; }
+        project_done = true;
+    });
+    assert(wait_for_condition(() => project_done));
+    assert(project_page != null && ((!) project_page).activities.length == 1);
+    assert(((!) project_page).activities[0].affected_objects[0].kind == "resource");
+    assert(((!) project_page).activities[0].affected_objects[0].items[0].title == "Example resource");
+    assert(((!) project_page).activities[0].affected_objects[0].items[0].detail == "Attachment: a.pdf");
+    assert(((!) project_page).activities[0].affected_objects[1].kind == "ai_data");
+    assert(((!) project_page).activities[0].affected_objects[1].items[0].title == "Release review");
+    assert(((!) project_page).activities[0].affected_objects[2].kind == "project_settings");
+    assert(((!) project_page).activities[0].affected_objects[2].items[0].detail == "Mode: plain Git");
+    assert(transport.last_uri.contains("/projects/project%20one/history"));
+    assert(transport.last_uri.contains("kind=resource"));
 
     bool list_done = false;
     HolderLinux.CardHistoryPage? page = null;
@@ -337,23 +380,56 @@ private void test_card_history_endpoints() {
     });
     assert(wait_for_condition(() => list_done));
     assert(page != null && page.next_cursor == "older");
+    assert(((!) page).entries[0].visible_parent_oids.length == 1);
+    assert(((!) page).entries[0].visible_parent_oids[0] == "parent");
+    assert(((!) page).entries[0].saves.length == 2);
+    assert(((!) page).entries[0].saves[0].oid == "old");
+    assert(((!) page).entries[0].saves[1].message == "Final save");
     assert(transport.last_uri.contains("/projects/project%20one/history/cards/card%2Fone"));
     assert(transport.last_uri.contains("limit=25"));
     assert(transport.last_uri.contains("cursor=cursor%20oid"));
 
     bool compare_done = false;
     HolderLinux.CardHistoryComparison? comparison = null;
-    client.compare_card_history.begin("project one", "card/one", "old", "head", (obj, res) => {
-        try { comparison = client.compare_card_history.end(res); }
-        catch (Error e) { comparison = null; }
-        compare_done = true;
-    });
+    client.compare_card_history.begin(
+        "project one", "card/one", "old", "head", "since", (obj, res) => {
+            try { comparison = client.compare_card_history.end(res); }
+            catch (Error e) { comparison = null; }
+            compare_done = true;
+        }
+    );
     assert(wait_for_condition(() => compare_done));
     assert(comparison != null && ((!) comparison).to_version.body == "After");
     assert(transport.last_uri.contains("/projects/project%20one/history/cards/card%2Fone/compare"));
     assert(transport.last_uri.contains("from=old"));
     assert(transport.last_uri.contains("to=head"));
     assert(transport.last_uri.contains("mode=since"));
+
+    compare_done = false;
+    client.compare_card_history.begin(
+        "project one", "card/one", null, "created", "change", (obj, res) => {
+            try { comparison = client.compare_card_history.end(res); }
+            catch (Error e) { comparison = null; }
+            compare_done = true;
+        }
+    );
+    assert(wait_for_condition(() => compare_done));
+    assert(comparison != null);
+    assert(!transport.last_uri.contains("from="));
+    assert(transport.last_uri.contains("to=created"));
+    assert(transport.last_uri.contains("mode=change"));
+
+    bool restore_done = false;
+    bool restored = false;
+    client.restore_card_history.begin("project one", "card/one", "restore oid", (obj, res) => {
+        try { restored = client.restore_card_history.end(res); } catch (Error e) { restored = false; }
+        restore_done = true;
+    });
+    assert(wait_for_condition(() => restore_done));
+    assert(restored);
+    assert(transport.last_method == "POST");
+    assert(transport.last_uri.contains("/projects/project%20one/history/cards/card%2Fone/restore"));
+    assert(transport.last_uri.contains("oid=restore%20oid"));
 }
 
 public static int main(string[] args) {

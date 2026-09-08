@@ -11,18 +11,21 @@ private string make_temp_dir() {
 }
 
 private bool wait_for_file(string path) {
-    for (int i = 0; i < 500; i++) {
+    // xdg-email is launched asynchronously. Yielding alone can finish before the
+    // child process receives a scheduling slice on a busy test run.
+    for (int i = 0; i < 200; i++) {
         if (FileUtils.test(path, FileTest.EXISTS)) {
             return true;
         }
         MainContext.default().iteration(false);
+        Thread.usleep(10 * 1000);
     }
     return false;
 }
 
 private string wait_for_nonempty_file_contents(string path) {
     string contents = "";
-    for (int i = 0; i < 500; i++) {
+    for (int i = 0; i < 200; i++) {
         if (FileUtils.test(path, FileTest.EXISTS)) {
             try {
                 FileUtils.get_contents(path, out contents);
@@ -33,6 +36,7 @@ private string wait_for_nonempty_file_contents(string path) {
             }
         }
         MainContext.default().iteration(false);
+        Thread.usleep(10 * 1000);
     }
     return contents;
 }

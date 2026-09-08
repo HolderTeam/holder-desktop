@@ -323,11 +323,16 @@ private void test_parse_project_calendar_and_milestones() {
 private void test_parse_card_history_page_and_comparison() {
     var page_root = parse_json_object(
         "{\"data\":{" +
-        "\"head_oid\":\"head1\",\"next_cursor\":null,\"entries\":[{" +
+        "\"head_oid\":\"head1\",\"next_cursor\":null,\"scan_limited\":true,\"entries\":[{" +
         "\"first_oid\":\"old1\",\"last_oid\":\"new1\",\"parent_oids\":[\"parent1\"]," +
+        "\"visible_parent_oids\":[\"parent1\",\"parent2\"]," +
         "\"author\":{\"name\":\"Ezra\",\"email\":\"ezra@example.test\"}," +
         "\"started_at\":10,\"ended_at\":20,\"kind\":\"updated\"," +
-        "\"summary\":\"Changed 2 lines\",\"commit_count\":3,\"is_merge\":false}]}}"
+        "\"summary\":\"Changed 2 lines\",\"commit_count\":3,\"is_merge\":true," +
+        "\"saves\":[{\"oid\":\"old1\",\"parent_oids\":[\"parent1\"]," +
+        "\"authored_at\":9,\"committed_at\":10,\"message\":\"First save\"},{" +
+        "\"oid\":\"new1\",\"parent_oids\":[\"old1\"],\"authored_at\":19," +
+        "\"committed_at\":20,\"message\":\"Final save\"}]}]}}"
     );
     HolderLinux.CardHistoryPage page;
     try {
@@ -337,11 +342,21 @@ private void test_parse_card_history_page_and_comparison() {
     }
     assert(page.head_oid == "head1");
     assert(page.next_cursor == null);
+    assert(page.scan_limited);
     assert(page.entries.length == 1);
     assert(page.entries[0].first_oid == "old1");
     assert(page.entries[0].parent_oids.length == 1);
+    assert(page.entries[0].visible_parent_oids.length == 2);
+    assert(page.entries[0].visible_parent_oids[0] == "parent1");
+    assert(page.entries[0].visible_parent_oids[1] == "parent2");
+    assert(page.entries[0].is_merge);
     assert(page.entries[0].author_name == "Ezra");
     assert(page.entries[0].commit_count == 3);
+    assert(page.entries[0].saves.length == 2);
+    assert(page.entries[0].saves[0].oid == "old1");
+    assert(page.entries[0].saves[1].parent_oids[0] == "old1");
+    assert(page.entries[0].saves[0].authored_at == 9);
+    assert(page.entries[0].saves[1].message == "Final save");
 
     var comparison_root = parse_json_object(
         "{\"data\":{" +

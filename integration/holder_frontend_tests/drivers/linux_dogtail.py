@@ -92,6 +92,19 @@ class LinuxDogtailDriver(FrontendDriver):
     def has_project_named(self, name: str) -> bool:
         return self._has_visible_named(name, timeout=10.0)
 
+    def select_project(self, name: str) -> None:
+        project = self._wait_for(
+            lambda: self._find_visible_named(self._current_window(), name),
+            timeout=20.0,
+            interval=0.2,
+        )
+        self._activate_list_item_for_child(project)
+        self._wait_for(
+            lambda: True if self._visible_text_contains(name) else None,
+            timeout=10.0,
+            interval=0.2,
+        )
+
     def has_card_titled_prefix(self, prefix: str) -> bool:
         window = self._current_window()
         try:
@@ -238,6 +251,32 @@ class LinuxDogtailDriver(FrontendDriver):
 
     def can_see_text(self, text: str) -> bool:
         return self._has_visible_named(text, timeout=10.0)
+
+    def history_diff_contains(self, text: str) -> bool:
+        def has_history_text() -> bool:
+            editor = self._find_editor_text_node()
+            for node in self._text_entries(self._current_window()):
+                if node is editor:
+                    continue
+                try:
+                    node_text = node.text
+                except Exception:
+                    try:
+                        node_text = node.queryText().getText(0, -1)
+                    except Exception:
+                        node_text = ""
+                if text in node_text:
+                    return True
+            return False
+
+        try:
+            return self._wait_for(
+                lambda: True if has_history_text() else None,
+                timeout=20.0,
+                interval=0.2,
+            ) is True
+        except RuntimeError:
+            return False
 
     def has_app_shell(self) -> bool:
         expected = (

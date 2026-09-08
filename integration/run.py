@@ -216,6 +216,8 @@ class Runner:
                 holder_bind = str(info.get("bind", "127.0.0.1"))
                 holder_port = int(info.get("port", 11499))
                 holder_token = str(info.get("auth_token", ""))
+                run_env["HOLDER_INTEGRATION_BASE_URL"] = f"http://{holder_bind}:{holder_port}"
+                run_env["HOLDER_INTEGRATION_AUTH_TOKEN"] = holder_token
 
                 if shutil.which("curl"):
                     health_ok = False

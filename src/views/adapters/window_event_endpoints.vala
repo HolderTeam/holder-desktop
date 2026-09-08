@@ -222,6 +222,14 @@ internal class WindowToolboxEventSink : Object, IToolboxEventSink {
         owner.confirm_move_card_to_trash(card_id);
     }
 
+    public void reload_card_after_history_restore(string card_id) {
+        owner.reload_card_after_history_restore(card_id);
+    }
+
+    public void select_ai_thread_from_history(string thread_id) {
+        owner.select_ai_thread_from_history(thread_id);
+    }
+
     public void send_current_card_as_email() {
         owner.send_current_card_as_email();
     }
@@ -292,6 +300,14 @@ internal class WindowToolboxEventSource : Object, IToolboxEventSource {
         toolbox.flowboard_new_card_requested.connect((parent_card_id) => {
             flowboard_new_card_requested(parent_card_id);
         });
+        toolbox.history_copy_as_card_requested.connect((title, content) => {
+            history_copy_as_card_requested(title, content);
+        });
+        toolbox.history_restore_succeeded.connect((_project_id, card_id) => {
+            history_restore_succeeded(card_id);
+        });
+        toolbox.history_card_open_requested.connect((card_id) => { history_card_open_requested(card_id); });
+        toolbox.history_ai_thread_open_requested.connect((thread_id) => { history_ai_thread_open_requested(thread_id); });
         toolbox.send_card_as_email_requested.connect(() => {
             send_card_as_email_requested();
         });

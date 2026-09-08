@@ -231,10 +231,34 @@ public class ProjectCalendar : Object {
     }
 }
 
+public class CardHistorySave : Object {
+    public string oid { get; construct; }
+    public string[] parent_oids;
+    public int64 authored_at { get; construct; }
+    public int64 committed_at { get; construct; }
+    public string message { get; construct; }
+
+    public CardHistorySave(string oid,
+                           string[] parent_oids,
+                           int64 committed_at,
+                           int64 authored_at = 0,
+                           string message = "") {
+        Object(
+            oid: oid,
+            authored_at: authored_at > 0 ? authored_at : committed_at,
+            committed_at: committed_at,
+            message: message
+        );
+        this.parent_oids = parent_oids;
+    }
+}
+
 public class CardHistoryEntry : Object {
     public string first_oid { get; construct; }
     public string last_oid { get; construct; }
     public string[] parent_oids;
+    // Direct parents that are also present in the current history page.
+    public string[] visible_parent_oids;
     public string author_name { get; construct; }
     public string author_email { get; construct; }
     public int64 started_at { get; construct; }
@@ -243,6 +267,7 @@ public class CardHistoryEntry : Object {
     public string summary { get; construct; }
     public int commit_count { get; construct; }
     public bool is_merge { get; construct; }
+    public CardHistorySave[] saves;
 
     public CardHistoryEntry(string first_oid,
                             string last_oid,
@@ -254,7 +279,9 @@ public class CardHistoryEntry : Object {
                             string kind,
                             string summary,
                             int commit_count,
-                            bool is_merge) {
+                            bool is_merge,
+                            CardHistorySave[] saves = {},
+                            string[] visible_parent_oids = {}) {
         Object(
             first_oid: first_oid,
             last_oid: last_oid,
@@ -268,6 +295,8 @@ public class CardHistoryEntry : Object {
             is_merge: is_merge
         );
         this.parent_oids = parent_oids;
+        this.visible_parent_oids = visible_parent_oids;
+        this.saves = saves;
     }
 }
 
@@ -275,11 +304,13 @@ public class CardHistoryPage : Object {
     public string? head_oid { get; construct; }
     public CardHistoryEntry[] entries;
     public string? next_cursor { get; construct; }
+    public bool scan_limited { get; construct; }
 
     public CardHistoryPage(string? head_oid,
                            CardHistoryEntry[] entries,
-                           string? next_cursor) {
-        Object(head_oid: head_oid, next_cursor: next_cursor);
+                           string? next_cursor,
+                           bool scan_limited = false) {
+        Object(head_oid: head_oid, next_cursor: next_cursor, scan_limited: scan_limited);
         this.entries = entries;
     }
 }
@@ -327,6 +358,55 @@ public class CardHistoryComparison : Object {
             truncated: truncated
         );
         this.lines = lines;
+    }
+}
+
+public class ProjectHistoryAffectedPath : Object {
+    public string path { get; construct; }
+    public string? title { get; construct; }
+    public string? detail { get; construct; }
+    public ProjectHistoryAffectedPath(string path, string? title = null, string? detail = null) {
+        Object(path: path, title: title, detail: detail);
+    }
+}
+
+public class ProjectHistoryAffectedObject : Object {
+    public string kind { get; construct; }
+    public ProjectHistoryAffectedPath[] items;
+    public ProjectHistoryAffectedObject(string kind, ProjectHistoryAffectedPath[] items) {
+        Object(kind: kind);
+        this.items = items;
+    }
+}
+
+public class ProjectHistoryActivity : Object {
+    public string oid { get; construct; }
+    public string[] parent_oids;
+    public string author_name { get; construct; }
+    public string author_email { get; construct; }
+    public int64 committed_at { get; construct; }
+    public string message { get; construct; }
+    public ProjectHistoryAffectedObject[] affected_objects;
+    public bool is_merge { get; construct; }
+    public ProjectHistoryActivity(string oid, string[] parent_oids, string author_name,
+                                  string author_email, int64 committed_at, string message,
+                                  ProjectHistoryAffectedObject[] affected_objects, bool is_merge) {
+        Object(oid: oid, author_name: author_name, author_email: author_email,
+               committed_at: committed_at, message: message, is_merge: is_merge);
+        this.parent_oids = parent_oids;
+        this.affected_objects = affected_objects;
+    }
+}
+
+public class ProjectHistoryPage : Object {
+    public string? head_oid { get; construct; }
+    public ProjectHistoryActivity[] activities;
+    public string? next_cursor { get; construct; }
+    public bool scan_limited { get; construct; }
+    public ProjectHistoryPage(string? head_oid, ProjectHistoryActivity[] activities,
+                              string? next_cursor, bool scan_limited = false) {
+        Object(head_oid: head_oid, next_cursor: next_cursor, scan_limited: scan_limited);
+        this.activities = activities;
     }
 }
 
