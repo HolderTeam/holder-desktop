@@ -184,6 +184,13 @@ public interface IMilestoneApi : Object {
                                                        bool all_day,
                                                        string? kind,
                                                        string? description) throws Error;
+    public abstract async Milestone update_card_milestone(string card_id,
+                                                          string milestone_id,
+                                                          int64 start_at,
+                                                          int64? end_at,
+                                                          bool all_day,
+                                                          string? kind,
+                                                          string? description) throws Error;
     public abstract async bool remove_card_milestone(string card_id,
                                                      string milestone_id) throws Error;
 }

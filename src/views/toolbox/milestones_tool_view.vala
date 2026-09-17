@@ -130,7 +130,7 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         add_button = new Gtk.Button.from_icon_name("list-add-symbolic");
         add_button.set_tooltip_text("Add milestone");
         add_button.clicked.connect(() => {
-            show_add_form();
+            show_milestone_form();
         });
         actions_bar.append(add_button);
 
@@ -370,6 +370,12 @@ public class MilestonesToolView : Object, IToolShellAdapter {
             open.clicked.connect(() => { card_open_requested(milestone.card_id); });
             row.append(open);
 
+            var edit = new Gtk.Button.from_icon_name("document-edit-symbolic");
+            edit.add_css_class("flat");
+            edit.set_tooltip_text("Edit milestone");
+            edit.clicked.connect(() => { show_milestone_form(milestone); });
+            row.append(edit);
+
             var remove = new Gtk.Button.from_icon_name("user-trash-symbolic");
             remove.add_css_class("flat");
             remove.set_tooltip_text("Remove milestone");
@@ -501,10 +507,10 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         }
     }
 
-    private void show_add_form() {
+    private void show_milestone_form(Milestone? editing = null) {
         var milestone_api = api as IMilestoneApi;
         var project = selected_project();
-        if (milestone_api == null || project == null || card_store == null) {
+        if (milestone_api == null || project == null || (editing == null && card_store == null)) {
             toast_requested("Select a project and connect to Holder first.");
             return;
         }
@@ -512,79 +518,101 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         var card_ids = new Gee.ArrayList<string>();
         var card_names = new Gtk.StringList(null);
         uint selected_index = 0;
-        var selected_card = card_selection != null
-            ? card_selection.get_selected_item() as CardSummary : null;
-        for (uint i = 0; i < ((!) card_store).get_n_items(); i++) {
-            var card = ((!) card_store).get_item(i) as CardSummary;
-            if (card == null || card.project_id != project.project_id) continue;
-            if (selected_card != null && card.card_id == selected_card.card_id) {
-                selected_index = (uint) card_ids.size;
+        if (editing == null) {
+            var selected_card = card_selection != null
+                ? card_selection.get_selected_item() as CardSummary : null;
+            for (uint i = 0; i < ((!) card_store).get_n_items(); i++) {
+                var card = ((!) card_store).get_item(i) as CardSummary;
+                if (card == null || card.project_id != project.project_id) continue;
+                if (selected_card != null && card.card_id == selected_card.card_id) {
+                    selected_index = (uint) card_ids.size;
+                }
+                card_ids.add(card.card_id);
+                card_names.append(card.title);
             }
-            card_ids.add(card.card_id);
-            card_names.append(card.title);
-        }
-        if (card_ids.size == 0) {
-            toast_requested("Create a card before adding a milestone.");
-            return;
+            if (card_ids.size == 0) {
+                toast_requested("Create a card before adding a milestone.");
+                return;
+            }
         }
 
         clear_details();
         var content = new Gtk.Box(Gtk.Orientation.VERTICAL, 10);
         content.set_hexpand(true);
         content.set_margin_top(8);
-        var title = new Gtk.Label("Add milestone") { xalign = 0.0f };
+        var title = new Gtk.Label(editing == null ? "Add milestone" : "Edit milestone") {
+            xalign = 0.0f
+        };
         title.add_css_class("title-3");
         content.append(title);
-        var subtitle = new Gtk.Label("Attach a date to a card in this project.") {
+        var subtitle = new Gtk.Label(editing == null
+            ? "Attach a date to a card in this project."
+            : "Update this milestone without changing its identity.") {
             xalign = 0.0f,
             wrap = true
         };
         subtitle.add_css_class("dim-label");
         content.append(subtitle);
         content.append(form_label("Card"));
-        var card_dropdown = new Gtk.DropDown(card_names, null);
-        card_dropdown.set_selected(selected_index);
-        content.append(card_dropdown);
+        Gtk.DropDown? card_dropdown = null;
+        if (editing == null) {
+            card_dropdown = new Gtk.DropDown(card_names, null);
+            ((!) card_dropdown).set_selected(selected_index);
+            content.append((!) card_dropdown);
+        } else {
+            var card_name = ((!) editing).card_title ?? ((!) editing).card_id;
+            var card_label = new Gtk.Label(card_name) { xalign = 0.0f };
+            content.append(card_label);
+        }
+
+        var initial_start = editing != null
+            ? new DateTime.from_unix_local(((!) editing).start_at)
+            : calendar.get_date();
+        var initial_end = editing != null && ((!) editing).end_at != null
+            ? new DateTime.from_unix_local((!) ((!) editing).end_at)
+            : initial_start;
 
         var date_columns = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 12);
         var start_column = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
         start_column.set_hexpand(true);
         start_column.append(form_label("Start"));
         var start_calendar = new Gtk.Calendar();
-        CalendarCompat.set_date(start_calendar, calendar.get_date());
+        CalendarCompat.set_date(start_calendar, initial_start);
         start_column.append(start_calendar);
         date_columns.append(start_column);
 
         var end_column = new Gtk.Box(Gtk.Orientation.VERTICAL, 4);
         end_column.set_hexpand(true);
         var include_end = new Gtk.CheckButton.with_label("Add end");
+        include_end.set_active(editing != null && ((!) editing).end_at != null);
         end_column.append(include_end);
         var end_calendar = new Gtk.Calendar();
-        CalendarCompat.set_date(end_calendar, calendar.get_date());
-        end_calendar.set_sensitive(false);
+        CalendarCompat.set_date(end_calendar, initial_end);
+        end_calendar.set_sensitive(include_end.get_active());
         end_column.append(end_calendar);
         date_columns.append(end_column);
         content.append(date_columns);
 
         var all_day = new Gtk.Switch();
-        all_day.set_active(true);
+        all_day.set_active(editing == null || ((!) editing).all_day);
         var all_day_row = form_row("All day", all_day);
         content.append(all_day_row);
 
         var time_box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         var now = new DateTime.now_local();
-        var start_hour = spin(0, 23, now.get_hour());
-        var start_minute = spin(0, 59, now.get_minute());
-        var end_hour = spin(0, 23, now.get_hour() + 1 > 23 ? 23 : now.get_hour() + 1);
-        var end_minute = spin(0, 59, now.get_minute());
-        end_hour.set_sensitive(false);
-        end_minute.set_sensitive(false);
+        var default_end_hour = now.get_hour() + 1 > 23 ? 23 : now.get_hour() + 1;
+        var start_hour = spin(0, 23, editing != null ? initial_start.get_hour() : now.get_hour());
+        var start_minute = spin(0, 59, editing != null ? initial_start.get_minute() : now.get_minute());
+        var end_hour = spin(0, 23, editing != null ? initial_end.get_hour() : default_end_hour);
+        var end_minute = spin(0, 59, editing != null ? initial_end.get_minute() : now.get_minute());
+        end_hour.set_sensitive(include_end.get_active());
+        end_minute.set_sensitive(include_end.get_active());
         time_box.append(form_label("Start time"));
         time_box.append(start_hour); time_box.append(new Gtk.Label(":")); time_box.append(start_minute);
         time_box.append(new Gtk.Separator(Gtk.Orientation.VERTICAL));
         time_box.append(form_label("End time"));
         time_box.append(end_hour); time_box.append(new Gtk.Label(":")); time_box.append(end_minute);
-        time_box.set_sensitive(false);
+        time_box.set_sensitive(!all_day.get_active());
         content.append(time_box);
         all_day.notify["active"].connect(() => { time_box.set_sensitive(!all_day.get_active()); });
         include_end.toggled.connect(() => {
@@ -601,6 +629,9 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         kind_box.set_column_spacing(4);
         var kind_entry = new Gtk.Entry();
         kind_entry.set_placeholder_text("Kind (optional)");
+        if (editing != null && ((!) editing).kind != null) {
+            kind_entry.set_text((!) ((!) editing).kind);
+        }
         string[] kinds = { "Deadline", "Appointment", "Event", "Exam", "Birthday",
             "Expiry", "Renewal", "Service", "MOT" };
         foreach (var kind in kinds) {
@@ -615,6 +646,9 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         content.append(form_label("Description"));
         var description = new Gtk.Entry();
         description.set_placeholder_text("Description (optional)");
+        if (editing != null && ((!) editing).description != null) {
+            description.set_text((!) ((!) editing).description);
+        }
         content.append(description);
 
         var form_actions = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 8);
@@ -628,11 +662,19 @@ public class MilestonesToolView : Object, IToolShellAdapter {
             else render_selected_day();
         });
         form_actions.append(cancel);
-        var submit = new Gtk.Button.with_label("Add milestone");
+        var submit = new Gtk.Button.with_label(
+            editing == null ? "Add milestone" : "Save changes"
+        );
         submit.add_css_class("suggested-action");
         submit.clicked.connect(() => {
-            var index = card_dropdown.get_selected();
-            if (index == Gtk.INVALID_LIST_POSITION || index >= card_ids.size) return;
+            string card_id;
+            if (editing == null) {
+                var index = ((!) card_dropdown).get_selected();
+                if (index == Gtk.INVALID_LIST_POSITION || index >= card_ids.size) return;
+                card_id = card_ids[(int) index];
+            } else {
+                card_id = ((!) editing).card_id;
+            }
             var start_date = start_calendar.get_date();
             var start_at = date_with_time(
                 start_date,
@@ -653,13 +695,25 @@ public class MilestonesToolView : Object, IToolShellAdapter {
                 }
             }
             submit.set_sensitive(false);
-            add_milestone.begin(
-                card_ids[(int) index], start_at, end_at, all_day.get_active(),
-                kind_entry.get_text(), description.get_text(),
-                (obj, result) => {
-                    if (!add_milestone.end(result)) submit.set_sensitive(true);
-                }
-            );
+            var kind_value = optional_text(kind_entry.get_text());
+            var description_value = optional_text(description.get_text());
+            if (editing == null) {
+                add_milestone.begin(
+                    card_id, start_at, end_at, all_day.get_active(),
+                    kind_value, description_value,
+                    (obj, result) => {
+                        if (!add_milestone.end(result)) submit.set_sensitive(true);
+                    }
+                );
+            } else {
+                update_milestone.begin(
+                    (!) editing, start_at, end_at, all_day.get_active(),
+                    kind_value, description_value,
+                    (obj, result) => {
+                        if (!update_milestone.end(result)) submit.set_sensitive(true);
+                    }
+                );
+            }
         });
         form_actions.append(submit);
         content.append(form_actions);
@@ -691,6 +745,33 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         }
     }
 
+    private async bool update_milestone(Milestone milestone,
+                                        int64 start_at,
+                                        int64? end_at,
+                                        bool all_day,
+                                        string? kind,
+                                        string? description) {
+        var milestone_api = api as IMilestoneApi;
+        if (milestone_api == null) return false;
+        try {
+            yield milestone_api.update_card_milestone(
+                milestone.card_id,
+                milestone.milestone_id,
+                start_at,
+                end_at,
+                all_day,
+                kind,
+                description
+            );
+            toast_requested("Milestone updated.");
+            queue_refresh();
+            return true;
+        } catch (Error e) {
+            error_reported("Failed to update milestone", e.message);
+            return false;
+        }
+    }
+
     private Gtk.Label form_label(string text) {
         var label = new Gtk.Label(text) { xalign = 0.0f };
         label.add_css_class("heading");
@@ -716,6 +797,11 @@ public class MilestonesToolView : Object, IToolShellAdapter {
         return new DateTime.local(
             date.get_year(), date.get_month(), date.get_day_of_month(), hour, minute, 0.0
         );
+    }
+
+    private string? optional_text(string text) {
+        var normalized = text.strip();
+        return normalized.length > 0 ? normalized : null;
     }
 }
 

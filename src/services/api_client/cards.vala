@@ -186,6 +186,41 @@ public class ApiClientCardsEndpoints : Object { // LCOV_EXCL_BR_LINE: declaratio
         return data.has_member("removed") && data.get_boolean_member("removed");
     }
 
+    public static async Milestone update_card_milestone(ApiClient client,
+                                                        string card_id,
+                                                        string milestone_id,
+                                                        int64 start_at,
+                                                        int64? end_at,
+                                                        bool all_day,
+                                                        string? kind,
+                                                        string? description) throws Error {
+        var body = new Json.Builder();
+        body.begin_object();
+        body.set_member_name("start_at"); body.add_int_value(start_at);
+        body.set_member_name("end_at");
+        if (end_at == null) body.add_null_value(); else body.add_int_value((!) end_at);
+        body.set_member_name("all_day"); body.add_boolean_value(all_day);
+        body.set_member_name("kind");
+        if (kind == null || kind.strip().length == 0) body.add_null_value();
+        else body.add_string_value(kind.strip());
+        body.set_member_name("description");
+        if (description == null || description.strip().length == 0) body.add_null_value();
+        else body.add_string_value(description.strip());
+        body.end_object();
+        var root = yield client.request_json(
+            "PATCH",
+            "/cards/%s/milestones/%s".printf(
+                Uri.escape_string(card_id), Uri.escape_string(milestone_id)
+            ),
+            client.json_string_from_builder(body),
+            null
+        );
+        if (!root.has_member("data")) {
+            throw new ApiError.PROTOCOL("Missing data for milestone update response");
+        }
+        return ApiParsersCards.parse_milestone(root.get_object_member("data"));
+    }
+
     public static async Gee.ArrayList<TagCount> list_project_tags(ApiClient client,
                                                                   string project_id) throws Error {
         var root = yield client.request_json(

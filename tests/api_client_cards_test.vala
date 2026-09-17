@@ -270,6 +270,10 @@ private void test_calendar_and_milestone_endpoints() {
         "\"start_at\":300,\"end_at\":360,\"all_day\":false,\"kind\":\"Service\"," +
         "\"description\":\"Boiler\",\"created_at\":2,\"updated_at\":2}}");
     transport.enqueue_read(200,
+        "{\"ok\":true,\"data\":{\"milestone_id\":\"m2\",\"card_id\":\"c1\"," +
+        "\"start_at\":320,\"end_at\":null,\"all_day\":true,\"kind\":null," +
+        "\"description\":null,\"created_at\":2,\"updated_at\":3}}");
+    transport.enqueue_read(200,
         "{\"ok\":true,\"data\":{\"card_id\":\"c1\",\"milestone_id\":\"m2\",\"removed\":true}}");
     var client = make_client(transport);
 
@@ -304,6 +308,26 @@ private void test_calendar_and_milestone_endpoints() {
     assert(wait_for_condition(() => add_done));
     assert(added != null && added.kind == "Service");
     assert(transport.last_method == "POST");
+
+    bool update_done = false;
+    HolderLinux.Milestone? updated = null;
+    client.update_card_milestone.begin(
+        "c1", "m2", 320, null, true, null, null,
+        (obj, res) => {
+            try { updated = client.update_card_milestone.end(res); }
+            catch (Error e) { updated = null; }
+            update_done = true;
+        }
+    );
+    assert(wait_for_condition(() => update_done));
+    assert(updated != null);
+    assert(updated.milestone_id == "m2");
+    assert(updated.created_at == 2);
+    assert(updated.updated_at == 3);
+    assert(updated.end_at == null);
+    assert(updated.kind == null);
+    assert(transport.last_method == "PATCH");
+    assert(transport.last_uri.contains("/cards/c1/milestones/m2"));
 
     bool delete_done = false;
     bool removed = false;

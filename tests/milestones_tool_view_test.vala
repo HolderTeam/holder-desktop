@@ -63,14 +63,41 @@ private Gtk.Button? find_button_with_label(Gtk.Widget root, string label) {
     return null;
 }
 
+private Gtk.Entry? find_entry_with_placeholder(Gtk.Widget root, string placeholder) {
+    if (root is Gtk.Entry && ((Gtk.Entry) root).get_placeholder_text() == placeholder) {
+        return (Gtk.Entry) root;
+    }
+    var child = root.get_first_child();
+    while (child != null) {
+        var found = find_entry_with_placeholder(child, placeholder);
+        if (found != null) return found;
+        child = child.get_next_sibling();
+    }
+    return null;
+}
+
+private Gtk.CheckButton? find_check_with_label(Gtk.Widget root, string label) {
+    if (root is Gtk.CheckButton && ((Gtk.CheckButton) root).get_label() == label) {
+        return (Gtk.CheckButton) root;
+    }
+    var child = root.get_first_child();
+    while (child != null) {
+        var found = find_check_with_label(child, label);
+        if (found != null) return found;
+        child = child.get_next_sibling();
+    }
+    return null;
+}
+
 private void test_calendar_marks_activity_and_renders_selected_day() {
     var api = new MainControllerFakeApi();
     var now = new DateTime.now_local();
     var day = new DateTime.local(
         now.get_year(), now.get_month(), now.get_day_of_month(), 12, 0, 0.0
     ).to_unix();
+    var milestone_end = day + 3600;
     api.milestones.add(new HolderLinux.Milestone(
-        "m1", "c1", day, null, true, "Deadline", "Submit it", 1, 1, "Homework"
+        "m1", "c1", day, milestone_end, false, "Deadline", "Submit it", 1, 1, "Homework"
     ));
     api.calendar_created_cards.add(new HolderLinux.CalendarCardActivity(
         "c2", "New note", day, day
@@ -86,6 +113,8 @@ private void test_calendar_marks_activity_and_renders_selected_day() {
     card_selection.set_selected(0);
 
     var view = new HolderLinux.MilestonesToolView();
+    string? toast_message = null;
+    view.toast_requested.connect((message) => { toast_message = message; });
     view.set_api_client(api);
     view.bind_context(project_selection, cards, card_selection);
     view.set_tool_visible(true);
@@ -98,6 +127,35 @@ private void test_calendar_marks_activity_and_renders_selected_day() {
     assert(find_label(view.widget, "Homework") != null);
     assert(find_label(view.widget, "Cards created") != null);
     assert(find_label(view.widget, "New note") != null);
+
+    var edit = find_button_with_tooltip(view.widget, "Edit milestone");
+    assert(edit != null);
+    ((!) edit).clicked();
+    assert(find_label(view.widget, "Edit milestone") != null);
+    var kind = find_entry_with_placeholder(view.widget, "Kind (optional)");
+    var description = find_entry_with_placeholder(view.widget, "Description (optional)");
+    assert(kind != null && ((!) kind).get_text() == "Deadline");
+    assert(description != null && ((!) description).get_text() == "Submit it");
+    var include_end = find_check_with_label(view.widget, "Add end");
+    var all_day = find_widget(view.widget, typeof(Gtk.Switch)) as Gtk.Switch;
+    assert(include_end != null && ((!) include_end).get_active());
+    assert(all_day != null && !((!) all_day).get_active());
+    ((!) include_end).set_active(false);
+    ((!) kind).set_text("");
+    ((!) description).set_text("");
+    var save = find_button_with_label(view.widget, "Save changes");
+    assert(save != null);
+    ((!) save).clicked();
+    assert(wait_for_condition(() => api.update_card_milestone_calls == 1));
+    assert(api.last_milestone_card_id == "c1");
+    assert(api.last_milestone_id == "m1");
+    assert(api.last_milestone_kind == null);
+    assert(api.last_milestone_description == null);
+    assert(api.last_milestone_end_at == null);
+    assert(api.last_milestone_start_at == day);
+    assert(!api.last_milestone_all_day);
+    assert(toast_message == "Milestone updated.");
+    assert(wait_for_condition(() => find_label(view.widget, "Homework") != null));
 
     var actions = view.get_actions_widget();
     assert(actions != null);
