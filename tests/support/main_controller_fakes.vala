@@ -133,10 +133,18 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public int delete_card_link_calls = 0;
     public int get_project_calendar_calls = 0;
     public int add_card_milestone_calls = 0;
+    public int update_card_milestone_calls = 0;
     public int remove_card_milestone_calls = 0;
     public string last_calendar_project_id = "";
     public int64 last_calendar_from = 0;
     public int64 last_calendar_to = 0;
+    public string last_milestone_card_id = "";
+    public string last_milestone_id = "";
+    public int64 last_milestone_start_at = 0;
+    public int64? last_milestone_end_at = null;
+    public bool last_milestone_all_day = false;
+    public string? last_milestone_kind = null;
+    public string? last_milestone_description = null;
     public Gee.ArrayList<HolderLinux.Milestone> milestones = new Gee.ArrayList<HolderLinux.Milestone>();
     public Gee.ArrayList<HolderLinux.CalendarCardActivity> calendar_created_cards =
         new Gee.ArrayList<HolderLinux.CalendarCardActivity>();
@@ -1138,6 +1146,42 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         );
         milestones.add(milestone);
         return milestone;
+    }
+
+    public async HolderLinux.Milestone update_card_milestone(string card_id,
+                                                             string milestone_id,
+                                                             int64 start_at,
+                                                             int64? end_at,
+                                                             bool all_day,
+                                                             string? kind,
+                                                             string? description) throws Error {
+        update_card_milestone_calls++;
+        last_milestone_card_id = card_id;
+        last_milestone_id = milestone_id;
+        last_milestone_start_at = start_at;
+        last_milestone_end_at = end_at;
+        last_milestone_all_day = all_day;
+        last_milestone_kind = kind;
+        last_milestone_description = description;
+        for (var i = 0; i < milestones.size; i++) {
+            var existing = milestones[i];
+            if (existing.card_id != card_id || existing.milestone_id != milestone_id) continue;
+            var updated = new HolderLinux.Milestone(
+                milestone_id,
+                card_id,
+                start_at,
+                end_at,
+                all_day,
+                kind,
+                description,
+                existing.created_at,
+                existing.updated_at + 1,
+                existing.card_title
+            );
+            milestones[i] = updated;
+            return updated;
+        }
+        throw new IOError.NOT_FOUND("milestone not found");
     }
 
     public async bool remove_card_milestone(string card_id, string milestone_id) throws Error {

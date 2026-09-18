@@ -122,6 +122,25 @@ public class ApiClient : Object, IHolderApi, IResourceStorageApi, IMilestoneApi,
         );
     }
 
+    public async Milestone update_card_milestone(string card_id,
+                                                 string milestone_id,
+                                                 int64 start_at,
+                                                 int64? end_at,
+                                                 bool all_day,
+                                                 string? kind,
+                                                 string? description) throws Error {
+        return yield ApiClientCardsEndpoints.update_card_milestone(
+            this,
+            card_id,
+            milestone_id,
+            start_at,
+            end_at,
+            all_day,
+            kind,
+            description
+        );
+    }
+
     public async bool remove_card_milestone(string card_id,
                                             string milestone_id) throws Error {
         return yield ApiClientCardsEndpoints.remove_card_milestone(this, card_id, milestone_id);
