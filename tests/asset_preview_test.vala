@@ -5,12 +5,26 @@ namespace HolderLinuxTests {
 private class FakeStorageApi : Object, HolderLinux.IResourceStorageApi {
     public int downloads = 0;
     public string payload = "preview bytes";
+    public Error? download_error = null;
+    public bool corrupt_download = false;
+    public bool slow_once = false;
 
     public async void download_asset(string resource_id,
                                      string asset_id,
                                      string destination_path) throws Error {
         downloads++;
-        FileUtils.set_contents(destination_path, payload);
+        if (slow_once) {
+            slow_once = false;
+            var end = GLib.get_monotonic_time() + 50 * 1000;
+            while (GLib.get_monotonic_time() < end) {
+                while (MainContext.default().iteration(false)) {}
+                Thread.usleep(1000);
+            }
+        }
+        if (download_error != null) {
+            throw download_error;
+        }
+        FileUtils.set_contents(destination_path, corrupt_download ? "corrupted" : payload);
     }
 
     public async HolderLinux.StorageLocationList list_storage_locations(string project_id) throws Error {
@@ -379,6 +393,358 @@ private void test_cache_sanitizes_paths_and_reuses_valid_file() {
     assert(cache.validate_file((!) first_path, asset));
 }
 
+private string make_temp_cache_dir() {
+    try {
+        return DirUtils.make_tmp("holder-asset-cache-test-XXXXXX");
+    } catch (Error e) {
+        assert_not_reached();
+    }
+}
+
+private void test_validate_file_treats_missing_checksum_as_size_only() {
+    var temp_dir = make_temp_cache_dir();
+    var path = Path.build_filename(temp_dir, "plain.bin");
+    try {
+        FileUtils.set_contents(path, "hello");
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    var asset = new HolderLinux.ResourceAsset("a1", "r1", "plain.bin", "application/octet-stream", 5, "");
+    var cache = new HolderLinux.AssetCache(temp_dir);
+    assert(cache.validate_file(path, asset));
+
+    var wrong_size_asset = new HolderLinux.ResourceAsset("a1", "r1", "plain.bin", "application/octet-stream", 999, "");
+    assert(!cache.validate_file(path, wrong_size_asset));
+}
+
+private void test_validate_file_returns_false_when_the_file_cannot_be_read() {
+    var temp_dir = make_temp_cache_dir();
+    var path = Path.build_filename(temp_dir, "locked.bin");
+    var payload = "secret";
+    try {
+        FileUtils.set_contents(path, payload);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    FileUtils.chmod(path, 0000);
+
+    string? readable = null;
+    try {
+        FileUtils.get_contents(path, out readable);
+    } catch (Error e) {
+        readable = null;
+    }
+    if (readable != null) {
+        FileUtils.chmod(path, 0600);
+        Test.skip("file permissions are not enforced for this user");
+        return;
+    }
+
+    var asset = new HolderLinux.ResourceAsset(
+        "a1", "r1", "locked.bin", "application/octet-stream", payload.length,
+        Checksum.compute_for_string(ChecksumType.SHA256, payload)
+    );
+    var cache = new HolderLinux.AssetCache(temp_dir);
+    assert(!cache.validate_file(path, asset));
+    FileUtils.chmod(path, 0600);
+    assert(cache.validate_file(path, asset));
+}
+
+private void test_export_cached_copies_file_and_overwrites_existing_destination() {
+    var temp_dir = make_temp_cache_dir();
+    var source = Path.build_filename(temp_dir, "source.bin");
+    var destination = Path.build_filename(temp_dir, "exported.bin");
+    try {
+        FileUtils.set_contents(source, "exported bytes");
+        FileUtils.set_contents(destination, "stale");
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    var cache = new HolderLinux.AssetCache(temp_dir);
+
+    Error? failure = null;
+    var loop = new MainLoop();
+    cache.export_cached.begin(source, destination, null, (obj, result) => {
+        try {
+            cache.export_cached.end(result);
+        } catch (Error e) {
+            failure = e;
+        }
+        loop.quit();
+    });
+    loop.run();
+
+    assert(failure == null);
+    string contents;
+    try {
+        FileUtils.get_contents(destination, out contents);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    assert(contents == "exported bytes");
+}
+
+private void test_export_cached_reports_missing_source() {
+    var temp_dir = make_temp_cache_dir();
+    var cache = new HolderLinux.AssetCache(temp_dir);
+
+    Error? failure = null;
+    var loop = new MainLoop();
+    cache.export_cached.begin(
+        Path.build_filename(temp_dir, "does-not-exist.bin"),
+        Path.build_filename(temp_dir, "exported.bin"),
+        null,
+        (obj, result) => {
+            try {
+                cache.export_cached.end(result);
+            } catch (Error e) {
+                failure = e;
+            }
+            loop.quit();
+        }
+    );
+    loop.run();
+
+    assert(failure != null);
+    assert(failure is IOError.NOT_FOUND);
+    assert(!FileUtils.test(Path.build_filename(temp_dir, "exported.bin"), FileTest.EXISTS));
+}
+
+private void test_safe_filename_falls_back_for_dot_segments_and_sanitizes_characters() {
+    assert(HolderLinux.AssetCache.safe_filename("..") == "asset");
+    assert(HolderLinux.AssetCache.safe_filename(".") == "asset");
+    assert(HolderLinux.AssetCache.safe_filename("") == "asset");
+    assert(HolderLinux.AssetCache.safe_filename("my file!.png") == "my_file_.png");
+}
+
+private void test_cache_path_for_falls_back_when_asset_id_is_blank() {
+    var temp_dir = make_temp_cache_dir();
+    var cache = new HolderLinux.AssetCache(temp_dir);
+    var asset = new HolderLinux.ResourceAsset("", "r1", "picture.png", "image/png", 1, "");
+    assert(cache.cache_path_for(asset) == Path.build_filename(temp_dir, "asset", "picture.png"));
+}
+
+private void test_ensure_cached_fails_when_asset_directory_path_is_blocked() {
+    var temp_dir = make_temp_cache_dir();
+    var api = new FakeStorageApi();
+    var asset = make_asset(api.payload);
+    var resource = make_resource(asset);
+    var cache = new HolderLinux.AssetCache(temp_dir);
+
+    // Occupy the directory slot AssetCache needs for this asset's files with a plain file,
+    // so DirUtils.create_with_parents cannot create the directory and it isn't one already.
+    try {
+        FileUtils.set_contents(Path.build_filename(temp_dir, "a1"), "blocking file");
+    } catch (Error e) {
+        assert_not_reached();
+    }
+
+    Error? failure = null;
+    var loop = new MainLoop();
+    cache.ensure_cached.begin(api, resource, asset, null, (obj, result) => {
+        try {
+            cache.ensure_cached.end(result);
+        } catch (Error e) {
+            failure = e;
+        }
+        loop.quit();
+    });
+    loop.run();
+
+    assert(failure != null);
+    assert(((!) failure).message.contains("private Asset cache directory"));
+    assert(api.downloads == 0);
+}
+
+private void test_ensure_cached_removes_partial_file_and_rethrows_on_download_failure() {
+    var temp_dir = make_temp_cache_dir();
+    var api = new FakeStorageApi();
+    api.download_error = new IOError.FAILED("network unreachable");
+    var asset = make_asset(api.payload);
+    var resource = make_resource(asset);
+    var cache = new HolderLinux.AssetCache(temp_dir);
+
+    Error? failure = null;
+    var loop = new MainLoop();
+    cache.ensure_cached.begin(api, resource, asset, null, (obj, result) => {
+        try {
+            cache.ensure_cached.end(result);
+        } catch (Error e) {
+            failure = e;
+        }
+        loop.quit();
+    });
+    loop.run();
+
+    assert(failure != null);
+    assert(((!) failure).message == "network unreachable");
+    assert(!has_leftover_partial_files(Path.build_filename(temp_dir, "a1")));
+}
+
+private void test_ensure_cached_removes_partial_file_and_throws_on_checksum_mismatch() {
+    var temp_dir = make_temp_cache_dir();
+    var api = new FakeStorageApi();
+    api.corrupt_download = true;
+    var asset = make_asset(api.payload);
+    var resource = make_resource(asset);
+    var cache = new HolderLinux.AssetCache(temp_dir);
+
+    Error? failure = null;
+    var loop = new MainLoop();
+    cache.ensure_cached.begin(api, resource, asset, null, (obj, result) => {
+        try {
+            cache.ensure_cached.end(result);
+        } catch (Error e) {
+            failure = e;
+        }
+        loop.quit();
+    });
+    loop.run();
+
+    assert(failure != null);
+    assert(((!) failure).message.contains("integrity check"));
+    assert(!has_leftover_partial_files(Path.build_filename(temp_dir, "a1")));
+}
+
+private bool has_leftover_partial_files(string asset_dir) {
+    try {
+        var dir = Dir.open(asset_dir, 0);
+        string? name;
+        while ((name = dir.read_name()) != null) {
+            if (((!) name).contains(".partial-")) {
+                return true;
+            }
+        }
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    return false;
+}
+
+private void test_ensure_cached_with_live_cancellable_completes_successfully() {
+    var temp_dir = make_temp_cache_dir();
+    var api = new FakeStorageApi();
+    var asset = make_asset(api.payload);
+    var resource = make_resource(asset);
+    var cache = new HolderLinux.AssetCache(temp_dir);
+    var cancellable = new Cancellable();
+
+    string? result_path = null;
+    Error? failure = null;
+    var loop = new MainLoop();
+    cache.ensure_cached.begin(api, resource, asset, cancellable, (obj, result) => {
+        try {
+            result_path = cache.ensure_cached.end(result);
+        } catch (Error e) {
+            failure = e;
+        }
+        loop.quit();
+    });
+    loop.run();
+
+    assert(failure == null);
+    assert(result_path != null);
+}
+
+private void test_ensure_cached_serializes_concurrent_calls_for_the_same_cache() {
+    var temp_dir = make_temp_cache_dir();
+    var api = new FakeStorageApi();
+    api.slow_once = true;
+    var asset = make_asset(api.payload);
+    var resource = make_resource(asset);
+    var cache = new HolderLinux.AssetCache(temp_dir);
+
+    string? first_path = null;
+    string? second_path = null;
+    Error? first_error = null;
+    Error? second_error = null;
+    var loop = new MainLoop();
+    int pending = 2;
+
+    Timeout.add(5, () => {
+        cache.ensure_cached.begin(api, resource, asset, null, (obj, result) => {
+            try {
+                second_path = cache.ensure_cached.end(result);
+            } catch (Error e) {
+                second_error = e;
+            }
+            pending--;
+            if (pending == 0) {
+                loop.quit();
+            }
+        });
+        return Source.REMOVE;
+    });
+
+    cache.ensure_cached.begin(api, resource, asset, null, (obj, result) => {
+        try {
+            first_path = cache.ensure_cached.end(result);
+        } catch (Error e) {
+            first_error = e;
+        }
+        pending--;
+        if (pending == 0) {
+            loop.quit();
+        }
+    });
+
+    loop.run();
+
+    assert(first_error == null);
+    assert(second_error == null);
+    assert(first_path == second_path);
+    assert(api.downloads == 1);
+}
+
+private void test_ensure_cached_rejects_a_call_already_cancelled_while_waiting_for_the_lock() {
+    var temp_dir = make_temp_cache_dir();
+    var api = new FakeStorageApi();
+    api.slow_once = true;
+    var asset = make_asset(api.payload);
+    var resource = make_resource(asset);
+    var cache = new HolderLinux.AssetCache(temp_dir);
+    var cancellable = new Cancellable();
+
+    Error? first_error = null;
+    Error? second_error = null;
+    var loop = new MainLoop();
+    int pending = 2;
+
+    Timeout.add(5, () => {
+        cancellable.cancel();
+        cache.ensure_cached.begin(api, resource, asset, cancellable, (obj, result) => {
+            try {
+                cache.ensure_cached.end(result);
+            } catch (Error e) {
+                second_error = e;
+            }
+            pending--;
+            if (pending == 0) {
+                loop.quit();
+            }
+        });
+        return Source.REMOVE;
+    });
+
+    cache.ensure_cached.begin(api, resource, asset, null, (obj, result) => {
+        try {
+            cache.ensure_cached.end(result);
+        } catch (Error e) {
+            first_error = e;
+        }
+        pending--;
+        if (pending == 0) {
+            loop.quit();
+        }
+    });
+
+    loop.run();
+
+    assert(first_error == null);
+    assert(second_error != null);
+    assert(second_error is IOError.CANCELLED);
+}
+
 private void test_attachment_resolution_and_import_messages() {
     var asset = make_asset("preview bytes");
     var resource = make_resource(asset);
@@ -618,6 +984,30 @@ private void test_refresh_card_attachments_ignores_stale_request() {
 public static int main(string[] args) {
     Test.init(ref args);
     Test.add_func("/holder/asset-cache/validation-and-reuse", test_cache_sanitizes_paths_and_reuses_valid_file);
+    Test.add_func("/holder/asset-cache/validate-file-treats-missing-checksum-as-size-only",
+                  test_validate_file_treats_missing_checksum_as_size_only);
+    Test.add_func("/holder/asset-cache/validate-file-returns-false-when-unreadable",
+                  test_validate_file_returns_false_when_the_file_cannot_be_read);
+    Test.add_func("/holder/asset-cache/export-copies-and-overwrites",
+                  test_export_cached_copies_file_and_overwrites_existing_destination);
+    Test.add_func("/holder/asset-cache/export-reports-missing-source",
+                  test_export_cached_reports_missing_source);
+    Test.add_func("/holder/asset-cache/safe-filename-falls-back-and-sanitizes",
+                  test_safe_filename_falls_back_for_dot_segments_and_sanitizes_characters);
+    Test.add_func("/holder/asset-cache/cache-path-for-falls-back-on-blank-asset-id",
+                  test_cache_path_for_falls_back_when_asset_id_is_blank);
+    Test.add_func("/holder/asset-cache/fails-when-asset-directory-path-is-blocked",
+                  test_ensure_cached_fails_when_asset_directory_path_is_blocked);
+    Test.add_func("/holder/asset-cache/removes-partial-file-and-rethrows-on-download-failure",
+                  test_ensure_cached_removes_partial_file_and_rethrows_on_download_failure);
+    Test.add_func("/holder/asset-cache/removes-partial-file-and-throws-on-checksum-mismatch",
+                  test_ensure_cached_removes_partial_file_and_throws_on_checksum_mismatch);
+    Test.add_func("/holder/asset-cache/completes-successfully-with-live-cancellable",
+                  test_ensure_cached_with_live_cancellable_completes_successfully);
+    Test.add_func("/holder/asset-cache/serializes-concurrent-calls",
+                  test_ensure_cached_serializes_concurrent_calls_for_the_same_cache);
+    Test.add_func("/holder/asset-cache/rejects-cancelled-call-while-waiting-for-lock",
+                  test_ensure_cached_rejects_a_call_already_cancelled_while_waiting_for_the_lock);
     Test.add_func("/holder/asset-preview/attachments-and-messages", test_attachment_resolution_and_import_messages);
     Test.add_func("/holder/asset-preview/refresh-short-circuits-on-missing-input",
                   test_refresh_card_attachments_short_circuits_on_missing_input);
