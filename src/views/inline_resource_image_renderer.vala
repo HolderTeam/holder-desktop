@@ -205,16 +205,13 @@ public class InlineResourceImageRenderer : Object {
             var decoration = decorations[i];
             var item = items[i];
             if (decoration.anchor.get_deleted() ||
-                decoration.item.resource.resource_id != item.resource.resource_id ||
-                decoration.item.resource.label != item.resource.label ||
-                decoration.item.asset.asset_id != item.asset.asset_id ||
-                decoration.item.reference.alt_text != item.reference.alt_text) {
+                !InlineImageDecorationPlan.same_content(decoration.item, item)) {
                 return false;
             }
             Gtk.TextIter anchor_iter;
             buffer.get_iter_at_child_anchor(out anchor_iter, decoration.anchor);
             var text_before_anchor = buffer.get_text(document_start, anchor_iter, false);
-            if (text_before_anchor.char_count() != item.reference.char_offset) {
+            if (!InlineImageDecorationPlan.anchor_at_expected_offset(text_before_anchor.char_count(), item)) {
                 return false;
             }
         }
@@ -251,7 +248,7 @@ public class InlineResourceImageRenderer : Object {
     }
 
     private void update_decoration_widths() {
-        var width = view.get_width() > 160 ? view.get_width() - 80 : 560;
+        var width = InlineImageDecorationPlan.decoration_width(view.get_width());
         foreach (var decoration in decorations) {
             decoration.button.set_size_request(width, -1);
         }

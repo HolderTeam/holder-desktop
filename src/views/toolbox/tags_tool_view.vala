@@ -231,7 +231,7 @@ public class TagsToolView : Object, IToolShellAdapter {
                 return;
             }
             all_tags = loaded_tags;
-            all_tags.sort((a, b) => { return strcmp(a.tag, b.tag); });
+            TagsPresenter.sort_tags(all_tags);
             rebuild_cloud();
             rebuild_card_tags(detail);
             if (pending_tag != null) {
@@ -254,7 +254,7 @@ public class TagsToolView : Object, IToolShellAdapter {
             return;
         }
         foreach (var tag in detail.tags) {
-            card_tags_box.append(build_tag_button(tag, -1, ""));
+            card_tags_box.append(build_tag_button(TagsPresenter.card_tag_chip(tag)));
         }
     }
 
@@ -263,44 +263,25 @@ public class TagsToolView : Object, IToolShellAdapter {
             return;
         }
         clear_flow_box(cloud_box);
-        var filter = search_entry != null ? search_entry.get_text().strip().down() : "";
-        var max_count = 0;
-        foreach (var entry in all_tags) {
-            max_count = int.max(max_count, entry.card_count);
+        var filter = search_entry != null ? search_entry.get_text() : "";
+        var presentation = TagsPresenter.cloud(all_tags, filter);
+        foreach (var chip in presentation.chips) {
+            cloud_box.append(build_tag_button(chip));
         }
-        var shown = 0;
-        foreach (var entry in all_tags) {
-            if (filter.length > 0 && !entry.tag.down().contains(filter)) {
-                continue;
-            }
-            var css_class = "";
-            if (max_count > 1 && entry.card_count * 3 >= max_count * 2) {
-                css_class = "title-4";
-            } else if (max_count > 1 && entry.card_count * 3 >= max_count) {
-                css_class = "heading";
-            }
-            cloud_box.append(build_tag_button(entry.tag, entry.card_count, css_class));
-            shown++;
-        }
-        cloud_empty.set_text(filter.length > 0 && shown == 0
-            ? "No tags match this filter."
-            : "No tags in this project yet.");
-        cloud_empty.set_visible(shown == 0);
+        cloud_empty.set_text(presentation.empty_text);
+        cloud_empty.set_visible(presentation.empty_visible);
     }
 
-    private Gtk.Widget build_tag_button(string tag, int count, string css_class) {
-        var label_text = count >= 0 ? "#%s  %d".printf(tag, count) : "#%s".printf(tag);
-        var label = new Gtk.Label(label_text);
-        if (css_class.length > 0) {
-            label.add_css_class(css_class);
+    private Gtk.Widget build_tag_button(TagChip chip) {
+        var label = new Gtk.Label(chip.label);
+        if (chip.css_class.length > 0) {
+            label.add_css_class(chip.css_class);
         }
         var button = new Gtk.Button();
         button.set_child(label);
         button.add_css_class("pill");
-        button.set_tooltip_text(count >= 0
-            ? "%d %s tagged #%s".printf(count, count == 1 ? "card" : "cards", tag)
-            : "Show cards tagged #%s".printf(tag));
-        var selected_tag = tag;
+        button.set_tooltip_text(chip.tooltip);
+        var selected_tag = chip.tag;
         button.clicked.connect(() => { show_tag(selected_tag); });
         return button;
     }
@@ -325,7 +306,7 @@ public class TagsToolView : Object, IToolShellAdapter {
                 var title = new Gtk.Label(card.title) { xalign = 0.0f };
                 title.set_ellipsize(Pango.EllipsizeMode.END);
                 row.append(title);
-                var updated = new Gtk.Label(format_updated_at(card.updated_at)) { xalign = 0.0f };
+                var updated = new Gtk.Label(TagsPresenter.format_updated_at(card.updated_at)) { xalign = 0.0f };
                 updated.add_css_class("caption");
                 updated.add_css_class("dim-label");
                 row.append(updated);
@@ -373,14 +354,6 @@ public class TagsToolView : Object, IToolShellAdapter {
             box.remove(child);
             child = next;
         }
-    }
-
-    private static string format_updated_at(int64 timestamp) {
-        if (timestamp <= 0) {
-            return "";
-        }
-        var updated = new DateTime.from_unix_local(timestamp);
-        return "Updated %s".printf(updated.format("%x %R"));
     }
 }
 

@@ -959,7 +959,7 @@ public class ConnectionsController : Object {
         return null;
     }
 
-    private string link_markup(string kind, string id, string title) {
+    public string link_markup(string kind, string id, string title) {
         var href = "%s:%s".printf(kind, Uri.escape_string(id, null, false));
         return "<a href=\"%s\">%s</a>".printf(
             Markup.escape_text(href),

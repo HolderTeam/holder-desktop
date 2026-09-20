@@ -1,15 +1,11 @@
 namespace HolderLinux {
 
 public class ConnectionsToolView : Object, IToolShellAdapter {
-    private const int BOARD_NODE_WIDTH = 220;
-    private const int BOARD_NODE_HEIGHT = 76;
-    private const int BOARD_PADDING = 48;
-    private const int BOARD_MIN_WIDTH = 900;
-    private const int BOARD_MIN_HEIGHT = 240;
-    private const int BOARD_BOTTOM_PADDING = 16;
-    private const int PROJECT_MODE_MAX_NODES = 12;
-    private const uint PROJECT_EMPTY_STATE_DELAY_MS = 250;
-    private const uint GRAPH_REFRESH_DEBOUNCE_MS = 100;
+    private const int BOARD_NODE_WIDTH = ConnectionsBoardPresenter.NODE_WIDTH;
+    private const int BOARD_NODE_HEIGHT = ConnectionsBoardPresenter.NODE_HEIGHT;
+    private const int BOARD_PADDING = ConnectionsBoardPresenter.PADDING;
+    private const int BOARD_MIN_WIDTH = ConnectionsBoardPresenter.MIN_WIDTH;
+    private const int BOARD_MIN_HEIGHT = ConnectionsBoardPresenter.MIN_HEIGHT;
     [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
     private static extern void gtk_style_context_add_provider_for_display(
         Gdk.Display display,
@@ -40,10 +36,11 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     private Gtk.SingleSelection? card_selection;
     private IHolderApi? api;
     private Settings? settings;
-    private uint connections_graph_refresh_serial = 0;
-    private uint connections_graph_generation = 0;
-    private uint connections_graph_content_generation = 0;
     private ConnectionsController controller;
+    private ConnectionsRefreshPlanner refresh_planner;
+    private ConnectionsRelationsPresenter relations_presenter;
+    private ConnectionsBoardPresenter board_presenter;
+    private ConnectionsBoardBuilder board_builder;
     private Gee.ArrayList<string> internal_links_cache = new Gee.ArrayList<string>();
     private Gee.ArrayList<ConnectionsBoardNode> board_nodes = new Gee.ArrayList<ConnectionsBoardNode>();
     private Gee.ArrayList<ConnectionsBoardEdge> board_edges = new Gee.ArrayList<ConnectionsBoardEdge>();
@@ -51,30 +48,12 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     private uint relations_default_split_idle_id = 0;
     private bool show_projects_root = false;
     private bool has_committed_board = false;
-    private uint pending_project_empty_state_id = 0;
-    private bool is_tool_visible = false;
-    private bool pending_refresh_when_visible = false;
-    private uint pending_graph_refresh_id = 0;
-    private bool graph_refresh_in_flight = false;
-    private bool pending_graph_refresh_after_flight = false;
-    private ConnectionsGraphRefreshTarget? pending_graph_refresh_target = null;
-    private ConnectionsGraphRefreshTarget? in_flight_graph_refresh_target = null;
-    private ConnectionsGraphRefreshTarget? committed_graph_refresh_target = null;
-    private uint committed_graph_refresh_generation = 0;
-
-    private bool project_has_known_cards(Project project) {
-        return project.root_card_count > 0;
-    }
 
     private void note_graph_refresh_content_changed() {
-        connections_graph_content_generation++;
+        refresh_planner.note_content_changed();
     }
 
-    private void debug_graph_refresh(string event_name, ConnectionsGraphRefreshTarget target) {
-        debug_log_requested(controller.format_graph_refresh_debug_event(event_name, target));
-    }
-
-    private ConnectionsGraphRefreshTarget current_graph_refresh_target() {
+    private ConnectionsGraphRefreshTarget current_graph_refresh_target(uint content_generation) {
         var selected_project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
@@ -85,7 +64,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             show_projects_root,
             selected_project,
             selected_card,
-            connections_graph_content_generation
+            content_generation
         );
     }
 
@@ -107,6 +86,22 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
 
     public ConnectionsToolView() {
         controller = new ConnectionsController();
+        relations_presenter = new ConnectionsRelationsPresenter(controller);
+        board_presenter = new ConnectionsBoardPresenter(controller);
+        board_builder = new ConnectionsBoardBuilder(controller);
+        refresh_planner = new ConnectionsRefreshPlanner(
+            new MainLoopScheduler(),
+            (content_generation) => current_graph_refresh_target(content_generation)
+        );
+        refresh_planner.debug_event.connect((event_name, target) => {
+            debug_log_requested(controller.format_graph_refresh_debug_event(event_name, target));
+        });
+        refresh_planner.refresh_dispatched.connect((serial, generation, target) => {
+            refresh_connections_graph.begin(serial, generation, target);
+        });
+        refresh_planner.empty_state_check_due.connect((project_id) => {
+            show_empty_project_state_if_still_empty(project_id);
+        });
         ensure_connections_css();
         widget = build_connections_tab();
     }
@@ -128,14 +123,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     }
 
     public void set_tool_visible(bool visible) {
-        if (is_tool_visible == visible) {
-            return;
-        }
-        is_tool_visible = visible;
-        if (is_tool_visible && pending_refresh_when_visible) {
-            pending_refresh_when_visible = false;
-            queue_connections_graph_refresh();
-        }
+        refresh_planner.set_tool_visible(visible);
     }
 
     public void set_settings(Settings? settings) {
@@ -171,33 +159,8 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     }
 
     public ToolScopeSnapshot get_scope_snapshot(Project? selected_project, CardSummary? selected_card) {
-        var project_id = selected_project != null ? selected_project.project_id : null;
-        var project_label = selected_project != null ? selected_project.name : "(none)";
-        var card_id = selected_card != null ? selected_card.card_id : null;
-        var card_label = selected_card != null ? selected_card.title : "Overview";
-
-        ToolScopeMode scope_mode = ToolScopeMode.CARD_FOCUS;
-        if (show_projects_root) {
-            scope_mode = ToolScopeMode.PROJECTS_ROOT;
-            project_id = null;
-            project_label = "Projects";
-            card_id = null;
-            card_label = "Overview";
-        } else if (selected_card == null) {
-            scope_mode = ToolScopeMode.PROJECT_ROOT;
-            card_id = null;
-            card_label = "Overview";
-        }
-
-        return new ToolScopeSnapshot(
-            tool_id,
-            tool_label,
-            project_id,
-            project_label,
-            card_id,
-            card_label,
-            scope_mode,
-            false
+        return ToolScopePresenter.snapshot_with_projects_root(
+            tool_id, tool_label, show_projects_root, selected_project, selected_card
         );
     }
 
@@ -442,146 +405,47 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         update_add_graph_link_button_state();
     }
 
-    private string link_markup(string kind, string id, string title) {
-        var href = "%s:%s".printf(kind, Uri.escape_string(id, null, false));
-        return "<a href=\"%s\">%s</a>".printf(
-            Markup.escape_text(href),
-            Markup.escape_text(controller.ellipsize_title(title))
-        );
+    private void apply_relations(ConnectionsRelationsPresentation presentation) {
+        apply_relations_text(connections_relations_structure_label, presentation.structure);
+        apply_relations_text(connections_relations_outgoing_label, presentation.outgoing);
+        apply_relations_text(connections_relations_backlinks_label, presentation.backlinks);
+        apply_relations_text(connections_relations_internal_label, presentation.internal_links);
+        connections_relations_outgoing_section.set_visible(presentation.sections_visible);
+        connections_relations_backlinks_section.set_visible(presentation.sections_visible);
+        connections_relations_internal_section.set_visible(presentation.sections_visible);
+    }
+
+    private void apply_relations_text(Gtk.Label label, ConnectionsRelationsText text) {
+        label.set_markup(text.markup);
+        label.update_property(Gtk.AccessibleProperty.LABEL, text.plain, -1);
     }
 
     private void set_relations_overview(string text) {
         if (connections_relations_structure_label == null) {
             return;
         }
-        var escaped = Markup.escape_text(text);
-        connections_relations_structure_label.set_markup(escaped);
-        connections_relations_structure_label.update_property(Gtk.AccessibleProperty.LABEL, text, -1);
-        connections_relations_outgoing_label.set_markup("None");
-        connections_relations_outgoing_label.update_property(Gtk.AccessibleProperty.LABEL, "None", -1);
-        connections_relations_backlinks_label.set_markup("None");
-        connections_relations_backlinks_label.update_property(Gtk.AccessibleProperty.LABEL, "None", -1);
-        connections_relations_internal_label.set_markup("None");
-        connections_relations_internal_label.update_property(Gtk.AccessibleProperty.LABEL, "None", -1);
-        connections_relations_outgoing_section.set_visible(false);
-        connections_relations_backlinks_section.set_visible(false);
-        connections_relations_internal_section.set_visible(false);
+        apply_relations(relations_presenter.overview(text));
     }
 
     private void set_relations_for_card(Project project,
                                         CardSummary selected_card,
                                         Gee.ArrayList<CardLink> outgoing,
                                         Gee.ArrayList<CardLink> backlinks) {
-        connections_relations_outgoing_section.set_visible(true);
-        connections_relations_backlinks_section.set_visible(true);
-        connections_relations_internal_section.set_visible(true);
-        var structure_markup = controller.compact_structure_markup(project, selected_card, snapshot_cards());
-        connections_relations_structure_label.set_markup(structure_markup);
-        connections_relations_structure_label.update_property(
-            Gtk.AccessibleProperty.LABEL,
-            plain_text_from_markup(structure_markup),
-            -1
-        );
-        var outgoing_markup = format_link_lines(outgoing, true);
-        connections_relations_outgoing_label.set_markup(outgoing_markup);
-        connections_relations_outgoing_label.update_property(
-            Gtk.AccessibleProperty.LABEL,
-            plain_text_from_markup(outgoing_markup),
-            -1
-        );
-        var backlinks_markup = format_link_lines(backlinks, false);
-        connections_relations_backlinks_label.set_markup(backlinks_markup);
-        connections_relations_backlinks_label.update_property(
-            Gtk.AccessibleProperty.LABEL,
-            plain_text_from_markup(backlinks_markup),
-            -1
-        );
-        var internal_markup = format_internal_lines(project.project_id);
-        connections_relations_internal_label.set_markup(internal_markup);
-        connections_relations_internal_label.update_property(
-            Gtk.AccessibleProperty.LABEL,
-            plain_text_from_markup(internal_markup),
-            -1
-        );
-    }
-
-    private string plain_text_from_markup(string markup) {
-        var text = new StringBuilder();
-        bool in_tag = false;
-        for (int i = 0; i < markup.length; i++) {
-            char c = markup[i];
-            if (c == '<') {
-                in_tag = true;
-                continue;
-            }
-            if (c == '>') {
-                in_tag = false;
-                continue;
-            }
-            if (!in_tag) {
-                text.append_c(c);
-            }
-        }
-        return text.str
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .replace("&amp;", "&")
-            .replace("&quot;", "\"")
-            .replace("&apos;", "'");
-    }
-
-    private string format_link_lines(Gee.ArrayList<CardLink> links, bool outgoing) {
-        if (links.size == 0) {
-            return "None";
-        }
-        var cards = snapshot_cards();
-        var groups = controller.group_links_by_kind(links);
-        var lines = new Gee.ArrayList<string>();
-        foreach (var group in groups) {
-            var targets = new Gee.ArrayList<string>();
-            foreach (var link in group.links) {
-                var target_id = outgoing ? link.to_card_id : link.from_card_id;
-                if ((outgoing ? link.to_type : "card") == "card") {
-                    targets.add(link_markup("card", target_id, controller.title_for_card_id(target_id, cards)));
-                } else {
-                    targets.add(Markup.escape_text(target_id));
-                }
-            }
-            lines.add("%s: %s".printf(Markup.escape_text(group.kind), string.joinv(", ", targets.to_array())));
-        }
-        return string.joinv("\n", lines.to_array());
-    }
-
-    private string format_internal_lines(string project_id) {
-        if (internal_links_cache.size == 0) {
-            return "None";
-        }
-        var cards = snapshot_cards();
-        var links = new Gee.ArrayList<string>();
-        foreach (var target in internal_links_cache) {
-            var card_id = controller.resolve_internal_link_target_card_id(target, project_id, cards);
-            if (card_id != null) {
-                links.add(link_markup("card", card_id, controller.title_for_card_id(card_id, cards)));
-            } else {
-                links.add(Markup.escape_text(target));
-            }
-        }
-        return string.joinv("\n", links.to_array());
+        apply_relations(relations_presenter.for_card(
+            project, selected_card, outgoing, backlinks, internal_links_cache, snapshot_cards()
+        ));
     }
 
     private void update_add_graph_link_button_state() {
         if (connections_add_graph_link_btn == null) {
             return;
         }
-        if (show_projects_root) {
-            connections_add_graph_link_btn.set_sensitive(false);
-            return;
-        }
         var selected_card = card_selection != null
             ? card_selection.get_selected_item() as CardSummary
             : null;
-        var has_target = controller.has_graph_link_targets(selected_card, snapshot_cards());
-        connections_add_graph_link_btn.set_sensitive(api != null && selected_card != null && has_target);
+        connections_add_graph_link_btn.set_sensitive(board_presenter.add_link_enabled(
+            show_projects_root, api != null, selected_card, snapshot_cards()
+        ));
     }
 
     private void open_add_graph_link_dialog() {
@@ -663,32 +527,23 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         dialog.set_extra_child(content);
         dialog.response.connect((response) => {
             if (response == "add") {
-                var selected_index = target_dropdown.get_selected();
-                if (selected_index >= target_ids.size) {
+                var request = ConnectionsAddLinkPresenter.resolve(
+                    target_ids,
+                    target_dropdown.get_selected(),
+                    available_kinds,
+                    (int) kind_dropdown.get_selected(),
+                    custom_kind_entry.get_text(),
+                    label_entry.get_text()
+                );
+                if (request == null) {
                     return;
                 }
-                var target_id = target_ids[(int) selected_index];
-                var selected_kind_index = (int) kind_dropdown.get_selected();
-                var custom_index = (int) kind_options.get_n_items() - 1;
-                string kind = "ref";
-                bool remember_kind = false;
-                if (selected_kind_index >= 0 && selected_kind_index < custom_index) {
-                    var chosen = kind_options.get_string((uint) selected_kind_index);
-                    if (chosen != null && chosen.length > 0) {
-                        kind = chosen;
-                    }
-                } else {
-                    var custom_kind = custom_kind_entry.get_text().strip();
-                    kind = custom_kind.length > 0 ? custom_kind : "ref";
-                    remember_kind = custom_kind.length > 0;
-                }
-                var link_label = label_entry.get_text().strip();
                 create_graph_link.begin(
                     selected_card.card_id,
-                    target_id,
-                    kind.length > 0 ? kind : "ref",
-                    link_label.length > 0 ? link_label : null,
-                    remember_kind
+                    request.to_card_id,
+                    request.kind,
+                    request.label,
+                    request.remember_kind
                 );
             }
         });
@@ -717,105 +572,24 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     }
 
     private void queue_connections_graph_refresh() {
-        var target = current_graph_refresh_target();
-        var target_key = target.to_key();
-        if (!graph_refresh_in_flight
-            && pending_graph_refresh_id == 0
-            && !pending_refresh_when_visible
-            && committed_graph_refresh_target != null
-            && committed_graph_refresh_target.to_key() == target_key
-            && committed_graph_refresh_generation == connections_graph_generation) {
-            debug_graph_refresh("skipped unchanged target", target);
-            return;
-        }
-        if (!is_tool_visible) {
-            if (pending_refresh_when_visible
-                && pending_graph_refresh_target != null
-                && pending_graph_refresh_target.to_key() == target_key) {
-                debug_graph_refresh("suppressed hidden duplicate", target);
-                return;
-            }
-            connections_graph_generation++;
-            pending_refresh_when_visible = true;
-            pending_graph_refresh_target = target;
-            debug_graph_refresh("suppressed while hidden", target);
-            return;
-        }
-        pending_refresh_when_visible = false;
-        if (pending_graph_refresh_id != 0
-            && pending_graph_refresh_target != null
-            && pending_graph_refresh_target.to_key() == target_key) {
-            debug_graph_refresh("coalesced pending duplicate", target);
-            return;
-        }
-        if (graph_refresh_in_flight) {
-            if (in_flight_graph_refresh_target != null
-                && in_flight_graph_refresh_target.to_key() == target_key) {
-                debug_graph_refresh("suppressed same target in flight", target);
-                return;
-            }
-            if (pending_graph_refresh_after_flight
-                && pending_graph_refresh_target != null
-                && pending_graph_refresh_target.to_key() == target_key) {
-                debug_graph_refresh("coalesced duplicate after flight", target);
-                return;
-            }
-            connections_graph_generation++;
-            pending_graph_refresh_after_flight = true;
-            pending_graph_refresh_target = target;
-            debug_graph_refresh("coalesced after in-flight refresh", target);
-            return;
-        }
-        if (pending_graph_refresh_id != 0) {
-            Source.remove(pending_graph_refresh_id);
-            pending_graph_refresh_id = 0;
-        }
-        connections_graph_generation++;
-        pending_graph_refresh_target = target;
-        pending_graph_refresh_id = Timeout.add(GRAPH_REFRESH_DEBOUNCE_MS, () => {
-            var dispatch_target = pending_graph_refresh_target;
-            pending_graph_refresh_id = 0;
-            pending_graph_refresh_target = null;
-            if (graph_refresh_in_flight) {
-                pending_graph_refresh_after_flight = true;
-                if (dispatch_target != null) {
-                    debug_graph_refresh("coalesced at debounce dispatch", dispatch_target);
-                }
-                return Source.REMOVE;
-            }
-            clear_pending_project_empty_state();
-            connections_graph_refresh_serial++;
-            in_flight_graph_refresh_target = dispatch_target;
-            refresh_connections_graph.begin(
-                connections_graph_refresh_serial,
-                connections_graph_generation,
-                dispatch_target ?? target
-            );
-            return Source.REMOVE;
-        });
+        refresh_planner.queue_refresh();
     }
 
     private async void refresh_connections_graph(uint request_serial,
                                                 uint request_generation,
                                                 ConnectionsGraphRefreshTarget request_target) {
-        graph_refresh_in_flight = true;
         try {
-            if (request_serial != connections_graph_refresh_serial
-                || request_generation != connections_graph_generation) {
-                debug_graph_refresh("dropped stale preflight", request_target);
+            if (refresh_planner.drop_if_stale(request_serial, request_generation, request_target, "dropped stale preflight")) {
                 return;
             }
             if (connections_board_overlay == null || connections_board_nodes_layer == null || connections_board_canvas == null) {
                 return;
             }
             if (show_projects_root) {
-                if (request_serial != connections_graph_refresh_serial
-                    || request_generation != connections_graph_generation) {
-                    debug_graph_refresh("dropped stale projects root", request_target);
+                if (refresh_planner.drop_if_stale(request_serial, request_generation, request_target, "dropped stale projects root")) {
                     return;
                 }
-                committed_graph_refresh_target = request_target;
-                committed_graph_refresh_generation = request_generation;
+                refresh_planner.record_committed(request_target, request_generation);
                 render_projects_root_board();
                 update_add_graph_link_button_state();
                 return;
@@ -827,9 +601,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                 ? card_selection.get_selected_item() as CardSummary
                 : null;
             if (selected_project == null) {
-                if (request_serial != connections_graph_refresh_serial
-                    || request_generation != connections_graph_generation) {
-                    debug_graph_refresh("dropped stale missing project", request_target);
+                if (refresh_planner.drop_if_stale(request_serial, request_generation, request_target, "dropped stale missing project")) {
                     return;
                 }
                 // During project/card transitions, selection can briefly pass through null.
@@ -847,16 +619,14 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                 var expected_card_id = selected_card.card_id;
                 var result = yield controller.load_graph_links(api, selected_card);
 
-                if (request_serial != connections_graph_refresh_serial
-                    || request_generation != connections_graph_generation) {
-                    debug_graph_refresh("dropped stale card result", request_target);
+                if (refresh_planner.drop_if_stale(request_serial, request_generation, request_target, "dropped stale card result")) {
                     return;
                 }
                 var still_selected = card_selection != null
                     ? card_selection.get_selected_item() as CardSummary
                     : null;
                 if (still_selected == null || still_selected.card_id != expected_card_id) {
-                    debug_graph_refresh("dropped stale card selection", request_target);
+                    refresh_planner.report_dropped(request_target, "dropped stale card selection");
                     return;
                 }
                 if (!result.success || result.outgoing == null || result.backlinks == null) {
@@ -868,17 +638,14 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                     }
                     return;
                 }
-                committed_graph_refresh_target = request_target;
-                committed_graph_refresh_generation = request_generation;
+                refresh_planner.record_committed(request_target, request_generation);
                 render_card_mode_board(selected_project, selected_card, result.outgoing, result.backlinks);
                 update_add_graph_link_button_state();
                 return;
             }
 
             if (api == null) {
-                if (request_serial != connections_graph_refresh_serial
-                    || request_generation != connections_graph_generation) {
-                    debug_graph_refresh("dropped stale api unavailable", request_target);
+                if (refresh_planner.drop_if_stale(request_serial, request_generation, request_target, "dropped stale api unavailable")) {
                     return;
                 }
                 set_graph_empty_state("API unavailable.");
@@ -896,9 +663,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                 if (card.project_id != selected_project.project_id) {
                     continue;
                 }
-                if (request_serial != connections_graph_refresh_serial
-                    || request_generation != connections_graph_generation) {
-                    debug_graph_refresh("dropped stale project result", request_target);
+                if (refresh_planner.drop_if_stale(request_serial, request_generation, request_target, "dropped stale project result")) {
                     return;
                 }
                 try {
@@ -916,22 +681,14 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                     return;
                 }
             }
-            if (request_serial != connections_graph_refresh_serial
-                || request_generation != connections_graph_generation) {
-                debug_graph_refresh("dropped stale project completion", request_target);
+            if (refresh_planner.drop_if_stale(request_serial, request_generation, request_target, "dropped stale project completion")) {
                 return;
             }
-            committed_graph_refresh_target = request_target;
-            committed_graph_refresh_generation = request_generation;
+            refresh_planner.record_committed(request_target, request_generation);
             render_project_mode_board(selected_project, cards, project_links);
             update_add_graph_link_button_state();
         } finally {
-            graph_refresh_in_flight = false;
-            in_flight_graph_refresh_target = null;
-            if (pending_graph_refresh_after_flight) {
-                pending_graph_refresh_after_flight = false;
-                queue_connections_graph_refresh();
-            }
+            refresh_planner.finish_flight();
         }
     }
 
@@ -939,198 +696,45 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                                         CardSummary selected_card,
                                         Gee.ArrayList<CardLink> outgoing,
                                         Gee.ArrayList<CardLink> backlinks) {
-        var cards = snapshot_cards();
-        var project_cards = new Gee.ArrayList<CardSummary>();
-        foreach (var card in cards) {
-            if (card.project_id == project.project_id) {
-                project_cards.add(card);
-            }
-        }
-
-        var nodes_by_id = new Gee.HashMap<string, ConnectionsBoardNode>();
-        nodes_by_id.set(selected_card.card_id, new ConnectionsBoardNode(
-            selected_card.card_id,
-            controller.ellipsize_title(selected_card.title),
-            selected_card.updated_at,
-            controller.child_count_for(selected_card.card_id, cards)
-        ));
-        var edges = new Gee.ArrayList<ConnectionsBoardEdge>();
-        var edge_keys = new Gee.HashSet<string>();
-
-        foreach (var link in outgoing) {
-            if (link.to_type != "card") {
-                continue;
-            }
-            controller.add_board_edge(nodes_by_id, edge_keys, edges, link.from_card_id, link.to_card_id, controller.normalized_link_kind(link.kind), false, cards);
-        }
-        foreach (var link in backlinks) {
-            if (link.to_type != "card") {
-                continue;
-            }
-            controller.add_board_edge(nodes_by_id, edge_keys, edges, link.from_card_id, link.to_card_id, controller.normalized_link_kind(link.kind), false, cards);
-        }
-
-        var structural = controller.build_structural_edges_for_selected(selected_card, project_cards);
-        foreach (var edge in structural) {
-            controller.add_board_edge(nodes_by_id, edge_keys, edges, edge.from_card_id, edge.to_card_id, edge.kind, true, cards);
-        }
-        foreach (var target in internal_links_cache) {
-            var target_card_id = controller.resolve_internal_link_target_card_id(target, project.project_id, cards);
-            if (target_card_id != null && target_card_id != selected_card.card_id) {
-                controller.add_board_edge(nodes_by_id, edge_keys, edges, selected_card.card_id, target_card_id, "internal", true, cards);
-            }
-        }
-
-        var node_list = new Gee.ArrayList<ConnectionsBoardNode>();
-        foreach (var node in nodes_by_id.values) {
-            node_list.add(node);
-        }
-        node_list.sort((a, b) => strcmp(a.title.down(), b.title.down()));
-        controller.layout_card_mode_nodes(
-            selected_card.card_id,
-            node_list,
-            BOARD_MIN_WIDTH,
-            BOARD_NODE_WIDTH,
-            BOARD_NODE_HEIGHT,
-            BOARD_PADDING,
-            controller.target_board_height_for_count(node_list.size)
+        var model = board_builder.build_card_mode(
+            project, selected_card, outgoing, backlinks, internal_links_cache, snapshot_cards()
         );
-        controller.spread_nodes_to_avoid_overlap(node_list, BOARD_NODE_WIDTH, BOARD_NODE_HEIGHT);
-        render_board(node_list, edges, "Card-focused graph.");
+        render_board(model.nodes, model.edges, model.summary);
         set_relations_for_card(project, selected_card, outgoing, backlinks);
     }
 
     private void render_project_mode_board(Project project,
                                            Gee.ArrayList<CardSummary> cards,
                                            Gee.ArrayList<CardLink> project_links) {
-        var project_cards = new Gee.ArrayList<CardSummary>();
-        foreach (var card in cards) {
-            if (card.project_id == project.project_id) {
-                project_cards.add(card);
-            }
-        }
-        if (project_cards.size == 0) {
-            if (project_has_known_cards(project)) {
-                // Project metadata says cards exist, so an empty local snapshot is
-                // likely transitional while selection/data updates settle.
-                schedule_project_empty_state_if_still_empty(project.project_id);
-                return;
-            }
-            if (!has_committed_board) {
-                set_graph_empty_state("No cards in this project yet.");
-                return;
-            }
-            schedule_project_empty_state_if_still_empty(project.project_id);
+        var project_cards = ConnectionsBoardBuilder.cards_in_project(project, cards);
+        switch (ConnectionsEmptyStatePolicy.plan_for_project_cards(project, project_cards.size, has_committed_board)) {
+        case ConnectionsProjectRenderPlan.SHOW_EMPTY_NOW:
+            set_graph_empty_state("No cards in this project yet.");
             return;
+        case ConnectionsProjectRenderPlan.SCHEDULE_EMPTY_CHECK:
+            refresh_planner.schedule_empty_state_check(project.project_id);
+            return;
+        default:
+            break;
         }
-        clear_pending_project_empty_state();
+        refresh_planner.clear_pending_empty_state();
 
-        var all_edges = new Gee.ArrayList<ConnectionsBoardEdge>();
-        var edge_keys = new Gee.HashSet<string>();
-        var counts = new Gee.HashMap<string, int>();
-        foreach (var link in project_links) {
-            var kind = controller.normalized_link_kind(link.kind);
-            if (controller.add_edge_to_list(edge_keys, all_edges, link.from_card_id, link.to_card_id, kind, false)) {
-                controller.increment_count(counts, kind);
-            }
-        }
-        foreach (var edge in controller.build_structural_edges_for_project(project_cards)) {
-            if (controller.add_edge_to_list(edge_keys, all_edges, edge.from_card_id, edge.to_card_id, edge.kind, true)) {
-                controller.increment_count(counts, edge.kind);
-            }
-        }
-
-        var degree = new Gee.HashMap<string, int>();
-        foreach (var card in project_cards) {
-            degree.set(card.card_id, 0);
-        }
-        foreach (var edge in all_edges) {
-            degree.set(edge.from_card_id, degree.get(edge.from_card_id) + 1);
-            degree.set(edge.to_card_id, degree.get(edge.to_card_id) + 1);
-        }
-
-        project_cards.sort((a, b) => {
-            var da = degree.get(a.card_id);
-            var db = degree.get(b.card_id);
-            if (da != db) {
-                return db - da;
-            }
-            return strcmp(a.title.down(), b.title.down());
-        });
-        var keep = new Gee.HashSet<string>();
-        for (int i = 0; i < project_cards.size && i < PROJECT_MODE_MAX_NODES; i++) {
-            keep.add(project_cards[i].card_id);
-        }
-        var nodes = new Gee.ArrayList<ConnectionsBoardNode>();
-        foreach (var card in project_cards) {
-            if (!keep.contains(card.card_id)) {
-                continue;
-            }
-            nodes.add(new ConnectionsBoardNode(
-                card.card_id,
-                controller.ellipsize_title(card.title),
-                card.updated_at,
-                controller.child_count_for(card.card_id, project_cards)
-            ));
-        }
-        var edges = new Gee.ArrayList<ConnectionsBoardEdge>();
-        foreach (var edge in all_edges) {
-            if (keep.contains(edge.from_card_id) && keep.contains(edge.to_card_id)) {
-                edges.add(edge);
-            }
-        }
-        controller.layout_project_mode_nodes(nodes, BOARD_PADDING, BOARD_NODE_WIDTH, BOARD_NODE_HEIGHT);
-        controller.spread_nodes_to_avoid_overlap(nodes, BOARD_NODE_WIDTH, BOARD_NODE_HEIGHT);
-        var summary = controller.format_counts_summary(counts);
-        render_board(nodes, edges, summary);
-        set_relations_overview(summary);
+        var model = board_builder.build_project_mode(project_cards, project_links);
+        render_board(model.nodes, model.edges, model.summary);
+        set_relations_overview(model.summary);
     }
 
-    private void clear_pending_project_empty_state() {
-        if (pending_project_empty_state_id != 0) {
-            Source.remove(pending_project_empty_state_id);
-            pending_project_empty_state_id = 0;
+    private void show_empty_project_state_if_still_empty(string project_id) {
+        var selected_project = project_selection != null
+            ? project_selection.get_selected_item() as Project
+            : null;
+        var selected_card = card_selection != null
+            ? card_selection.get_selected_item() as CardSummary
+            : null;
+        if (ConnectionsEmptyStatePolicy.should_show_no_cards(
+                show_projects_root, selected_project, project_id, selected_card, snapshot_cards())) {
+            set_graph_empty_state("No cards in this project yet.");
         }
-    }
-
-    private void schedule_project_empty_state_if_still_empty(string project_id) {
-        clear_pending_project_empty_state();
-        var expected_generation = connections_graph_generation;
-        pending_project_empty_state_id = Timeout.add(PROJECT_EMPTY_STATE_DELAY_MS, () => {
-            pending_project_empty_state_id = 0;
-            if (expected_generation != connections_graph_generation) {
-                return Source.REMOVE;
-            }
-            if (show_projects_root) {
-                return Source.REMOVE;
-            }
-            var selected_project = project_selection != null
-                ? project_selection.get_selected_item() as Project
-                : null;
-            if (selected_project == null || selected_project.project_id != project_id) {
-                return Source.REMOVE;
-            }
-            if (project_has_known_cards(selected_project)) {
-                return Source.REMOVE;
-            }
-            var selected_card = card_selection != null
-                ? card_selection.get_selected_item() as CardSummary
-                : null;
-            if (selected_card != null) {
-                return Source.REMOVE;
-            }
-            int project_card_count = 0;
-            foreach (var card in snapshot_cards()) {
-                if (card.project_id == project_id) {
-                    project_card_count++;
-                    break;
-                }
-            }
-            if (project_card_count == 0) {
-                set_graph_empty_state("No cards in this project yet.");
-            }
-            return Source.REMOVE;
-        });
     }
 
     private void render_projects_root_board() {
@@ -1144,26 +748,18 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             return;
         }
 
-        var nodes = new Gee.ArrayList<ConnectionsBoardNode>();
+        var projects = new Gee.ArrayList<Project>();
         for (uint i = 0; i < model.get_n_items(); i++) {
             var project = model.get_item(i) as Project;
-            if (project == null) {
-                continue;
+            if (project != null) {
+                projects.add(project);
             }
-            nodes.add(new ConnectionsBoardNode(
-                "project:%s".printf(project.project_id),
-                controller.ellipsize_title(project.name),
-                project.updated_at,
-                project.root_card_count
-            ));
         }
+        var nodes = board_presenter.build_projects_root_nodes(projects);
         if (nodes.size == 0) {
             set_graph_empty_state("No projects available.");
             return;
         }
-
-        controller.layout_project_mode_nodes(nodes, BOARD_PADDING, BOARD_NODE_WIDTH, BOARD_NODE_HEIGHT);
-        controller.spread_nodes_to_avoid_overlap(nodes, BOARD_NODE_WIDTH, BOARD_NODE_HEIGHT);
         render_board(nodes, new Gee.ArrayList<ConnectionsBoardEdge>(), "Select a project.");
         set_relations_overview("Select a project.");
     }
@@ -1177,20 +773,11 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         board_nodes.add_all(nodes);
         board_edges.add_all(edges);
 
-        int required_w = BOARD_MIN_WIDTH;
-        int required_h = controller.target_board_height_for_count(nodes.size);
-        int content_bottom = 0;
         foreach (var node in nodes) {
-            required_w = int.max(required_w, node.x + BOARD_NODE_WIDTH + BOARD_PADDING);
-            content_bottom = int.max(content_bottom, node.y + BOARD_NODE_HEIGHT);
-            var node_widget = build_board_node_widget(node);
-            connections_board_nodes_layer.put(node_widget, node.x, node.y);
+            connections_board_nodes_layer.put(build_board_node_widget(node), node.x, node.y);
         }
-        if (nodes.size > 0) {
-            // Trim only the trailing space under the last node; keep node spacing/layout untouched.
-            required_h = int.max(BOARD_MIN_HEIGHT, content_bottom + BOARD_BOTTOM_PADDING);
-        }
-        ensure_board_canvas_size(required_w, required_h);
+        var canvas_size = board_presenter.canvas_size(nodes);
+        ensure_board_canvas_size(canvas_size.width, canvas_size.height);
         connections_board_empty_label.set_visible(nodes.size == 0);
         if (nodes.size == 0) {
             connections_board_empty_label.set_text("No connections to display.");
@@ -1322,10 +909,14 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             }
             double x0;
             double y0;
-            point_on_node_edge(from, to, out x0, out y0);
+            ConnectionsBoardGeometry.point_on_node_edge(
+                from.x, from.y, to.x, to.y, BOARD_NODE_WIDTH, BOARD_NODE_HEIGHT, out x0, out y0
+            );
             double x1;
             double y1;
-            point_on_node_edge(to, from, out x1, out y1);
+            ConnectionsBoardGeometry.point_on_node_edge(
+                to.x, to.y, from.x, from.y, BOARD_NODE_WIDTH, BOARD_NODE_HEIGHT, out x1, out y1
+            );
             if (edge.dashed) {
                 double[] dashes = { 5.0, 4.0 };
                 cr.set_dash(dashes, 0.0);
@@ -1340,53 +931,18 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         cr.set_dash(null, 0.0);
     }
 
-    private void point_on_node_edge(ConnectionsBoardNode source,
-                                    ConnectionsBoardNode target,
-                                    out double out_x,
-                                    out double out_y) {
-        double cx = source.x + BOARD_NODE_WIDTH / 2.0;
-        double cy = source.y + BOARD_NODE_HEIGHT / 2.0;
-        double tx = target.x + BOARD_NODE_WIDTH / 2.0;
-        double ty = target.y + BOARD_NODE_HEIGHT / 2.0;
-        double dx = tx - cx;
-        double dy = ty - cy;
-        if (absd(dx) < 0.001 && absd(dy) < 0.001) {
-            out_x = cx;
-            out_y = cy;
-            return;
-        }
-        if (absd(dx) >= absd(dy)) {
-            out_x = dx >= 0 ? (source.x + BOARD_NODE_WIDTH) : source.x;
-            out_y = cy;
-            return;
-        }
-        out_x = cx;
-        out_y = dy >= 0 ? (source.y + BOARD_NODE_HEIGHT) : source.y;
-    }
-
     private void draw_arrow_head(Cairo.Context cr,
                                  double x0,
                                  double y0,
                                  double x1,
                                  double y1) {
-        double dx = x1 - x0;
-        double dy = y1 - y0;
-        if (absd(dx) < 0.001 && absd(dy) < 0.001) {
+        var head = ConnectionsBoardGeometry.arrow_head(x0, y0, x1, y1);
+        if (head == null) {
             return;
         }
-        if (absd(dx) >= absd(dy)) {
-            double dir = dx >= 0 ? 1.0 : -1.0;
-            cr.move_to(x1, y1);
-            cr.line_to(x1 - (8.0 * dir), y1 - 3.5);
-            cr.line_to(x1 - (8.0 * dir), y1 + 3.5);
-            cr.close_path();
-            cr.fill();
-            return;
-        }
-        double dir = dy >= 0 ? 1.0 : -1.0;
-        cr.move_to(x1, y1);
-        cr.line_to(x1 - 3.5, y1 - (8.0 * dir));
-        cr.line_to(x1 + 3.5, y1 - (8.0 * dir));
+        cr.move_to(head.tip_x, head.tip_y);
+        cr.line_to(head.first_x, head.first_y);
+        cr.line_to(head.second_x, head.second_y);
         cr.close_path();
         cr.fill();
     }
@@ -1396,10 +952,6 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         connections_board_canvas.set_content_width(width);
         connections_board_canvas.set_content_height(height);
         connections_board_nodes_layer.set_size_request(width, height);
-    }
-
-    private double absd(double value) {
-        return value < 0 ? -value : value;
     }
 
     private static void ensure_connections_css() {
@@ -1463,30 +1015,15 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         if (connections_relations_title_label == null) {
             return;
         }
-        if (show_projects_root) {
-            connections_relations_title_label.set_text("Projects");
-            return;
-        }
         var selected_project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
         var selected_card = card_selection != null
             ? card_selection.get_selected_item() as CardSummary
             : null;
-
-        if (selected_card != null) {
-            connections_relations_title_label.set_text(
-                controller.ellipsize_title(selected_card.title)
-            );
-            return;
-        }
-        if (selected_project != null) {
-            connections_relations_title_label.set_text(
-                controller.ellipsize_title(selected_project.name)
-            );
-            return;
-        }
-        connections_relations_title_label.set_text("Relations");
+        connections_relations_title_label.set_text(
+            board_presenter.relations_title(show_projects_root, selected_project, selected_card)
+        );
     }
 
     private Gee.ArrayList<CardSummary> snapshot_cards() {

@@ -199,9 +199,31 @@ sources = [
   'src/views/adapters/print_ui.vala',
   'src/controllers/git_sync_presenter.vala',
   'src/controllers/git_sync.vala',
+  'src/controllers/git_sync_validation.vala',
+  'src/controllers/git_sync_guided.vala',
+  'src/controllers/git_sync_outcomes.vala',
+  'src/controllers/git_sync_project_state.vala',
+  'src/controllers/git_provider_options.vala',
   'src/controllers/resources.vala',
+  'src/controllers/tool_scope_presenter.vala',
+  'src/controllers/storage_location_draft.vala',
+  'src/controllers/storage_locations.vala',
+  'src/controllers/storage_location_presenter.vala',
+  'src/controllers/google_drive_connect.vala',
+  'src/controllers/resource_draft.vala',
+  'src/controllers/resources_presenter.vala',
   'src/controllers/asset_preview.vala',
+  'src/controllers/asset_preview_presenter.vala',
+  'src/controllers/tags_presenter.vala',
+  'src/controllers/inline_image_decoration_plan.vala',
   'src/controllers/connections.vala',
+  'src/controllers/connections_refresh_planner.vala',
+  'src/controllers/connections_empty_state.vala',
+  'src/controllers/connections_add_link.vala',
+  'src/controllers/connections_relations_presenter.vala',
+  'src/controllers/connections_board_presenter.vala',
+  'src/controllers/connections_board_geometry.vala',
+  'src/controllers/connections_board_builder.vala',
   'src/controllers/terminal.vala',
   'src/controllers/flowboard.vala',
   'src/controllers/flowboard_context.vala',
@@ -579,6 +601,9 @@ git_sync_controller_test_exe = executable(
     'src/services/core_interfaces.vala',
     'src/services/app_settings.vala',
     'src/services/git_sync_service.vala',
+    'src/controllers/git_sync_validation.vala',
+    'src/controllers/git_sync_guided.vala',
+    'src/controllers/git_sync_outcomes.vala',
     'src/controllers/git_sync.vala',
     'tests/git_sync_controller_test.vala',
   ],
@@ -617,6 +642,31 @@ git_sync_presenter_test_exe = executable(
 )
 
 test('holder-linux-git-sync-presenter-tests', git_sync_presenter_test_exe)
+
+git_sync_rules_test_exe = executable(
+  'holder-linux-git-sync-rules-tests',
+  [
+    'src/models/activity_details.vala',
+    'src/models/git.vala',
+    'src/models/project.vala',
+    'src/controllers/git_sync_validation.vala',
+    'src/controllers/git_sync_guided.vala',
+    'src/controllers/git_sync_outcomes.vala',
+    'src/controllers/git_sync_project_state.vala',
+    'src/controllers/git_provider_options.vala',
+    'tests/git_sync_rules_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-git-sync-rules-tests', git_sync_rules_test_exe)
 
 resources_controller_test_exe = executable(
   'holder-linux-resources-controller-tests',
@@ -740,6 +790,14 @@ connections_tool_view_test_exe = executable(
     'src/services/app_settings.vala',
     'src/utils/text_utils.vala',
     'src/controllers/connections.vala',
+    'src/controllers/connections_refresh_planner.vala',
+    'src/controllers/connections_empty_state.vala',
+    'src/controllers/connections_add_link.vala',
+    'src/controllers/connections_relations_presenter.vala',
+    'src/controllers/connections_board_presenter.vala',
+    'src/controllers/connections_board_geometry.vala',
+    'src/controllers/connections_board_builder.vala',
+    'src/controllers/tool_scope_presenter.vala',
     'src/views/toolbox/tool_adapter.vala',
     'src/views/toolbox/connections_tool_view.vala',
     'tests/connections_tool_view_test.vala',
@@ -758,6 +816,176 @@ connections_tool_view_test_exe = executable(
 )
 
 test('holder-linux-connections-tool-view-tests', connections_tool_view_test_exe)
+
+connections_refresh_planner_test_exe = executable(
+  'holder-linux-connections-refresh-planner-tests',
+  [
+    'tests/support/test_utils.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/app_settings.vala',
+    'src/controllers/connections.vala',
+    'src/controllers/connections_refresh_planner.vala',
+    'tests/connections_refresh_planner_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-connections-refresh-planner-tests', connections_refresh_planner_test_exe)
+
+connections_empty_state_test_exe = executable(
+  'holder-linux-connections-empty-state-tests',
+  [
+    'tests/support/test_utils.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/app_settings.vala',
+    'src/controllers/connections.vala',
+    'src/controllers/connections_empty_state.vala',
+    'tests/connections_empty_state_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-connections-empty-state-tests', connections_empty_state_test_exe)
+
+connections_add_link_test_exe = executable(
+  'holder-linux-connections-add-link-tests',
+  [
+    'tests/support/test_utils.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/app_settings.vala',
+    'src/controllers/connections.vala',
+    'src/controllers/connections_add_link.vala',
+    'tests/connections_add_link_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-connections-add-link-tests', connections_add_link_test_exe)
+
+connections_relations_presenter_test_exe = executable(
+  'holder-linux-connections-relations-presenter-tests',
+  [
+    'tests/support/test_utils.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/app_settings.vala',
+    'src/controllers/connections.vala',
+    'src/controllers/connections_relations_presenter.vala',
+    'tests/connections_relations_presenter_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-connections-relations-presenter-tests', connections_relations_presenter_test_exe)
+
+connections_board_presenter_test_exe = executable(
+  'holder-linux-connections-board-presenter-tests',
+  [
+    'tests/support/test_utils.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/app_settings.vala',
+    'src/controllers/connections.vala',
+    'src/controllers/connections_board_presenter.vala',
+    'tests/connections_board_presenter_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-connections-board-presenter-tests', connections_board_presenter_test_exe)
 
 terminal_controller_test_exe = executable(
   'holder-linux-terminal-controller-tests',
@@ -1904,6 +2132,173 @@ asset_preview_test_exe = executable(
 
 test('holder-linux-asset-preview-tests', asset_preview_test_exe)
 
+tool_scope_presenter_test_exe = executable(
+  'holder-linux-tool-scope-presenter-tests',
+  [
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/models/toolbox_nav.vala',
+    'src/controllers/tool_scope_presenter.vala',
+    'tests/tool_scope_presenter_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-tool-scope-presenter-tests', tool_scope_presenter_test_exe)
+
+resource_draft_test_exe = executable(
+  'holder-linux-resource-draft-tests',
+  [
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/resources_service.vala',
+    'src/controllers/resources.vala',
+    'src/controllers/resource_draft.vala',
+    'tests/resource_draft_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-resource-draft-tests', resource_draft_test_exe)
+
+resources_presenter_test_exe = executable(
+  'holder-linux-resources-presenter-tests',
+  [
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/resources_service.vala',
+    'src/controllers/resources.vala',
+    'src/controllers/resources_presenter.vala',
+    'tests/resources_presenter_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-resources-presenter-tests', resources_presenter_test_exe)
+
+storage_locations_test_exe = executable(
+  'holder-linux-storage-locations-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/storage_api_fakes.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/resources_service.vala',
+    'src/controllers/resources.vala',
+    'src/controllers/storage_location_draft.vala',
+    'src/controllers/storage_locations.vala',
+    'src/controllers/storage_location_presenter.vala',
+    'tests/storage_locations_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-storage-locations-tests', storage_locations_test_exe)
+
+google_drive_connect_test_exe = executable(
+  'holder-linux-google-drive-connect-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/storage_api_fakes.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/resources_service.vala',
+    'src/controllers/resources.vala',
+    'src/services/uri_launcher.vala',
+    'src/controllers/storage_location_draft.vala',
+    'src/controllers/storage_locations.vala',
+    'src/controllers/google_drive_connect.vala',
+    'tests/google_drive_connect_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-google-drive-connect-tests', google_drive_connect_test_exe)
+
 flowboard_presenter_test_exe = executable(
   'holder-linux-flowboard-presenter-tests',
   [
@@ -2370,6 +2765,7 @@ markdown_resource_images_test_exe = executable(
     'src/models/project.vala',
     'src/controllers/markdown_resource_images.vala',
     'src/controllers/editor_spellcheck.vala',
+    'src/controllers/inline_image_decoration_plan.vala',
     'src/views/inline_resource_image_renderer.vala',
     'tests/markdown_resource_images_test.vala',
   ],
@@ -2755,6 +3151,7 @@ trash_tool_view_test_exe = executable(
     'src/models/toolbox_nav.vala',
     'src/services/core_interfaces.vala',
     'src/controllers/trash.vala',
+    'src/controllers/tool_scope_presenter.vala',
     'src/views/toolbox/tool_adapter.vala',
     'src/views/toolbox/trash_tool_view.vala',
     'tests/trash_tool_view_test.vala',
@@ -2794,6 +3191,14 @@ resources_tool_view_test_exe = executable(
     'src/services/core_interfaces.vala',
     'src/services/resources_service.vala',
     'src/controllers/resources.vala',
+    'src/controllers/tool_scope_presenter.vala',
+    'src/controllers/storage_location_draft.vala',
+    'src/controllers/storage_locations.vala',
+    'src/controllers/storage_location_presenter.vala',
+    'src/controllers/google_drive_connect.vala',
+    'src/controllers/resource_draft.vala',
+    'src/controllers/resources_presenter.vala',
+    'src/services/uri_launcher.vala',
     'src/views/toolbox/tool_adapter.vala',
     'src/views/toolbox/resources_tool_view.vala',
     'tests/resources_tool_view_test.vala',
@@ -2909,6 +3314,11 @@ git_sync_tool_view_test_exe = executable(
     'src/services/app_settings.vala',
     'src/services/git_sync_service.vala',
     'src/controllers/git_sync_presenter.vala',
+    'src/controllers/git_sync_validation.vala',
+    'src/controllers/git_sync_guided.vala',
+    'src/controllers/git_sync_outcomes.vala',
+    'src/controllers/git_sync_project_state.vala',
+    'src/controllers/git_provider_options.vala',
     'src/controllers/git_sync.vala',
     'src/views/toolbox/tool_adapter.vala',
     'src/views/toolbox/git_sync_tool_view.vala',
@@ -3628,6 +4038,7 @@ tags_tool_view_test_exe = executable(
     'src/models/nudges.vala',
     'src/models/toolbox_nav.vala',
     'src/services/core_interfaces.vala',
+    'src/controllers/tags_presenter.vala',
     'src/views/toolbox/tool_adapter.vala',
     'src/views/toolbox/tags_tool_view.vala',
     'tests/tags_tool_view_test.vala',
@@ -3647,3 +4058,140 @@ tags_tool_view_test_exe = executable(
 
 test('holder-linux-tags-tool-view-tests', tags_tool_view_test_exe)
 endif
+
+tags_presenter_test_exe = executable(
+  'holder-linux-tags-presenter-tests',
+  [
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/controllers/tags_presenter.vala',
+    'tests/tags_presenter_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-tags-presenter-tests', tags_presenter_test_exe)
+
+asset_preview_presenter_test_exe = executable(
+  'holder-linux-asset-preview-presenter-tests',
+  [
+    'src/controllers/asset_preview_presenter.vala',
+    'tests/asset_preview_presenter_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-asset-preview-presenter-tests', asset_preview_presenter_test_exe)
+
+inline_image_decoration_plan_test_exe = executable(
+  'holder-linux-inline-image-decoration-plan-tests',
+  [
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/controllers/markdown_resource_images.vala',
+    'src/controllers/inline_image_decoration_plan.vala',
+    'tests/inline_image_decoration_plan_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-inline-image-decoration-plan-tests', inline_image_decoration_plan_test_exe)
+
+connections_board_geometry_test_exe = executable(
+  'holder-linux-connections-board-geometry-tests',
+  [
+    'src/controllers/connections_board_geometry.vala',
+    'tests/connections_board_geometry_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-connections-board-geometry-tests', connections_board_geometry_test_exe)
+
+connections_board_builder_test_exe = executable(
+  'holder-linux-connections-board-builder-tests',
+  [
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/app_settings.vala',
+    'src/controllers/connections.vala',
+    'src/controllers/connections_board_presenter.vala',
+    'src/controllers/connections_board_builder.vala',
+    'tests/connections_board_builder_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libadwaita-1'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  install: false,
+)
+
+test('holder-linux-connections-board-builder-tests', connections_board_builder_test_exe)

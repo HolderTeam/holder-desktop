@@ -59,28 +59,6 @@ public class GitHubRepoVerifyFlowResult : Object {
     }
 }
 
-public class GitRemoteSetupValidationResult : Object {
-    public bool ok { get; construct; }
-    public bool is_toast { get; construct; }
-    public string message { get; construct; }
-    public string error_title { get; construct; }
-    public string error_details { get; construct; }
-
-    public GitRemoteSetupValidationResult(bool ok,
-                                          bool is_toast = false,
-                                          string message = "",
-                                          string error_title = "",
-                                          string error_details = "") {
-        Object(
-            ok: ok,
-            is_toast: is_toast,
-            message: message,
-            error_title: error_title,
-            error_details: error_details
-        );
-    }
-}
-
 public class GitSyncController : Object {
     private GitSyncService service;
     private Settings? settings;
@@ -265,10 +243,7 @@ public class GitSyncController : Object {
 
         var create_result = yield create_private_repo_and_verify(username, repo_name);
         if (!create_result.exists) {
-            var details = create_result.details.strip();
-            if (details.length == 0) {
-                details = "Repository could not be created.";
-            }
+            var details = GitSyncGuided.create_failure_details(create_result.details);
             return new GitHubCliAutoSyncFlowResult(
                 "GitHub CLI setup failed: %s".printf(details),
                 "",
@@ -277,7 +252,7 @@ public class GitSyncController : Object {
             );
         }
 
-        var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
+        var remote_url = GitSyncGuided.github_ssh_remote(username, repo_name);
         var apply_result = yield configure_remote_and_sync(
             api,
             selected_project.project_id,
@@ -336,7 +311,7 @@ public class GitSyncController : Object {
                                                                          Project selected_project,
                                                                          string username,
                                                                          string repo_name) throws Error {
-        var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
+        var remote_url = GitSyncGuided.github_ssh_remote(username, repo_name);
         var apply_result = yield configure_remote_and_sync(
             api,
             selected_project.project_id,
@@ -424,13 +399,12 @@ public class GitSyncController : Object {
                                                                                   string repo_name) {
         var repo_check = yield check_repository_exists_via_ssh(username, repo_name);
         if (repo_check.exists) {
-            var remote_url = "git@github.com:%s/%s.git".printf(username, repo_name);
             return new GitHubRepoVerifyFlowResult(
                 true,
                 "Repository found on GitHub.",
                 "",
                 "",
-                "We'll now save this remote and push your cards.\nRemote: %s".printf(remote_url)
+                GitSyncGuided.push_intro_text(username, repo_name)
             );
         }
 
@@ -447,22 +421,41 @@ public class GitSyncController : Object {
     public GitRemoteSetupValidationResult validate_remote_setup_inputs(Project? selected_project,
                                                                        IHolderApi? api,
                                                                        string remote_url) {
-        if (selected_project == null) {
-            return new GitRemoteSetupValidationResult(false, true, "Select a project first.");
-        }
-        if (api == null) {
-            return new GitRemoteSetupValidationResult(
-                false,
-                false,
-                "",
-                "Git sync failed",
-                "Backend API client is not ready."
-            );
+        var base_result = GitSyncValidation.project_and_api(selected_project, api != null);
+        if (!base_result.ok) {
+            return base_result;
         }
         if (remote_url.strip().length == 0) {
             return new GitRemoteSetupValidationResult(false, true, "Remote URL is required.");
         }
         return new GitRemoteSetupValidationResult(true);
+    }
+
+    public async GitHubRepoVerifyFlowResult create_guided_repository_flow(string username,
+                                                                           string repo_name) {
+        var create_result = yield create_private_repo_and_verify(username, repo_name);
+        if (create_result.exists) {
+            return new GitHubRepoVerifyFlowResult(
+                true,
+                GitSyncGuided.repo_create_status(create_result.created_ok),
+                "",
+                "",
+                GitSyncGuided.push_intro_text(username, repo_name)
+            );
+        }
+
+        var details = GitSyncGuided.create_failure_details(create_result.details);
+        return new GitHubRepoVerifyFlowResult(
+            false,
+            details,
+            "GitHub CLI repository creation failed",
+            details
+        );
+    }
+
+    public async GitSyncNowOutcome sync_now_flow(IHolderApi api, string project_id) throws Error {
+        var result = yield api.push_project_git(project_id, "", true);
+        return GitSyncOutcomes.for_push_result(result);
     }
 
     private string format_sync_time(bool has_timestamp, int64 timestamp) {

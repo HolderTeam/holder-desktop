@@ -828,6 +828,102 @@ private void test_verify_github_repository_exists_flow_failure() {
     assert(out_result.error_details.contains("https://github.com/zeth/demo"));
 }
 
+private HolderLinux.GitHubRepoVerifyFlowResult run_create_guided_repository_flow(FakeGitSyncService service) {
+    var controller = new HolderLinux.GitSyncController(service);
+    bool done = false;
+    HolderLinux.GitHubRepoVerifyFlowResult? out_result = null;
+    controller.create_guided_repository_flow.begin("zeth", "demo", (obj, res) => {
+        out_result = controller.create_guided_repository_flow.end(res);
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(out_result != null);
+    assert(service.create_calls == 1);
+    assert(service.last_username == "zeth");
+    assert(service.last_repo_name == "demo");
+    return out_result;
+}
+
+private void test_create_guided_repository_flow_created() {
+    var service = new FakeGitSyncService();
+    service.repo_create = new HolderLinux.GitRepoCreateResult(true, true, "ok");
+    var result = run_create_guided_repository_flow(service);
+    assert(result.exists);
+    assert(result.status_text == "Repository created with GitHub CLI and verified.");
+    assert(result.error_title == "");
+    assert(result.push_intro_text.contains("Remote: git@github.com:zeth/demo.git"));
+}
+
+private void test_create_guided_repository_flow_reuses_existing_repository() {
+    var service = new FakeGitSyncService();
+    service.repo_create = new HolderLinux.GitRepoCreateResult(false, true, "already there");
+    var result = run_create_guided_repository_flow(service);
+    assert(result.exists);
+    assert(result.status_text == "Repository available and verified.");
+}
+
+private void test_create_guided_repository_flow_failure_reports_details() {
+    var service = new FakeGitSyncService();
+    service.repo_create = new HolderLinux.GitRepoCreateResult(false, false, "  name already taken  ");
+    var result = run_create_guided_repository_flow(service);
+    assert(!result.exists);
+    assert(result.status_text == "name already taken");
+    assert(result.error_title == "GitHub CLI repository creation failed");
+    assert(result.error_details == "name already taken");
+    assert(result.push_intro_text == "");
+}
+
+private void test_create_guided_repository_flow_failure_without_details_uses_default() {
+    var service = new FakeGitSyncService();
+    service.repo_create = new HolderLinux.GitRepoCreateResult(false, false, "   ");
+    var result = run_create_guided_repository_flow(service);
+    assert(result.status_text == "Repository could not be created.");
+    assert(result.error_details == "Repository could not be created.");
+}
+
+private void test_sync_now_flow_maps_push_result_and_forwards_arguments() {
+    var controller = new HolderLinux.GitSyncController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+
+    bool done = false;
+    HolderLinux.GitSyncNowOutcome? outcome = null;
+    controller.sync_now_flow.begin(api, "p1", (obj, res) => {
+        try {
+            outcome = controller.sync_now_flow.end(res);
+        } catch (Error e) {
+            assert_not_reached();
+        }
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(outcome != null);
+    assert(outcome.toast_message == "Project synced.");
+    assert(outcome.history_changed);
+    assert(api.push_project_git_calls == 1);
+    assert(api.last_git_project_id == "p1");
+    assert(api.last_git_branch == "");
+    assert(api.last_git_set_upstream);
+}
+
+private void test_sync_now_flow_propagates_api_failure() {
+    var controller = new HolderLinux.GitSyncController();
+    var api = new HolderLinuxTests.MainControllerFakeApi();
+    api.fail_push_project_git = true;
+
+    bool done = false;
+    string? failure = null;
+    controller.sync_now_flow.begin(api, "p1", (obj, res) => {
+        try {
+            controller.sync_now_flow.end(res);
+        } catch (Error e) {
+            failure = e.message;
+        }
+        done = true;
+    });
+    assert(HolderLinuxTests.wait_for_condition(() => done));
+    assert(failure == "push project git failed");
+}
+
 private void test_validate_remote_setup_inputs_missing_project_returns_toast() {
     var controller = new HolderLinux.GitSyncController();
     var api = new HolderLinuxTests.MainControllerFakeApi();
@@ -931,6 +1027,18 @@ int main(string[] args) {
                   test_verify_github_repository_exists_flow_success);
     Test.add_func("/git_sync_controller/verify_github_repository_exists_flow_failure",
                   test_verify_github_repository_exists_flow_failure);
+    Test.add_func("/git_sync_controller/create_guided_repository_flow_created",
+                  test_create_guided_repository_flow_created);
+    Test.add_func("/git_sync_controller/create_guided_repository_flow_reuses_existing_repository",
+                  test_create_guided_repository_flow_reuses_existing_repository);
+    Test.add_func("/git_sync_controller/create_guided_repository_flow_failure_reports_details",
+                  test_create_guided_repository_flow_failure_reports_details);
+    Test.add_func("/git_sync_controller/create_guided_repository_flow_failure_without_details_uses_default",
+                  test_create_guided_repository_flow_failure_without_details_uses_default);
+    Test.add_func("/git_sync_controller/sync_now_flow_maps_push_result_and_forwards_arguments",
+                  test_sync_now_flow_maps_push_result_and_forwards_arguments);
+    Test.add_func("/git_sync_controller/sync_now_flow_propagates_api_failure",
+                  test_sync_now_flow_propagates_api_failure);
     Test.add_func("/git_sync_controller/validate_remote_setup_inputs_missing_project_returns_toast",
                   test_validate_remote_setup_inputs_missing_project_returns_toast);
     Test.add_func("/git_sync_controller/validate_remote_setup_inputs_missing_api_returns_error",
