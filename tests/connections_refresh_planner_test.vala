@@ -170,7 +170,7 @@ private void test_stale_results_are_dropped_with_debug_events() {
 private void test_debounce_firing_during_a_flight_is_deferred() {
     var h = new PlannerHarness();
     h.planner.queue_refresh();
-    h.planner.set_in_flight_for_tests(true);
+    h.planner.refresh_in_flight = true;
     h.scheduler.run_all_once();
     assert(h.dispatches == 0);
     assert(h.last_debug() == "coalesced at debounce dispatch");

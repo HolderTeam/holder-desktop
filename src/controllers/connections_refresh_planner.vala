@@ -28,7 +28,7 @@ public class ConnectionsRefreshPlanner : Object {
     private bool is_tool_visible = false;
     private bool pending_refresh_when_visible = false;
     private uint pending_refresh_id = 0;
-    private bool refresh_in_flight = false;
+    internal bool refresh_in_flight = false;
     private bool pending_refresh_after_flight = false;
     private ConnectionsGraphRefreshTarget? pending_target = null;
     private ConnectionsGraphRefreshTarget? in_flight_target = null;
@@ -194,10 +194,6 @@ public class ConnectionsRefreshPlanner : Object {
             empty_state_check_due(project_id);
             return Source.REMOVE;
         });
-    }
-
-    internal void set_in_flight_for_tests(bool in_flight) {
-        refresh_in_flight = in_flight;
     }
 }
 
