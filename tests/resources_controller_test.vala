@@ -401,6 +401,42 @@ private void test_additional_metadata_parses_repeated_values_and_rejects_bad_lin
     assert(rejected);
 }
 
+private void test_additional_metadata_formats_and_round_trips_and_rejects_reserved_or_blank() {
+    var controller = new HolderLinux.ResourcesController();
+    var resource = make_resource("r1", "book", "isbn", "Book");
+    var creators = new Gee.ArrayList<string>();
+    creators.add("Ada");
+    creators.add("Grace");
+    resource.metadata.set("creator", creators);
+    var reserved = new Gee.ArrayList<string>();
+    reserved.add("hidden");
+    resource.metadata.set("identifier", reserved);
+    resource.metadata.set("description", reserved);
+
+    var text = controller.format_additional_metadata(resource);
+    assert(text.contains("creator: Ada"));
+    assert(text.contains("creator: Grace"));
+    assert(!text.contains("hidden"));
+    assert(controller.format_additional_metadata(make_resource("r2", "book", "", "Empty")) == "");
+
+    try {
+        assert(controller.parse_additional_metadata(text).get("creator").size == 2);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+
+    string[] invalid = { "identifier: x", "description: x", "creator:   " };
+    foreach (var line in invalid) {
+        bool rejected = false;
+        try {
+            controller.parse_additional_metadata(line);
+        } catch (Error e) {
+            rejected = e is IOError.INVALID_ARGUMENT;
+        }
+        assert(rejected);
+    }
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -444,6 +480,8 @@ int main(string[] args) {
                   test_resource_update_and_delete_ignore_when_api_missing);
     Test.add_func("/resources_controller/resource_delete_flow_failure_reports_activity_and_error",
                   test_resource_delete_flow_failure_reports_activity_and_error);
+    Test.add_func("/resources_controller/additional_metadata_format_and_validation",
+                  test_additional_metadata_formats_and_round_trips_and_rejects_reserved_or_blank);
     Test.add_func("/resources_controller/additional_metadata_parse",
                   test_additional_metadata_parses_repeated_values_and_rejects_bad_lines);
 

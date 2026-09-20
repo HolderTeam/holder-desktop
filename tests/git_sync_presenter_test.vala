@@ -248,11 +248,74 @@ private void test_fill_remote_template_aliases() {
     assert(remote == "ssh://team@git.example.com/team/team/cards/team/git.example.com");
 }
 
+private void test_git_cli_controls_when_cli_present_but_unauthenticated() {
+    var presentation = HolderLinux.GitSyncPresenter.git_cli_controls(true, false, "");
+
+    assert(presentation.cli_status_text.contains("not authenticated"));
+}
+
+private void test_configured_state_formats_recent_and_hourly_sync_times() {
+    var recent = HolderLinux.GitSyncPresenter.configured_state(
+        configured_project("https://git.example.com/team/cards.git",
+                           new HolderLinux.ProjectSyncState(null, 9970, null, 0, 0, "pushed")),
+        10000
+    );
+    assert(recent.detail_text == "Last successful sync just now");
+
+    var hours = HolderLinux.GitSyncPresenter.configured_state(
+        configured_project("https://git.example.com/team/cards.git",
+                           new HolderLinux.ProjectSyncState(null, 100000 - 3 * 3600, null, 0, 0, "pushed")),
+        100000
+    );
+    assert(hours.detail_text == "Last successful sync 3h ago");
+}
+
+private void test_configured_state_falls_back_to_raw_remote_when_no_web_url() {
+    var presentation = HolderLinux.GitSyncPresenter.configured_state(
+        configured_project("/srv/git/cards.git",
+                           new HolderLinux.ProjectSyncState(null, null, null, 0, 0, "")),
+        10000
+    );
+
+    assert(presentation.web_url == "");
+    assert(presentation.repository_text == "/srv/git/cards.git");
+    assert(HolderLinux.GitSyncPresenter.web_url_from_remote("git@host:") == "");
+    assert(HolderLinux.GitSyncPresenter.web_url_from_remote("ssh://host") == "");
+}
+
+private void test_provider_remote_preview_defaults_ssh_template_and_known_hosts() {
+    var ssh_provider = make_provider("custom", "ssh", "ssh", "", "");
+    var preview = HolderLinux.GitSyncPresenter.provider_remote_preview(
+        ssh_provider, "ssh", "team", "cards", "git.example.com"
+    );
+    assert(preview.remote_url == "git@git.example.com:team/cards.git");
+
+    string[,] hosts = {
+        {"github", "github.com"},
+        {"gitlab", "gitlab.com"},
+        {"bitbucket", "bitbucket.org"},
+        {"codeberg", "codeberg.org"},
+        {"sourcehut", "git.sr.ht"},
+        {"selfhosted", ""}
+    };
+    for (int i = 0; i < hosts.length[0]; i++) {
+        var provider = make_provider(hosts[i, 0], "https", "https", "", "https://{host}/{owner}/{repo}.git");
+        var host_preview = HolderLinux.GitSyncPresenter.provider_remote_preview(
+            provider, "https", "team", "cards", ""
+        );
+        assert(host_preview.remote_url == "https://%s/team/cards.git".printf(hosts[i, 1]));
+    }
+}
+
 public int main(string[] args) {
     Test.init(ref args);
 
     Test.add_func("/holder/git-sync-presenter/cli-missing", test_git_cli_controls_when_cli_missing);
     Test.add_func("/holder/git-sync-presenter/cli-authenticated", test_git_cli_controls_when_authenticated);
+    Test.add_func("/holder/git-sync-presenter/cli-present-but-unauthenticated", test_git_cli_controls_when_cli_present_but_unauthenticated);
+    Test.add_func("/holder/git-sync-presenter/configured-state-recent-and-hourly", test_configured_state_formats_recent_and_hourly_sync_times);
+    Test.add_func("/holder/git-sync-presenter/configured-state-raw-remote", test_configured_state_falls_back_to_raw_remote_when_no_web_url);
+    Test.add_func("/holder/git-sync-presenter/provider-ssh-default-and-known-hosts", test_provider_remote_preview_defaults_ssh_template_and_known_hosts);
     Test.add_func("/holder/git-sync-presenter/cli-requires-login", test_git_cli_controls_requires_login_to_enable_buttons);
     Test.add_func("/holder/git-sync-presenter/configured-state-last-sync", test_configured_state_shows_repository_and_last_sync);
     Test.add_func("/holder/git-sync-presenter/configured-state-pending", test_configured_state_prioritizes_pending_changes);

@@ -54,6 +54,7 @@ public class FakeEditorRecoveryDraftService : Object, HolderLinux.IEditorRecover
     public int remove_calls = 0;
     public bool fail_save = false;
     public bool fail_remove = false;
+    public bool fail_load = false;
     public HolderLinux.EditorRecoveryDraft? last_saved_draft = null;
     public Gee.HashMap<string, HolderLinux.EditorRecoveryDraft> drafts =
         new Gee.HashMap<string, HolderLinux.EditorRecoveryDraft>();
@@ -68,6 +69,9 @@ public class FakeEditorRecoveryDraftService : Object, HolderLinux.IEditorRecover
     }
 
     public HolderLinux.EditorRecoveryDraft? load_draft(string card_id) throws Error {
+        if (fail_load) {
+            throw new IOError.FAILED("load draft failed");
+        }
         return drafts.get(card_id);
     }
 
@@ -230,6 +234,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public bool list_threads_empty = false;
     public bool include_created_card = false;
     public bool fail_update_card = false;
+    public bool fail_update_card_after_hook = false;
     public bool reflect_update_in_get_card = false;
     public bool fail_update_card_position = false;
     public bool fail_delete_card = false;
@@ -1071,6 +1076,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
                 return Source.REMOVE;
             });
             yield;
+            if (fail_update_card_after_hook) {
+                throw new IOError.FAILED("update failed");
+            }
         }
     }
 

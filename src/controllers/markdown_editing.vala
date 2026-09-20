@@ -339,6 +339,9 @@ internal class MarkdownEditingController : Object {
             return new MarkdownPrefixEdit(prefix_chars, indentation + "> > ");
         }
 
+        if (remove_target) {
+            return new MarkdownPrefixEdit();
+        }
         var plain = parse_list_line(line);
         return new MarkdownPrefixEdit(
             plain.indentation.char_count(),

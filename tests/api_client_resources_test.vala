@@ -375,6 +375,65 @@ private void test_asset_import_start_and_poll() {
     assert(polled.resource_id == "r1");
 }
 
+private string make_download_dir() {
+    try {
+        return DirUtils.make_tmp("holder-api-download-XXXXXX");
+    } catch (Error e) {
+        assert_not_reached();
+    }
+}
+
+private Error? run_download(HolderLinux.ApiClient client, string resource_id, string asset_id, string destination) {
+    bool done = false;
+    Error? failure = null;
+    client.download_asset.begin(resource_id, asset_id, destination, (obj, res) => {
+        try {
+            client.download_asset.end(res);
+        } catch (Error e) {
+            failure = e;
+        }
+        done = true;
+    });
+    assert(wait_for_condition(() => done));
+    return failure;
+}
+
+private void test_download_asset_streams_content_to_the_destination_file() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_stream(200, "asset-bytes");
+    var client = make_client(transport);
+    var destination = Path.build_filename(make_download_dir(), "asset.bin");
+
+    assert(run_download(client, "r 1", "a/2", destination) == null);
+    assert(transport.last_method == "GET");
+    assert(transport.last_uri.contains("/resources/r%201/assets/a%2F2/content"));
+    assert(transport.last_auth == "Bearer token-123");
+    string contents;
+    try {
+        FileUtils.get_contents(destination, out contents);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    assert(contents == "asset-bytes");
+}
+
+private void test_download_asset_reports_http_and_transport_failures() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_stream(404, "");
+    transport.enqueue_stream_throw("connection reset");
+    var client = make_client(transport);
+    var destination = Path.build_filename(make_download_dir(), "asset.bin");
+
+    var http_failure = run_download(client, "r1", "a1", destination);
+    assert(http_failure is HolderLinux.ApiError.HTTP);
+    assert(http_failure.message.contains("HTTP 404"));
+    assert(!FileUtils.test(destination, FileTest.EXISTS));
+
+    var transport_failure = run_download(client, "r1", "a1", destination);
+    assert(transport_failure is HolderLinux.ApiError.TRANSPORT);
+    assert(transport_failure.message.contains("connection reset"));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -396,6 +455,10 @@ public static int main(string[] args) {
                   test_storage_location_lifecycle);
     Test.add_func("/api_client_resources/asset_import_start_and_poll",
                   test_asset_import_start_and_poll);
+    Test.add_func("/api_client_resources/download_asset_streams_content_to_the_destination_file",
+                  test_download_asset_streams_content_to_the_destination_file);
+    Test.add_func("/api_client_resources/download_asset_reports_http_and_transport_failures",
+                  test_download_asset_reports_http_and_transport_failures);
 
     return Test.run();
 }

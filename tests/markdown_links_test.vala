@@ -61,6 +61,41 @@ private void test_uses_utf8_byte_offsets() {
     assert(at(controller, text, "holder.team") == "https://holder.team");
 }
 
+private void test_out_of_range_offsets_and_empty_text_have_no_link() {
+    var controller = new HolderLinux.MarkdownLinkController();
+    var text = "https://holder.team";
+
+    assert(controller.uri_at_byte_offset("", 0) == null);
+    assert(controller.uri_at_byte_offset(text, -1) == null);
+    assert(controller.uri_at_byte_offset(text, text.length + 1) == null);
+}
+
+private void test_offset_between_links_or_on_trailing_punctuation_has_no_link() {
+    var controller = new HolderLinux.MarkdownLinkController();
+    var between = "https://one.example    https://two.example";
+    assert(at(controller, between, "    ", 1) == null);
+
+    var trailing = "See https://example.com/a.";
+    assert(controller.uri_at_byte_offset(trailing, trailing.length) == null);
+}
+
+private void test_bare_url_in_square_brackets_drops_the_unbalanced_bracket() {
+    var controller = new HolderLinux.MarkdownLinkController();
+    var text = "see [https://example.com/a] here";
+
+    assert(at(controller, text, "example.com") == "https://example.com/a");
+}
+
+private void test_indented_fence_hides_links_but_inline_code_elsewhere_does_not() {
+    var controller = new HolderLinux.MarkdownLinkController();
+
+    var fenced = "  ```\nhttps://example.com/fenced\n  ```";
+    assert(at(controller, fenced, "fenced") == null);
+
+    var mixed = "`code` and https://example.com/live";
+    assert(at(controller, mixed, "live") == "https://example.com/live");
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     Test.add_func("/holder/markdown-links/markdown", test_markdown_link_opens_from_label_or_destination);
@@ -68,6 +103,10 @@ public static int main(string[] args) {
     Test.add_func("/holder/markdown-links/punctuation", test_bare_url_trims_sentence_punctuation_but_keeps_balanced_parentheses);
     Test.add_func("/holder/markdown-links/rejects-unsafe-and-code", test_rejects_unsafe_schemes_and_code);
     Test.add_func("/holder/markdown-links/utf8-byte-offset", test_uses_utf8_byte_offsets);
+    Test.add_func("/holder/markdown-links/out-of-range-offsets", test_out_of_range_offsets_and_empty_text_have_no_link);
+    Test.add_func("/holder/markdown-links/between-links-and-trailing-punctuation", test_offset_between_links_or_on_trailing_punctuation_has_no_link);
+    Test.add_func("/holder/markdown-links/square-bracketed-bare-url", test_bare_url_in_square_brackets_drops_the_unbalanced_bracket);
+    Test.add_func("/holder/markdown-links/indented-fence-and-mixed-inline-code", test_indented_fence_hides_links_but_inline_code_elsewhere_does_not);
     return Test.run();
 }
 

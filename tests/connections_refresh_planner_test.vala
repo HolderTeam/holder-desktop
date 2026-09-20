@@ -10,7 +10,7 @@ private class PlannerHarness : Object {
     public string card_id = "";
     public Gee.ArrayList<string> debug = new Gee.ArrayList<string>();
     public Gee.ArrayList<string> empty_checks = new Gee.ArrayList<string>();
-    public int dispatches = 0;
+    public int dispatches { get; set; default = 0; }
     public uint last_serial = 0;
     public uint last_generation = 0;
     public HolderLinux.ConnectionsGraphRefreshTarget? last_target = null;

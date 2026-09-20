@@ -230,6 +230,40 @@ private void test_recovery_draft_uses_private_permissions_when_supported() {
     }
 }
 
+private void test_remove_draft_for_missing_card_is_a_noop() {
+    var service = new HolderLinux.EditorRecoveryDraftService(make_temp_dir());
+    try {
+        service.remove_draft("never-saved");
+        assert(service.load_draft("never-saved") == null);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+}
+
+private void test_default_root_dir_falls_back_to_home_state_directory() {
+    var previous = Environment.get_variable("XDG_STATE_HOME");
+    var expected_prefix = Path.build_filename(
+        Environment.get_home_dir(), ".local", "state", "holder", "editor-recovery-drafts"
+    );
+
+    Environment.unset_variable("XDG_STATE_HOME");
+    var unset_path = new HolderLinux.EditorRecoveryDraftService().draft_path_for_card_id("card-1");
+    Environment.set_variable("XDG_STATE_HOME", "   ", true);
+    var blank_path = new HolderLinux.EditorRecoveryDraftService().draft_path_for_card_id("card-1");
+    Environment.set_variable("XDG_STATE_HOME", "/custom/state", true);
+    var custom_path = new HolderLinux.EditorRecoveryDraftService().draft_path_for_card_id("card-1");
+
+    if (previous == null) {
+        Environment.unset_variable("XDG_STATE_HOME");
+    } else {
+        Environment.set_variable("XDG_STATE_HOME", previous, true);
+    }
+
+    assert(unset_path.has_prefix(expected_prefix));
+    assert(blank_path.has_prefix(expected_prefix));
+    assert(custom_path.has_prefix("/custom/state/holder/editor-recovery-drafts"));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -264,6 +298,14 @@ public static int main(string[] args) {
     Test.add_func(
         "/editor_recovery_draft_service/save_draft_reports_root_dir_creation_failure",
         test_save_draft_reports_root_dir_creation_failure
+    );
+    Test.add_func(
+        "/editor_recovery_draft_service/remove_draft_for_missing_card_is_a_noop",
+        test_remove_draft_for_missing_card_is_a_noop
+    );
+    Test.add_func(
+        "/editor_recovery_draft_service/default_root_dir_falls_back_to_home_state_directory",
+        test_default_root_dir_falls_back_to_home_state_directory
     );
     Test.add_func(
         "/editor_recovery_draft_service/draft_path_normalizes_unsafe_characters",

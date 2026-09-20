@@ -46,6 +46,50 @@ private class TestPrintService : HolderLinux.PrintService {
     }
 }
 
+private class RealFilePrintService : HolderLinux.PrintService {
+    public string seen_path = "";
+    public string seen_contents = "";
+
+    protected override async void run_print_dialog(Gtk.Window? parent, string path) throws Error {
+        seen_path = path;
+        FileUtils.get_contents(path, out seen_contents);
+    }
+
+    public void write_via_base(string path, string text) throws Error {
+        base.write_file(path, text);
+    }
+}
+
+private void test_print_service_uses_real_temp_file_and_removes_it() {
+    var service = new RealFilePrintService();
+    bool done = false;
+    service.print_text.begin(null, "real contents", (obj, res) => {
+        try {
+            service.print_text.end(res);
+        } catch (Error e) {
+            assert_not_reached();
+        }
+        done = true;
+    });
+
+    assert(wait_for_condition(() => done));
+    assert(service.seen_path.has_suffix("card.txt"));
+    assert(service.seen_contents == "real contents");
+    assert(!FileUtils.test(service.seen_path, FileTest.EXISTS));
+    assert(!FileUtils.test(Path.get_dirname(service.seen_path), FileTest.EXISTS));
+}
+
+private void test_print_service_base_write_maps_file_errors() {
+    var service = new RealFilePrintService();
+    bool failed = false;
+    try {
+        service.write_via_base("/nonexistent-holder-dir/card.txt", "text");
+    } catch (Error e) {
+        failed = e is IOError.FAILED;
+    }
+    assert(failed);
+}
+
 private void test_print_service_writes_and_cleans_up() {
     var service = new TestPrintService();
     service.next_tmp_dir = "/tmp/holder-print-a";
@@ -156,6 +200,10 @@ int main(string[] args) {
 
     Test.add_func("/print_service/writes_and_cleans_up",
                   test_print_service_writes_and_cleans_up);
+    Test.add_func("/print_service/uses_real_temp_file_and_removes_it",
+                  test_print_service_uses_real_temp_file_and_removes_it);
+    Test.add_func("/print_service/base_write_maps_file_errors",
+                  test_print_service_base_write_maps_file_errors);
     Test.add_func("/print_service/maps_make_tmp_error",
                   test_print_service_maps_make_tmp_error);
     Test.add_func("/print_service/maps_write_error",

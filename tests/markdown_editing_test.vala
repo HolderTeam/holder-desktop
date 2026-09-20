@@ -225,6 +225,55 @@ private void test_clears_known_inline_and_structural_formatting() {
     ) == "Heading\nQuote\nitem");
 }
 
+private void test_prefix_edit_reports_whether_it_changes_anything() {
+    assert(!new HolderLinux.MarkdownPrefixEdit().changed);
+    assert(new HolderLinux.MarkdownPrefixEdit(2, "").changed);
+    assert(new HolderLinux.MarkdownPrefixEdit(0, "> ").changed);
+}
+
+private void test_blank_lines_are_skipped_by_list_and_quote_commands() {
+    assert(apply_line_command("- a\n\n- b", HolderLinux.MarkdownLineCommand.BULLETED_LIST) == "a\n\nb");
+    assert(apply_line_command("a\n\nb", HolderLinux.MarkdownLineCommand.BULLETED_LIST) == "- a\n\n- b");
+    assert(apply_line_command("> a\n\n> b", HolderLinux.MarkdownLineCommand.BLOCKQUOTE) == "a\n\nb");
+}
+
+private void test_mixed_quote_selection_nests_existing_quotes_and_quotes_plain_lines() {
+    assert(apply_line_command("> a\nb", HolderLinux.MarkdownLineCommand.BLOCKQUOTE) == "> > a\n> b");
+}
+
+private void test_clear_structure_leaves_plain_lines_alone() {
+    assert(apply_line_command("plain", HolderLinux.MarkdownLineCommand.CLEAR_STRUCTURE) == "plain");
+}
+
+private void test_links_without_a_selection_insert_empty_templates() {
+    var controller = new HolderLinux.MarkdownEditingController();
+
+    var markdown = controller.decide_inline_edit("", false, HolderLinux.MarkdownInlineCommand.LINK);
+    assert(markdown.replacement == "[]()");
+    assert(markdown.selection_start == 1);
+
+    var wiki = controller.decide_inline_edit("", false, HolderLinux.MarkdownInlineCommand.WIKILINK);
+    assert(wiki.replacement == "[[]]");
+    assert(wiki.selection_start == 2);
+}
+
+private void test_clear_formatting_handles_links_wikilinks_and_unformatted_text() {
+    var controller = new HolderLinux.MarkdownEditingController();
+    var clear = HolderLinux.MarkdownInlineCommand.CLEAR_FORMATTING;
+
+    assert(!controller.decide_inline_edit("**bold**", false, clear).changed);
+    assert(controller.decide_inline_edit("[label](https://holder.team)", true, clear).replacement == "label");
+    assert(controller.decide_inline_edit("[[Card title]]", true, clear).replacement == "Card title");
+    assert(!controller.decide_inline_edit("nothing to clear", true, clear).changed);
+}
+
+private void test_unknown_inline_command_leaves_text_unchanged() {
+    var controller = new HolderLinux.MarkdownEditingController();
+
+    var edit = controller.decide_inline_edit("text", true, (HolderLinux.MarkdownInlineCommand) 999);
+    assert(!edit.changed);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     Test.add_func("/holder/markdown-editing/continues-bullets", test_continues_bullets_and_preserves_indentation);
@@ -241,6 +290,13 @@ public static int main(string[] args) {
     Test.add_func("/holder/markdown-editing/code", test_code_uses_inline_or_fenced_form);
     Test.add_func("/holder/markdown-editing/links", test_builds_links_and_avoids_nesting_existing_links);
     Test.add_func("/holder/markdown-editing/clear-formatting", test_clears_known_inline_and_structural_formatting);
+    Test.add_func("/holder/markdown-editing/prefix-edit-changed", test_prefix_edit_reports_whether_it_changes_anything);
+    Test.add_func("/holder/markdown-editing/blank-lines-skipped", test_blank_lines_are_skipped_by_list_and_quote_commands);
+    Test.add_func("/holder/markdown-editing/mixed-quote-selection", test_mixed_quote_selection_nests_existing_quotes_and_quotes_plain_lines);
+    Test.add_func("/holder/markdown-editing/clear-structure-plain", test_clear_structure_leaves_plain_lines_alone);
+    Test.add_func("/holder/markdown-editing/links-without-selection", test_links_without_a_selection_insert_empty_templates);
+    Test.add_func("/holder/markdown-editing/clear-formatting-edge-cases", test_clear_formatting_handles_links_wikilinks_and_unformatted_text);
+    Test.add_func("/holder/markdown-editing/unknown-inline-command", test_unknown_inline_command_leaves_text_unchanged);
     return Test.run();
 }
 

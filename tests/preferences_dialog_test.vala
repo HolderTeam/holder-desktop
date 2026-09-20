@@ -49,6 +49,37 @@ private void test_editor_font_style_canonicalizes_and_builds_css() {
     assert(css.contains("font-weight: 700"));
 }
 
+private void test_editor_font_style_maps_style_and_stretch_to_css() {
+    var css = HolderLinux.EditorFontStyle.css_for_font_description("Sans Italic 12", "c");
+    assert(css.contains("font-style: italic;"));
+    css = HolderLinux.EditorFontStyle.css_for_font_description("Sans Oblique 12", "c");
+    assert(css.contains("font-style: oblique;"));
+    css = HolderLinux.EditorFontStyle.css_for_font_description("Sans 12", "c");
+    assert(css.contains("font-style: normal;"));
+    assert(css.contains("font-stretch: normal;"));
+
+    string[,] stretches = {
+        {"Ultra-Condensed", "ultra-condensed"},
+        {"Extra-Condensed", "extra-condensed"},
+        {"Condensed", "condensed"},
+        {"Semi-Condensed", "semi-condensed"},
+        {"Semi-Expanded", "semi-expanded"},
+        {"Expanded", "expanded"},
+        {"Extra-Expanded", "extra-expanded"},
+        {"Ultra-Expanded", "ultra-expanded"}
+    };
+    for (int i = 0; i < stretches.length[0]; i++) {
+        css = HolderLinux.EditorFontStyle.css_for_font_description(
+            "Sans %s 12".printf(stretches[i, 0]), "c"
+        );
+        assert(css.contains("font-stretch: %s;".printf(stretches[i, 1])));
+    }
+
+    css = HolderLinux.EditorFontStyle.css_for_font_description("Quote\"Face 12px", "c");
+    assert(css.contains("font-family: \"Quote\\\"Face\", monospace;"));
+    assert(css.contains("px;"));
+}
+
 private void test_custom_font_toggle_applies_session_only_style() {
     var buffer = new GtkSource.Buffer(null);
     var view = new GtkSource.View.with_buffer(buffer);
@@ -156,6 +187,8 @@ public static int main(string[] args) {
                   test_preferences_dialog_constructs_appearance_page);
     Test.add_func("/preferences_dialog/editor_font_style_canonicalizes_and_builds_css",
                   test_editor_font_style_canonicalizes_and_builds_css);
+    Test.add_func("/preferences_dialog/editor_font_style_maps_style_and_stretch_to_css",
+                  test_editor_font_style_maps_style_and_stretch_to_css);
     Test.add_func("/preferences_dialog/custom_font_toggle_applies_session_only_style",
                   test_custom_font_toggle_applies_session_only_style);
     Test.add_func("/preferences_dialog/custom_font_selection_persists_family_size_and_disabled_choice",
