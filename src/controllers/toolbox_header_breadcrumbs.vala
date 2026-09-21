@@ -2,7 +2,7 @@ namespace HolderLinux {
 
 // Builds the toolbox header breadcrumb trail and the small selection checks around it, so the
 // toolbox view only reads GTK state and applies the result.
-internal class ToolboxHeaderBreadcrumbs {
+internal class ToolboxHeaderBreadcrumbs { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public const string DEFAULT_TOOL_ID = "tool";
     public const string DEFAULT_TOOL_LABEL = "Tool";
 

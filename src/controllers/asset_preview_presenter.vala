@@ -20,7 +20,7 @@ public class AssetNavigationState : Object {
     }
 }
 
-public class AssetPreviewPresenter {
+public class AssetPreviewPresenter { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public const double MIN_ZOOM = 0.2;
     public const double MAX_ZOOM = 4.0;
     public const double ZOOM_STEP = 0.2;

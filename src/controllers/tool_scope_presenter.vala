@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-public class ToolScopePresenter {
+public class ToolScopePresenter { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public static ToolScopeSnapshot snapshot(string tool_id,
                                              string tool_label,
                                              Project? selected_project,

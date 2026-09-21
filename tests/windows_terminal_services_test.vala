@@ -67,6 +67,8 @@ private void test_parse_power_shell_versions() {
     assert(HolderLinux.PowerShellDiscoveryService.parse_major_version("5") == 5);
     assert(HolderLinux.PowerShellDiscoveryService.parse_major_version("") == -1);
     assert(HolderLinux.PowerShellDiscoveryService.parse_major_version("preview") == -1);
+    assert(HolderLinux.PowerShellDiscoveryService.parse_major_version(null) == -1);
+    assert(HolderLinux.PowerShellDiscoveryService.parse_major_version(".5") == -1);
 }
 
 private void test_windows_apps_alias_detection() {
@@ -541,6 +543,33 @@ private void test_session_store_reports_unwritable_locations() {
     assert(save_failed);
 }
 
+private void test_session_store_reports_an_unreadable_session_root() {
+    var root = make_temp_dir();
+    var store = new HolderLinux.TerminalSessionStore(root);
+    FileUtils.chmod(root, 0000);
+
+    bool readable = true;
+    try {
+        Dir.open(root);
+    } catch (FileError e) {
+        readable = false;
+    }
+    if (readable) {
+        FileUtils.chmod(root, 0700);
+        Test.skip("file permissions are not enforced for this user");
+        return;
+    }
+
+    bool failed = false;
+    try {
+        store.load_sessions();
+    } catch (Error e) {
+        failed = e is IOError.FAILED && e.message.contains("Could not read terminal sessions");
+    }
+    FileUtils.chmod(root, 0700);
+    assert(failed);
+}
+
 private void register_powershell(FakePowerShellDiscoveryService discovery, string path, string? version) {
     discovery.existing_paths.add(path);
     discovery.programs.set("pwsh.exe", path);
@@ -645,6 +674,50 @@ private void test_query_version_runs_the_executable_and_reports_failures() {
     version = query_fake_powershell("exit 1", out failure);
     assert(version == null);
     assert(failure.message == "PowerShell version query failed.");
+
+    // Output that is not a version falls back to the through-file query, which needs the Windows
+    // helper and reports itself unsupported elsewhere.
+    version = query_fake_powershell("echo preview", out failure);
+    assert(version == null);
+    assert(failure is IOError.NOT_SUPPORTED);
+}
+
+private void test_version_from_output_file_validates_the_helper_result() {
+    var dir = make_temp_dir();
+    var output_path = Path.build_filename(dir, "version.txt");
+    try {
+        FileUtils.set_contents(output_path, "  7.4.1\n");
+        assert(HolderLinux.PowerShellDiscoveryService.version_from_output_file(output_path, 0) == "7.4.1");
+    } catch (Error e) {
+        assert_not_reached();
+    }
+
+    try {
+        HolderLinux.PowerShellDiscoveryService.version_from_output_file(output_path, 3);
+        assert_not_reached();
+    } catch (Error e) {
+        assert(e is IOError.FAILED);
+        assert(e.message == "PowerShell version query exited with status 3.");
+    }
+
+    try {
+        HolderLinux.PowerShellDiscoveryService.version_from_output_file(
+            Path.build_filename(dir, "missing.txt"), 0
+        );
+        assert_not_reached();
+    } catch (Error e) {
+        assert(e is IOError.INVALID_DATA);
+        assert(e.message.has_prefix("PowerShell returned no version output: "));
+    }
+
+    try {
+        FileUtils.set_contents(output_path, "nonsense\n");
+        HolderLinux.PowerShellDiscoveryService.version_from_output_file(output_path, 0);
+        assert_not_reached();
+    } catch (Error e) {
+        assert(e is IOError.INVALID_DATA);
+        assert(e.message == "PowerShell returned an invalid version: nonsense");
+    }
 }
 
 private void test_query_version_through_file_is_unsupported_without_the_windows_helper() {
@@ -786,6 +859,14 @@ public static int main(string[] args) {
     Test.add_func(
         "/windows_terminal/session_store_skips_unreadable_session_metadata",
         test_session_store_skips_unreadable_session_metadata
+    );
+    Test.add_func(
+        "/windows_terminal/session_store_reports_an_unreadable_session_root",
+        test_session_store_reports_an_unreadable_session_root
+    );
+    Test.add_func(
+        "/windows_terminal/version_from_output_file_validates_the_helper_result",
+        test_version_from_output_file_validates_the_helper_result
     );
     Test.add_func(
         "/windows_terminal/session_store_orders_newest_first",

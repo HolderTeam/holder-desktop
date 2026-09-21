@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-internal class WindowFeedbackFormat : Object {
+internal class WindowFeedbackFormat : Object { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public static bool is_serious_status(string text) {
         var lower = text.down();
         return lower.contains("connecting") ||

@@ -32,10 +32,10 @@ public class GoogleDriveConnectFlow : Object {
     public const int MAX_POLL_ATTEMPTS = 600;
     public const uint POLL_INTERVAL_MS = 1000;
 
-    private IResourceStorageApi storage_api;
-    private IUriLauncher uri_launcher;
-    private IScheduler scheduler;
-    private PreferredLocationLookup preferred_lookup;
+    private IResourceStorageApi storage_api; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private IUriLauncher uri_launcher; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private IScheduler scheduler; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private PreferredLocationLookup preferred_lookup; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private bool cancelled = false;
 
     public signal void status_changed(string text);

@@ -27,7 +27,7 @@ public class MilestoneDayGroups : Object {
 
 // Calendar/date decisions for the Milestones tool. Every method that turns an epoch into a
 // calendar date takes the TimeZone explicitly so tests do not depend on the machine's zone.
-public class MilestonesPresenter {
+public class MilestonesPresenter { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public const string SELECT_PROJECT_MESSAGE = "Select a project to see its calendar.";
     public const string SERVICE_UNAVAILABLE_MESSAGE = "Calendar service is unavailable.";
     public const string LOADING_UPCOMING_MESSAGE = "Loading upcoming milestones…";

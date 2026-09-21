@@ -9,7 +9,7 @@ public class GitTransportOptions : Object {
     }
 }
 
-public class GitProviderOptions : Object {
+public class GitProviderOptions : Object { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public static GitTransportOptions transport_options(GitProviderCatalogEntry? provider) {
         var normalized = new Gee.ArrayList<string>();
         if (provider != null && provider.transports_summary.strip().length > 0) {

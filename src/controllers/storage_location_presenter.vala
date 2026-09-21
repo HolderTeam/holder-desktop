@@ -22,7 +22,7 @@ public class StorageLocationRowPresentation : Object {
     }
 }
 
-public class StorageLocationPresenter {
+public class StorageLocationPresenter { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public static string provider_label(string provider) {
         switch (provider) {
             case "local_directory":

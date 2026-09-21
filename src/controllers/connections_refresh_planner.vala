@@ -20,8 +20,8 @@ public class ConnectionsRefreshPlanner : Object {
     public const uint GRAPH_REFRESH_DEBOUNCE_MS = 100;
     public const uint PROJECT_EMPTY_STATE_DELAY_MS = 250;
 
-    private IScheduler scheduler;
-    private ConnectionsRefreshTargetFactory target_factory;
+    private IScheduler scheduler; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ConnectionsRefreshTargetFactory target_factory; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private uint refresh_serial = 0;
     private uint graph_generation = 0;
     private uint graph_content_generation = 0;
@@ -30,9 +30,9 @@ public class ConnectionsRefreshPlanner : Object {
     private uint pending_refresh_id = 0;
     internal bool refresh_in_flight = false;
     private bool pending_refresh_after_flight = false;
-    private ConnectionsGraphRefreshTarget? pending_target = null;
-    private ConnectionsGraphRefreshTarget? in_flight_target = null;
-    private ConnectionsGraphRefreshTarget? committed_target = null;
+    private ConnectionsGraphRefreshTarget? pending_target = null; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ConnectionsGraphRefreshTarget? in_flight_target = null; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ConnectionsGraphRefreshTarget? committed_target = null; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private uint committed_generation = 0;
     private uint pending_empty_state_id = 0;
 

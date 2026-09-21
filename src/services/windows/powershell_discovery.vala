@@ -310,30 +310,34 @@ public class PowerShellDiscoveryService : Object {
             );
             int exit_code;
             run_windows_process_hidden(powershell_path, command_line, out exit_code);
-            if (exit_code != 0) {
-                throw new IOError.FAILED(
-                    "PowerShell version query exited with status %d.".printf(exit_code)
-                );
-            }
-            string version;
-            try {
-                FileUtils.get_contents(output_path, out version);
-            } catch (FileError e) {
-                throw new IOError.INVALID_DATA(
-                    "PowerShell returned no version output: %s".printf(e.message)
-                );
-            }
-            version = version.strip();
-            if (parse_major_version(version) < 0) {
-                throw new IOError.INVALID_DATA(
-                    "PowerShell returned an invalid version: %s".printf(version)
-                );
-            }
-            return version;
+            return version_from_output_file(output_path, exit_code); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: Windows-only, reached after the hidden-process helper succeeds; the logic is tested through version_from_output_file
         } finally {
             FileUtils.remove(output_path);
             DirUtils.remove(temp_dir);
         }
+    }
+
+    internal static string version_from_output_file(string output_path, int exit_code) throws Error {
+        if (exit_code != 0) {
+            throw new IOError.FAILED(
+                "PowerShell version query exited with status %d.".printf(exit_code)
+            );
+        }
+        string version;
+        try {
+            FileUtils.get_contents(output_path, out version);
+        } catch (FileError e) {
+            throw new IOError.INVALID_DATA(
+                "PowerShell returned no version output: %s".printf(e.message)
+            );
+        }
+        version = version.strip();
+        if (parse_major_version(version) < 0) {
+            throw new IOError.INVALID_DATA(
+                "PowerShell returned an invalid version: %s".printf(version)
+            );
+        }
+        return version;
     }
 
     internal static bool is_windows_apps_alias(string path) {

@@ -6,7 +6,7 @@ public enum ConnectionsProjectRenderPlan {
     SCHEDULE_EMPTY_CHECK
 }
 
-public class ConnectionsEmptyStatePolicy {
+public class ConnectionsEmptyStatePolicy { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public static bool project_has_known_cards(Project project) {
         return project.root_card_count > 0;
     }

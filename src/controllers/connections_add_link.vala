@@ -19,7 +19,7 @@ public class ConnectionsAddLinkRequest : Object {
     }
 }
 
-public class ConnectionsAddLinkPresenter {
+public class ConnectionsAddLinkPresenter { // LCOV_EXCL_LINE: declaration-only coverage artifact
     // Turns the Add Graph Connection dialog state into a request. The kind dropdown lists
     // available_kinds followed by a trailing "custom" entry.
     public static ConnectionsAddLinkRequest? resolve(Gee.List<string> target_ids,

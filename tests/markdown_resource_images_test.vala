@@ -35,6 +35,17 @@ private void test_extracts_standalone_holder_images() {
     ) == "abc123");
 }
 
+private void test_alt_text_ending_in_a_lone_backslash_keeps_the_backslash() {
+    var controller = new HolderLinux.MarkdownResourceImageController();
+    // "\\]" would read as an escaped bracket, so the regex backtracks and the backslash becomes the
+    // last character of the alt text; unescaping must keep it rather than drop it.
+    var references = controller.extract("![trailing\\](holder://resource/abc123)");
+
+    assert(references.size == 1);
+    assert(references[0].alt_text == "trailing\\");
+    assert(references[0].resource_id == "abc123");
+}
+
 private void test_ignores_code_and_nonstandalone_images() {
     var controller = new HolderLinux.MarkdownResourceImageController();
     var markdown = "```md\n![No](holder://resource/code)\n```\n" +
@@ -223,6 +234,8 @@ public static int main(string[] args) {
     Test.init(ref args);
     var gtk_available = Gtk.init_check();
     Test.add_func("/holder/markdown-resource-images/extract", test_extracts_standalone_holder_images);
+    Test.add_func("/holder/markdown-resource-images/trailing-backslash-alt-text",
+                  test_alt_text_ending_in_a_lone_backslash_keeps_the_backslash);
     Test.add_func("/holder/markdown-resource-images/exclusions", test_ignores_code_and_nonstandalone_images);
     Test.add_func("/holder/markdown-resource-images/build", test_builds_readable_safe_markdown);
     Test.add_func("/holder/markdown-resource-images/resolve", test_resolves_first_image_asset_only);

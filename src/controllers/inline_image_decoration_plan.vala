@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-public class InlineImageDecorationPlan {
+public class InlineImageDecorationPlan { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public const int FALLBACK_WIDTH = 560;
     public const int MIN_VIEW_WIDTH = 160;
     public const int SIDE_MARGIN_TOTAL = 80;

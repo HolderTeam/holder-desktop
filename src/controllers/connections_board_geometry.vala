@@ -16,7 +16,7 @@ public class ConnectionsArrowHead : Object {
     }
 }
 
-public class ConnectionsBoardGeometry {
+public class ConnectionsBoardGeometry { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public const double ARROW_LENGTH = 8.0;
     public const double ARROW_HALF_WIDTH = 3.5;
     private const double EPSILON = 0.001;

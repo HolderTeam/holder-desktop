@@ -41,7 +41,7 @@ public class ProjectHistoryPresentation : Object {
     }
 }
 
-public class ProjectHistoryPresenter {
+public class ProjectHistoryPresenter { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public const string EMPTY_TEXT = "No project activity yet";
 
     public static ProjectHistoryPresentation present(ProjectHistoryActivity activity) {

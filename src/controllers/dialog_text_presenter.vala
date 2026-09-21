@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-internal class DialogTextPresenter : Object {
+internal class DialogTextPresenter : Object { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public static string update_prompt_body(string message, string version, string current_version) {
         return "%s\n\nHolder %s is available. You are running %s.".printf(
             message,
