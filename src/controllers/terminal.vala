@@ -25,6 +25,14 @@ public class TerminalController : Object {
         }
         return selected_text;
     }
+
+    // Which tab to select after one closes; -1 means none are left and the caller opens a fresh one.
+    public int page_to_select_after_close(int closed_index, int remaining_pages) { // GCOVR_EXCL_BR_LINE
+        if (remaining_pages <= 0) {
+            return -1;
+        }
+        return closed_index >= remaining_pages ? remaining_pages - 1 : closed_index;
+    }
 }
 
 }

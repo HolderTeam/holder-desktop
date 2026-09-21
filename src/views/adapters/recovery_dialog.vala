@@ -36,14 +36,14 @@ internal class RecoveryDialogAdapter : Object {
         dialog.set_extra_child(content);
         dialog.set_response_enabled("continue", false);
         pin_entry.changed.connect(() => {
-            dialog.set_response_enabled("continue", pin_entry.get_text().strip().length > 0);
+            dialog.set_response_enabled("continue", RecoveryUiController.pin_is_submittable(pin_entry.get_text()));
         });
 
         dialog.response.connect((response) => {
             if (response != "continue") {
                 return;
             }
-            var pin = pin_entry.get_text().strip();
+            var pin = RecoveryUiController.normalize_pin(pin_entry.get_text());
             if (!recovery_ui_controller.validate_pin(pin)) {
                 return;
             }
@@ -90,11 +90,11 @@ internal class RecoveryDialogAdapter : Object {
                 if (file == null) {
                     return;
                 }
-                var path = file.get_path();
-                if (path == null || path.strip().length == 0) {
+                var path = RecoveryUiController.accepted_path(file.get_path());
+                if (path == null) {
                     return;
                 }
-                on_save_path_ready(path);
+                on_save_path_ready((!) path);
             } catch (IOError.CANCELLED e) {
                 // User cancelled.
             } catch (Error e) {

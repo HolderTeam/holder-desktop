@@ -9,10 +9,10 @@ private class FakeClock : Object, HolderLinux.IClock {
 }
 
 private class FakeUpdateMetadataTransport : Object, HolderLinux.IUpdateMetadataTransport {
-    public string body { get; set; default = ""; }
+    public string body = "";
     public bool fail { get; set; default = false; }
     public int calls { get; private set; default = 0; }
-    public string last_url { get; private set; default = ""; }
+    public string last_url = "";
 
     public async string fetch_text(string url) throws Error {
         calls++;
@@ -194,7 +194,7 @@ private class LocalMetadataServer : Object {
     public string url = "";
 
     public LocalMetadataServer() {
-        server = new Soup.Server(null);
+        server = (Soup.Server) Object.new(typeof(Soup.Server));
         server.add_handler("/version.json", (srv, msg, path, query) => {
             msg.set_status(status, null);
             msg.set_response("application/json", Soup.MemoryUse.COPY, body);

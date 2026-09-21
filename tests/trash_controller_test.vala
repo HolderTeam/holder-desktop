@@ -426,8 +426,18 @@ private void test_confirmation_dialog_copy_helpers() {
     assert(empty.cancel_label == "Cancel");
 }
 
+private void test_restore_activity_kind_predicate_is_exact() {
+    assert(HolderLinux.TrashController.ACTIVITY_KIND_RESTORED == "result.trash.restore");
+    assert(HolderLinux.TrashController.is_restored_activity("result.trash.restore"));
+    assert(!HolderLinux.TrashController.is_restored_activity("result.trash.restore_failed"));
+    assert(!HolderLinux.TrashController.is_restored_activity("result.trash.empty"));
+    assert(!HolderLinux.TrashController.is_restored_activity(""));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
+    Test.add_func("/holder/trash-controller/restore-activity-kind-predicate",
+                  test_restore_activity_kind_predicate_is_exact);
 
     Test.add_func("/holder/trash-controller/no-project", test_refresh_without_project_shows_select_message);
     Test.add_func("/holder/trash-controller/refresh-with-items", test_refresh_with_items_updates_scope_and_state);

@@ -24,7 +24,9 @@ public class AiConfigPanelView : Object {
 
     private Gee.ArrayList<AiRuntimeProvider> providers_cache = new Gee.ArrayList<AiRuntimeProvider>();
     private Gee.ArrayList<AiRunnerInfo> runners_cache = new Gee.ArrayList<AiRunnerInfo>();
-    private Gee.ArrayList<string?> local_model_option_values = new Gee.ArrayList<string?>();
+    private AiModelOptions fast_model_choices = new AiModelOptions();
+    private AiModelOptions strong_model_choices = new AiModelOptions();
+    private AiModelOptions deep_model_choices = new AiModelOptions();
     private HashTable<string, AiProviderCredentialState> credential_by_provider =
         new HashTable<string, AiProviderCredentialState>(str_hash, str_equal);
     private HashTable<string, AiProviderSettingState> setting_by_provider =
@@ -49,23 +51,23 @@ public class AiConfigPanelView : Object {
     public AiConfigPanelView(IUriLauncher? uri_launcher = null) {
         this.uri_launcher = uri_launcher ?? new AppInfoUriLauncher();
         widget = build_ui();
-        set_idle_state("Connect to holderd to configure AI.");
+        set_idle_state(AiConfigPresenter.CONNECT_MESSAGE);
     }
 
     public void set_api_client(IHolderApi? api) {
         api_client = api;
         if (api_client == null) {
-            set_idle_state("Connect to holderd to configure AI.");
+            set_idle_state(AiConfigPresenter.CONNECT_MESSAGE);
         }
     }
 
     public async void refresh(string? project_id = null) {
         if (api_client == null) {
-            set_idle_state("Connect to holderd to configure AI.");
+            set_idle_state(AiConfigPresenter.CONNECT_MESSAGE);
             return;
         }
 
-        set_idle_state("Loading AI config...");
+        set_idle_state(AiConfigPresenter.LOADING_MESSAGE);
         try {
             var providers = yield api_client.list_ai_runtime_providers();
             var runners = yield api_client.list_ai_runners();
@@ -74,7 +76,7 @@ public class AiConfigPanelView : Object {
             var local_models = yield api_client.get_ai_local_model_config();
             render(runners, providers, credentials, settings, local_models);
         } catch (Error e) {
-            set_idle_state("Failed to load AI config.");
+            set_idle_state(AiConfigPresenter.LOAD_FAILED_MESSAGE);
             error_reported("AI Config", e.message);
             debug_log_requested("AI Config load failed: %s".printf(e.message));
         }
@@ -217,7 +219,6 @@ public class AiConfigPanelView : Object {
         clear_runner_rows();
         local_activity_label.set_text("");
         local_pulls_label.set_text("");
-        local_model_option_values.clear();
         local_model_config = new AiLocalModelConfigInfo(null, null, null, 0);
         clear_recommended_buttons();
         update_local_model_dropdowns();
@@ -225,50 +226,24 @@ public class AiConfigPanelView : Object {
     }
 
     public void render_local_models(AiCapabilitiesInfo capabilities, AiStatusInfo status) {
-        var runtime_parts = new Gee.ArrayList<string>();
-        runtime_parts.add("Runtime: %s".printf(capabilities.runner_available ? "available" : "unavailable"));
-        if (capabilities.caste_name.strip().length > 0) {
-            runtime_parts.add("Engine: %s".printf(capabilities.caste_name));
-        }
-        if (capabilities.runner_version.strip().length > 0) {
-            runtime_parts.add("Version: %s".printf(capabilities.runner_version));
-        }
-        local_runtime_label.set_text(string.joinv(" | ", runtime_parts.to_array()));
-
-        if (capabilities.runner_error.strip().length > 0) {
-            local_runtime_label.set_text("%s\n%s".printf(
-                local_runtime_label.get_text(),
-                capabilities.runner_error
-            ));
-        }
+        local_runtime_label.set_text(AiConfigPresenter.runtime_summary(capabilities));
 
         update_local_model_dropdowns();
 
-        if (capabilities.recommended_install.size == 0) {
-            local_recommended_label.set_text("Recommended installs: none");
-        } else {
-            local_recommended_label.set_text(
-                "Recommended installs: %s".printf(join_list(capabilities.recommended_install))
-            );
-        }
+        local_recommended_label.set_text(
+            AiConfigPresenter.recommended_installs_text(capabilities.recommended_install)
+        );
         rebuild_recommended_pull_buttons(capabilities.recommended_install);
 
-        local_activity_label.set_text(
-            "Active runs: %lld | Active pulls: %lld | Cloud providers configured: %lld".printf(
-                status.active_runs,
-                status.active_pull_jobs,
-                status.cloud_configured_providers
-            )
-        );
-        local_pulls_label.set_text("Pull jobs: %s".printf(format_status_pull_jobs(status.pulls)));
+        local_activity_label.set_text(AiConfigPresenter.activity_summary(status));
+        local_pulls_label.set_text(AiConfigPresenter.pull_jobs_summary(status.pulls, runners_cache));
     }
 
     public void render_local_models_error(string message) {
-        local_runtime_label.set_text("Local runtime unavailable");
+        local_runtime_label.set_text(AiConfigPresenter.LOCAL_RUNTIME_UNAVAILABLE);
         local_recommended_label.set_text("");
         local_activity_label.set_text(message);
         local_pulls_label.set_text("");
-        local_model_option_values.clear();
         update_local_model_dropdowns();
         clear_recommended_buttons();
     }
@@ -327,7 +302,7 @@ public class AiConfigPanelView : Object {
         foreach (var provider in providers_cache) {
             append_provider_row(provider);
         }
-        status_label.set_text("Configure model runners, local model preferences, and cloud providers.");
+        status_label.set_text(AiConfigPresenter.READY_MESSAGE);
     }
 
     private void update_local_model_dropdowns() {
@@ -337,51 +312,31 @@ public class AiConfigPanelView : Object {
         }
 
         suppress_local_model_signal = true;
-        populate_local_model_dropdown(fast_model_options, fast_model_dropdown, local_model_config.fast_model);
-        populate_local_model_dropdown(strong_model_options, strong_model_dropdown, local_model_config.strong_model);
-        populate_local_model_dropdown(deep_model_options, deep_model_dropdown, local_model_config.deep_model);
+        fast_model_choices = populate_local_model_dropdown(
+            fast_model_options, fast_model_dropdown, local_model_config.fast_model
+        );
+        strong_model_choices = populate_local_model_dropdown(
+            strong_model_options, strong_model_dropdown, local_model_config.strong_model
+        );
+        deep_model_choices = populate_local_model_dropdown(
+            deep_model_options, deep_model_dropdown, local_model_config.deep_model
+        );
         suppress_local_model_signal = false;
     }
 
-    private void populate_local_model_dropdown(Gtk.StringList options,
-                                               Gtk.DropDown dropdown,
-                                               string? selected_model) {
+    private AiModelOptions populate_local_model_dropdown(Gtk.StringList options,
+                                                         Gtk.DropDown dropdown,
+                                                         string? selected_model) {
+        var choices = AiConfigPresenter.build_model_options(runners_cache, selected_model);
         while (options.get_n_items() > 0) {
             options.remove(options.get_n_items() - 1);
         }
-        local_model_option_values.clear();
-
-        options.append("(auto)");
-        local_model_option_values.add(null);
-        uint selected_index = 0;
-        foreach (var runner in runners_cache) {
-            for (int i = 0; i < runner.runtime.models.size; i++) {
-                var model_name = runner.runtime.models[i];
-                var model_ref = "%s::%s".printf(runner.runner_id, model_name);
-                options.append(display_runner_model_label(runner, model_name));
-                local_model_option_values.add(model_ref);
-                if (selected_model != null && selected_model == model_ref) {
-                    selected_index = local_model_option_values.size - 1;
-                }
-            }
+        foreach (var label in choices.labels) {
+            options.append(label);
         }
-
-        if (selected_model != null && selected_index == 0) {
-            options.append("Missing: %s".printf(display_model_ref_label(selected_model)));
-            local_model_option_values.add(selected_model);
-            selected_index = local_model_option_values.size - 1;
-        }
-
-        dropdown.set_selected(selected_index);
-        dropdown.set_sensitive(local_model_option_values.size > 1);
-    }
-
-    private string? selected_model_from_dropdown(Gtk.StringList options, Gtk.DropDown dropdown) {
-        var selected = dropdown.get_selected();
-        if (selected == 0 || selected >= local_model_option_values.size) {
-            return null;
-        }
-        return local_model_option_values[(int) selected];
+        dropdown.set_selected(choices.selected_index);
+        dropdown.set_sensitive(choices.has_choices);
+        return choices;
     }
 
     private async void save_local_model_config() {
@@ -389,9 +344,9 @@ public class AiConfigPanelView : Object {
             return;
         }
 
-        var fast_model = selected_model_from_dropdown(fast_model_options, fast_model_dropdown);
-        var strong_model = selected_model_from_dropdown(strong_model_options, strong_model_dropdown);
-        var deep_model = selected_model_from_dropdown(deep_model_options, deep_model_dropdown);
+        var fast_model = fast_model_choices.value_at(fast_model_dropdown.get_selected());
+        var strong_model = strong_model_choices.value_at(strong_model_dropdown.get_selected());
+        var deep_model = deep_model_choices.value_at(deep_model_dropdown.get_selected());
         try {
             local_model_save_in_flight = true;
             pending_fast_model = fast_model;
@@ -416,23 +371,19 @@ public class AiConfigPanelView : Object {
     }
 
     private void schedule_local_model_save() {
-        if (suppress_local_model_signal || local_model_option_values.size <= 1) {
+        if (suppress_local_model_signal
+            || !(fast_model_choices.has_choices
+                 || strong_model_choices.has_choices
+                 || deep_model_choices.has_choices)) {
             return;
         }
 
-        var fast_model = selected_model_from_dropdown(fast_model_options, fast_model_dropdown);
-        var strong_model = selected_model_from_dropdown(strong_model_options, strong_model_dropdown);
-        var deep_model = selected_model_from_dropdown(deep_model_options, deep_model_dropdown);
-        if (models_match(local_model_config.fast_model, fast_model) &&
-            models_match(local_model_config.strong_model, strong_model) &&
-            models_match(local_model_config.deep_model, deep_model)) {
-            return;
-        }
-
-        if (local_model_save_in_flight &&
-            models_match(pending_fast_model, fast_model) &&
-            models_match(pending_strong_model, strong_model) &&
-            models_match(pending_deep_model, deep_model)) {
+        var fast_model = fast_model_choices.value_at(fast_model_dropdown.get_selected());
+        var strong_model = strong_model_choices.value_at(strong_model_dropdown.get_selected());
+        var deep_model = deep_model_choices.value_at(deep_model_dropdown.get_selected());
+        if (!AiConfigPresenter.local_model_save_needed(
+                local_model_config, fast_model, strong_model, deep_model,
+                local_model_save_in_flight, pending_fast_model, pending_strong_model, pending_deep_model)) {
             return;
         }
 
@@ -442,71 +393,18 @@ public class AiConfigPanelView : Object {
         }
 
         debug_log_requested("Saving local model preferences...");
-        local_model_save_timeout_id = Timeout.add(500, () => {
+        local_model_save_timeout_id = Timeout.add(AiConfigPresenter.LOCAL_MODEL_SAVE_DELAY_MS, () => {
             local_model_save_timeout_id = 0;
             save_local_model_config.begin();
             return Source.REMOVE;
         });
     }
 
-    private bool models_match(string? a, string? b) {
-        if (a == null && b == null) {
-            return true;
-        }
-        if (a == null || b == null) {
-            return false;
-        }
-        return a == b;
-    }
-
-    private string display_runner_model_label(AiRunnerInfo runner, string model_name) {
-        var runner_label = runner.name.strip();
-        if (runner_label.length == 0) {
-            runner_label = runner.runner_id;
-        }
-        return "%s / %s".printf(runner_label, model_name);
-    }
-
-    private string display_model_ref_label(string model_ref) {
-        var separator = model_ref.index_of("::");
-        if (separator < 0) {
-            return model_ref;
-        }
-        var runner_id = model_ref.substring(0, separator);
-        var model_name = model_ref.substring(separator + 2);
-        foreach (var runner in runners_cache) {
-            if (runner.runner_id == runner_id) {
-                return display_runner_model_label(runner, model_name);
-            }
-        }
-        return "%s / %s".printf(runner_id, model_name);
-    }
-
-    private string format_status_pull_jobs(Gee.ArrayList<AiRunnerPullInfo> pulls) {
-        if (pulls.size == 0) {
-            return "none";
-        }
-
-        var pull_parts = new Gee.ArrayList<string>();
-        foreach (var pull in pulls) {
-            var target = display_pull_target_label(pull);
-            pull_parts.add("%s (%s, %.1f%%)".printf(target, pull.status, pull.percent));
-        }
-        return join_list(pull_parts);
-    }
-
-    private string display_pull_target_label(AiRunnerPullInfo pull) {
-        if (pull.runner_id.strip().length == 0) {
-            return pull.model;
-        }
-        return display_model_ref_label("%s::%s".printf(pull.runner_id, pull.model));
-    }
-
     private void rebuild_recommended_pull_buttons(Gee.ArrayList<string> recommended_models) {
         clear_recommended_buttons();
 
         if (recommended_models.size == 0) {
-            var label = new Gtk.Label("No local model installs recommended right now.") { xalign = 0.0f };
+            var label = new Gtk.Label(AiConfigPresenter.NO_RECOMMENDED_INSTALLS_HINT) { xalign = 0.0f };
             label.add_css_class("dim-label");
             local_recommended_buttons_box.append(label);
             return;
@@ -524,71 +422,48 @@ public class AiConfigPanelView : Object {
     }
 
     private void append_runner_row(AiRunnerInfo runner) {
+        var presentation = AiConfigPresenter.runner_row(runner, runners_cache);
         var row = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
         row.set_margin_top(8);
         row.set_margin_bottom(8);
         row.set_margin_start(8);
         row.set_margin_end(8);
 
-        var title = new Gtk.Label(runner.name) { xalign = 0.0f };
+        var title = new Gtk.Label(presentation.title) { xalign = 0.0f };
         title.add_css_class("heading");
         row.append(title);
 
-        var summary_parts = new Gee.ArrayList<string>();
-        summary_parts.add("%s".printf(runner.runner_id));
-        summary_parts.add("%s".printf(runner.kind));
-        summary_parts.add("%s".printf(runner.source));
-        summary_parts.add("Enabled: %s".printf(runner.enabled ? "yes" : "no"));
-        if (runner.base_url != null && runner.base_url.strip().length > 0) {
-            summary_parts.add(runner.base_url);
-        }
-        var summary = new Gtk.Label(string.joinv(" | ", summary_parts.to_array())) { xalign = 0.0f };
+        var summary = new Gtk.Label(presentation.summary) { xalign = 0.0f };
         summary.set_wrap(true);
         summary.add_css_class("dim-label");
         row.append(summary);
 
-        var runtime_parts = new Gee.ArrayList<string>();
-        runtime_parts.add("Runtime: %s".printf(runner.runtime.available ? "available" : "unavailable"));
-        if (runner.runtime.version.strip().length > 0) {
-            runtime_parts.add("Version: %s".printf(runner.runtime.version));
-        }
-        if (runner.runtime.models.size > 0) {
-            runtime_parts.add("Models: %d".printf(runner.runtime.models.size));
-        }
-        var runtime = new Gtk.Label(string.joinv(" | ", runtime_parts.to_array())) { xalign = 0.0f };
+        var runtime = new Gtk.Label(presentation.runtime) { xalign = 0.0f };
         runtime.set_wrap(true);
         row.append(runtime);
 
-        if (runner.runtime.error.strip().length > 0) {
-            var error = new Gtk.Label(runner.runtime.error) { xalign = 0.0f };
+        if (presentation.error != null) {
+            var error = new Gtk.Label(presentation.error) { xalign = 0.0f };
             error.set_wrap(true);
             error.add_css_class("error");
             row.append(error);
         }
 
-        if (runner.runtime.models.size > 0) {
-            var models = new Gtk.Label("Installed: %s".printf(join_list(runner.runtime.models))) { xalign = 0.0f };
+        if (presentation.installed != null) {
+            var models = new Gtk.Label(presentation.installed) { xalign = 0.0f };
             models.set_wrap(true);
             models.add_css_class("dim-label");
             row.append(models);
         }
 
-        if (runner.runtime.pulls.size > 0) {
-            var pull_parts = new Gee.ArrayList<string>();
-            foreach (var pull in runner.runtime.pulls) {
-                pull_parts.add("%s (%s, %.1f%%)".printf(
-                    display_pull_target_label(pull),
-                    pull.status,
-                    pull.percent
-                ));
-            }
-            var pulls = new Gtk.Label("Pulls: %s".printf(join_list(pull_parts))) { xalign = 0.0f };
+        if (presentation.pulls != null) {
+            var pulls = new Gtk.Label(presentation.pulls) { xalign = 0.0f };
             pulls.set_wrap(true);
             pulls.add_css_class("dim-label");
             row.append(pulls);
         }
 
-        if (runner.source == "manual") {
+        if (presentation.is_manual) {
             var edit_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
             var name_entry = new Gtk.Entry();
             name_entry.set_hexpand(true);
@@ -629,15 +504,15 @@ public class AiConfigPanelView : Object {
         if (api_client == null) {
             return;
         }
-        var name = add_runner_name_entry.get_text().strip();
-        var base_url = add_runner_base_url_entry.get_text().strip();
-        if (name.length == 0 || base_url.length == 0) {
-            error_reported("AI Config", "Runner name and base URL are required.");
+        var draft = new AiRunnerDraft(add_runner_name_entry.get_text(), add_runner_base_url_entry.get_text());
+        if (!draft.valid) {
+            error_reported("AI Config", (!) draft.error_message);
             return;
         }
+        var name = draft.name;
         try {
             add_runner_button.set_sensitive(false);
-            yield api_client.create_ai_runner(name, base_url, true);
+            yield api_client.create_ai_runner(draft.name, draft.base_url, true);
             add_runner_name_entry.set_text("");
             add_runner_base_url_entry.set_text("");
             debug_log_requested("Created AI runner: %s".printf(name));
@@ -657,14 +532,13 @@ public class AiConfigPanelView : Object {
         if (api_client == null) {
             return;
         }
-        var trimmed_name = name.strip();
-        var trimmed_base_url = base_url.strip();
-        if (trimmed_name.length == 0 || trimmed_base_url.length == 0) {
-            error_reported("AI Config", "Runner name and base URL are required.");
+        var draft = new AiRunnerDraft(name, base_url);
+        if (!draft.valid) {
+            error_reported("AI Config", (!) draft.error_message);
             return;
         }
         try {
-            yield api_client.update_ai_runner(runner_id, trimmed_name, trimmed_base_url, enabled);
+            yield api_client.update_ai_runner(runner_id, draft.name, draft.base_url, enabled);
             debug_log_requested("Updated AI runner: %s".printf(runner_id));
             yield refresh(null);
         } catch (Error e) {
@@ -689,8 +563,11 @@ public class AiConfigPanelView : Object {
 
     private void append_provider_row(AiRuntimeProvider provider) {
         var provider_id = provider.id;
-        var cred = credential_by_provider.lookup(provider_id);
-        var setting = setting_by_provider.lookup(provider_id);
+        var presentation = AiConfigPresenter.provider_row(
+            provider,
+            credential_by_provider.lookup(provider_id),
+            setting_by_provider.lookup(provider_id)
+        );
 
         var row = new Gtk.Box(Gtk.Orientation.VERTICAL, 6);
         row.set_margin_top(8);
@@ -698,14 +575,12 @@ public class AiConfigPanelView : Object {
         row.set_margin_start(8);
         row.set_margin_end(8);
 
-        var title = new Gtk.Label(provider.display_name.strip().length > 0
-            ? provider.display_name
-            : provider.id);
+        var title = new Gtk.Label(presentation.title);
         title.set_halign(Gtk.Align.START);
         title.add_css_class("heading");
         row.append(title);
 
-        var info = new Gtk.Label("Configured: %s".printf((cred != null && cred.configured) ? "yes" : "no"));
+        var info = new Gtk.Label(presentation.configured_text);
         info.set_halign(Gtk.Align.START);
         info.add_css_class("dim-label");
         row.append(info);
@@ -714,17 +589,13 @@ public class AiConfigPanelView : Object {
         var key_entry = new Gtk.Entry();
         key_entry.set_visibility(false);
         key_entry.set_hexpand(true);
-        if (cred != null && cred.api_key_preview.strip().length > 0) {
-            key_entry.set_placeholder_text("Saved: %s".printf(cred.api_key_preview));
-        } else {
-            key_entry.set_placeholder_text("Paste API key");
-        }
+        key_entry.set_placeholder_text(presentation.key_placeholder);
         var save_btn = new Gtk.Button.with_label("Save Key");
         save_btn.clicked.connect(() => {
             save_provider_key.begin(provider_id, key_entry);
         });
         var remove_btn = new Gtk.Button.with_label("Remove Key");
-        remove_btn.set_sensitive(cred != null && cred.configured);
+        remove_btn.set_sensitive(presentation.can_remove_key);
         remove_btn.clicked.connect(() => {
             remove_provider_key.begin(provider_id);
         });
@@ -737,7 +608,7 @@ public class AiConfigPanelView : Object {
         var enabled_label = new Gtk.Label("Enabled");
         enabled_label.set_halign(Gtk.Align.START);
         var enabled_switch = new Gtk.Switch();
-        enabled_switch.set_active(setting != null ? setting.enabled : provider.enabled);
+        enabled_switch.set_active(presentation.enabled);
         enabled_switch.notify["active"].connect(() => {
             if (suppress_enable_signal) {
                 return;
@@ -745,12 +616,12 @@ public class AiConfigPanelView : Object {
             set_provider_enabled.begin(provider_id, enabled_switch.get_active());
         });
         var setup_btn = new Gtk.Button.with_label("Setup");
-        setup_btn.set_sensitive(provider.setup_url.strip().length > 0);
+        setup_btn.set_sensitive(presentation.setup_available);
         setup_btn.clicked.connect(() => {
             open_provider_link(provider.setup_url);
         });
         var docs_btn = new Gtk.Button.with_label("Docs");
-        docs_btn.set_sensitive(provider.docs_url.strip().length > 0);
+        docs_btn.set_sensitive(presentation.docs_available);
         docs_btn.clicked.connect(() => {
             open_provider_link(provider.docs_url);
         });
@@ -767,13 +638,13 @@ public class AiConfigPanelView : Object {
         if (api_client == null) {
             return;
         }
-        var key = key_entry.get_text().strip();
-        if (key.length == 0) {
-            error_reported("AI Config", "API key cannot be empty.");
+        var draft = new AiProviderKeyDraft(key_entry.get_text());
+        if (!draft.valid) {
+            error_reported("AI Config", (!) draft.error_message);
             return;
         }
         try {
-            yield api_client.upsert_ai_provider_credential(provider_id, key);
+            yield api_client.upsert_ai_provider_credential(provider_id, draft.key);
             key_entry.set_text("");
             yield refresh(null);
         } catch (Error e) {
@@ -817,20 +688,6 @@ public class AiConfigPanelView : Object {
         } catch (Error e) {
             error_reported("AI Config", e.message);
         }
-    }
-
-    private string join_list(Gee.ArrayList<string> values) {
-        if (values.size == 0) {
-            return "none";
-        }
-        var builder = new StringBuilder();
-        for (int i = 0; i < values.size; i++) {
-            if (i > 0) {
-                builder.append(", ");
-            }
-            builder.append(values[i]);
-        }
-        return builder.str;
     }
 }
 

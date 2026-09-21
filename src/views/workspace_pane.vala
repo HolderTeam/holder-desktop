@@ -1,15 +1,6 @@
 namespace HolderLinux {
 
 public class WorkspacePane : Object {
-    private const string WINDOWS_MONOSPACE_CLASS = "holder-windows-monospace";
-    private static bool windows_monospace_css_installed = false;
-
-    [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
-    private static extern void gtk_style_context_add_provider_for_display(
-        Gdk.Display display,
-        Gtk.StyleProvider provider,
-        uint priority
-    );
 
     private Gtk.Label title_label;
     private Gtk.ToggleButton explorer_toggle_btn;
@@ -31,13 +22,9 @@ public class WorkspacePane : Object {
     private Gtk.TextTag validated_tag_style;
     private TagHighlightingController tag_highlighting_controller;
     private MarkdownEditingController markdown_editing_controller;
-    private int last_ai_panel_width = -1;
-    private bool ai_panel_width_user_set = false;
-    private bool suppress_ai_position_persist = false;
+    private PanelWidthTracker ai_panel_width = new PanelWidthTracker(WorkspacePanel.AI_PANEL);
     private bool ai_panel_visible = false;
-    private int last_asset_preview_width = -1;
-    private bool asset_preview_width_user_set = false;
-    private bool suppress_asset_position_persist = false;
+    private PanelWidthTracker asset_preview_width = new PanelWidthTracker(WorkspacePanel.ASSET_PREVIEW);
     private bool asset_preview_visible = false;
     public Gtk.Widget widget { get; private set; }
     public GtkSource.Buffer editor_buffer { get; private set; }
@@ -246,20 +233,11 @@ public class WorkspacePane : Object {
     }
 
     public void set_ai_panel_width(int width) {
-        if (width > 0) {
-            last_ai_panel_width = WorkspaceLayout.clamp_ai_panel_width(width);
-            ai_panel_width_user_set = true;
-        } else {
-            last_ai_panel_width = -1;
-            ai_panel_width_user_set = false;
-        }
+        ai_panel_width.set_width(width);
     }
 
     public int get_ai_panel_width_for_persist() {
-        if (!ai_panel_width_user_set || last_ai_panel_width <= 0) {
-            return 0;
-        }
-        return WorkspaceLayout.clamp_ai_panel_width(last_ai_panel_width);
+        return ai_panel_width.width_for_persist();
     }
 
     public void set_asset_preview_visible(bool visible) {
@@ -276,18 +254,11 @@ public class WorkspacePane : Object {
     }
 
     public void set_asset_preview_width(int width) {
-        if (width > 0) {
-            last_asset_preview_width = WorkspaceLayout.clamp_asset_preview_width(width);
-            asset_preview_width_user_set = true;
-        } else {
-            last_asset_preview_width = -1;
-            asset_preview_width_user_set = false;
-        }
+        asset_preview_width.set_width(width);
     }
 
     public int get_asset_preview_width_for_persist() {
-        if (!asset_preview_width_user_set || last_asset_preview_width <= 0) return 0;
-        return WorkspaceLayout.clamp_asset_preview_width(last_asset_preview_width);
+        return asset_preview_width.width_for_persist();
     }
 
     private void apply_initial_toolbox_position(bool allow_defer) {
@@ -321,17 +292,15 @@ public class WorkspacePane : Object {
             return;
         }
 
-        var target_start = WorkspaceLayout.initial_ai_panel_position(
+        var target_start = ai_panel_width.initial_position(
             split_width,
-            last_ai_panel_width,
-            ai_panel_width_user_set,
             ai_split.min_position,
             ai_split.max_position
         );
-        suppress_ai_position_persist = true;
+        ai_panel_width.suppress_persist = true;
         ai_split.set_position(target_start);
         Idle.add(() => {
-            suppress_ai_position_persist = false;
+            ai_panel_width.suppress_persist = false;
             return Source.REMOVE;
         });
     }
@@ -347,16 +316,14 @@ public class WorkspacePane : Object {
             }
             return;
         }
-        suppress_asset_position_persist = true;
-        asset_split.set_position(WorkspaceLayout.initial_asset_preview_position(
+        asset_preview_width.suppress_persist = true;
+        asset_split.set_position(asset_preview_width.initial_position(
             split_width,
-            last_asset_preview_width,
-            asset_preview_width_user_set,
             asset_split.min_position,
             asset_split.max_position
         ));
         Idle.add(() => {
-            suppress_asset_position_persist = false;
+            asset_preview_width.suppress_persist = false;
             return Source.REMOVE;
         });
     }
@@ -612,7 +579,7 @@ public class WorkspacePane : Object {
         });
 
         editor_view = new GtkSource.View.with_buffer(editor_buffer);
-        configure_monospace(editor_view);
+        WindowsMonospace.apply(editor_view);
         editor_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
         editor_view.set_show_line_numbers(true);
         editor_view.set_vexpand(true);
@@ -711,13 +678,11 @@ public class WorkspacePane : Object {
         asset_split.set_vexpand(true);
         asset_split.set_hexpand(true);
         asset_split.notify["position"].connect(() => {
-            if (suppress_asset_position_persist || !asset_preview.widget.get_visible()) return;
-            var split_width = asset_split.get_width();
-            if (split_width <= 0) return;
-            var panel_width = split_width - asset_split.get_position();
-            if (panel_width <= 0) return;
-            last_asset_preview_width = WorkspaceLayout.clamp_asset_preview_width(panel_width);
-            asset_preview_width_user_set = true;
+            asset_preview_width.on_position_changed(
+                asset_preview.widget.get_visible(),
+                asset_split.get_width(),
+                asset_split.get_position()
+            );
         });
 
         ai_panel = new AiPanel();
@@ -733,19 +698,11 @@ public class WorkspacePane : Object {
         ai_split.set_vexpand(true);
         ai_split.set_hexpand(true);
         ai_split.notify["position"].connect(() => {
-            if (suppress_ai_position_persist || !ai_panel.widget.get_visible()) {
-                return;
-            }
-            var split_width = ai_split.get_width();
-            if (split_width <= 0) {
-                return;
-            }
-            var panel_width = split_width - ai_split.get_position();
-            if (panel_width <= 0) {
-                return;
-            }
-            last_ai_panel_width = WorkspaceLayout.clamp_ai_panel_width(panel_width);
-            ai_panel_width_user_set = true;
+            ai_panel_width.on_position_changed(
+                ai_panel.widget.get_visible(),
+                ai_split.get_width(),
+                ai_split.get_position()
+            );
         });
 
         outer.append(ai_split);
@@ -776,76 +733,35 @@ public class WorkspacePane : Object {
     }
 
     private bool handle_markdown_key(uint keyval, Gdk.ModifierType state) {
-        if (handle_markdown_return(keyval, state)) {
+        var modifiers = markdown_key_modifiers_from(state);
+        if (handle_markdown_return(keyval, modifiers)) {
             return true;
         }
         if (!editor_view.get_editable()) {
             return false;
         }
 
-        var relevant = state & (
-            Gdk.ModifierType.CONTROL_MASK |
-            Gdk.ModifierType.SHIFT_MASK |
-            Gdk.ModifierType.ALT_MASK |
-            Gdk.ModifierType.SUPER_MASK
-        );
-        var control = (relevant & Gdk.ModifierType.CONTROL_MASK) != 0;
-        var shift = (relevant & Gdk.ModifierType.SHIFT_MASK) != 0;
-        var forbidden = relevant & (
-            Gdk.ModifierType.ALT_MASK |
-            Gdk.ModifierType.SUPER_MASK
-        );
-        if (!control || forbidden != 0) {
-            return false;
-        }
-
-        if (!shift) {
-            if (keyval == Gdk.Key.b || keyval == Gdk.Key.B) {
-                return apply_inline_markdown(MarkdownInlineCommand.BOLD);
-            }
-            if (keyval == Gdk.Key.i || keyval == Gdk.Key.I) {
-                return apply_inline_markdown(MarkdownInlineCommand.ITALIC);
-            }
-            if (keyval == Gdk.Key.k || keyval == Gdk.Key.K) {
-                return apply_inline_markdown(MarkdownInlineCommand.LINK);
-            }
-            if (keyval == Gdk.Key.l || keyval == Gdk.Key.L) {
-                return apply_inline_markdown(MarkdownInlineCommand.WIKILINK);
-            }
-            if (keyval == Gdk.Key.bracketleft) {
-                return apply_line_markdown(MarkdownLineCommand.OUTDENT);
-            }
-            if (keyval == Gdk.Key.bracketright) {
-                return apply_line_markdown(MarkdownLineCommand.INDENT);
-            }
-            if (keyval == Gdk.Key.slash) {
-                return apply_line_markdown(MarkdownLineCommand.CYCLE_HEADING);
-            }
-            if (keyval == Gdk.Key.backslash) {
+        var action = MarkdownKeyMap.resolve(keyval, modifiers);
+        switch (action.kind) {
+            case MarkdownKeyActionKind.INLINE:
+                return apply_inline_markdown(action.inline_command);
+            case MarkdownKeyActionKind.LINE:
+                return apply_line_markdown(action.line_command);
+            case MarkdownKeyActionKind.CLEAR_FORMATTING:
                 return apply_clear_markdown_formatting();
-            }
-            return false;
+            default:
+                return false;
         }
+    }
 
-        if (keyval == Gdk.Key.x || keyval == Gdk.Key.X) {
-            return apply_inline_markdown(MarkdownInlineCommand.STRIKETHROUGH);
-        }
-        if (keyval == Gdk.Key.c || keyval == Gdk.Key.C) {
-            return apply_inline_markdown(MarkdownInlineCommand.CODE);
-        }
-        if (keyval == Gdk.Key.ampersand || keyval == (uint) '7') {
-            return apply_line_markdown(MarkdownLineCommand.NUMBERED_LIST);
-        }
-        if (keyval == Gdk.Key.asterisk || keyval == (uint) '8') {
-            return apply_line_markdown(MarkdownLineCommand.BULLETED_LIST);
-        }
-        if (keyval == Gdk.Key.parenleft || keyval == (uint) '9') {
-            return apply_line_markdown(MarkdownLineCommand.TODO_LIST);
-        }
-        if (keyval == Gdk.Key.greater || keyval == Gdk.Key.period) {
-            return apply_line_markdown(MarkdownLineCommand.BLOCKQUOTE);
-        }
-        return false;
+    private static MarkdownKeyModifiers markdown_key_modifiers_from(Gdk.ModifierType state) {
+        var relevant = state & (
+            Gdk.ModifierType.SHIFT_MASK |
+            Gdk.ModifierType.CONTROL_MASK |
+            Gdk.ModifierType.ALT_MASK |
+            Gdk.ModifierType.SUPER_MASK
+        );
+        return (MarkdownKeyModifiers) (int) relevant;
     }
 
     private bool apply_inline_markdown(MarkdownInlineCommand command) {
@@ -856,7 +772,7 @@ public class WorkspacePane : Object {
             editor_buffer.get_iter_at_mark(out start, editor_buffer.get_insert());
             end = start;
         } else {
-            var marker = inline_marker_for(command);
+            var marker = MarkdownSelectionRules.inline_marker_for(command);
             if (marker != null && !selection_contains_line_break(start, end)) {
                 expand_selection_to_surrounding_marker(ref start, ref end, (!) marker);
             }
@@ -935,10 +851,12 @@ public class WorkspacePane : Object {
         }
 
         var first_line = selection_start.get_line();
-        var last_line = selection_end.get_line();
-        if (has_selection && selection_end.get_line_offset() == 0 && last_line > first_line) {
-            last_line--;
-        }
+        var last_line = MarkdownSelectionRules.last_line_index(
+            first_line,
+            selection_end.get_line(),
+            has_selection,
+            selection_end.get_line_offset()
+        );
         var lines = new string[last_line - first_line + 1];
         for (var index = 0; index < lines.length; index++) {
             Gtk.TextIter line_start;
@@ -984,21 +902,6 @@ public class WorkspacePane : Object {
         return true;
     }
 
-    private string? inline_marker_for(MarkdownInlineCommand command) {
-        switch (command) {
-            case MarkdownInlineCommand.BOLD:
-                return "**";
-            case MarkdownInlineCommand.ITALIC:
-                return "*";
-            case MarkdownInlineCommand.STRIKETHROUGH:
-                return "~~";
-            case MarkdownInlineCommand.CODE:
-                return "`";
-            default:
-                return null;
-        }
-    }
-
     private bool selection_contains_line_break(Gtk.TextIter start, Gtk.TextIter end) {
         return editor_buffer.get_text(start, end, false).index_of_char('\n') >= 0;
     }
@@ -1009,38 +912,24 @@ public class WorkspacePane : Object {
         var marker_chars = marker.char_count();
         Gtk.TextIter before = start;
         Gtk.TextIter after = end;
-        if (!before.backward_chars(marker_chars) || !after.forward_chars(marker_chars)) {
+        before.backward_chars(2);
+        after.forward_chars(2);
+        if (!MarkdownSelectionRules.should_expand_to_marker(
+                marker,
+                editor_buffer.get_text(before, start, false),
+                editor_buffer.get_text(end, after, false))) {
             return;
         }
-        if (editor_buffer.get_text(before, start, false) != marker ||
-            editor_buffer.get_text(end, after, false) != marker) {
-            return;
-        }
-
-        // A single '*' adjacent to a bold marker is not an italic wrapper.
-        if (marker == "*") {
-            Gtk.TextIter two_before = start;
-            Gtk.TextIter two_after = end;
-            if ((two_before.backward_chars(2) &&
-                 editor_buffer.get_text(two_before, start, false) == "**") ||
-                (two_after.forward_chars(2) &&
-                 editor_buffer.get_text(end, two_after, false) == "**")) {
-                return;
-            }
-        }
+        before = start;
+        after = end;
+        before.backward_chars(marker_chars);
+        after.forward_chars(marker_chars);
         start = before;
         end = after;
     }
 
-    private bool handle_markdown_return(uint keyval, Gdk.ModifierType state) {
-        if (keyval != Gdk.Key.Return && keyval != Gdk.Key.KP_Enter) {
-            return false;
-        }
-        var disallowed_modifiers = Gdk.ModifierType.SHIFT_MASK |
-            Gdk.ModifierType.CONTROL_MASK |
-            Gdk.ModifierType.ALT_MASK |
-            Gdk.ModifierType.SUPER_MASK;
-        if ((state & disallowed_modifiers) != 0 || !editor_view.get_editable()) {
+    private bool handle_markdown_return(uint keyval, MarkdownKeyModifiers modifiers) {
+        if (!MarkdownKeyMap.is_plain_return(keyval, modifiers) || !editor_view.get_editable()) {
             return false;
         }
 
@@ -1220,40 +1109,6 @@ public class WorkspacePane : Object {
         box.append(scroll);
 
         return box;
-    }
-
-    private static void configure_monospace(GtkSource.View view) {
-        if (Path.DIR_SEPARATOR_S != "\\") {
-            view.set_monospace(true);
-            return;
-        }
-
-        ensure_windows_monospace_css();
-        view.add_css_class(WINDOWS_MONOSPACE_CLASS);
-    }
-
-    private static void ensure_windows_monospace_css() {
-        if (windows_monospace_css_installed) {
-            return;
-        }
-        var display = Gdk.Display.get_default();
-        if (display == null) {
-            return;
-        }
-
-        var provider = new Gtk.CssProvider();
-        provider.load_from_string("""
-.holder-windows-monospace,
-.holder-windows-monospace text {
-  font-family: "Cascadia Mono", "Consolas", monospace;
-}
-""");
-        gtk_style_context_add_provider_for_display(
-            display,
-            provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        );
-        windows_monospace_css_installed = true;
     }
 }
 

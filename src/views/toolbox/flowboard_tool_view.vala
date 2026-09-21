@@ -125,33 +125,12 @@ public class FlowboardToolView : Object, IToolShellAdapter {
     }
 
     public ToolScopeSnapshot get_scope_snapshot(Project? selected_project, CardSummary? selected_card) {
-        var project_id = selected_project != null ? selected_project.project_id : null;
-        var project_label = selected_project != null ? selected_project.name : "(none)";
-        var card_id = selected_card != null ? selected_card.card_id : null;
-        var card_label = selected_card != null ? selected_card.title : "Overview";
-
-        ToolScopeMode scope_mode = ToolScopeMode.CARD_FOCUS;
-        if (is_showing_projects_root()) {
-            scope_mode = ToolScopeMode.PROJECTS_ROOT;
-            project_label = "Projects";
-            card_label = "Overview";
-            project_id = null;
-            card_id = null;
-        } else if (is_showing_project_root_level() || selected_card == null) {
-            scope_mode = ToolScopeMode.PROJECT_ROOT;
-            card_label = "Overview";
-            card_id = null;
-        }
-
-        return new ToolScopeSnapshot(
+        return ToolScopePresenter.snapshot_with_projects_root(
             tool_id,
             tool_label,
-            project_id,
-            project_label,
-            card_id,
-            card_label,
-            scope_mode,
-            false
+            is_showing_projects_root(),
+            selected_project,
+            is_showing_project_root_level() ? null : selected_card
         );
     }
 

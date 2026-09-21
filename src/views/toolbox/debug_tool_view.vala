@@ -1,15 +1,6 @@
 namespace HolderLinux {
 
 public class DebugToolView : Object, IToolShellAdapter {
-    private const string WINDOWS_MONOSPACE_CLASS = "holder-windows-monospace";
-    private static bool windows_monospace_css_installed = false;
-
-    [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
-    private static extern void gtk_style_context_add_provider_for_display(
-        Gdk.Display display,
-        Gtk.StyleProvider provider,
-        uint priority
-    );
 
     private Gtk.Box debug_actions_bar;
     private Gtk.Button clear_btn;
@@ -38,31 +29,7 @@ public class DebugToolView : Object, IToolShellAdapter {
     }
 
     public ToolScopeSnapshot get_scope_snapshot(Project? selected_project, CardSummary? selected_card) {
-        var project_id = selected_project != null ? selected_project.project_id : null;
-        var project_label = selected_project != null ? selected_project.name : "(none)";
-        var card_id = selected_card != null ? selected_card.card_id : null;
-        var card_label = selected_card != null ? selected_card.title : "Overview";
-
-        ToolScopeMode scope_mode = selected_card != null
-            ? ToolScopeMode.CARD_FOCUS
-            : ToolScopeMode.PROJECT_ROOT;
-        if (project_id == null) {
-            scope_mode = ToolScopeMode.PROJECTS_ROOT;
-            project_label = "Projects";
-            card_id = null;
-            card_label = "Overview";
-        }
-
-        return new ToolScopeSnapshot(
-            tool_id,
-            tool_label,
-            project_id,
-            project_label,
-            card_id,
-            card_label,
-            scope_mode,
-            false
-        );
+        return ToolScopePresenter.snapshot(tool_id, tool_label, selected_project, selected_card);
     }
 
     public async bool navigate_to_projects_root(string? selected_project_id) {
@@ -107,7 +74,7 @@ public class DebugToolView : Object, IToolShellAdapter {
         debug_buffer = new Gtk.TextBuffer(null);
         debug_view = new Gtk.TextView.with_buffer(debug_buffer);
         debug_view.set_editable(false);
-        configure_monospace(debug_view);
+        WindowsMonospace.apply(debug_view);
         debug_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR);
         debug_view.set_vexpand(true);
 
@@ -126,40 +93,6 @@ public class DebugToolView : Object, IToolShellAdapter {
         scroll.set_child(debug_view);
         box.append(scroll);
         return box;
-    }
-
-    private static void configure_monospace(Gtk.TextView view) {
-        if (Path.DIR_SEPARATOR_S != "\\") {
-            view.set_monospace(true);
-            return;
-        }
-
-        ensure_windows_monospace_css();
-        view.add_css_class(WINDOWS_MONOSPACE_CLASS);
-    }
-
-    private static void ensure_windows_monospace_css() {
-        if (windows_monospace_css_installed) {
-            return;
-        }
-        var display = Gdk.Display.get_default();
-        if (display == null) {
-            return;
-        }
-
-        var provider = new Gtk.CssProvider();
-        provider.load_from_string("""
-.holder-windows-monospace,
-.holder-windows-monospace text {
-  font-family: "Cascadia Mono", "Consolas", monospace;
-}
-""");
-        gtk_style_context_add_provider_for_display(
-            display,
-            provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        );
-        windows_monospace_css_installed = true;
     }
 }
 

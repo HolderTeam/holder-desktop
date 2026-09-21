@@ -26,6 +26,12 @@ public class TrashConfirmDialogSpec : Object {
 }
 
 public class TrashController : Object {
+    public const string ACTIVITY_KIND_RESTORED = "result.trash.restore";
+
+    public static bool is_restored_activity(string kind) {
+        return kind == ACTIVITY_KIND_RESTORED;
+    }
+
     private IHolderApi? api;
     private Gtk.SingleSelection? project_selection;
     private uint refresh_serial = 0;
@@ -156,7 +162,7 @@ public class TrashController : Object {
         try {
             yield api.restore_trash_item(item.item_type, item.item_id);
             activity_requested(
-                "result.trash.restore",
+                ACTIVITY_KIND_RESTORED,
                 "Restored %s: %s".printf(item.item_type, item.title),
                 project_id,
                 item.item_id,

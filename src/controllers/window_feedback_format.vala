@@ -11,6 +11,14 @@ internal class WindowFeedbackFormat : Object {
                lower.contains("timeout");
     }
 
+    public static string error_status_text(string title_text, string details) {
+        return "%s: %s".printf(title_text, details);
+    }
+
+    public static string error_debug_line(string title_text, string details) {
+        return "ERROR: %s | %s".printf(title_text, details);
+    }
+
     public static string activity_debug_line(string kind,
                                              string message,
                                              string? project_id = null,
@@ -25,7 +33,7 @@ internal class WindowFeedbackFormat : Object {
         }
         append_activity_details(parts, details);
         var scope = parts.size > 0
-            ? " [%s]".printf(string.joinv(", ", parts.to_array()))
+            ? " [%s]".printf(join_parts(", ", parts))
             : "";
         return "ACTIVITY %s %s%s".printf(kind, message, scope);
     }
@@ -54,6 +62,19 @@ internal class WindowFeedbackFormat : Object {
             parts.add("prompt_chars=%d".printf(ai_details.prompt_chars));
         }
         parts.add("success=%s".printf(ai_details.success ? "true" : "false"));
+    }
+
+    private static string join_parts(string separator, Gee.List<string> parts) {
+        var joined = new StringBuilder();
+        bool first = true;
+        foreach (var part in parts) {
+            if (!first) {
+                joined.append(separator);
+            }
+            joined.append(part);
+            first = false;
+        }
+        return joined.str;
     }
 }
 

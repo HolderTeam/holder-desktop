@@ -73,17 +73,9 @@ public class MainWindow : Adw.ApplicationWindow {
     private AssetCache asset_cache;
     private MarkdownResourceImageController markdown_resource_image_controller;
     private InlineResourceImageRenderer inline_resource_image_renderer;
-    private Gee.ArrayList<ProjectResource> inline_project_resources =
-        new Gee.ArrayList<ProjectResource>();
-    private string? inline_resources_project_id;
-    private uint inline_resource_refresh_id = 0;
-    private uint inline_resource_load_serial = 0;
-    private bool show_inline_image_previews = false;
-    private Gee.ArrayList<CardAttachment> card_attachments = new Gee.ArrayList<CardAttachment>();
-    private int selected_attachment_index = -1;
-    private string? selected_asset_cache_path;
-    private uint asset_load_serial = 0;
-    private string? pending_preview_asset_id;
+    private InlineImageRefresh inline_image_refresh;
+    private AttachmentSelection attachment_selection = new AttachmentSelection();
+    private AssetImportFlow asset_import_flow;
     private AiPanelEventOrchestrator ai_panel_event_orchestrator;
     private FindReplaceController find_replace_controller;
     private FlowboardController flowboard_controller;
@@ -99,12 +91,7 @@ public class MainWindow : Adw.ApplicationWindow {
     private uint flowboard_refresh_idle_id = 0;
     private bool sidebar_visible = true;
     private int last_sidebar_position = WindowGeometry.DEFAULT_SIDEBAR_WIDTH;
-    private bool close_in_progress = false;
-    private bool close_is_authorized = false;
-    private uint close_timeout_id = 0;
-    private bool close_has_recovery_copy = false;
-    private string? close_recovery_error = null;
-    private bool close_decision_visible = false;
+    private WindowCloseGuard close_guard;
 
     private uint applying_state_depth = 0;
     private uint rendered_sidebar_data_version = uint.MAX;
@@ -151,6 +138,17 @@ public class MainWindow : Adw.ApplicationWindow {
         editor_buffer = workspace.editor_buffer;
         editor_view = workspace.editor_view;
         inline_resource_image_renderer = workspace.inline_resource_images;
+        asset_cache = new AssetCache();
+        markdown_resource_image_controller = new MarkdownResourceImageController();
+        inline_image_refresh = new InlineImageRefresh(
+            new MainLoopScheduler(),
+            asset_cache,
+            new RendererInlineImageSink(inline_resource_image_renderer),
+            markdown_resource_image_controller
+        );
+        inline_image_refresh.refresh_due.connect(() => {
+            refresh_inline_resource_images.begin();
+        });
         editor_font_style = new EditorFontStyle(editor_view);
         settings = boot_settings;
         if (settings != null) {
@@ -261,8 +259,6 @@ public class MainWindow : Adw.ApplicationWindow {
         ai_run_controller = new AiRunController(controller);
         ai_nudge_controller = new AiNudgeController(controller);
         asset_preview_controller = new AssetPreviewController();
-        asset_cache = new AssetCache();
-        markdown_resource_image_controller = new MarkdownResourceImageController();
         find_replace_controller = new FindReplaceController(
             new WindowFindReplaceOps(editor_buffer, editor_view)
         );
@@ -378,18 +374,27 @@ public class MainWindow : Adw.ApplicationWindow {
         controller.recovery_draft_available.connect((draft) => {
             show_recovery_draft(draft);
         });
+        close_guard = new WindowCloseGuard(new MainControllerCloseHost(controller), new MainLoopScheduler());
+        close_guard.close_ready.connect(() => {
+            close();
+        });
+        close_guard.unsafe_close_detected.connect((details) => {
+            show_unsafe_close_dialog(details);
+        });
+        asset_import_flow = new AssetImportFlow(
+            new MainLoopScheduler(),
+            (out project_id, out card_id) => {
+                var current_project = controller.get_current_project();
+                var current_card = controller.get_current_card();
+                project_id = current_project != null ? current_project.project_id : null;
+                card_id = current_card != null ? current_card.card_id : null;
+            }
+        );
+        asset_import_flow.status_changed.connect((text) => {
+            set_status(text);
+        });
         controller.editor_save_settled.connect((saved) => {
-            if (!close_in_progress || controller.is_editor_save_in_flight()) {
-                return;
-            }
-            if (saved && !controller.has_unsaved_editor_changes()) {
-                finish_guarded_close();
-            } else if (close_has_recovery_copy) {
-                finish_guarded_close();
-            } else {
-                show_unsafe_close_dialog(close_recovery_error ??
-                    "The backend did not save this card and local recovery files are disabled.");
-            }
+            close_guard.on_editor_save_settled(saved);
         });
         ai_panel_event_orchestrator.bind();
         ai_nudge_controller.debug_log_requested.connect((message) => {
@@ -414,8 +419,8 @@ public class MainWindow : Adw.ApplicationWindow {
         toolbox.bind_flowboard_controller(flowboard_controller);
         workspace.asset_preview_toggled.connect((visible) => {
             workspace.set_asset_preview_visible(visible);
-            if (visible && selected_attachment_index >= 0) {
-                load_attachment.begin(selected_attachment_index);
+            if (visible && attachment_selection.selected_index >= 0) {
+                load_attachment.begin(attachment_selection.selected_index);
             }
         });
         toolbox.asset_preview_requested.connect((resource, asset) => {
@@ -507,29 +512,12 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void apply_sidebar_from_state() {
-        var snapshot = app_state_store.selection;
-        var transition = app_state_store.transition;
-        string? effective_project_id = snapshot.project_id;
-        string? effective_card_id = snapshot.card_id;
-        string? effective_ai_thread_id = snapshot.ai_thread_id;
-        if (transition.in_flight) {
-            if (transition.pending_selection.project_id != null) {
-                effective_project_id = transition.pending_selection.project_id;
-            } else {
-                var live_project = project_selection.get_selected_item() as Project;
-                if (live_project != null) {
-                    effective_project_id = live_project.project_id;
-                }
-            }
-            if (transition.pending_selection.project_id != null
-                || transition.pending_selection.card_id != null) {
-                effective_card_id = transition.pending_selection.card_id;
-            }
-            if (transition.pending_selection.ai_thread_id != null
-                || transition.pending_selection.project_id != null) {
-                effective_ai_thread_id = transition.pending_selection.ai_thread_id;
-            }
-        }
+        var live_project = project_selection.get_selected_item() as Project;
+        var effective = EffectiveSelection.resolve(
+            app_state_store.selection,
+            app_state_store.transition,
+            live_project != null ? live_project.project_id : null
+        );
         with_state_apply(() => {
             if (rendered_sidebar_data_version != app_state_store.data_version) {
                 sidebar_data_renderer.apply(
@@ -540,9 +528,9 @@ public class MainWindow : Adw.ApplicationWindow {
                 rendered_sidebar_data_version = app_state_store.data_version;
             }
             sidebar_selection_renderer.apply_from_snapshot(
-                effective_project_id,
-                effective_card_id,
-                effective_ai_thread_id
+                effective.project_id,
+                effective.card_id,
+                effective.ai_thread_id
             );
         });
     }
@@ -653,7 +641,7 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void handle_flowboard_new_child_card_action() {
         var selected_card_id = controller.selected_card_id();
-        if (selected_card_id == null || selected_card_id.strip().length == 0) {
+        if (WindowPresenter.is_blank(selected_card_id)) {
             return;
         }
         log_activity(
@@ -667,7 +655,7 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void handle_move_selected_card_to_trash_action() {
         var selected_card_id = controller.selected_card_id();
-        if (selected_card_id == null || selected_card_id.strip().length == 0) {
+        if (WindowPresenter.is_blank(selected_card_id)) {
             return;
         }
         confirm_move_card_to_trash(selected_card_id);
@@ -778,7 +766,7 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal void on_workspace_search_changed() {
         var q = search_entry.get_text().strip();
-        if (q.length == 0) {
+        if (WindowPresenter.is_blank(q)) {
             controller.cancel_pending_search();
             controller.clear_search_results();
             show_editor_mode();
@@ -909,91 +897,13 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal bool on_window_close_requested() {
         persist_window_state();
-        if (close_is_authorized) {
-            return false;
-        }
-        if (!controller.has_unsaved_editor_changes() && !controller.is_editor_save_in_flight()) {
-            return false;
-        }
-        if (close_in_progress) {
-            return true;
-        }
-
-        close_in_progress = true;
-        close_has_recovery_copy = false;
-        close_recovery_error = null;
-        try {
-            close_has_recovery_copy = controller.save_emergency_recovery_draft();
-        } catch (Error e) {
-            close_recovery_error = e.message;
-        }
-
-        close_timeout_id = Timeout.add(2000, () => {
-            close_timeout_id = 0;
-            if ((!controller.has_unsaved_editor_changes() && !controller.is_editor_save_in_flight())
-                || close_has_recovery_copy) {
-                finish_guarded_close();
-            } else {
-                show_unsafe_close_dialog(close_recovery_error ??
-                    "The backend did not finish saving and local recovery files are disabled.");
-            }
-            return Source.REMOVE;
-        });
-        controller.save_now.begin((obj, result) => {
-            bool saved = controller.save_now.end(result);
-            if (!close_in_progress) {
-                return;
-            }
-            if (saved) {
-                finish_guarded_close();
-                return;
-            }
-            if (controller.is_editor_save_in_flight()) {
-                return;
-            }
-            if (close_has_recovery_copy) {
-                finish_guarded_close();
-                return;
-            }
-            show_unsafe_close_dialog(close_recovery_error ??
-                "The backend did not save this card and local recovery files are disabled.");
-        });
-        return true;
-    }
-
-    private void finish_guarded_close() {
-        if (close_timeout_id != 0) {
-            Source.remove(close_timeout_id);
-            close_timeout_id = 0;
-        }
-        close_in_progress = false;
-        close_is_authorized = true;
-        close();
-    }
-
-    private void cancel_guarded_close() {
-        if (close_timeout_id != 0) {
-            Source.remove(close_timeout_id);
-            close_timeout_id = 0;
-        }
-        close_in_progress = false;
-        close_has_recovery_copy = false;
-        close_recovery_error = null;
-        close_decision_visible = false;
+        return close_guard.request_close() == WindowCloseDecision.BLOCK;
     }
 
     private void show_unsafe_close_dialog(string details) {
-        if (close_decision_visible) {
-            return;
-        }
-        close_decision_visible = true;
-        if (close_timeout_id != 0) {
-            Source.remove(close_timeout_id);
-            close_timeout_id = 0;
-        }
         var dialog = new Adw.AlertDialog(
-            "This card is not safely stored yet",
-            "%s\n\nRetry saving, keep Holder open, or quit and discard the unsaved changes.".printf(details)
+            WindowCloseGuard.UNSAFE_DIALOG_TITLE,
+            WindowCloseGuard.unsafe_dialog_body(details)
         );
         dialog.add_response("keep", "Keep Editing");
         dialog.add_response("retry", "Retry");
@@ -1002,15 +912,13 @@ public class MainWindow : Adw.ApplicationWindow {
         dialog.set_default_response("retry");
         dialog.set_close_response("keep");
         dialog.response.connect((response) => {
-            close_decision_visible = false;
-            cancel_guarded_close();
-            if (response == "retry") {
+            var outcome = close_guard.resolve_unsafe_dialog(response);
+            if (outcome == WindowCloseDialogOutcome.RETRY) {
                 Idle.add(() => {
                     close();
                     return Source.REMOVE;
                 });
-            } else if (response == "quit") {
-                close_is_authorized = true;
+            } else if (outcome == WindowCloseDialogOutcome.QUIT) {
                 close();
             }
         });
@@ -1018,11 +926,9 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void show_recovery_draft(EditorRecoveryDraft draft) {
-        var when = new DateTime.from_unix_local(draft.saved_at);
-        var timestamp = when.format("%c");
         var dialog = new Adw.AlertDialog(
-            "Recover unsaved changes?",
-            "Holder found a local recovery copy of “%s” from %s.".printf(draft.title, timestamp)
+            WindowPresenter.RECOVERY_DIALOG_TITLE,
+            WindowPresenter.recovery_draft_body(draft.title, draft.saved_at, new TimeZone.local())
         );
         dialog.add_response("later", "Not Now");
         dialog.add_response("discard", "Keep Saved Version");
@@ -1077,12 +983,7 @@ public class MainWindow : Adw.ApplicationWindow {
         var project = controller.get_current_project();
         var card = controller.get_current_card();
         var project_id = project != null ? project.project_id : null;
-        if (project_id != inline_resources_project_id) {
-            inline_resources_project_id = project_id;
-            inline_project_resources = new Gee.ArrayList<ProjectResource>();
-            inline_resource_load_serial++;
-            inline_resource_image_renderer.clear();
-        }
+        inline_image_refresh.note_current_project(project_id);
         asset_preview_controller.refresh_card_attachments.begin(
             api,
             project_id,
@@ -1091,34 +992,11 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private void set_inline_image_previews_enabled(bool enabled) {
-        if (show_inline_image_previews == enabled) {
-            return;
-        }
-        show_inline_image_previews = enabled;
-        if (enabled) {
-            queue_inline_resource_images_refresh();
-            return;
-        }
-        if (inline_resource_refresh_id != 0) {
-            Source.remove(inline_resource_refresh_id);
-            inline_resource_refresh_id = 0;
-        }
-        inline_resource_load_serial++;
-        inline_resource_image_renderer.clear();
+        inline_image_refresh.set_enabled(enabled);
     }
 
     private void queue_inline_resource_images_refresh() {
-        if (!show_inline_image_previews) {
-            return;
-        }
-        if (inline_resource_refresh_id != 0) {
-            Source.remove(inline_resource_refresh_id);
-        }
-        inline_resource_refresh_id = Timeout.add(180, () => {
-            inline_resource_refresh_id = 0;
-            refresh_inline_resource_images.begin();
-            return Source.REMOVE;
-        });
+        inline_image_refresh.queue_refresh();
     }
 
     private void apply_inline_project_resources(
@@ -1126,147 +1004,80 @@ public class MainWindow : Adw.ApplicationWindow {
         Gee.ArrayList<ProjectResource> resources
     ) {
         var project = controller.get_current_project();
-        if (project == null || project.project_id != project_id) {
-            return;
-        }
-        inline_resources_project_id = project_id;
-        inline_project_resources = resources;
-        queue_inline_resource_images_refresh();
+        inline_image_refresh.apply_project_resources(
+            project_id,
+            resources,
+            project != null ? project.project_id : null
+        );
     }
 
     private async void refresh_inline_resource_images() {
-        if (!show_inline_image_previews) {
-            inline_resource_load_serial++;
-            inline_resource_image_renderer.clear();
-            return;
-        }
         var current_card = controller.get_current_card();
         var current_project = controller.get_current_project();
-        if (current_card == null || current_project == null ||
-            inline_resources_project_id != current_project.project_id) {
-            inline_resource_load_serial++;
-            inline_resource_image_renderer.clear();
-            return;
-        }
-
         Gtk.TextIter start;
         Gtk.TextIter end;
         editor_buffer.get_bounds(out start, out end);
-        var markdown = editor_buffer.get_text(start, end, false);
-        var items = markdown_resource_image_controller.resolve(
-            markdown,
-            inline_project_resources
+        yield inline_image_refresh.refresh(
+            current_card != null,
+            current_project != null ? current_project.project_id : null,
+            editor_buffer.get_text(start, end, false),
+            controller.get_api_client() as IResourceStorageApi
         );
-        var serial = ++inline_resource_load_serial;
-        inline_resource_image_renderer.set_items(items);
-        var storage_api = controller.get_api_client() as IResourceStorageApi;
-        if (storage_api == null) {
-            foreach (var item in items) {
-                inline_resource_image_renderer.show_error(
-                    item.key(),
-                    "Asset storage is unavailable."
-                );
-            }
-            return;
-        }
-
-        foreach (var item in items) {
-            try {
-                var cached_path = yield asset_cache.ensure_cached(
-                    storage_api,
-                    item.resource,
-                    item.asset
-                );
-                if (serial != inline_resource_load_serial) {
-                    return;
-                }
-                inline_resource_image_renderer.show_image(item.key(), cached_path);
-            } catch (Error e) {
-                if (serial != inline_resource_load_serial) {
-                    return;
-                }
-                inline_resource_image_renderer.show_error(
-                    item.key(),
-                    "Image unavailable: " + e.message
-                );
-            }
-        }
     }
 
     private void preview_inline_resource(string resource_id) {
-        foreach (var resource in inline_project_resources) {
-            if (resource.resource_id != resource_id) {
-                continue;
-            }
-            foreach (var asset in resource.assets) {
-                if (asset.media_type.has_prefix("image/")) {
-                    preview_resource(resource, asset);
-                    return;
-                }
-            }
+        var target = AttachmentSelection.find_inline_image(
+            inline_image_refresh.project_resources,
+            resource_id
+        );
+        if (target != null) {
+            preview_resource(target.resource, target.asset);
+            return;
         }
-        add_toast("This Resource has no image available in the current project.");
+        add_toast(AttachmentSelection.NO_IMAGE_MESSAGE);
     }
 
     private void apply_card_attachments(Gee.ArrayList<CardAttachment> attachments) {
-        var previous_asset_id = selected_attachment_index >= 0 &&
-            selected_attachment_index < card_attachments.size
-            ? card_attachments[selected_attachment_index].asset.asset_id
-            : null;
-        card_attachments = attachments;
-        var requested_asset_id = pending_preview_asset_id ?? previous_asset_id;
-        pending_preview_asset_id = null;
-        selected_attachment_index = card_attachments.size > 0 ? 0 : -1;
-        if (requested_asset_id != null) {
-            for (int i = 0; i < card_attachments.size; i++) {
-                if (card_attachments[i].asset.asset_id == requested_asset_id) {
-                    selected_attachment_index = i;
-                    break;
-                }
-            }
-        }
-        asset_preview.set_attachments(card_attachments, selected_attachment_index < 0 ? 0 : selected_attachment_index);
-        if (requested_asset_id != null && selected_attachment_index >= 0) {
+        var applied = attachment_selection.apply_attachments(attachments);
+        asset_preview.set_attachments(attachment_selection.attachments, applied.display_index);
+        if (applied.reveal_preview) {
             workspace.set_asset_preview_visible(true);
         }
-        if (workspace.is_asset_preview_visible() && selected_attachment_index >= 0) {
-            load_attachment.begin(selected_attachment_index);
+        if (workspace.is_asset_preview_visible() && applied.has_selection) {
+            load_attachment.begin(applied.selected_index);
         }
     }
 
     private void preview_resource(ProjectResource resource, ResourceAsset asset) {
         var card = controller.get_current_card();
-        var preview_items = new Gee.ArrayList<CardAttachment>();
-        preview_items.add(new CardAttachment(card != null ? card.card_id : "", resource, asset));
-        card_attachments = preview_items;
-        selected_attachment_index = 0;
-        asset_preview.set_attachments(card_attachments, 0);
+        attachment_selection.show_single(
+            new CardAttachment(card != null ? card.card_id : "", resource, asset)
+        );
+        asset_preview.set_attachments(attachment_selection.attachments, 0);
         workspace.set_asset_preview_visible(true);
         load_attachment.begin(0);
     }
 
     private async void load_attachment(int index) {
-        if (index < 0 || index >= card_attachments.size) {
+        var ticket = attachment_selection.begin_load(index);
+        if (ticket == null) {
             return;
         }
-        selected_attachment_index = index;
-        selected_asset_cache_path = null;
-        var attachment = card_attachments[index];
-        var serial = ++asset_load_serial;
+        var attachment = ((!) ticket).attachment;
         asset_preview.show_loading(attachment);
         try {
             var cached_path = yield ensure_attachment_cached(attachment);
-            if (serial != asset_load_serial || index != selected_attachment_index) {
+            if (!attachment_selection.is_load_current((!) ticket)) {
                 return;
             }
-            selected_asset_cache_path = cached_path;
-            if (attachment.asset.media_type.has_prefix("image/")) {
+            attachment_selection.selected_cache_path = cached_path;
+            if (AttachmentSelection.is_image(attachment)) {
                 asset_preview.show_image(attachment, cached_path);
             } else {
                 asset_preview.show_document(attachment);
             }
         } catch (Error e) {
-            if (serial == asset_load_serial) {
+            if (attachment_selection.is_error_current((!) ticket)) {
                 asset_preview.show_error(
                     attachment,
                     "This Asset is not available in the private cache and could not be retrieved: " + e.message
@@ -1284,13 +1095,13 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private async void open_selected_asset_externally() {
-        if (selected_attachment_index < 0 || selected_attachment_index >= card_attachments.size) {
+        var attachment = attachment_selection.selected_attachment();
+        if (attachment == null) {
             return;
         }
-        var attachment = card_attachments[selected_attachment_index];
         try {
-            var cached_path = selected_asset_cache_path ?? yield ensure_attachment_cached(attachment);
-            selected_asset_cache_path = cached_path;
+            var cached_path = attachment_selection.selected_cache_path ?? yield ensure_attachment_cached((!) attachment);
+            attachment_selection.selected_cache_path = cached_path;
             AppInfo.launch_default_for_uri(File.new_for_path(cached_path).get_uri(), null);
         } catch (Error e) {
             show_error("Failed to open Asset", e.message);
@@ -1298,16 +1109,16 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private async void export_selected_asset() {
-        if (selected_attachment_index < 0 || selected_attachment_index >= card_attachments.size) {
+        var attachment = attachment_selection.selected_attachment();
+        if (attachment == null) {
             return;
         }
-        var attachment = card_attachments[selected_attachment_index];
         try {
-            var cached_path = selected_asset_cache_path ?? yield ensure_attachment_cached(attachment);
-            selected_asset_cache_path = cached_path;
+            var cached_path = attachment_selection.selected_cache_path ?? yield ensure_attachment_cached((!) attachment);
+            attachment_selection.selected_cache_path = cached_path;
             var dialog = new Gtk.FileDialog();
             dialog.set_title("Export Asset");
-            dialog.set_initial_name(attachment.asset.original_filename);
+            dialog.set_initial_name(((!) attachment).asset.original_filename);
             var destination = yield dialog.save(this, null);
             if (destination == null || destination.get_path() == null) return;
             yield asset_cache.export_cached(cached_path, (!) destination.get_path());
@@ -1322,85 +1133,46 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     private async void import_dropped_file(File file, Gtk.TextMark insertion_mark) {
-        var storage_api = controller.get_api_client() as IResourceStorageApi;
         var project = controller.get_current_project();
         var card = controller.get_current_card();
-        var source_path = file.get_path();
-        if (storage_api == null || project == null || card == null || source_path == null) {
-            workspace.discard_file_drop_mark(insertion_mark);
-            add_toast("Select a Card before dropping local files.");
-            return;
-        }
-        try {
-            var locations = yield storage_api.list_storage_locations(project.project_id);
-            if (locations.preferred_location_id == null) {
+        var result = yield asset_import_flow.run(
+            controller.get_api_client() as IResourceStorageApi,
+            project != null ? project.project_id : null,
+            card != null ? card.card_id : null,
+            file.get_path(),
+            file.get_basename()
+        );
+        switch (result.outcome) {
+            case AssetImportOutcome.NOT_READY:
+                add_toast(result.toast_message);
+                break;
+            case AssetImportOutcome.NEEDS_LOCATION:
                 workspace.set_toolbox_visible(true);
                 toolbox.show_tool("resources");
-                add_toast("Add and choose a preferred Storage Location first.");
-                return;
-            }
-            set_status("Importing %s…".printf(file.get_basename() ?? "asset"));
-            var job = yield storage_api.start_asset_import(
-                project.project_id,
-                card.card_id,
-                (!) locations.preferred_location_id,
-                source_path
-            );
-            string? last_status = null;
-            for (int attempt = 0; attempt < 600; attempt++) {
-                job = yield storage_api.get_asset_import_job(job.job_id);
-                if (job.status == "completed") {
-                    if (job.resource_id == null) {
-                        throw new ApiError.PROTOCOL(
-                            "Completed Asset import did not return a Resource ID"
+                add_toast(result.toast_message);
+                break;
+            case AssetImportOutcome.COMPLETED:
+                add_toast(result.toast_message);
+                if (result.still_selected) {
+                    var import_job = (!) result.job;
+                    if (result.insert_image_markdown) {
+                        workspace.insert_resource_image_markdown(
+                            insertion_mark,
+                            result.image_filename,
+                            (!) import_job.resource_id
                         );
                     }
-                    set_status("Imported %s".printf(file.get_basename() ?? "asset"));
-                    add_toast(AssetPreviewController.import_completion_message(job));
-                    var current_project = controller.get_current_project();
-                    var current_card = controller.get_current_card();
-                    var import_is_still_selected = current_project != null && current_card != null &&
-                        current_project.project_id == project.project_id &&
-                        current_card.card_id == card.card_id;
-                    if (import_is_still_selected) {
-                        var filename = file.get_basename() ?? "image";
-                        if (MarkdownResourceImageController.filename_is_image(filename)) {
-                            workspace.insert_resource_image_markdown(
-                                insertion_mark,
-                                filename,
-                                (!) job.resource_id
-                            );
-                        }
-                        toolbox.show_tool("resources");
-                        toolbox.refresh_resources(job.resource_id);
-                        pending_preview_asset_id = job.asset_id;
-                        refresh_current_card_attachments();
-                    }
-                    return;
+                    toolbox.show_tool("resources");
+                    toolbox.refresh_resources(import_job.resource_id);
+                    attachment_selection.pending_preview_asset_id = import_job.asset_id;
+                    refresh_current_card_attachments();
                 }
-                if (job.status == "failed") {
-                    throw new ApiError.PROTOCOL(job.error ?? "Asset import failed");
-                }
-                if (job.status != last_status) {
-                    last_status = job.status;
-                    set_status("Importing %s · %s".printf(file.get_basename() ?? "asset", job.status));
-                }
-                yield wait_for_import_poll();
-            }
-            throw new ApiError.TRANSPORT("Asset import timed out");
-        } catch (Error e) {
-            show_error("Failed to import Asset", e.message);
-        } finally {
-            workspace.discard_file_drop_mark(insertion_mark);
+                break;
+            default:
+                show_error(result.error_title, result.error_details);
+                break;
         }
-    }
-
-    private async void wait_for_import_poll() {
-        Timeout.add(100, () => {
-            wait_for_import_poll.callback();
-            return Source.REMOVE;
-        });
-        yield;
+        workspace.discard_file_drop_mark(insertion_mark);
     }
 
     internal void set_editor_state(string text, bool editable) {
@@ -1587,16 +1359,6 @@ public class MainWindow : Adw.ApplicationWindow {
         }
     }
 
-    private string card_title_for_id(string card_id) {
-        for (uint i = 0; i < card_store.get_n_items(); i++) {
-            var card = card_store.get_item(i) as CardSummary;
-            if (card != null && card.card_id == card_id) {
-                return card.title;
-            }
-        }
-        return "this card";
-    }
-
     internal void show_tool_help_page(string tool_id) {
         var help = tool_help_controller.load(tool_id);
         set_editor_state(help.markdown, false);
@@ -1606,11 +1368,11 @@ public class MainWindow : Adw.ApplicationWindow {
     }
 
     internal void confirm_move_card_to_trash(string card_id) {
-        if (card_id.strip().length == 0) {
+        if (WindowPresenter.is_blank(card_id)) {
             return;
         }
 
-        var title_text = card_title_for_id(card_id);
+        var title_text = WindowPresenter.card_title_for_id(card_store, card_id);
         card_action_dialog_adapter.confirm_move_to_trash(title_text, () => {
             controller.move_card_to_trash.begin(card_id);
         });

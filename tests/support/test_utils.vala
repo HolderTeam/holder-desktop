@@ -53,6 +53,10 @@ public class TestScheduler : Object, HolderLinux.IScheduler {
         return true;
     }
 
+    public int pending_one_shots() {
+        return one_shots.size;
+    }
+
     public void run_all_once() {
         var tasks = new Gee.ArrayList<OneShotTask>();
         foreach (var task in one_shots) {

@@ -647,6 +647,40 @@ private void test_query_version_runs_the_executable_and_reports_failures() {
     assert(failure.message == "PowerShell version query failed.");
 }
 
+private void test_session_store_skips_unreadable_session_metadata() {
+    var root = make_temp_dir();
+    var store = new HolderLinux.TerminalSessionStore(root);
+    HolderLinux.TerminalSession locked;
+    try {
+        locked = store.create_session("p", "Locked", null, null, "/work");
+        store.create_session("p", "Readable", null, null, "/work");
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    var metadata_path = Path.build_filename(Path.get_dirname(locked.transcript_path), "session.json");
+    FileUtils.chmod(metadata_path, 0000);
+
+    string? readable = null;
+    try {
+        FileUtils.get_contents(metadata_path, out readable);
+    } catch (Error e) {
+        readable = null;
+    }
+    if (readable != null) {
+        FileUtils.chmod(metadata_path, 0600);
+        Test.skip("file permissions are not enforced for this user");
+        return;
+    }
+    try {
+        var loaded = store.load_sessions("p");
+        assert(loaded.size == 1);
+        assert(loaded[0].project_label == "Readable");
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    FileUtils.chmod(metadata_path, 0600);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     Test.add_func(
@@ -720,6 +754,10 @@ public static int main(string[] args) {
     Test.add_func(
         "/windows_terminal/session_store_missing_root_filters_and_damaged_entries",
         test_session_store_handles_missing_root_filters_and_damaged_entries
+    );
+    Test.add_func(
+        "/windows_terminal/session_store_skips_unreadable_session_metadata",
+        test_session_store_skips_unreadable_session_metadata
     );
     Test.add_func(
         "/windows_terminal/session_store_orders_newest_first",

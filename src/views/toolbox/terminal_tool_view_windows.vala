@@ -13,7 +13,7 @@ private class TerminalSessionListRow : Gtk.ListBoxRow {
         box.set_margin_start(10);
         box.set_margin_end(10);
 
-        var title = new Gtk.Label(session.card_label ?? session.project_label);
+        var title = new Gtk.Label(TerminalPresenter.session_title(session));
         title.set_xalign(0.0f);
         title.set_ellipsize(Pango.EllipsizeMode.END);
         box.append(title);
@@ -29,34 +29,11 @@ private class TerminalSessionListRow : Gtk.ListBoxRow {
     }
 
     public void refresh_state() {
-        var created = new DateTime.from_unix_local(session.created_at);
-        state_label.set_text("%s · %s".printf(
-            state_text(session.state),
-            created.format("%d %b %H:%M")
-        ));
-    }
-
-    private static string state_text(TerminalSessionState state) {
-        switch (state) {
-        case TerminalSessionState.ACTIVE:
-            return "Recording";
-        case TerminalSessionState.COMPLETED:
-            return "Completed";
-        default:
-            return "Interrupted";
-        }
+        state_label.set_text(TerminalPresenter.session_row_subtitle(session, new TimeZone.local()));
     }
 }
 
 public class TerminalToolView : Object, IToolShellAdapter {
-    private const string WINDOWS_MONOSPACE_CLASS = "holder-windows-monospace";
-    private static bool windows_monospace_css_installed = false;
-    [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
-    private static extern void gtk_style_context_add_provider_for_display(
-        Gdk.Display display,
-        Gtk.StyleProvider provider,
-        uint priority
-    );
     private Gtk.Box actions_bar;
     private Gtk.Button new_terminal_button;
     private Gtk.Stack content_stack;
@@ -134,28 +111,8 @@ public class TerminalToolView : Object, IToolShellAdapter {
 
     public ToolScopeSnapshot get_scope_snapshot(Project? selected_project,
                                                  CardSummary? selected_card) {
-        var project_id = selected_project != null ? selected_project.project_id : null;
-        var project_label = selected_project != null ? selected_project.name : "(none)";
-        var card_id = selected_card != null ? selected_card.card_id : null;
-        var card_label = selected_card != null ? selected_card.title : "Overview";
-        var mode = selected_card != null
-            ? ToolScopeMode.CARD_FOCUS
-            : ToolScopeMode.PROJECT_ROOT;
-        if (project_id == null) {
-            mode = ToolScopeMode.PROJECTS_ROOT;
-            project_label = "Projects";
-            card_id = null;
-            card_label = "Overview";
-        }
-        return new ToolScopeSnapshot(
-            tool_id,
-            tool_label,
-            project_id,
-            project_label,
-            card_id,
-            card_label,
-            mode,
-            discovery_in_progress
+        return ToolScopePresenter.snapshot(
+            tool_id, tool_label, selected_project, selected_card, discovery_in_progress
         );
     }
 
@@ -319,7 +276,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
         transcript_view = new Gtk.TextView();
         transcript_view.set_editable(false);
         transcript_view.set_cursor_visible(true);
-        configure_monospace(transcript_view);
+        WindowsMonospace.apply(transcript_view);
         transcript_view.set_wrap_mode(Gtk.WrapMode.NONE);
         transcript_view.set_left_margin(8);
         transcript_view.set_right_margin(8);
@@ -384,71 +341,12 @@ public class TerminalToolView : Object, IToolShellAdapter {
         }
 
         content_stack.set_visible_child_name("prerequisite");
-        install_button.set_visible(false);
-        install_button.set_sensitive(false);
-        manual_install_link.set_visible(false);
-        switch (((!) current).status) {
-        case PowerShellPrerequisiteStatus.POWERSHELL_MISSING:
-            prerequisite_title.set_text("PowerShell 7 is required");
-            prerequisite_detail.set_text(
-                power_shell_install_detail((!) current)
-            );
-            configure_install_button((!) current);
-            manual_install_link.set_visible(true);
-            break;
-        case PowerShellPrerequisiteStatus.POWERSHELL_UNSUPPORTED:
-            prerequisite_title.set_text("A newer PowerShell is required");
-            prerequisite_detail.set_text(
-                "Holder found PowerShell %s, but PowerShell 7 or newer is required. %s"
-                    .printf(
-                        ((!) current).powershell_version ?? "",
-                        power_shell_install_detail((!) current)
-                    )
-            );
-            configure_install_button((!) current);
-            manual_install_link.set_visible(true);
-            break;
-        case PowerShellPrerequisiteStatus.WINDOWS_TERMINAL_MISSING:
-            prerequisite_title.set_text("Windows Terminal is required");
-            prerequisite_detail.set_text(
-                "PowerShell 7 is ready, but Holder could not find Windows Terminal (wt.exe)."
-            );
-            break;
-        default:
-            prerequisite_title.set_text("Could not check PowerShell 7");
-            prerequisite_detail.set_text(
-                ((!) current).details.length > 0
-                    ? ((!) current).details
-                    : "Holder could not verify the PowerShell installation."
-            );
-            manual_install_link.set_visible(true);
-            break;
-        }
-    }
-
-    private void configure_install_button(PowerShellPrerequisites current) {
-        var automatic_install_available = current.winget_path != null
-                                           && current.windows_terminal_path != null;
-        install_button.set_visible(automatic_install_available);
-        install_button.set_sensitive(automatic_install_available);
-    }
-
-    private static string power_shell_install_detail(PowerShellPrerequisites current) {
-        const string PURPOSE =
-            "Holder uses PowerShell 7 to preserve useful terminal commands and output in your cards.";
-        if (current.winget_path == null && current.windows_terminal_path == null) {
-            return "%s Automatic installation is unavailable because Holder could not find Windows Terminal or WinGet; use the Microsoft link below."
-                .printf(PURPOSE);
-        }
-        if (current.windows_terminal_path == null) {
-            return "%s Automatic installation is unavailable because Holder could not find Windows Terminal; use the Microsoft link below."
-                .printf(PURPOSE);
-        }
-        if (current.winget_path == null) {
-            return "%s Automatic installation is unavailable because Holder could not find WinGet; use the Microsoft link below."
-                .printf(PURPOSE);
-        }
-        return PURPOSE;
+        var presentation = TerminalPresenter.prerequisite_presentation((!) current);
+        prerequisite_title.set_text(presentation.title);
+        prerequisite_detail.set_text(presentation.detail);
+        install_button.set_visible(presentation.install_available);
+        install_button.set_sensitive(presentation.install_available);
+        manual_install_link.set_visible(presentation.manual_link_visible);
     }
 
     private void confirm_install() {
@@ -484,10 +382,10 @@ public class TerminalToolView : Object, IToolShellAdapter {
     private void start_install_polling() {
         stop_install_polling();
         install_poll_count = 0;
-        install_poll_source = Timeout.add_seconds(3, () => {
+        install_poll_source = Timeout.add_seconds(TerminalPresenter.INSTALL_POLL_INTERVAL_SECONDS, () => {
             install_poll_count++;
             refresh_prerequisites.begin();
-            if (install_poll_count >= 40) {
+            if (TerminalPresenter.install_poll_exhausted(install_poll_count)) {
                 install_poll_source = 0;
                 return Source.REMOVE;
             }
@@ -505,12 +403,9 @@ public class TerminalToolView : Object, IToolShellAdapter {
     private void open_new_terminal() {
         var current = prerequisites;
         var project = selected_project();
-        if (current == null || !((!) current).ready) {
-            toast_requested("PowerShell 7 is not ready yet.");
-            return;
-        }
-        if (project == null) {
-            toast_requested("Select a project first.");
+        var block_message = TerminalPresenter.new_terminal_block_message(current, project != null);
+        if (block_message != null) {
+            toast_requested((!) block_message);
             return;
         }
         var card = selected_card();
@@ -549,11 +444,10 @@ public class TerminalToolView : Object, IToolShellAdapter {
         clear_session_rows();
         var project = selected_project();
         new_terminal_button.set_sensitive(
-            project != null && prerequisites != null && ((!) prerequisites).ready
+            TerminalPresenter.new_terminal_enabled(project != null, prerequisites)
         );
         if (project == null) {
-            empty_sessions_label.set_text("Select a project, then open a terminal.");
-            empty_sessions_label.set_visible(true);
+            apply_session_list_presentation(TerminalPresenter.sessions_for_no_project());
             set_active_row(null);
             return;
         }
@@ -562,18 +456,21 @@ public class TerminalToolView : Object, IToolShellAdapter {
             foreach (var session in sessions) {
                 append_session_row(session, false);
             }
-            empty_sessions_label.set_text("No terminal sessions for this project yet.");
-            empty_sessions_label.set_visible(sessions.size == 0);
+            apply_session_list_presentation(TerminalPresenter.sessions_for_loaded(sessions.size));
             if (sessions.size == 0) {
                 set_active_row(null);
             } else {
                 session_list.select_row(session_list.get_row_at_index(0));
             }
         } catch (Error e) {
-            empty_sessions_label.set_text("Could not load terminal sessions.");
-            empty_sessions_label.set_visible(true);
+            apply_session_list_presentation(TerminalPresenter.sessions_for_load_failure());
             debug_log_requested("Terminal session load failed: %s".printf(e.message));
         }
+    }
+
+    private void apply_session_list_presentation(SessionListPresentation presentation) {
+        empty_sessions_label.set_text(presentation.text);
+        empty_sessions_label.set_visible(presentation.visible);
     }
 
     private void clear_session_rows() {
@@ -598,7 +495,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
         transcript_snapshot = null;
         raw_toggle.set_active(false);
         if (active_session == null) {
-            transcript_title.set_text("No terminal selected");
+            transcript_title.set_text(TerminalPresenter.NO_SESSION_TITLE);
             transcript_state.set_text("");
             interrupted_revealer.set_reveal_child(false);
             transcript_view.get_buffer().set_text("");
@@ -606,9 +503,7 @@ public class TerminalToolView : Object, IToolShellAdapter {
             copy_all_button.set_sensitive(false);
             return;
         }
-        transcript_title.set_text(
-            ((!) active_session).card_label ?? ((!) active_session).project_label
-        );
+        transcript_title.set_text(TerminalPresenter.session_title((!) active_session));
         refresh_active_transcript();
         start_transcript_monitor((!) active_session);
     }
@@ -676,26 +571,14 @@ public class TerminalToolView : Object, IToolShellAdapter {
         if (session == null || snapshot == null) {
             return;
         }
-        var text = raw_toggle.get_active()
-            ? ((!) snapshot).raw_text
-            : ((!) snapshot).useful_text;
+        var text = TerminalPresenter.transcript_text((!) snapshot, raw_toggle.get_active());
         transcript_view.get_buffer().set_text(text);
-        switch (((!) session).state) {
-        case TerminalSessionState.ACTIVE:
-            transcript_state.set_text("Recording");
-            break;
-        case TerminalSessionState.COMPLETED:
-            transcript_state.set_text("Completed");
-            break;
-        default:
-            transcript_state.set_text("Interrupted");
-            break;
-        }
+        transcript_state.set_text(TerminalPresenter.session_state_text(((!) session).state));
         interrupted_revealer.set_reveal_child(
-            ((!) session).state == TerminalSessionState.INTERRUPTED
+            TerminalPresenter.interrupted_notice_visible(((!) session).state)
         );
-        copy_selection_button.set_sensitive(text.strip().length > 0);
-        copy_all_button.set_sensitive(text.strip().length > 0);
+        copy_selection_button.set_sensitive(TerminalPresenter.has_copyable_text(text));
+        copy_all_button.set_sensitive(TerminalPresenter.has_copyable_text(text));
     }
 
     private void copy_selection_to_card() {
@@ -703,63 +586,24 @@ public class TerminalToolView : Object, IToolShellAdapter {
         Gtk.TextIter end;
         var buffer = transcript_view.get_buffer();
         if (!buffer.get_selection_bounds(out start, out end)) {
-            toast_requested("Select terminal text first.");
+            toast_requested(TerminalPresenter.SELECT_TEXT_MESSAGE);
             return;
         }
         var text = buffer.get_text(start, end, false);
-        if (text.strip().length == 0) {
-            toast_requested("Select terminal text first.");
+        if (!TerminalPresenter.has_copyable_text(text)) {
+            toast_requested(TerminalPresenter.SELECT_TEXT_MESSAGE);
             return;
         }
         copy_to_card_requested(text);
     }
 
     private void copy_all_to_card() {
-        var snapshot = transcript_snapshot;
-        if (snapshot == null) {
-            toast_requested("Terminal has no text to copy.");
+        var text = TerminalPresenter.copy_all_text(transcript_snapshot, raw_toggle.get_active());
+        if (text == null) {
+            toast_requested(TerminalPresenter.NOTHING_TO_COPY_MESSAGE);
             return;
         }
-        var text = raw_toggle.get_active()
-            ? ((!) snapshot).raw_text
-            : ((!) snapshot).useful_text;
-        if (text.strip().length == 0) {
-            toast_requested("Terminal has no text to copy.");
-            return;
-        }
-        copy_to_card_requested(text);
-    }
-
-    private static void configure_monospace(Gtk.TextView view) {
-        if (Path.DIR_SEPARATOR_S != "\\") {
-            view.set_monospace(true);
-            return;
-        }
-        ensure_windows_monospace_css();
-        view.add_css_class(WINDOWS_MONOSPACE_CLASS);
-    }
-
-    private static void ensure_windows_monospace_css() {
-        if (windows_monospace_css_installed) {
-            return;
-        }
-        var display = Gdk.Display.get_default();
-        if (display == null) {
-            return;
-        }
-        var provider = new Gtk.CssProvider();
-        provider.load_from_string("""
-.holder-windows-monospace,
-.holder-windows-monospace text {
-  font-family: "Cascadia Mono", "Consolas", monospace;
-}
-""");
-        gtk_style_context_add_provider_for_display(
-            display,
-            provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        );
-        windows_monospace_css_installed = true;
+        copy_to_card_requested((!) text);
     }
 }
 

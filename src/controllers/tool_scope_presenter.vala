@@ -4,7 +4,8 @@ public class ToolScopePresenter {
     public static ToolScopeSnapshot snapshot(string tool_id,
                                              string tool_label,
                                              Project? selected_project,
-                                             CardSummary? selected_card) {
+                                             CardSummary? selected_card,
+                                             bool is_loading = false) {
         var project_id = selected_project != null ? selected_project.project_id : null;
         var project_label = selected_project != null ? selected_project.name : "(none)";
         var card_id = selected_card != null ? selected_card.card_id : null;
@@ -28,7 +29,7 @@ public class ToolScopePresenter {
             card_id,
             card_label,
             scope_mode,
-            false
+            is_loading
         );
     }
 

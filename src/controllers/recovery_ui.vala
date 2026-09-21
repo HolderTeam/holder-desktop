@@ -19,8 +19,24 @@ internal class RecoveryUiController : Object {
         this.recovery_controller = recovery_controller;
     }
 
+    public static string normalize_pin(string pin) {
+        return pin.strip();
+    }
+
+    public static bool pin_is_submittable(string pin) {
+        return normalize_pin(pin).length > 0;
+    }
+
+    // Returns the path unchanged when usable, or null when it is missing or blank.
+    public static string? accepted_path(string? path) {
+        if (path == null || path.strip().length == 0) {
+            return null;
+        }
+        return path;
+    }
+
     public bool validate_pin(string pin) {
-        if (pin.strip().length > 0) {
+        if (pin_is_submittable(pin)) {
             return true;
         }
         toast_requested("PIN is required.");
@@ -60,7 +76,7 @@ internal class RecoveryUiController : Object {
     }
 
     public void save_payload_to_path(string? path, string payload) {
-        if (path == null || path.strip().length == 0) {
+        if (accepted_path(path) == null) {
             error_reported(
                 "Recovery key export failed",
                 "Please choose a local filesystem path."
@@ -76,7 +92,7 @@ internal class RecoveryUiController : Object {
     }
 
     public string? load_import_payload_from_path(string? path) {
-        if (path == null || path.strip().length == 0) {
+        if (accepted_path(path) == null) {
             error_reported(
                 "Recovery key import failed",
                 "Please choose a local filesystem path."
