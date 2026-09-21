@@ -250,11 +250,67 @@ public bool cv_activate_link(Gtk.Label label, string uri, CvLinkProbe probe) {
     return probe.blocked == before;
 }
 
+public Gtk.DrawingArea? cv_find_drawing_area(Gtk.Widget widget) {
+    if (widget is Gtk.DrawingArea) {
+        return (Gtk.DrawingArea) widget;
+    }
+    for (var child = widget.get_first_child(); child != null; child = ((!) child).get_next_sibling()) {
+        var found = cv_find_drawing_area((!) child);
+        if (found != null) {
+            return found;
+        }
+    }
+    return null;
+}
+
+// Renders the widget's own drawing (a Gtk.DrawingArea's draw function runs from snapshot()) into an
+// image and counts the pixels that are not fully transparent.
+public int cv_drawn_pixels(Gtk.DrawingArea canvas, int width, int height) {
+    canvas.allocate(width, height, -1, null);
+    var snapshot = new Gtk.Snapshot();
+    canvas.snapshot(snapshot);
+    var node = snapshot.to_node();
+    if (node == null) {
+        return 0;
+    }
+    var surface = new Cairo.ImageSurface(Cairo.Format.ARGB32, width, height);
+    var cr = new Cairo.Context(surface);
+    ((!) node).draw(cr);
+    surface.flush();
+    unowned uint8[] data = surface.get_data();
+    int drawn = 0;
+    int stride = surface.get_stride();
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            if (data[y * stride + x * 4 + 3] != 0) {
+                drawn++;
+            }
+        }
+    }
+    return drawn;
+}
+
+public Gtk.Paned? cv_find_paned(Gtk.Widget widget) {
+    if (widget is Gtk.Paned) {
+        return (Gtk.Paned) widget;
+    }
+    for (var child = widget.get_first_child(); child != null; child = ((!) child).get_next_sibling()) {
+        var found = cv_find_paned((!) child);
+        if (found != null) {
+            return found;
+        }
+    }
+    return null;
+}
+
 // Hosts a ConnectionsToolView in a real (never presented) Adw.Window so dialogs have a root to
 // attach to, and records everything the view reports.
 public class ConnectionsViewHarness : Object {
     public MainControllerFakeApi api = new MainControllerFakeApi();
-    public HolderLinux.ConnectionsToolView view = new HolderLinux.ConnectionsToolView();
+    // The view schedules its graph refresh debounce and the empty-state check here instead of on
+    // real timers; wait() fires the debounce, tests fire the empty-state check explicitly.
+    public TestScheduler scheduler = new TestScheduler();
+    public HolderLinux.ConnectionsToolView view;
     public Adw.Window window = new Adw.Window();
     public GLib.ListStore project_store = new GLib.ListStore(typeof(HolderLinux.Project));
     public GLib.ListStore card_store = new GLib.ListStore(typeof(HolderLinux.CardSummary));
@@ -269,6 +325,7 @@ public class ConnectionsViewHarness : Object {
     public int projects_root_requests { get; set; default = 0; }
 
     public ConnectionsViewHarness() {
+        view = new HolderLinux.ConnectionsToolView(scheduler);
         projects = new Gtk.SingleSelection(project_store);
         cards = new Gtk.SingleSelection(card_store);
         // No card selected unless a test asks for one: a default SingleSelection would autoselect.
@@ -297,23 +354,40 @@ public class ConnectionsViewHarness : Object {
         return view.get_content_widget();
     }
 
+    // Like wait_for_condition, but fires the pending refresh debounce on every poll. The longer
+    // empty-state check is left alone so a test decides when it is due.
+    public bool wait(ConditionFunc condition, uint timeout_ms = 1500) {
+        return wait_for_condition(() => {
+            fire_debounce();
+            return condition();
+        }, timeout_ms);
+    }
+
+    public int fire_debounce() {
+        return scheduler.run_due(HolderLinux.ConnectionsRefreshPlanner.GRAPH_REFRESH_DEBOUNCE_MS);
+    }
+
+    public int fire_empty_state_check() {
+        return scheduler.run_due(HolderLinux.ConnectionsRefreshPlanner.PROJECT_EMPTY_STATE_DELAY_MS);
+    }
+
     public bool wait_for_nodes(uint count) {
-        return wait_for_condition(() => cv_node_buttons(content()).size == count);
+        return wait(() => cv_node_buttons(content()).size == count);
     }
 
     public bool wait_for_empty_text(string text) {
-        return wait_for_condition(() => {
+        return wait(() => {
             var label = cv_empty_label(content());
             return label.get_visible() && label.get_text() == text;
         });
     }
 
     public bool wait_for_structure(string text) {
-        return wait_for_condition(() => cv_structure_label(content()).get_text().contains(text));
+        return wait(() => cv_structure_label(content()).get_text().contains(text));
     }
 
     public bool wait_for_log(string needle) {
-        return wait_for_condition(() => {
+        return wait(() => {
             foreach (var line in logs) {
                 if (line.contains(needle)) {
                     return true;
@@ -328,12 +402,26 @@ public class ConnectionsViewHarness : Object {
     }
 
     public bool wait_for_dialog() {
-        return wait_for_condition(() => dialog() != null);
+        return wait(() => dialog() != null);
     }
 
     // Runs the main loop until idle, flushing anything a response queued.
     public void settle() {
         while (MainContext.default().iteration(false)) {}
+    }
+
+    // Lets everything the view has queued finish without advancing time: fires the refresh
+    // debounce and runs the main loop until idle, repeatedly, until no refresh is left. The
+    // empty-state check is not fired.
+    public void drain() {
+        for (int i = 0; i < 50; i++) {
+            var fired = fire_debounce();
+            settle();
+            if (fired == 0 && scheduler.pending_with_delay(HolderLinux.ConnectionsRefreshPlanner.GRAPH_REFRESH_DEBOUNCE_MS) == 0) {
+                return;
+            }
+        }
+        assert_not_reached();
     }
 
     public Gtk.Button add_button() {

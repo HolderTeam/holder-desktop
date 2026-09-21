@@ -930,9 +930,7 @@ connections_tool_view_test_exe = executable(
   install: false,
 )
 
-# The view schedules its graph refresh and empty-state checks on real timers, so this binary takes
-# about 15 s; give slower CI runners headroom over meson's 30 s default.
-test('holder-linux-connections-tool-view-tests', connections_tool_view_test_exe, timeout: 120)
+test('holder-linux-connections-tool-view-tests', connections_tool_view_test_exe)
 
 connections_refresh_planner_test_exe = executable(
   'holder-linux-connections-refresh-planner-tests',

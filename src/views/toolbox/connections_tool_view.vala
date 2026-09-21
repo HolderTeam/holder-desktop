@@ -13,34 +13,35 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         uint priority
     );
 
-    private Gtk.Box connections_actions_bar;
-    private Gtk.Paned connections_main_pane;
-    private Gtk.Overlay connections_board_overlay;
-    private Gtk.DrawingArea connections_board_canvas;
-    private Gtk.Fixed connections_board_nodes_layer;
-    private Gtk.Label connections_board_empty_label;
-    private Gtk.ToggleButton connections_relations_toggle_btn;
-    private Gtk.ScrolledWindow connections_relations_scroller;
-    private Gtk.Box connections_relations_column;
-    private Gtk.Label connections_relations_title_label;
-    private Gtk.Label connections_relations_structure_label;
-    private Gtk.Box connections_relations_outgoing_section;
-    private Gtk.Label connections_relations_outgoing_label;
-    private Gtk.Box connections_relations_backlinks_section;
-    private Gtk.Label connections_relations_backlinks_label;
-    private Gtk.Box connections_relations_internal_section;
-    private Gtk.Label connections_relations_internal_label;
-    private Gtk.Button connections_add_graph_link_btn;
-    private Gtk.SingleSelection? project_selection;
-    private GLib.ListStore? card_store;
-    private Gtk.SingleSelection? card_selection;
-    private IHolderApi? api;
-    private Settings? settings;
-    private ConnectionsController controller;
-    private ConnectionsRefreshPlanner refresh_planner;
-    private ConnectionsRelationsPresenter relations_presenter;
-    private ConnectionsBoardPresenter board_presenter;
-    private ConnectionsBoardBuilder board_builder;
+    private Gtk.Box connections_actions_bar; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Paned connections_main_pane; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Overlay connections_board_overlay; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.DrawingArea connections_board_canvas; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Fixed connections_board_nodes_layer; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label connections_board_empty_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.ToggleButton connections_relations_toggle_btn; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.ScrolledWindow connections_relations_scroller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Box connections_relations_column; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label connections_relations_title_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label connections_relations_structure_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Box connections_relations_outgoing_section; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label connections_relations_outgoing_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Box connections_relations_backlinks_section; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label connections_relations_backlinks_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Box connections_relations_internal_section; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label connections_relations_internal_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Button connections_add_graph_link_btn; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection? project_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private GLib.ListStore? card_store; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection? card_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private IHolderApi? api; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Settings? settings; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ConnectionsController controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ConnectionsRefreshPlanner refresh_planner; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private IScheduler scheduler; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ConnectionsRelationsPresenter relations_presenter; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ConnectionsBoardPresenter board_presenter; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ConnectionsBoardBuilder board_builder; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private Gee.ArrayList<string> internal_links_cache = new Gee.ArrayList<string>();
     private Gee.ArrayList<ConnectionsBoardNode> board_nodes = new Gee.ArrayList<ConnectionsBoardNode>();
     private Gee.ArrayList<ConnectionsBoardEdge> board_edges = new Gee.ArrayList<ConnectionsBoardEdge>();
@@ -84,13 +85,14 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     public signal void card_open_requested(string card_id);
     public signal void card_create_child_requested(string card_id);
 
-    public ConnectionsToolView() {
+    public ConnectionsToolView(IScheduler? scheduler = null) {
+        this.scheduler = scheduler ?? new MainLoopScheduler();
         controller = new ConnectionsController();
         relations_presenter = new ConnectionsRelationsPresenter(controller);
         board_presenter = new ConnectionsBoardPresenter(controller);
         board_builder = new ConnectionsBoardBuilder(controller);
         refresh_planner = new ConnectionsRefreshPlanner(
-            new MainLoopScheduler(),
+            this.scheduler,
             (content_generation) => current_graph_refresh_target(content_generation)
         );
         refresh_planner.debug_event.connect((event_name, target) => {
@@ -119,6 +121,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             note_graph_refresh_content_changed();
         }
         this.api = api;
+        update_add_graph_link_button_state();
         queue_connections_graph_refresh();
     }
 
@@ -347,22 +350,13 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
 
     private bool apply_default_relations_split() {
         if (relations_default_split_applied || connections_main_pane == null) {
-            return Source.REMOVE;
+            return Source.REMOVE; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the callback is removed once applied and the pane is built before it is queued
         }
         int total_width = connections_main_pane.get_width();
         if (total_width <= 0) {
             return Source.CONTINUE;
         }
-        int desired_relations = 320;
-        int min_graph = 520;
-        int pane_position = total_width - desired_relations;
-        if (pane_position < min_graph) {
-            pane_position = min_graph;
-        }
-        if (pane_position > total_width - 260) {
-            pane_position = total_width - 260;
-        }
-        connections_main_pane.set_position(pane_position);
+        connections_main_pane.set_position(ConnectionsBoardPresenter.default_relations_split_position(total_width));
         relations_default_split_applied = true;
         relations_default_split_idle_id = 0;
         return Source.REMOVE;
@@ -370,9 +364,9 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
 
     private void queue_apply_default_relations_split() {
         if (relations_default_split_applied || relations_default_split_idle_id != 0) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: queued once, from the constructor, before anything is applied
         }
-        relations_default_split_idle_id = Timeout.add(30, () => {
+        relations_default_split_idle_id = scheduler.schedule_repeating(30, () => {
             return apply_default_relations_split();
         });
     }
@@ -422,7 +416,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
 
     private void set_relations_overview(string text) {
         if (connections_relations_structure_label == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: widget is assigned in the constructor before any caller can run
         }
         apply_relations(relations_presenter.overview(text));
     }
@@ -438,7 +432,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
 
     private void update_add_graph_link_button_state() {
         if (connections_add_graph_link_btn == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: widget is assigned in the constructor before any caller can run
         }
         var selected_card = card_selection != null
             ? card_selection.get_selected_item() as CardSummary
@@ -536,7 +530,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                     label_entry.get_text()
                 );
                 if (request == null) {
-                    return;
+                    return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the dialog always has a target and a kind selected, so resolve() returns a request
                 }
                 create_graph_link.begin(
                     selected_card.card_id,
@@ -580,14 +574,14 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                                                 ConnectionsGraphRefreshTarget request_target) {
         try {
             if (refresh_planner.drop_if_stale(request_serial, request_generation, request_target, "dropped stale preflight")) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: runs synchronously with the dispatch, so the serial and generation cannot have changed yet
             }
             if (connections_board_overlay == null || connections_board_nodes_layer == null || connections_board_canvas == null) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: widgets are assigned in the constructor before a refresh can be dispatched
             }
             if (show_projects_root) {
                 if (refresh_planner.drop_if_stale(request_serial, request_generation, request_target, "dropped stale projects root")) {
-                    return;
+                    return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: runs synchronously with the dispatch, so the serial and generation cannot have changed yet
                 }
                 refresh_planner.record_committed(request_target, request_generation);
                 render_projects_root_board();
@@ -602,7 +596,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                 : null;
             if (selected_project == null) {
                 if (refresh_planner.drop_if_stale(request_serial, request_generation, request_target, "dropped stale missing project")) {
-                    return;
+                    return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: runs synchronously with the dispatch, so the serial and generation cannot have changed yet
                 }
                 // During project/card transitions, selection can briefly pass through null.
                 // Keep the committed board to avoid flashing a transient empty state.
@@ -624,10 +618,10 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                 }
                 var still_selected = card_selection != null
                     ? card_selection.get_selected_item() as CardSummary
-                    : null;
+                    : null; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: card mode is only reached once the card selection model is bound
                 if (still_selected == null || still_selected.card_id != expected_card_id) {
-                    refresh_planner.report_dropped(request_target, "dropped stale card selection");
-                    return;
+                    refresh_planner.report_dropped(request_target, "dropped stale card selection"); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: any selection change also bumps the generation, which drop_if_stale() above already handles
+                    return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: any selection change also bumps the generation, which drop_if_stale() above already handles
                 }
                 if (!result.success || result.outgoing == null || result.backlinks == null) {
                     if (!has_committed_board) {
@@ -646,7 +640,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
 
             if (api == null) {
                 if (refresh_planner.drop_if_stale(request_serial, request_generation, request_target, "dropped stale api unavailable")) {
-                    return;
+                    return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: runs synchronously with the dispatch, so the serial and generation cannot have changed yet
                 }
                 set_graph_empty_state("API unavailable.");
                 return;
@@ -727,10 +721,10 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
     private void show_empty_project_state_if_still_empty(string project_id) {
         var selected_project = project_selection != null
             ? project_selection.get_selected_item() as Project
-            : null;
+            : null; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the selection models are bound before the empty-state check is scheduled
         var selected_card = card_selection != null
             ? card_selection.get_selected_item() as CardSummary
-            : null;
+            : null; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the selection models are bound before the empty-state check is scheduled
         if (ConnectionsEmptyStatePolicy.should_show_no_cards(
                 show_projects_root, selected_project, project_id, selected_card, snapshot_cards())) {
             set_graph_empty_state("No cards in this project yet.");
@@ -780,7 +774,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         ensure_board_canvas_size(canvas_size.width, canvas_size.height);
         connections_board_empty_label.set_visible(nodes.size == 0);
         if (nodes.size == 0) {
-            connections_board_empty_label.set_text("No connections to display.");
+            connections_board_empty_label.set_text("No connections to display."); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: callers show their own empty state when there are no nodes; kept as a fallback
         }
         has_committed_board = true;
         connections_board_canvas.queue_draw();
@@ -905,7 +899,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             var from = node_map.get(edge.from_card_id);
             var to = node_map.get(edge.to_card_id);
             if (from == null || to == null) {
-                continue;
+                continue; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the board builder only emits edges between nodes it also emits
             }
             double x0;
             double y0;
@@ -938,7 +932,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
                                  double y1) {
         var head = ConnectionsBoardGeometry.arrow_head(x0, y0, x1, y1);
         if (head == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: arrow_head() is null only for a zero-length edge, and nodes never share a position
         }
         cr.move_to(head.tip_x, head.tip_y);
         cr.line_to(head.first_x, head.first_y);
@@ -1013,7 +1007,7 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
 
     private void refresh_relations_title() {
         if (connections_relations_title_label == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: widget is assigned in the constructor before any caller can run
         }
         var selected_project = project_selection != null
             ? project_selection.get_selected_item() as Project

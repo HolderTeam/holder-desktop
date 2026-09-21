@@ -4,15 +4,6 @@ namespace HolderLinuxTests {
 
 private const string CVB_NO_CARDS = "No cards in this project yet.";
 
-private void cvb_settle(uint duration_ms = 400) {
-    var loop = new MainLoop();
-    Timeout.add(duration_ms, () => {
-        loop.quit();
-        return Source.REMOVE;
-    });
-    loop.run();
-}
-
 // Polls the structure label while a test runs, remembering whether it ever showed a given text.
 private class CvbTextWatcher : Object {
     public bool seen { get; set; default = false; }
@@ -66,7 +57,7 @@ private void test_losing_the_project_keeps_the_board_that_is_already_drawn() {
     // Selection passes through "nothing selected" while projects reload; keep what is drawn.
     h.project_store.remove_all();
     assert(h.projects.get_selected_item() == null);
-    cvb_settle();
+    h.drain();
 
     assert(cv_node_buttons(h.content()).size == 3);
     assert(!cv_empty_label(h.content()).get_visible());
@@ -81,7 +72,7 @@ private void test_a_card_from_another_project_is_treated_as_no_card() {
     // Card One belongs to project one, so the board shows project two's cards instead.
     assert(h.wait_for_nodes(1));
     assert(cv_node_titles(h.content()).contains("Other Card"));
-    assert(wait_for_condition(() => h.api.list_card_links_calls == 1));
+    assert(h.wait(() => h.api.list_card_links_calls == 1));
     assert(h.api.list_card_backlinks_calls == 0);
 }
 
@@ -180,9 +171,13 @@ private void test_a_project_that_should_have_cards_waits_before_declaring_itself
     h.projects.set_selected(0);
     var watcher = new CvbTextWatcher(h, CVB_NO_CARDS);
     h.start();
+    h.drain();
 
-    // Give the delayed empty check plenty of time to fire.
-    cvb_settle(700);
+    // The delayed empty check is pending; when it fires the project still claims cards, so it
+    // keeps waiting instead of announcing an empty project.
+    assert(h.scheduler.pending_with_delay(HolderLinux.ConnectionsRefreshPlanner.PROJECT_EMPTY_STATE_DELAY_MS) == 1);
+    assert(h.fire_empty_state_check() == 1);
+    h.drain();
     watcher.stop();
 
     assert(!watcher.seen);
@@ -194,10 +189,14 @@ private void test_a_drawn_board_turns_into_the_empty_message_after_the_delay() {
     assert(h.wait_for_nodes(3));
 
     h.card_store.remove_all();
+    h.drain();
 
-    // The board is not blanked at once (the empty snapshot may be transitional)...
-    assert(wait_for_condition(() => cv_empty_label(h.content()).get_visible()));
+    // The board is not announced empty at once (the empty snapshot may be transitional): the
+    // check is only pending...
+    assert(h.scheduler.pending_with_delay(HolderLinux.ConnectionsRefreshPlanner.PROJECT_EMPTY_STATE_DELAY_MS) == 1);
+    assert(!cv_eq(cv_structure_label(h.content()).get_text(), CVB_NO_CARDS));
     // ...but once the delayed check confirms the project really is empty it says so.
+    assert(h.fire_empty_state_check() == 1);
     assert(h.wait_for_empty_text(CVB_NO_CARDS));
     assert(cv_node_buttons(h.content()).size == 0);
     assert(cv_eq(cv_structure_label(h.content()).get_text(), CVB_NO_CARDS));
@@ -209,13 +208,16 @@ private void test_cards_arriving_before_the_delay_cancel_the_empty_message() {
     var watcher = new CvbTextWatcher(h, CVB_NO_CARDS);
 
     h.card_store.remove_all();
-    // Long enough for the emptied board to be processed and the delayed check scheduled, but well
-    // inside the check's delay.
-    cvb_settle(150);
+    // The emptied board is processed and the delayed check scheduled, but not yet due.
+    h.drain();
+    assert(h.scheduler.pending_with_delay(HolderLinux.ConnectionsRefreshPlanner.PROJECT_EMPTY_STATE_DELAY_MS) == 1);
     h.card_store.append(cv_card("c9", "p1", "Card Nine", 10));
 
     assert(h.wait_for_nodes(1));
-    cvb_settle(500);
+    h.drain();
+    // Cards arriving cancelled the check, so nothing is left to fire.
+    assert(h.scheduler.pending_with_delay(HolderLinux.ConnectionsRefreshPlanner.PROJECT_EMPTY_STATE_DELAY_MS) == 0);
+    assert(h.fire_empty_state_check() == 0);
     watcher.stop();
 
     assert(!watcher.seen);
@@ -229,12 +231,17 @@ private void test_an_empty_check_is_ignored_once_the_project_changed() {
     var watcher = new CvbTextWatcher(h, CVB_NO_CARDS);
 
     h.card_store.remove_all();
-    cvb_settle(150);
+    h.drain();
+    assert(h.scheduler.pending_with_delay(HolderLinux.ConnectionsRefreshPlanner.PROJECT_EMPTY_STATE_DELAY_MS) == 1);
     // Switching project before the delayed check fires makes that check stale.
     h.projects.set_selected(1);
 
-    assert(wait_for_condition(() => cv_relations_title(h.content()).get_text() == "Project Two"));
-    cvb_settle(500);
+    assert(h.wait(() => cv_relations_title(h.content()).get_text() == "Project Two"));
+    h.drain();
+    // Whether the switch cancelled the pending check or left it to be ignored, firing whatever is
+    // still due must not announce an empty project.
+    h.fire_empty_state_check();
+    h.drain();
     watcher.stop();
 
     assert(!watcher.seen);
@@ -250,7 +257,7 @@ private void test_the_projects_root_without_a_selection_model_has_nothing_to_sho
         h.view.navigate_to_projects_root.end(res);
         done = true;
     });
-    assert(wait_for_condition(() => done));
+    assert(h.wait(() => done));
 
     // Not bound to any selection yet.
     assert(h.wait_for_empty_text("No projects available."));
@@ -265,7 +272,7 @@ private void test_the_projects_root_with_no_projects_has_nothing_to_show() {
         h.view.navigate_to_projects_root.end(res);
         done = true;
     });
-    assert(wait_for_condition(() => done));
+    assert(h.wait(() => done));
 
     assert(h.wait_for_empty_text("No projects available."));
     assert(cv_eq(cv_relations_title(h.content()).get_text(), "Projects"));
@@ -281,7 +288,7 @@ private void test_the_projects_root_needs_no_api() {
         h.view.navigate_to_projects_root.end(res);
         done = true;
     });
-    assert(wait_for_condition(() => done));
+    assert(h.wait(() => done));
 
     assert(h.wait_for_nodes(1));
     assert(cv_node_titles(h.content()).contains("Project One"));
@@ -298,7 +305,7 @@ private void test_a_selection_model_without_items_shows_no_projects() {
         h.view.navigate_to_projects_root.end(res);
         done = true;
     });
-    assert(wait_for_condition(() => done));
+    assert(h.wait(() => done));
 
     assert(h.wait_for_empty_text("No projects available."));
 }
@@ -367,7 +374,7 @@ private void test_project_nodes_have_no_context_menu() {
         h.view.navigate_to_projects_root.end(res);
         done = true;
     });
-    assert(wait_for_condition(() => done));
+    assert(h.wait(() => done));
     assert(h.wait_for_nodes(2));
     var node = cv_node(h.content(), "Project One");
 
@@ -389,7 +396,7 @@ private void test_a_view_that_was_never_bound_shows_the_select_a_project_hint() 
     assert(h.toasts.size == 0);
     var probe = new CvLinkProbe();
     assert(cv_activate_link(cv_structure_label(h.content()), "card:c1", probe));
-    assert(wait_for_condition(() => h.card_opens.size == 1));
+    assert(h.wait(() => h.card_opens.size == 1));
     assert(h.card_opens[0] == "c1");
 }
 
@@ -439,9 +446,40 @@ private void test_a_project_refresh_that_goes_stale_at_the_end_is_not_committed(
     assert(h.wait_for_nodes(1));
 }
 
+private void test_the_board_canvas_draws_its_links_and_nothing_when_there_are_none() {
+    var h = cvb_project_harness(3, false);
+    var from_c1 = new Gee.ArrayList<HolderLinux.CardLink>();
+    from_c1.add(cv_link("c1", "c2", "depends_on"));
+    h.api.card_links_by_source = new Gee.HashMap<string, Gee.ArrayList<HolderLinux.CardLink>>();
+    ((!) h.api.card_links_by_source).set("c1", from_c1);
+    h.start();
+    assert(h.wait_for_nodes(3));
+    var canvas = cv_find_drawing_area(h.content());
+    assert(canvas != null);
+
+    // The project board has sibling "next" edges and the depends_on link, so lines are drawn.
+    assert(cv_drawn_pixels((!) canvas, 900, 600) > 50);
+}
+
+private void test_a_board_without_links_draws_nothing_on_the_canvas() {
+    var h = new ConnectionsViewHarness();
+    h.project_store.append(cv_project("p1", "Project One", 1));
+    h.projects.set_selected(0);
+    h.card_store.append(cv_card("c1", "p1", "Only Card", 10));
+    h.start();
+    assert(h.wait_for_nodes(1));
+    var canvas = cv_find_drawing_area(h.content());
+    assert(canvas != null);
+
+    // One node and no edges: the draw function returns before touching the surface.
+    assert(cv_drawn_pixels((!) canvas, 900, 600) == 0);
+}
+
 public void register_connections_view_board_tests() {
     var prefix = "/holder/connections-tool-view/board/";
     Test.add_func(prefix + "no-projects", test_no_projects_means_a_hint_to_select_one);
+    Test.add_func(prefix + "canvas-draws-links", test_the_board_canvas_draws_its_links_and_nothing_when_there_are_none);
+    Test.add_func(prefix + "canvas-empty", test_a_board_without_links_draws_nothing_on_the_canvas);
     Test.add_func(prefix + "project-lost-keeps-board", test_losing_the_project_keeps_the_board_that_is_already_drawn);
     Test.add_func(prefix + "card-of-other-project", test_a_card_from_another_project_is_treated_as_no_card);
     Test.add_func(prefix + "project-no-api", test_a_project_board_without_an_api_says_so);

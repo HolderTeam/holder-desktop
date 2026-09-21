@@ -91,6 +91,22 @@ private void test_canvas_size_grows_to_fit_far_nodes() {
     assert(size.height == 500 + 76 + 16);
 }
 
+private void test_default_relations_split_gives_the_relations_pane_320_px_within_limits() {
+    // Wide: the relations pane gets 320 px.
+    assert(HolderLinux.ConnectionsBoardPresenter.default_relations_split_position(1000) == 680);
+    assert(HolderLinux.ConnectionsBoardPresenter.default_relations_split_position(2000) == 1680);
+    // The graph never gets less than 520 px while the relations pane can still keep 260 px.
+    assert(HolderLinux.ConnectionsBoardPresenter.default_relations_split_position(840) == 520);
+    assert(HolderLinux.ConnectionsBoardPresenter.default_relations_split_position(800) == 520);
+    assert(HolderLinux.ConnectionsBoardPresenter.default_relations_split_position(780) == 520);
+    // Too narrow for both minimums: the relations pane's 260 px wins.
+    assert(HolderLinux.ConnectionsBoardPresenter.default_relations_split_position(700) == 440);
+    assert(HolderLinux.ConnectionsBoardPresenter.default_relations_split_position(300) == 40);
+    // The boundaries themselves: 840 is where the 320 px pane starts to squeeze the graph.
+    assert(HolderLinux.ConnectionsBoardPresenter.default_relations_split_position(841) == 521);
+    assert(HolderLinux.ConnectionsBoardPresenter.default_relations_split_position(839) == 520);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     Test.add_func("/holder/connections-board/relations-title", test_relations_title_prefers_projects_then_card_then_project);
@@ -100,6 +116,7 @@ public static int main(string[] args) {
     Test.add_func("/holder/connections-board/projects-root-nodes", test_projects_root_nodes_are_prefixed_and_laid_out);
     Test.add_func("/holder/connections-board/canvas-minimums", test_canvas_size_uses_minimums_for_empty_and_small_boards);
     Test.add_func("/holder/connections-board/canvas-grows", test_canvas_size_grows_to_fit_far_nodes);
+    Test.add_func("/holder/connections-board/default-split", test_default_relations_split_gives_the_relations_pane_320_px_within_limits);
     return Test.run();
 }
 

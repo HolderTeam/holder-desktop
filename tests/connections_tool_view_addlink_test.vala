@@ -33,15 +33,6 @@ private Gtk.Widget cvd_content(Adw.AlertDialog dialog) {
     return (!) content;
 }
 
-private void cvd_settle(uint duration_ms = 300) {
-    var loop = new MainLoop();
-    Timeout.add(duration_ms, () => {
-        loop.quit();
-        return Source.REMOVE;
-    });
-    loop.run();
-}
-
 private Settings? cvd_settings() {
     var source = SettingsSchemaSource.get_default();
     if (source == null || ((!) source).lookup(HolderLinux.AppSettings.SCHEMA_ID, true) == null) {
@@ -66,12 +57,12 @@ private void test_the_add_button_needs_a_selected_card_with_other_cards_to_link(
     assert(!h.add_button().get_sensitive());
 
     h.card_store.append(cv_card("c2", "p1", "Second Card", 20));
-    assert(wait_for_condition(() => h.add_button().get_sensitive()));
+    assert(h.wait(() => h.add_button().get_sensitive()));
 
     // Another project's card is not a link target.
     h.card_store.remove(1);
     h.card_store.append(cv_card("x1", "p2", "Other Card", 10));
-    assert(wait_for_condition(() => !h.add_button().get_sensitive()));
+    assert(h.wait(() => !h.add_button().get_sensitive()));
 }
 
 private void test_the_add_button_needs_an_api_connection() {
@@ -87,7 +78,7 @@ private void test_the_add_button_needs_an_api_connection() {
     assert(!h.add_button().get_sensitive());
 
     h.view.set_api_client(h.api);
-    assert(wait_for_condition(() => h.add_button().get_sensitive()));
+    assert(h.wait(() => h.add_button().get_sensitive()));
     assert(h.wait_for_nodes(2));
 }
 
@@ -148,16 +139,16 @@ private void test_adding_creates_the_link_from_the_selected_card() {
 
     dialog.response("add");
 
-    assert(wait_for_condition(() => h.api.create_card_link_calls == 1));
+    assert(h.wait(() => h.api.create_card_link_calls == 1));
     assert(cv_eq(h.api.last_link_from_card_id, "c1"));
     assert(cv_eq(h.api.last_link_to_card_id, "c3"));
     assert(cv_eq(h.api.last_link_kind, "blocks"));
     assert(cv_eq(h.api.last_link_label, "because it gates the release"));
     assert(cv_eq(h.api.last_link_to_type, "card"));
-    assert(wait_for_condition(() => h.toasts.contains("Graph link added.")));
+    assert(h.wait(() => h.toasts.contains("Graph link added.")));
     assert(h.errors.size == 0);
     // The board reloads so the new connection shows up.
-    assert(wait_for_condition(() => h.api.list_card_links_calls == links_before + 1));
+    assert(h.wait(() => h.api.list_card_links_calls == links_before + 1));
 }
 
 private void test_adding_with_untouched_defaults_links_the_first_card_as_a_ref_without_a_label() {
@@ -166,7 +157,7 @@ private void test_adding_with_untouched_defaults_links_the_first_card_as_a_ref_w
 
     dialog.response("add");
 
-    assert(wait_for_condition(() => h.api.create_card_link_calls == 1));
+    assert(h.wait(() => h.api.create_card_link_calls == 1));
     assert(cv_eq(h.api.last_link_to_card_id, "c2"));
     assert(cv_eq(h.api.last_link_kind, "ref"));
     assert(h.api.last_link_label == null);
@@ -180,7 +171,7 @@ private void test_a_blank_custom_kind_falls_back_to_a_ref() {
 
     dialog.response("add");
 
-    assert(wait_for_condition(() => h.api.create_card_link_calls == 1));
+    assert(h.wait(() => h.api.create_card_link_calls == 1));
     assert(cv_eq(h.api.last_link_kind, "ref"));
 }
 
@@ -197,7 +188,7 @@ private void test_a_custom_kind_is_used_remembered_and_offered_next_time() {
 
     dialog.response("add");
 
-    assert(wait_for_condition(() => h.api.create_card_link_calls == 1));
+    assert(h.wait(() => h.api.create_card_link_calls == 1));
     assert(cv_eq(h.api.last_link_kind, "inspired_by"));
     var remembered = ((!) settings).get_strv(HolderLinux.AppSettings.KEY_CUSTOM_CARD_LINK_KINDS);
     assert(remembered.length == 1);
@@ -210,7 +201,7 @@ private void test_a_custom_kind_is_used_remembered_and_offered_next_time() {
     // it never completes for a window that is not shown), so wait for a different dialog instead.
     assert(h.add_button().get_sensitive());
     h.add_button().clicked();
-    assert(wait_for_condition(() => h.dialog() != null && h.dialog() != dialog));
+    assert(h.wait(() => h.dialog() != null && h.dialog() != dialog));
     var reopened = (!) h.dialog();
     var kind_items = cv_dropdown_items(cv_dropdown(cvd_content(reopened), "Kind"));
     assert(kind_items.size == 7);
@@ -230,7 +221,7 @@ private void test_a_listed_kind_is_not_remembered_as_custom() {
 
     dialog.response("add");
 
-    assert(wait_for_condition(() => h.api.create_card_link_calls == 1));
+    assert(h.wait(() => h.api.create_card_link_calls == 1));
     assert(cv_eq(h.api.last_link_kind, "example_of"));
     assert(((!) settings).get_strv(HolderLinux.AppSettings.KEY_CUSTOM_CARD_LINK_KINDS).length == 0);
 }
@@ -241,7 +232,7 @@ private void test_cancelling_creates_nothing() {
     var links_before = h.api.list_card_links_calls;
 
     dialog.response("cancel");
-    cvd_settle();
+    h.drain();
 
     assert(h.api.create_card_link_calls == 0);
     assert(h.toasts.size == 0);
@@ -257,22 +248,22 @@ private void test_a_failed_create_reports_an_error_and_does_not_reload() {
 
     dialog.response("add");
 
-    assert(wait_for_condition(() => h.errors.size == 1));
+    assert(h.wait(() => h.errors.size == 1));
     assert(cv_eq(h.errors[0], "Failed to add graph link|create card link failed"));
     assert(!h.toasts.contains("Graph link added."));
     // A reload would have been queued within the debounce window if the create had succeeded.
-    cvd_settle();
+    h.drain();
     assert(h.api.list_card_links_calls == links_before);
 }
 
 private void test_the_add_action_does_nothing_without_a_selected_card() {
     var h = cvd_harness();
     h.cards.set_selected(Gtk.INVALID_LIST_POSITION);
-    assert(wait_for_condition(() => !h.add_button().get_sensitive()));
+    assert(h.wait(() => !h.add_button().get_sensitive()));
 
     // The button is disabled, but the click handler must also guard against being invoked.
     h.add_button().clicked();
-    cvd_settle(100);
+    h.drain();
 
     assert(h.dialog() == null);
     assert(h.toasts.size == 0);
@@ -290,7 +281,7 @@ private void test_a_project_without_other_cards_explains_why_no_dialog_opens() {
 
     h.add_button().clicked();
 
-    assert(wait_for_condition(() => h.toasts.contains("No other cards in this project to link.")));
+    assert(h.wait(() => h.toasts.contains("No other cards in this project to link.")));
     assert(h.dialog() == null);
 }
 
@@ -303,7 +294,7 @@ private void test_the_dialog_needs_a_window_to_attach_to() {
     var toplevels_before = Gtk.Window.get_toplevels().get_n_items();
 
     h.add_button().clicked();
-    cvd_settle(100);
+    h.drain();
 
     assert(Gtk.Window.get_toplevels().get_n_items() == toplevels_before);
     assert(h.dialog() == null);
@@ -317,11 +308,77 @@ private void test_losing_the_api_while_the_dialog_is_open_creates_nothing() {
     h.view.set_api_client(null);
 
     dialog.response("add");
-    cvd_settle();
+    h.drain();
 
     assert(h.api.create_card_link_calls == 0);
     assert(h.toasts.size == 0);
     assert(h.errors.size == 0);
+}
+
+private void test_losing_the_api_after_the_board_is_drawn_disables_the_add_button() {
+    var h = cvd_harness();
+    // Preconditions: the board is drawn and the button was usable, so losing the API is the only
+    // thing that can turn it off.
+    assert(h.wait(() => cv_node_buttons(h.content()).size > 0));
+    assert(h.add_button().get_sensitive());
+
+    h.view.set_api_client(null);
+
+    assert(!h.add_button().get_sensitive());
+    // Clicking it must not open a dialog either.
+    h.add_button().clicked();
+    h.drain();
+    assert(h.dialog() == null);
+
+    h.view.set_api_client(h.api);
+    assert(h.add_button().get_sensitive());
+}
+
+private void test_clearing_the_selected_card_disables_the_add_button() {
+    var h = cvd_harness();
+    assert(h.add_button().get_sensitive());
+
+    h.cards.set_selected(Gtk.INVALID_LIST_POSITION);
+    assert(h.cards.get_selected() == Gtk.INVALID_LIST_POSITION);
+
+    assert(!h.add_button().get_sensitive());
+
+    h.cards.set_selected(1);
+    assert(h.add_button().get_sensitive());
+}
+
+private void test_the_projects_overview_has_no_add_button_and_leaving_it_restores_it() {
+    var h = cvd_harness();
+    assert(h.add_button().get_sensitive());
+
+    bool done = false;
+    h.view.navigate_to_projects_root.begin(null, (obj, res) => {
+        h.view.navigate_to_projects_root.end(res);
+        done = true;
+    });
+    assert(wait_for_condition(() => done));
+    assert(!h.add_button().get_sensitive());
+
+    h.cards.set_selected(1);
+    assert(h.add_button().get_sensitive());
+}
+
+private void test_the_add_button_follows_the_card_store_under_the_selection() {
+    var h = cvd_harness();
+    assert(h.add_button().get_sensitive());
+
+    // The selected card disappears: nothing is selected any more.
+    h.card_store.remove(0);
+    assert(h.cards.get_selected() == Gtk.INVALID_LIST_POSITION);
+    assert(!h.add_button().get_sensitive());
+
+    // Selecting Card Two, which still has Card Three to link to, brings it back.
+    h.cards.set_selected(0);
+    assert(cv_eq(((HolderLinux.CardSummary) h.cards.get_selected_item()).card_id, "c2"));
+    assert(h.add_button().get_sensitive());
+
+    h.card_store.remove_all();
+    assert(!h.add_button().get_sensitive());
 }
 
 public void register_connections_view_addlink_tests() {
@@ -341,6 +398,10 @@ public void register_connections_view_addlink_tests() {
     Test.add_func(prefix + "no-other-cards", test_a_project_without_other_cards_explains_why_no_dialog_opens);
     Test.add_func(prefix + "no-window", test_the_dialog_needs_a_window_to_attach_to);
     Test.add_func(prefix + "api-lost", test_losing_the_api_while_the_dialog_is_open_creates_nothing);
+    Test.add_func(prefix + "button-follows-api-loss", test_losing_the_api_after_the_board_is_drawn_disables_the_add_button);
+    Test.add_func(prefix + "button-follows-selection-clear", test_clearing_the_selected_card_disables_the_add_button);
+    Test.add_func(prefix + "button-follows-projects-overview", test_the_projects_overview_has_no_add_button_and_leaving_it_restores_it);
+    Test.add_func(prefix + "button-follows-card-store", test_the_add_button_follows_the_card_store_under_the_selection);
 }
 
 }

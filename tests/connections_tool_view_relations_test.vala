@@ -35,7 +35,7 @@ private bool cvr_navigate_to_projects_root(ConnectionsViewHarness h) {
         result = h.view.navigate_to_projects_root.end(res);
         done = true;
     });
-    assert(wait_for_condition(() => done));
+    assert(h.wait(() => done));
     return result;
 }
 
@@ -66,7 +66,7 @@ private void test_a_project_without_a_selected_card_shows_all_its_cards() {
 
     assert(h.wait_for_nodes(3));
     // One links call per card of the selected project (the other project's card is skipped).
-    assert(wait_for_condition(() => h.api.list_card_links_calls == 3));
+    assert(h.wait(() => h.api.list_card_links_calls == 3));
 
     var titles = cv_node_titles(h.content());
     assert(titles.contains("Card One") && titles.contains("Card Two") && titles.contains("Card Three"));
@@ -152,8 +152,8 @@ private void test_internal_links_add_to_the_panel_and_refresh_the_board() {
     links.add("No Such Card");
     h.view.set_internal_links(links);
 
-    assert(wait_for_condition(() => h.api.list_card_links_calls == calls + 1));
-    assert(wait_for_condition(() => cv_internal_label(h.content()).get_text() == "Card Two\nNo Such Card"));
+    assert(h.wait(() => h.api.list_card_links_calls == calls + 1));
+    assert(h.wait(() => cv_internal_label(h.content()).get_text() == "Card Two\nNo Such Card"));
     // The resolvable target is a link, the unknown one is plain text.
     var markup = cv_internal_label(h.content()).get_label();
     assert(markup.contains("<a href=\"card:c2\">Card Two</a>"));
@@ -161,8 +161,8 @@ private void test_internal_links_add_to_the_panel_and_refresh_the_board() {
 
     // Clearing them again is a content change too, and goes back to the empty text.
     h.view.set_internal_links(new Gee.ArrayList<string>());
-    assert(wait_for_condition(() => h.api.list_card_links_calls == calls + 2));
-    assert(wait_for_condition(() => cv_internal_label(h.content()).get_text() == "None"));
+    assert(h.wait(() => h.api.list_card_links_calls == calls + 2));
+    assert(h.wait(() => cv_internal_label(h.content()).get_text() == "None"));
 }
 
 private void test_selection_changes_retitle_the_panel_and_reload() {
@@ -171,14 +171,14 @@ private void test_selection_changes_retitle_the_panel_and_reload() {
     assert(cv_eq(cv_relations_title(h.content()).get_text(), "Project One"));
 
     h.cards.set_selected(1);
-    assert(wait_for_condition(() => cv_relations_title(h.content()).get_text() == "Card Two"));
-    assert(wait_for_condition(() => cv_outgoing_label(h.content()).get_parent().get_visible()));
+    assert(h.wait(() => cv_relations_title(h.content()).get_text() == "Card Two"));
+    assert(h.wait(() => cv_outgoing_label(h.content()).get_parent().get_visible()));
 
     // Switching project clears the card selection in the app, so do the same here.
     h.cards.set_selected(Gtk.INVALID_LIST_POSITION);
-    assert(wait_for_condition(() => cv_relations_title(h.content()).get_text() == "Project One"));
+    assert(h.wait(() => cv_relations_title(h.content()).get_text() == "Project One"));
     h.projects.set_selected(1);
-    assert(wait_for_condition(() => cv_relations_title(h.content()).get_text() == "Project Two"));
+    assert(h.wait(() => cv_relations_title(h.content()).get_text() == "Project Two"));
 }
 
 private void test_adding_a_card_redraws_the_project_board() {
@@ -201,7 +201,7 @@ private void test_links_in_every_relations_section_are_routed_by_the_view() {
     for (int i = 0; i < labels.size; i++) {
         assert(cv_activate_link(labels[i], "card:c%d".printf(i % 3 + 1), probe));
     }
-    assert(wait_for_condition(() => h.card_opens.size == 4));
+    assert(h.wait(() => h.card_opens.size == 4));
     assert(h.card_opens[0] == "c1");
     assert(h.card_opens[1] == "c2");
     assert(h.card_opens[2] == "c3");
@@ -216,7 +216,7 @@ private void test_project_links_focus_the_project_overview() {
 
     assert(cv_activate_link(cv_structure_label(h.content()), "project:p1", probe));
 
-    assert(wait_for_condition(() => h.project_overviews.size == 1));
+    assert(h.wait(() => h.project_overviews.size == 1));
     assert(h.project_overviews[0] == "p1");
     assert(h.card_opens.size == 0);
 }
@@ -233,7 +233,7 @@ private void test_internal_links_resolve_to_cards_and_unknown_ones_do_nothing() 
     // A later known link proves the unknown one had already been processed and produced nothing.
     assert(cv_activate_link(label, "card:c3", probe));
 
-    assert(wait_for_condition(() => h.card_opens.size == 2));
+    assert(h.wait(() => h.card_opens.size == 2));
     assert(h.card_opens[0] == "c2");
     assert(h.card_opens[1] == "c3");
     assert(probe.blocked == 0);
@@ -333,8 +333,8 @@ private void test_clicking_a_project_node_opens_that_project() {
     assert(h.project_overviews[0] == "p2");
     assert(h.card_opens.size == 0);
     // Focusing a project leaves the overview and goes back to the selected project's board.
-    assert(wait_for_condition(() => cv_relations_title(h.content()).get_text() == "Project One"));
-    assert(wait_for_condition(() => cv_node_buttons(h.content()).size == 3));
+    assert(h.wait(() => cv_relations_title(h.content()).get_text() == "Project One"));
+    assert(h.wait(() => cv_node_buttons(h.content()).size == 3));
 }
 
 private void test_clicking_a_card_node_opens_that_card() {
@@ -355,8 +355,8 @@ private void test_changing_the_selection_leaves_the_projects_root() {
 
     h.projects.set_selected(1);
 
-    assert(wait_for_condition(() => cv_relations_title(h.content()).get_text() == "Project Two"));
-    assert(wait_for_condition(() => cv_node_titles(h.content()).contains("Other Card")));
+    assert(h.wait(() => cv_relations_title(h.content()).get_text() == "Project Two"));
+    assert(h.wait(() => cv_node_titles(h.content()).contains("Other Card")));
 }
 
 private void test_navigation_requests_are_forwarded_to_the_shell() {
@@ -375,7 +375,7 @@ private void test_navigation_requests_are_forwarded_to_the_shell() {
         card_done = true;
     });
 
-    assert(wait_for_condition(() => project_done && card_done));
+    assert(h.wait(() => project_done && card_done));
     assert(project_result && card_result);
     assert(h.project_overviews.size == 1 && h.project_overviews[0] == "p2");
     assert(h.card_opens.size == 1 && h.card_opens[0] == "c2");

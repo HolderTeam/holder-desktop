@@ -38,6 +38,19 @@ public class ConnectionsBoardPresenter : Object {
         return "Relations";
     }
 
+    // Where the graph/relations divider goes on first layout: the relations pane gets 320 px,
+    // but never leaves the graph under 520 px or the relations pane under 260 px.
+    public static int default_relations_split_position(int total_width) {
+        int position = total_width - 320;
+        if (position < 520) {
+            position = 520;
+        }
+        if (position > total_width - 260) {
+            position = total_width - 260;
+        }
+        return position;
+    }
+
     public bool add_link_enabled(bool show_projects_root,
                                  bool api_available,
                                  CardSummary? selected_card,
