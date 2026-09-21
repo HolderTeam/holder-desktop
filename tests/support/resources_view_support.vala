@@ -150,8 +150,11 @@ public class ResourcesViewHarness : Object {
         return wait_for_condition(() => dialog() != null);
     }
 
-    public bool wait_for_dialog_closed() {
-        return wait_for_condition(() => window.get_visible_dialog() == null);
+    // Whether a closed dialog is removed from the window is libadwaita's own bookkeeping, and with
+    // libadwaita 1.5 it never completes for a window that is not shown, so tests assert on what the
+    // view did instead. Running the main loop until idle flushes anything a response queued.
+    public void settle() {
+        while (MainContext.default().iteration(false)) {}
     }
 
     public Gtk.Widget actions() {

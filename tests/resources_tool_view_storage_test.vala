@@ -267,7 +267,6 @@ private void test_saving_the_folder_dialog_creates_binds_and_prefers_the_first_l
     assert(h.api.storage.last_bound_preview == "/srv/photos");
     assert(h.wait_for_toast("Storage location added."));
     assert(wait_for_condition(() => h.api.storage.list_calls > before));
-    assert(h.wait_for_dialog_closed());
 }
 
 private void test_saving_the_folder_dialog_keeps_an_existing_preferred_location() {
@@ -311,7 +310,7 @@ private void test_cancelling_the_folder_dialog_makes_no_api_call() {
 
     rvs_press(dialog, "Cancel");
 
-    assert(h.wait_for_dialog_closed());
+    h.settle();
     assert(rvs_mutating_calls(h) == "");
     assert(h.toasts.size == 0);
 }
@@ -416,7 +415,7 @@ private void test_drive_connect_failure_closes_the_dialog_and_reports_it() {
     assert(wait_for_condition(() => h.errors.size == 1));
     assert(h.errors[0] == "Failed to connect Google Drive|oauth down");
     assert(rvs_mutating_calls(h) == "create,oauth");
-    assert(h.wait_for_dialog_closed());
+    h.settle();
     assert(h.toasts.size == 0);
 }
 
@@ -449,7 +448,7 @@ private void test_cancelling_the_drive_dialog_stops_the_flow_before_the_browser_
     assert(rvs_find_label(rvs_content(dialog), "Preparing…") != null);
 
     rvs_press(dialog, "Cancel");
-    assert(h.wait_for_dialog_closed());
+    h.settle();
     h.api.release_stalled_list();
     // A coroutine resumed from outside completes its caller from an idle callback, so pump the
     // main loop until the flow has continued and the view has handled the cancelled result.

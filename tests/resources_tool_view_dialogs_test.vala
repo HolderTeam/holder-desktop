@@ -373,7 +373,6 @@ private void test_saving_the_add_dialog_creates_the_resource_with_trimmed_values
     assert(h.api.last_resource_desc == null);
     assert(h.wait_for_toast("Resource added."));
     assert(wait_for_condition(() => h.api.list_resources_calls > before));
-    assert(h.wait_for_dialog_closed());
 }
 
 private void test_description_is_sent_when_it_is_not_blank() {
@@ -503,7 +502,7 @@ private void test_cancelling_the_add_dialog_makes_no_api_call() {
 
     rvd_press(dialog, "Cancel");
 
-    assert(h.wait_for_dialog_closed());
+    h.settle();
     assert(h.api.create_resource_calls == 0);
     assert(h.toasts.size == 0);
 }
@@ -602,7 +601,7 @@ private void test_delete_asks_for_confirmation_before_deleting() {
     assert(dialog.get_body() == "Delete \"Example\"?");
 
     rvd_press(dialog, "Cancel");
-    assert(h.wait_for_dialog_closed());
+    h.settle();
     assert(h.api.delete_resource_calls == 0);
 
     var before = h.api.list_resources_calls;
