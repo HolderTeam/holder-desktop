@@ -2,6 +2,19 @@ using GLib;
 
 namespace HolderLinuxTests {
 
+private string join_parts(string separator, Gee.List<string> parts) {
+    var joined = new StringBuilder();
+    bool first = true;
+    foreach (var part in parts) {
+        if (!first) {
+            joined.append(separator);
+        }
+        joined.append(part);
+        first = false;
+    }
+    return joined.str;
+}
+
 private HolderLinux.StorageLocationDraft local_draft(string name, string path) {
     return new HolderLinux.StorageLocationDraft(false, name, path, "", "", "", "", "", "", "");
 }
@@ -151,7 +164,7 @@ private void test_create_and_bind_flow() {
     assert(api.last_bound_location == "new-location");
     assert(api.last_bound_values.get("root_path") == "/data");
     assert(api.last_bound_preview == "/data");
-    assert(string.joinv(",", api.calls.to_array()) == "create,bind,prefer:new-location");
+    assert(join_parts(",", api.calls) == "create,bind,prefer:new-location");
 
     var preferred_api = new FakeStorageLocationApi();
     HolderLinux.ResourcesMutationResult? kept = null;
@@ -160,7 +173,7 @@ private void test_create_and_bind_flow() {
     });
     assert(wait_for_condition(() => kept != null));
     assert(kept.success);
-    assert(string.joinv(",", preferred_api.calls.to_array()) == "create,bind");
+    assert(join_parts(",", preferred_api.calls) == "create,bind");
 }
 
 private void test_create_and_bind_flow_failures() {
@@ -184,7 +197,7 @@ private void test_create_and_bind_flow_failures() {
     assert(!failed.success && !failed.ignored);
     assert(failed.error_title == "Failed to add storage location");
     assert(failed.error_details == "bind broke");
-    assert(string.joinv(",", bind_api.calls.to_array()) == "create,bind");
+    assert(join_parts(",", bind_api.calls) == "create,bind");
 }
 
 private void test_simple_location_flows() {
@@ -208,7 +221,7 @@ private void test_simple_location_flows() {
     assert(wait_for_condition(() => deleted != null));
     assert(deleted.success && deleted.should_refresh);
     assert(deleted.toast_message == "Storage location removed.");
-    assert(string.joinv(",", api.calls.to_array()) == "prefer:l1,test:l1,delete:l1");
+    assert(join_parts(",", api.calls) == "prefer:l1,test:l1,delete:l1");
 }
 
 private void test_simple_location_flow_failures_and_missing_api() {

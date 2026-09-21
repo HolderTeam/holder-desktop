@@ -112,9 +112,9 @@ public class ConnectionsRelationsPresenter : Object {
                     targets.add(Markup.escape_text(target_id));
                 }
             }
-            lines.add("%s: %s".printf(Markup.escape_text(group.kind), string.joinv(", ", targets.to_array())));
+            lines.add("%s: %s".printf(Markup.escape_text(group.kind), join_parts(", ", targets)));
         }
-        return string.joinv("\n", lines.to_array());
+        return join_parts("\n", lines);
     }
 
     public string format_internal_lines(Gee.ArrayList<string> internal_links,
@@ -132,7 +132,20 @@ public class ConnectionsRelationsPresenter : Object {
                 links.add(Markup.escape_text(target));
             }
         }
-        return string.joinv("\n", links.to_array());
+        return join_parts("\n", links);
+    }
+
+    private static string join_parts(string separator, Gee.List<string> parts) {
+        var joined = new StringBuilder();
+        bool first = true;
+        foreach (var part in parts) {
+            if (!first) {
+                joined.append(separator);
+            }
+            joined.append(part);
+            first = false;
+        }
+        return joined.str;
     }
 }
 

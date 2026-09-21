@@ -103,7 +103,7 @@ public class ResourcesPresenter {
         foreach (var kind in reference.link_kinds) {
             kinds.add(friendly_link_kind(kind));
         }
-        return "%s · %s".printf(reference.title, string.joinv(", ", kinds.to_array()));
+        return "%s · %s".printf(reference.title, join_parts(", ", kinds));
     }
 
     public static string all_reference_titles(ProjectResource resource) {
@@ -111,7 +111,7 @@ public class ResourcesPresenter {
         foreach (var reference in resource.referenced_by_cards) {
             titles.add(reference.title);
         }
-        return string.joinv("\n", titles.to_array());
+        return join_parts("\n", titles);
     }
 
     public static string friendly_link_kind(string kind) {
@@ -145,6 +145,19 @@ public class ResourcesPresenter {
             return basename;
         }
         return null;
+    }
+
+    private static string join_parts(string separator, Gee.List<string> parts) {
+        var joined = new StringBuilder();
+        bool first = true;
+        foreach (var part in parts) {
+            if (!first) {
+                joined.append(separator);
+            }
+            joined.append(part);
+            first = false;
+        }
+        return joined.str;
     }
 }
 

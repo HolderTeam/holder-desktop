@@ -2,6 +2,19 @@ using GLib;
 
 namespace HolderLinuxTests {
 
+private string join_parts(string separator, Gee.List<string> parts) {
+    var joined = new StringBuilder();
+    bool first = true;
+    foreach (var part in parts) {
+        if (!first) {
+            joined.append(separator);
+        }
+        joined.append(part);
+        first = false;
+    }
+    return joined.str;
+}
+
 private class RecordingLauncher : Object, HolderLinux.IUriLauncher {
     public Gee.ArrayList<string> launched = new Gee.ArrayList<string>();
     public string? error = null;
@@ -103,7 +116,7 @@ private void test_connects_by_reusing_an_unbound_location_and_polling_until_boun
     assert(result.outcome == HolderLinux.GoogleDriveConnectOutcome.CONNECTED);
     assert(result.toast_message == "Google Drive connected.");
     assert(fixture.api.last_oauth_location == "d1");
-    assert(string.joinv(",", fixture.api.calls.to_array()) == "list,oauth,list,list,prefer:d1");
+    assert(join_parts(",", fixture.api.calls) == "list,oauth,list,list,prefer:d1");
     assert(fixture.launcher.launched.size == 1);
     assert(fixture.launcher.launched[0] == "https://auth.example/consent");
     assert(fixture.scheduler.waits == 2);
@@ -128,7 +141,7 @@ private void test_creates_a_location_when_none_is_unbound_and_keeps_existing_pre
     assert(fixture.api.last_created_provider == "google-drive");
     assert(fixture.api.last_configuration.size == 0);
     assert(fixture.api.last_oauth_location == "new-location");
-    assert(string.joinv(",", fixture.api.calls.to_array()) == "list,create,oauth,list");
+    assert(join_parts(",", fixture.api.calls) == "list,create,oauth,list");
 }
 
 private void test_times_out_after_the_maximum_number_of_polls() {
