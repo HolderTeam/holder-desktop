@@ -12,12 +12,13 @@ public class FlowboardPane : Object {
     private const string DRAG_ACTIVE_CLASS = "flowboard-drag-active";
     private static bool drop_css_installed = false;
 
-    private Gtk.Label empty_label;
-    private Gtk.Stack state_stack;
-    private Gtk.MultiSelection selection;
-    private Gtk.GridView grid_view;
-    private Gtk.Popover? background_menu_popover;
-    private GLib.ListModel? model;
+    private Gtk.Label empty_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Stack state_stack; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.MultiSelection selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.GridView grid_view; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Popover? background_menu_popover; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private GLib.ListModel? model; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ulong model_items_handler_id = 0;
 
     public Gtk.Widget widget { get; private set; }
 
@@ -42,9 +43,12 @@ public class FlowboardPane : Object {
     }
 
     public void set_model(GLib.ListModel model) {
+        if (this.model != null && model_items_handler_id != 0) {
+            SignalHandler.disconnect((!) this.model, model_items_handler_id);
+        }
         this.model = model;
         selection.set_model(model);
-        model.items_changed.connect((position, removed, added) => {
+        model_items_handler_id = model.items_changed.connect((position, removed, added) => {
             update_state_visibility();
         });
         update_state_visibility();
@@ -118,7 +122,7 @@ public class FlowboardPane : Object {
             var title = card.get_data<Gtk.Label>("flowboard-title-label");
             var meta = card.get_data<Gtk.Label>("flowboard-meta-label");
             if (folder_tab == null || header == null || title == null || meta == null) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: setup always attaches these before a tile is bound
             }
             var presentation = FlowboardPresenter.tile(tile, new DateTime.now_utc().to_unix());
             title.set_text(presentation.title);
@@ -326,7 +330,7 @@ public class FlowboardPane : Object {
         }
         var display = Gdk.Display.get_default();
         if (display == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the pane's tests need a display, or they skip
         }
         var provider = new Gtk.CssProvider();
         provider.load_from_string("""
@@ -434,7 +438,21 @@ public class FlowboardPane : Object {
         background_menu_popover.popup();
     }
 
+    // Every card menu is parented to its tile and GTK keeps it there until it is unparented, so
+    // drop the previous one before making the next.
+    private static void remove_card_menus(Gtk.Widget row_widget) {
+        var child = row_widget.get_first_child();
+        while (child != null) {
+            var next = ((!) child).get_next_sibling();
+            if (child is Gtk.Popover) {
+                ((!) child).unparent();
+            }
+            child = next;
+        }
+    }
+
     private void show_card_menu_at(Gtk.Widget row_widget, string card_id, double x, double y) {
+        remove_card_menus(row_widget);
         var popover = new Gtk.Popover();
         popover.set_autohide(true);
         popover.set_parent(row_widget);
@@ -527,7 +545,7 @@ public class FlowboardPane : Object {
 
     private FlowboardTile? visible_tiles_item(uint position) {
         if (model == null || position >= model.get_n_items()) {
-            return null;
+            return null; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the selection only holds positions of the model it selects from
         }
         return model.get_item(position) as FlowboardTile;
     }

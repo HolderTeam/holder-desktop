@@ -1,8 +1,10 @@
 namespace HolderLinux {
 
 public class FlowboardToolView : Object, IToolShellAdapter {
-    private FlowboardPane flowboard;
-    private FlowboardController? flowboard_controller;
+    private FlowboardPane flowboard; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private FlowboardController? flowboard_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gee.ArrayList<ulong> controller_handlers = new Gee.ArrayList<ulong>();
+    private Gee.ArrayList<ulong> pane_handlers = new Gee.ArrayList<ulong>();
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id {
@@ -28,63 +30,79 @@ public class FlowboardToolView : Object, IToolShellAdapter {
     }
 
     public void bind_controller(FlowboardController controller) {
+        // A controller bound before this one must stop driving the view, otherwise every pane event
+        // would reach the outside world once per controller ever bound.
+        unbind_controller();
         flowboard_controller = controller;
         flowboard.set_model(controller.get_visible_model());
-        controller.empty_message_changed.connect((text) => {
+        controller_handlers.add(controller.empty_message_changed.connect((text) => {
             flowboard.set_empty_message(text);
-        });
-        controller.card_open_requested.connect((card_id) => {
+        }));
+        controller_handlers.add(controller.card_open_requested.connect((card_id) => {
             card_open_requested(card_id);
-        });
-        flowboard.tile_activated.connect((position) => {
+        }));
+        pane_handlers.add(flowboard.tile_activated.connect((position) => {
             controller.activate_position(position);
-        });
-        flowboard.navigate_up_requested.connect(() => {
+        }));
+        pane_handlers.add(flowboard.navigate_up_requested.connect(() => {
             controller.navigate_up();
-        });
-        flowboard.card_drop_requested.connect((source_card_id, target_card_id, target_x_fraction) => {
+        }));
+        pane_handlers.add(flowboard.card_drop_requested.connect((source_card_id, target_card_id, target_x_fraction) => {
             controller.on_card_drop(source_card_id, target_card_id, target_x_fraction);
-        });
-        flowboard.background_drop_requested.connect((source_card_id) => {
+        }));
+        pane_handlers.add(flowboard.background_drop_requested.connect((source_card_id) => {
             controller.on_background_drop(source_card_id);
-        });
-        flowboard.background_new_card_requested.connect(() => {
+        }));
+        pane_handlers.add(flowboard.background_new_card_requested.connect(() => {
             controller.request_create_card_here();
-        });
-        flowboard.card_open_requested.connect((card_id) => {
+        }));
+        pane_handlers.add(flowboard.card_open_requested.connect((card_id) => {
             controller.open_card_from_context_menu(card_id);
-        });
-        flowboard.card_create_child_requested.connect((card_id) => {
+        }));
+        pane_handlers.add(flowboard.card_create_child_requested.connect((card_id) => {
             new_card_requested(card_id);
-        });
-        flowboard.card_move_to_trash_requested.connect((card_id) => {
+        }));
+        pane_handlers.add(flowboard.card_move_to_trash_requested.connect((card_id) => {
             card_move_to_trash_requested(card_id);
-        });
-        flowboard.card_move_up_level_requested.connect((card_id) => {
+        }));
+        pane_handlers.add(flowboard.card_move_up_level_requested.connect((card_id) => {
             controller.move_card_up_level_from_context_menu(card_id);
-        });
-        flowboard.card_move_left_requested.connect((card_id) => {
+        }));
+        pane_handlers.add(flowboard.card_move_left_requested.connect((card_id) => {
             controller.move_card_left_from_context_menu(card_id);
-        });
-        flowboard.card_move_right_requested.connect((card_id) => {
+        }));
+        pane_handlers.add(flowboard.card_move_right_requested.connect((card_id) => {
             controller.move_card_right_from_context_menu(card_id);
-        });
-        flowboard.card_move_to_start_requested.connect((card_id) => {
+        }));
+        pane_handlers.add(flowboard.card_move_to_start_requested.connect((card_id) => {
             controller.move_card_to_start_from_context_menu(card_id);
-        });
-        flowboard.card_move_to_end_requested.connect((card_id) => {
+        }));
+        pane_handlers.add(flowboard.card_move_to_end_requested.connect((card_id) => {
             controller.move_card_to_end_from_context_menu(card_id);
-        });
-        controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
+        }));
+        controller_handlers.add(controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
             move_intent_requested(card_id, project_id, intent, target_card_id, parent_card_id);
-        });
-        controller.create_card_requested.connect((parent_card_id) => {
+        }));
+        controller_handlers.add(controller.create_card_requested.connect((parent_card_id) => {
             new_card_requested(parent_card_id);
-        });
-        controller.toast_requested.connect((message) => {
+        }));
+        controller_handlers.add(controller.toast_requested.connect((message) => {
             toast_requested(message);
-        });
+        }));
         controller.refresh();
+    }
+
+    private void unbind_controller() {
+        if (flowboard_controller != null) {
+            foreach (var id in controller_handlers) {
+                SignalHandler.disconnect((!) flowboard_controller, id);
+            }
+        }
+        foreach (var id in pane_handlers) {
+            SignalHandler.disconnect(flowboard, id);
+        }
+        controller_handlers.clear();
+        pane_handlers.clear();
     }
 
     public void show_projects_root() {

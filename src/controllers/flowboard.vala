@@ -314,11 +314,14 @@ public class FlowboardController : Object {
             return;
         }
 
+        // Whatever side of the target it lands on, a card cannot go under its own descendant: "into"
+        // makes it the descendant's child, and "before"/"after" make it a child of the descendant's
+        // parent, which sits inside the card's own subtree.
+        if (is_descendant(target.card_id, source.card_id)) {
+            return;
+        }
+
         if (target_x_fraction >= 0.25 && target_x_fraction <= 0.75) {
-            var new_parent = target.card_id;
-            if (is_descendant(new_parent, source.card_id)) {
-                return;
-            }
             toast_requested("Moved \"%s\" into \"%s\"".printf(source.title, target.title));
             emit_move_intent(source.card_id, "into", target.card_id, null);
         } else {

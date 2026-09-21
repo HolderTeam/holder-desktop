@@ -81,6 +81,8 @@ public static int main(string[] args) {
                   test_flowboard_pane_empty_and_grid_state);
     Test.add_func("/holder/flowboard-pane/grid-activation-emits-position",
                   test_flowboard_pane_grid_activation_emits_tile_position);
+    register_flowboard_pane_interaction_tests();
+    register_flowboard_tool_view_tests();
 
     return Test.run();
 }
