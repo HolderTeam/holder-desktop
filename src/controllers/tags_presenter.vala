@@ -62,7 +62,9 @@ public class TagsPresenter { // LCOV_EXCL_LINE: declaration-only coverage artifa
             }
             chips.add(cloud_chip(entry.tag, entry.card_count, weight_class(entry.card_count, max_count)));
         }
-        var empty_text = filter.length > 0 && chips.size == 0
+        // "No match" is only true when there are tags the filter ruled out; a project with no tags
+        // at all has none to match, whatever the filter says.
+        var empty_text = filter.length > 0 && tags.size > 0 && chips.size == 0
             ? "No tags match this filter."
             : "No tags in this project yet.";
         return new TagCloudPresentation(chips, empty_text, chips.size == 0);

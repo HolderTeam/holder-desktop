@@ -547,12 +547,12 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         );
     }
 
-    public async Gee.ArrayList<HolderLinux.TagCount> list_project_tags(string project_id) throws Error {
+    public virtual async Gee.ArrayList<HolderLinux.TagCount> list_project_tags(string project_id) throws Error {
         list_project_tags_calls++;
         return project_tags;
     }
 
-    public async Gee.ArrayList<HolderLinux.CardSummary> list_cards_with_tag(string project_id,
+    public virtual async Gee.ArrayList<HolderLinux.CardSummary> list_cards_with_tag(string project_id,
                                                                             string tag) throws Error {
         list_cards_with_tag_calls++;
         last_requested_tag = tag;
@@ -617,7 +617,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return resources;
     }
 
-    public async Gee.ArrayList<HolderLinux.TrashItem> list_trash_items(string project_id,
+    public virtual async Gee.ArrayList<HolderLinux.TrashItem> list_trash_items(string project_id,
                                                                         string type = "all") throws Error {
         if (list_trash_before_complete_hook != null) {
             ((!) list_trash_before_complete_hook)(project_id, type);

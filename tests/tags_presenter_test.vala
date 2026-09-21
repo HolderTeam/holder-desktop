@@ -73,8 +73,8 @@ private void test_cloud_empty_states() {
     assert(none.empty_text == "No tags in this project yet.");
 
     var still_none = HolderLinux.TagsPresenter.cloud(new Gee.ArrayList<HolderLinux.TagCount>(), "x");
-    // Preserved from the original view: any active filter with zero results reports "no match".
-    assert(still_none.empty_text == "No tags match this filter.");
+    // A project with no tags at all has nothing to match, so the filter is not to blame.
+    assert(still_none.empty_text == "No tags in this project yet.");
 
     var tags = tag_counts({ "alpha" }, { 1 });
     var no_match = HolderLinux.TagsPresenter.cloud(tags, "zzz");

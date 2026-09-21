@@ -3178,6 +3178,36 @@ test(
   env: markdown_resource_images_test_env,
 )
 
+inline_resource_image_renderer_test_exe = executable(
+  'holder-linux-inline-resource-image-renderer-tests',
+  [
+    'src/models/project.vala',
+    'src/controllers/markdown_resource_images.vala',
+    'src/controllers/inline_image_decoration_plan.vala',
+    'src/views/inline_resource_image_renderer.vala',
+    'tests/inline_resource_image_renderer_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('gtksourceview-5'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  c_args: vala_generated_c_args,
+  install: false,
+)
+
+inline_resource_image_renderer_test_env = environment()
+inline_resource_image_renderer_test_env.set('GTK_A11Y', 'none')
+test(
+  'holder-linux-inline-resource-image-renderer-tests',
+  inline_resource_image_renderer_test_exe,
+  env: inline_resource_image_renderer_test_env,
+)
+
 holder_markdown_language_test_exe = executable(
   'holder-linux-holder-markdown-language-tests',
   [
@@ -4682,6 +4712,7 @@ test('holder-linux-tag-highlighting-tests', tag_highlighting_test_exe)
 tags_tool_view_test_exe = executable(
   'holder-linux-tags-tool-view-tests',
   [
+    'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
     'src/services/editor_recovery_draft_service.vala',
     'src/models/server.vala',

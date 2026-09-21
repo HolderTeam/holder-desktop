@@ -2,12 +2,12 @@ namespace HolderLinux {
 
 public class InlineResourceImageRenderer : Object {
     private class Decoration : Object {
-        public InlineResourceImageItem item;
-        public Gtk.TextChildAnchor anchor;
-        public Gtk.Button button;
-        public Gtk.Stack state_stack;
-        public Gtk.Label error_label;
-        public string? displayed_path;
+        public InlineResourceImageItem item; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+        public Gtk.TextChildAnchor anchor; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+        public Gtk.Button button; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+        public Gtk.Stack state_stack; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+        public Gtk.Label error_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+        public string? displayed_path; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
         public Decoration(InlineResourceImageItem item,
                           Gtk.TextChildAnchor anchor,
@@ -22,8 +22,8 @@ public class InlineResourceImageRenderer : Object {
         }
     }
 
-    private GtkSource.Buffer buffer;
-    private GtkSource.View view;
+    private GtkSource.Buffer buffer; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private GtkSource.View view; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private Gee.ArrayList<Decoration> decorations = new Gee.ArrayList<Decoration>();
 
     public bool is_applying_buffer_decoration { get; private set; default = false; }
@@ -31,12 +31,36 @@ public class InlineResourceImageRenderer : Object {
     public signal void buffer_mutation_started();
     public signal void buffer_mutation_finished(bool has_inline_images);
 
+    private int last_view_width = -1;
+
     public InlineResourceImageRenderer(GtkSource.Buffer buffer, GtkSource.View view) {
         this.buffer = buffer;
         this.view = view;
-        view.notify["width"].connect(() => {
-            update_decoration_widths();
+        watch_view_width(view, this);
+    }
+
+    // GtkWidget has no "width" property to watch, so check the width once per frame instead. The
+    // callback holds the renderer weakly: the view outlives it, and a strong reference would keep the
+    // renderer (and its buffer) alive for as long as the view. It is static so that its closure does
+    // not capture `this`, which Vala would do (strongly) for a closure made in an instance method.
+    private static void watch_view_width(GtkSource.View view, InlineResourceImageRenderer renderer) {
+        var weak_renderer = WeakRef(renderer);
+        view.add_tick_callback((widget, clock) => {
+            var live = (InlineResourceImageRenderer?) weak_renderer.get();
+            if (live == null) {
+                return Source.REMOVE;
+            }
+            live.follow_view_width();
+            return Source.CONTINUE;
         });
+    }
+
+    private void follow_view_width() {
+        var width = view.get_width();
+        if (width != last_view_width) {
+            last_view_width = width;
+            update_decoration_widths();
+        }
     }
 
     public void set_items(Gee.ArrayList<InlineResourceImageItem> items) {

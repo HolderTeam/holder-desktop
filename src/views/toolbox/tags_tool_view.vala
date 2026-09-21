@@ -1,23 +1,26 @@
 namespace HolderLinux {
 
 public class TagsToolView : Object, IToolShellAdapter {
-    private IHolderApi? api;
-    private Gtk.SingleSelection? project_selection;
-    private Gtk.SingleSelection? card_selection;
-    private Gtk.Box actions_bar;
-    private Gtk.SearchEntry search_entry;
-    private Gtk.Stack content_stack;
-    private Gtk.FlowBox card_tags_box;
-    private Gtk.FlowBox cloud_box;
-    private Gtk.Label card_tags_empty;
-    private Gtk.Label cloud_empty;
-    private Gtk.Label results_title;
-    private Gtk.ListBox results_list;
-    private Gtk.Label results_empty;
-    private Gee.ArrayList<TagCount> all_tags = new Gee.ArrayList<TagCount>();
+    private IHolderApi? api; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection? project_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection? card_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Box actions_bar; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SearchEntry search_entry; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Stack content_stack; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.FlowBox card_tags_box; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.FlowBox cloud_box; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label card_tags_empty; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label cloud_empty; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label results_title; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.ListBox results_list; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label results_empty; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gee.ArrayList<TagCount> all_tags = new Gee.ArrayList<TagCount>(); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private uint refresh_serial = 0;
+    private uint results_serial = 0;
+    private ulong project_notify_id = 0;
+    private ulong card_notify_id = 0;
     private bool tool_visible = false;
-    private string? pending_tag;
+    private string? pending_tag; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id { owned get { return "tags"; } }
@@ -40,10 +43,20 @@ public class TagsToolView : Object, IToolShellAdapter {
 
     public void bind_context(Gtk.SingleSelection project_selection,
                              Gtk.SingleSelection card_selection) {
+        if (this.project_selection != null && project_notify_id != 0) {
+            this.project_selection.disconnect(project_notify_id);
+        }
+        if (this.card_selection != null && card_notify_id != 0) {
+            this.card_selection.disconnect(card_notify_id);
+        }
         this.project_selection = project_selection;
         this.card_selection = card_selection;
-        project_selection.notify["selected-item"].connect(() => { queue_refresh(); });
-        card_selection.notify["selected-item"].connect(() => { queue_refresh(); });
+        project_notify_id = project_selection.notify["selected-item"].connect(() => {
+            // The listed cards belong to the previous project, so they must not stay on screen.
+            leave_stale_results();
+            queue_refresh();
+        });
+        card_notify_id = card_selection.notify["selected-item"].connect(() => { queue_refresh(); });
         queue_refresh();
     }
 
@@ -206,6 +219,7 @@ public class TagsToolView : Object, IToolShellAdapter {
             all_tags.clear();
             rebuild_cloud();
             rebuild_card_tags(null);
+            leave_stale_results();
             return;
         }
         try {
@@ -247,12 +261,8 @@ public class TagsToolView : Object, IToolShellAdapter {
     }
 
     private void rebuild_cloud() {
-        if (cloud_box == null) {
-            return;
-        }
         clear_flow_box(cloud_box);
-        var filter = search_entry != null ? search_entry.get_text() : "";
-        var presentation = TagsPresenter.cloud(all_tags, filter);
+        var presentation = TagsPresenter.cloud(all_tags, search_entry.get_text());
         foreach (var chip in presentation.chips) {
             cloud_box.append(build_tag_button(chip));
         }
@@ -278,15 +288,20 @@ public class TagsToolView : Object, IToolShellAdapter {
         var current_api = api;
         var project = selected_project();
         if (current_api == null || project == null) {
-            pending_tag = tag;
-            return;
+            pending_tag = tag; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: show_tag and refresh only call this with an api and a project
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: show_tag and refresh only call this with an api and a project
         }
+        var serial = ++results_serial;
         content_stack.set_visible_child_name("results");
         results_title.set_text("Cards tagged #%s".printf(tag));
         clear_list_box(results_list);
         results_empty.set_visible(false);
         try {
             var cards = yield current_api.list_cards_with_tag(project.project_id, tag);
+            if (serial != results_serial) {
+                // A newer tag (or another project) owns the page now.
+                return;
+            }
             foreach (var card in cards) {
                 var row_button = new Gtk.Button();
                 row_button.add_css_class("flat");
@@ -305,8 +320,19 @@ public class TagsToolView : Object, IToolShellAdapter {
             }
             results_empty.set_visible(cards.size == 0);
         } catch (Error e) {
-            error_reported("Could not load tagged cards", e.message);
+            if (serial == results_serial) {
+                error_reported("Could not load tagged cards", e.message);
+            }
         }
+    }
+
+    // Back to the tag cloud with the results emptied and any load still in flight dropped. A tag
+    // waiting to be shown once a project is selected is kept.
+    private void leave_stale_results() {
+        results_serial++;
+        clear_list_box(results_list);
+        results_empty.set_visible(false);
+        content_stack.set_visible_child_name("overview");
     }
 
     private void show_overview() {
@@ -320,10 +346,9 @@ public class TagsToolView : Object, IToolShellAdapter {
             : null;
     }
 
+    // Only asked for once a project is selected, which needs bind_context to have set both.
     private CardSummary? selected_card() {
-        return card_selection != null
-            ? card_selection.get_selected_item() as CardSummary
-            : null;
+        return card_selection.get_selected_item() as CardSummary;
     }
 
     private static void clear_flow_box(Gtk.FlowBox box) {

@@ -1,11 +1,11 @@
 namespace HolderLinux {
 
 public class TrashToolView : Object, IToolShellAdapter {
-    private TrashController controller;
-    private Gtk.Box trash_actions_bar;
-    private Gtk.DropDown filter_dropdown;
-    private Gtk.Label empty_label;
-    private Gtk.Button empty_trash_btn;
+    private TrashController controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Box trash_actions_bar; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.DropDown filter_dropdown; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label empty_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Button empty_trash_btn; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id {
@@ -135,7 +135,7 @@ public class TrashToolView : Object, IToolShellAdapter {
         factory.setup.connect((item_obj) => {
             var item = item_obj as Gtk.ListItem;
             if (item == null) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: GTK always hands the factory a Gtk.ListItem
             }
             var label = new Gtk.Label("") { xalign = 0.0f };
             label.set_ellipsize(Pango.EllipsizeMode.END);
@@ -144,12 +144,12 @@ public class TrashToolView : Object, IToolShellAdapter {
         factory.bind.connect((item_obj) => {
             var item = item_obj as Gtk.ListItem;
             if (item == null) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: GTK always hands the factory a Gtk.ListItem
             }
             var trash_item = item.get_item() as TrashItem;
             var label = item.get_child() as Gtk.Label;
             if (trash_item == null || label == null) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: the store only holds TrashItems and setup always adds the label
             }
             switch (field) {
                 case "type":
@@ -165,8 +165,8 @@ public class TrashToolView : Object, IToolShellAdapter {
                     label.set_tooltip_text(trash_item.deleted_at.to_string());
                     break;
                 default:
-                    label.set_text("");
-                    break;
+                    label.set_text(""); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field is one of the three literals the columns are built with
+                    break; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field is one of the three literals the columns are built with
             }
         });
 
@@ -178,7 +178,7 @@ public class TrashToolView : Object, IToolShellAdapter {
         factory.setup.connect((item_obj) => {
             var item = item_obj as Gtk.ListItem;
             if (item == null) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: GTK always hands the factory a Gtk.ListItem
             }
 
             var box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
@@ -214,7 +214,7 @@ public class TrashToolView : Object, IToolShellAdapter {
         empty_trash_btn.set_sensitive(controller.empty_trash_sensitive);
     }
 
-    private void confirm_hard_delete(TrashItem item) {
+    internal void confirm_hard_delete(TrashItem item) {
         var root_window = widget.get_root() as Gtk.Window;
         if (root_window == null) {
             return;
@@ -244,7 +244,7 @@ public class TrashToolView : Object, IToolShellAdapter {
         yield controller.hard_delete_item(item);
     }
 
-    private void confirm_empty_trash() {
+    internal void confirm_empty_trash() {
         var project = controller.selected_project();
         if (project == null) {
             return;

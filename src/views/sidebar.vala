@@ -2,8 +2,8 @@ namespace HolderLinux {
 
 public class SidebarPane : Object {
     public Gtk.Widget widget { get; private set; }
-    private Gtk.Label threads_title;
-    private Gtk.ScrolledWindow thread_scroll;
+    private Gtk.Label threads_title; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.ScrolledWindow thread_scroll; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     public signal void card_move_to_trash_requested(string card_id);
     public signal void card_context_selection_requested(string card_id);
     public signal void card_create_child_requested(string card_id);
@@ -193,7 +193,21 @@ public class SidebarPane : Object {
         return TextUtils.format_relative_time(new DateTime.now_utc().to_unix(), timestamp);
     }
 
+    // Every card menu is parented to its row and GTK keeps it there until it is unparented, so drop
+    // the previous one before making the next.
+    private static void remove_card_menus(Gtk.Widget row_widget) {
+        var child = row_widget.get_first_child();
+        while (child != null) {
+            var next = ((!) child).get_next_sibling();
+            if (child is Gtk.Popover) {
+                ((!) child).unparent();
+            }
+            child = next;
+        }
+    }
+
     private void show_card_menu_at(Gtk.Widget row_widget, string card_id, double x, double y) {
+        remove_card_menus(row_widget);
         var popover = new Gtk.Popover();
         popover.set_autohide(true);
         popover.set_parent(row_widget);
