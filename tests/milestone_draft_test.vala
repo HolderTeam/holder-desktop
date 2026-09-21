@@ -3,8 +3,11 @@ using GLib;
 namespace HolderLinuxTests {
 
 private TimeZone? london() {
+    // GLib on Windows resolves named zones through the registry, not IANA zoneinfo files, so the
+    // UK zone is "GMT Standard Time" there (same UK DST rules).
+    var name = Path.DIR_SEPARATOR == '\\' ? "GMT Standard Time" : "Europe/London";
     try {
-        return new TimeZone.identifier("Europe/London");
+        return new TimeZone.identifier(name);
     } catch (Error e) {
         return null;
     }

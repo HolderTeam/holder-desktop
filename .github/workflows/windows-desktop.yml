@@ -41,7 +41,6 @@ jobs:
             mingw-w64-ucrt-x86_64-libgee
             mingw-w64-ucrt-x86_64-libsoup3
             mingw-w64-ucrt-x86_64-json-glib
-            mingw-w64-ucrt-x86_64-tzdata
 
       - name: Build and test
         run: bash ./make-win.sh test
