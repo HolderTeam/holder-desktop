@@ -18,10 +18,10 @@ public class EditorFontStyle : Object {
 
     private static uint next_css_id = 0;
 
-    private GtkSource.View editor_view;
-    private Gtk.CssProvider provider;
-    private Gdk.Display display;
-    private string css_class;
+    private GtkSource.View editor_view; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.CssProvider provider; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gdk.Display display; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private string css_class; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
     public bool enabled { get; private set; default = false; }
     public string font_description { get; private set; default = DEFAULT_FONT_DESCRIPTION; }

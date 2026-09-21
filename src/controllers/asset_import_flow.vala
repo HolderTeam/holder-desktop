@@ -51,8 +51,8 @@ public class AssetImportFlow : Object {
     public const string NEEDS_LOCATION_MESSAGE = "Add and choose a preferred Storage Location first.";
     public const string FAILED_TITLE = "Failed to import Asset";
 
-    private IScheduler scheduler;
-    private ImportSelectionReader selection_reader;
+    private IScheduler scheduler; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ImportSelectionReader selection_reader; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
     public signal void status_changed(string text);
 

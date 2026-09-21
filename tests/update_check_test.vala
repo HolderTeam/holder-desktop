@@ -158,6 +158,20 @@ private void test_check_if_due_throttles_daily_checks() {
     assert(transport.calls == 1);
 }
 
+private void test_check_if_due_logs_progress_when_debug_is_enabled_by_environment() {
+    // The flag is read once in the constructor, so it can be cleared straight after.
+    Environment.set_variable("HOLDER_UPDATE_CHECK_DEBUG", "1", true);
+    var clock = new FakeClock();
+    clock.now_value = 10000;
+    var transport = new FakeUpdateMetadataTransport();
+    transport.body = metadata("0.1.8");
+    var service = new HolderLinux.UpdateCheckService(transport, clock, "https://example.test/version.json", "linux");
+    Environment.unset_variable("HOLDER_UPDATE_CHECK_DEBUG");
+
+    assert(run_check_if_due(service, fresh_settings(), "0.1.7") != null);
+    assert(transport.calls == 1);
+}
+
 private void test_check_if_due_is_quiet_on_network_failure() {
     var clock = new FakeClock();
     clock.now_value = 20000;
@@ -402,6 +416,7 @@ int main(string[] args) {
     Test.add_func("/update_check/parse_falls_back_to_release_url", test_parse_falls_back_to_release_url);
     Test.add_func("/update_check/fetch_candidate_ignores_current_or_older_versions", test_fetch_candidate_ignores_current_or_older_versions);
     Test.add_func("/update_check/check_if_due_throttles_daily_checks", test_check_if_due_throttles_daily_checks);
+    Test.add_func("/update_check/check_if_due_logs_progress_when_debug_is_enabled", test_check_if_due_logs_progress_when_debug_is_enabled_by_environment);
     Test.add_func("/update_check/check_if_due_is_quiet_on_network_failure", test_check_if_due_is_quiet_on_network_failure);
     Test.add_func("/update_check/prompt_policy_is_weekly_for_same_version", test_prompt_policy_is_weekly_for_same_version);
 

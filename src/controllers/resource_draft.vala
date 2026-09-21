@@ -43,7 +43,7 @@ public class ResourceDraftResult : Object {
     }
 }
 
-public class ResourceDraft {
+public class ResourceDraft { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public const string CUSTOM_KIND_OPTION = "custom";
     public const string DEFAULT_KIND = "thing";
 

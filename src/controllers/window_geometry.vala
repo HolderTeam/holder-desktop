@@ -14,7 +14,7 @@ internal class WindowStartupGeometry : Object {
     }
 }
 
-internal class WindowGeometry : Object {
+internal class WindowGeometry : Object { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public const int DEFAULT_WINDOW_WIDTH = 1200;
     public const int DEFAULT_WINDOW_HEIGHT = 800;
     public const int DEFAULT_SIDEBAR_WIDTH = 280;

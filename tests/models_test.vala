@@ -271,6 +271,14 @@ private void test_nudge_models_preserve_constructor_values_and_defaults() {
     assert(without_nudge.nudge == null);
 }
 
+private void test_project_resource_kind_alias_writes_the_resource_type() {
+    var resource = new HolderLinux.ProjectResource("r1", "p1", "website", "", "Label", null, 1, 2);
+    assert(resource.kind == "website");
+    resource.kind = "document";
+    assert(resource.kind == "document");
+    assert(resource.resource_type == "document");
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     Test.add_func("/holder/models/recovery-and-git-models", test_recovery_and_git_models_preserve_constructor_values);
@@ -278,6 +286,7 @@ public static int main(string[] args) {
     Test.add_func("/holder/models/activity-details-models", test_activity_details_models_preserve_constructor_values);
     Test.add_func("/holder/models/ai-models", test_ai_models_preserve_constructor_values);
     Test.add_func("/holder/models/nudge-models", test_nudge_models_preserve_constructor_values_and_defaults);
+    Test.add_func("/holder/models/project-resource-kind-alias", test_project_resource_kind_alias_writes_the_resource_type);
     return Test.run();
 }
 

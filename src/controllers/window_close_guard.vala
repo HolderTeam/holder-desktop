@@ -29,13 +29,13 @@ public class WindowCloseGuard : Object {
         "The backend did not save this card and local recovery files are disabled.";
     public const string UNSAFE_DIALOG_TITLE = "This card is not safely stored yet";
 
-    private IWindowCloseHost host;
-    private IScheduler scheduler;
+    private IWindowCloseHost host; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private IScheduler scheduler; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private bool in_progress = false;
     private bool authorized = false;
     private uint timeout_id = 0;
     private bool has_recovery_copy = false;
-    private string? recovery_error = null;
+    private string? recovery_error = null; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private bool decision_visible = false;
 
     public signal void close_ready();

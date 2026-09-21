@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-public class GitSyncGuided : Object {
+public class GitSyncGuided : Object { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public static string github_ssh_remote(string username, string repo_name) {
         return "git@github.com:%s/%s.git".printf(username, repo_name);
     }

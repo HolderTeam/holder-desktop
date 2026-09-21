@@ -647,6 +647,30 @@ private void test_query_version_runs_the_executable_and_reports_failures() {
     assert(failure.message == "PowerShell version query failed.");
 }
 
+private void test_query_version_through_file_is_unsupported_without_the_windows_helper() {
+    if (Path.DIR_SEPARATOR == '\\') {
+        Test.skip("the real Windows helper would run on this platform");
+        return;
+    }
+    // A WindowsApps alias is queried by writing to a file through the hidden-process helper,
+    // whose non-Windows stub reports that it is unsupported.
+    var discovery = new HolderLinux.PowerShellDiscoveryService();
+    var loop = new MainLoop();
+    Error? caught = null;
+    discovery.query_version.begin("C:\\Users\\me\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe", (obj, res) => {
+        try {
+            discovery.query_version.end(res);
+        } catch (Error e) {
+            caught = e;
+        }
+        loop.quit();
+    });
+    loop.run();
+
+    assert(caught != null);
+    assert(caught is IOError.NOT_SUPPORTED);
+}
+
 private void test_session_store_skips_unreadable_session_metadata() {
     var root = make_temp_dir();
     var store = new HolderLinux.TerminalSessionStore(root);
@@ -738,6 +762,10 @@ public static int main(string[] args) {
     Test.add_func(
         "/windows_terminal/query_version_runs_the_executable_and_reports_failures",
         test_query_version_runs_the_executable_and_reports_failures
+    );
+    Test.add_func(
+        "/windows_terminal/query_version_through_file_is_unsupported_without_the_windows_helper",
+        test_query_version_through_file_is_unsupported_without_the_windows_helper
     );
     Test.add_func(
         "/windows_terminal/launcher_rejects_missing_prerequisites",

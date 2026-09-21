@@ -46,7 +46,7 @@ public class HistoryLaneGraph : Object {
     }
 }
 
-public class HistoryLaneAssigner {
+public class HistoryLaneAssigner { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public static HistoryLaneGraph compute(HistoryLaneNode[] nodes, HistoryLaneParentRule rule) {
         string[] listed_oids = {};
         foreach (var node in nodes) {
@@ -126,7 +126,7 @@ public class HistoryLaneAssigner {
 }
 
 // Pixel maths and text for one lane gutter cell; the view only issues the Cairo calls.
-public class HistoryLaneGeometry {
+public class HistoryLaneGeometry { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public const int LANE_SPACING = 20;
 
     public static int gutter_width(int lane_count) {

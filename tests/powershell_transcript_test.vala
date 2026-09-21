@@ -76,6 +76,13 @@ private void test_ansi_control_sequences_are_removed_from_useful_text() {
     assert(snapshot.useful_text == "PS> test\nfailed");
 }
 
+private void test_leading_and_trailing_blank_lines_around_the_output_are_trimmed() {
+    var parser = new HolderLinux.PowerShellTranscriptParser();
+    var snapshot = parser.parse("\n\nPS> echo hi\nhi\n\nPS C:\\Work> Stop-Transcript\n\n");
+
+    assert(snapshot.useful_text == "PS> echo hi\nhi");
+}
+
 private void test_terminal_session_state_round_trip() {
     assert(HolderLinux.TerminalSessionState.from_storage_value("active")
            == HolderLinux.TerminalSessionState.ACTIVE);
@@ -84,6 +91,8 @@ private void test_terminal_session_state_round_trip() {
     assert(HolderLinux.TerminalSessionState.from_storage_value("unexpected")
            == HolderLinux.TerminalSessionState.INTERRUPTED);
     assert(HolderLinux.TerminalSessionState.INTERRUPTED.to_storage_value() == "interrupted");
+    // A value outside the enum falls back to the interrupted marker.
+    assert(((HolderLinux.TerminalSessionState) 99).to_storage_value() == "interrupted");
 }
 
 public static int main(string[] args) {
@@ -107,6 +116,10 @@ public static int main(string[] args) {
     Test.add_func(
         "/powershell_transcript/ansi_sequences_are_removed",
         test_ansi_control_sequences_are_removed_from_useful_text
+    );
+    Test.add_func(
+        "/powershell_transcript/leading_and_trailing_blank_lines_are_trimmed",
+        test_leading_and_trailing_blank_lines_around_the_output_are_trimmed
     );
     Test.add_func(
         "/powershell_transcript/session_state_round_trip",

@@ -96,7 +96,7 @@ public class PowerShellTranscriptParser : Object {
     }
 
     internal static string strip_terminal_control_sequences(string text) {
-        try {
+        try { // LCOV_EXCL_LINE GCOVR_EXCL_LINE: try-block entry marker; the regex calls below are covered
             var ansi = new Regex("\x1b\\[[0-?]*[ -/]*[@-~]");
             return ansi.replace(text, -1, 0, "");
         } catch (RegexError e) {

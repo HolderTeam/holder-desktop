@@ -40,7 +40,7 @@ public class GuidedInputCheck : Object {
     }
 }
 
-public class GitSyncValidation : Object {
+public class GitSyncValidation : Object { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public static GitRemoteSetupValidationResult project_and_api(Project? project, bool api_ready) {
         if (project == null) {
             return new GitRemoteSetupValidationResult(false, true, "Select a project first.");

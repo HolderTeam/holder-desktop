@@ -91,7 +91,7 @@ public class AiProviderRowPresentation : Object {
 }
 
 // Text and decisions for the AI configuration panel.
-public class AiConfigPresenter {
+public class AiConfigPresenter { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public const string CONNECT_MESSAGE = "Connect to holderd to configure AI.";
     public const string LOADING_MESSAGE = "Loading AI config...";
     public const string LOAD_FAILED_MESSAGE = "Failed to load AI config.";

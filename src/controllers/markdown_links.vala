@@ -92,11 +92,11 @@ internal class MarkdownLinkController : Object {
     private string? safe_uri(string candidate) {
         var scheme = GLib.Uri.parse_scheme(candidate);
         if (scheme == null) {
-            return null;
+            return null; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: defense in depth: every caller pattern only matches http(s):// or mailto: URLs
         }
         var normalized = scheme.down();
         if (normalized != "http" && normalized != "https" && normalized != "mailto") {
-            return null;
+            return null; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: defense in depth: every caller pattern only matches http(s):// or mailto: URLs
         }
         return candidate;
     }
@@ -227,7 +227,7 @@ internal class MarkdownLinkController : Object {
                 }
             } while (match_info.next());
         } catch (RegexError e) {
-            return false;
+            return false; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: constant regular expression is valid.
         }
         return false;
     }

@@ -305,7 +305,12 @@ private void test_transient_null_project_selection_keeps_committed_board() {
     assert(committed != null);
     assert(committed.card_id == "p1a");
 
+    // A SingleSelection autoselects by default and would refuse to clear, so the transient
+    // null selection these tests describe could never happen.
+    project_selection.set_autoselect(false);
+    project_selection.set_can_unselect(true);
     project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+    assert(project_selection.get_selected_item() == null);
     controller.refresh();
 
     model = controller.get_visible_model();
@@ -527,7 +532,12 @@ private void test_transient_null_selection_preserves_committed_breadcrumbs() {
     controller.activate_position(0); // enter root => parent_stack contains root
 
     // Selected project removed => transient null selection keeps committed breadcrumb state.
+    // A SingleSelection autoselects by default and would refuse to clear, so the transient
+    // null selection these tests describe could never happen.
+    project_selection.set_autoselect(false);
+    project_selection.set_can_unselect(true);
     project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+    assert(project_selection.get_selected_item() == null);
     controller.refresh();
     assert(crumbs != null);
     assert(crumbs.size >= 1);
@@ -569,7 +579,12 @@ private void test_transient_null_selection_preserves_committed_breadcrumbs_when_
 
     // Remove root before deselect. Breadcrumbs stay on last committed state.
     card_store.remove(0);
+    // A SingleSelection autoselects by default and would refuse to clear, so the transient
+    // null selection these tests describe could never happen.
+    project_selection.set_autoselect(false);
+    project_selection.set_can_unselect(true);
     project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+    assert(project_selection.get_selected_item() == null);
     controller.refresh();
 
     assert(crumbs != null);

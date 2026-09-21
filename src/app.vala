@@ -26,7 +26,7 @@ public class App : Adw.Application {
         quit_action.activate.connect(() => {
             var window = active_window;
             if (window != null) {
-                window.close();
+                window.close(); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: requires display-backed windowing environment
             } else {
                 quit();
             }

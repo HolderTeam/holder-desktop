@@ -40,7 +40,7 @@ internal class FlowboardTilePresentation : Object {
     }
 }
 
-internal class FlowboardPresenter : Object {
+internal class FlowboardPresenter : Object { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public static FlowboardTilePresentation tile(FlowboardTile? tile, int64 now) {
         if (tile == null) {
             return new FlowboardTilePresentation("", "", false, 0, false, "", "", 0, 0);

@@ -47,7 +47,7 @@ internal class MarkdownKeyAction : Object {
     }
 }
 
-internal class MarkdownKeyMap {
+internal class MarkdownKeyMap { // LCOV_EXCL_LINE: declaration-only coverage artifact
     // Gdk keyval values (the Latin-1 ones are their ASCII codes).
     public const uint KEY_RETURN = 0xff0d;
     public const uint KEY_KP_ENTER = 0xff8d;

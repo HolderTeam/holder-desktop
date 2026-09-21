@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-internal class WindowPresenter : Object {
+internal class WindowPresenter : Object { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public const string RECOVERY_DIALOG_TITLE = "Recover unsaved changes?";
     public const string UNKNOWN_CARD_TITLE = "this card";
 

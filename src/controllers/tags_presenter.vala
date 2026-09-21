@@ -21,7 +21,7 @@ public class TagCloudPresentation : Object {
     }
 }
 
-public class TagsPresenter {
+public class TagsPresenter { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public static void sort_tags(Gee.ArrayList<TagCount> tags) {
         tags.sort((a, b) => { return strcmp(a.tag, b.tag); });
     }

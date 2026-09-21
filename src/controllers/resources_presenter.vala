@@ -49,7 +49,7 @@ public class ResourceOpenAction : Object {
     }
 }
 
-public class ResourcesPresenter {
+public class ResourcesPresenter { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public static ResourceCellPresentation cell(ResourcesController controller,
                                                 ProjectResource resource,
                                                 string field) {

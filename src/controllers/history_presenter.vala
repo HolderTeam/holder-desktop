@@ -67,7 +67,7 @@ public class HistoryEntryMatch : Object {
     }
 }
 
-public class HistoryPresenter {
+public class HistoryPresenter { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public const string TIMESTAMP_FORMAT = "%e %b %Y, %H:%M";
     public const string DIFF_EMPTY_TEXT = "No text changes were recorded between these saved versions.";
     public const string LOADING_OLDER_LABEL = "Loading older history…";

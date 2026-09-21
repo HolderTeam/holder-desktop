@@ -29,7 +29,7 @@ public class SessionListPresentation : Object {
 }
 
 // Text and decisions for the Windows external-terminal view.
-public class TerminalPresenter {
+public class TerminalPresenter { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public const uint INSTALL_POLL_INTERVAL_SECONDS = 3;
     public const int INSTALL_POLL_MAX_COUNT = 40;
     public const string NOT_READY_MESSAGE = "PowerShell 7 is not ready yet.";

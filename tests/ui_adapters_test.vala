@@ -123,6 +123,22 @@ private void test_main_loop_scheduler_cancel_zero_is_false() {
     assert(!scheduler.cancel(0));
 }
 
+private void test_single_selection_state_clears_selection_for_the_invalid_position() {
+    var store = new GLib.ListStore(typeof(HolderLinux.Project));
+    store.append(new HolderLinux.Project("p1", "One", "encrypted_git", "/tmp/one", 1, 1));
+    store.append(new HolderLinux.Project("p2", "Two", "encrypted_git", "/tmp/two", 2, 2));
+
+    var selection = new Gtk.SingleSelection(store);
+    var state = new HolderLinux.GtkSingleSelectionState(selection);
+
+    state.set_selected_index(1);
+    assert(state.get_selected_index() == 1);
+
+    state.set_selected_index(Gtk.INVALID_LIST_POSITION);
+    assert(state.get_selected_index() == Gtk.INVALID_LIST_POSITION);
+    assert(state.get_selected_item() == null);
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -132,6 +148,7 @@ int main(string[] args) {
                   test_single_selection_state_reflects_cleared_selection);
     Test.add_func("/ui_adapters/single_selection_state_tracks_external_selection_changes",
                   test_single_selection_state_tracks_external_selection_changes);
+    Test.add_func("/holder/ui-adapters/single-selection-clears-for-invalid-position", test_single_selection_state_clears_selection_for_the_invalid_position);
     Test.add_func("/ui_adapters/source_buffer_text_provider_reads_buffer",
                   test_source_buffer_text_provider_reads_buffer);
     Test.add_func("/ui_adapters/source_buffer_text_provider_empty_buffer_returns_empty_string",

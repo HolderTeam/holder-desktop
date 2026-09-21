@@ -171,6 +171,17 @@ private void test_inline_image_previews_are_opt_in_and_persisted() {
     settings.reset(HolderLinux.AppSettings.KEY_SHOW_INLINE_IMAGE_PREVIEWS);
 }
 
+private void test_editor_font_style_removes_its_css_class_when_released() {
+    var view = new GtkSource.View.with_buffer(new GtkSource.Buffer(null));
+    var classes_before = view.get_css_classes().length;
+
+    HolderLinux.EditorFontStyle? font_style = new HolderLinux.EditorFontStyle(view);
+    assert(view.get_css_classes().length == classes_before + 1);
+
+    font_style = null;
+    assert(view.get_css_classes().length == classes_before);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     if (!Gtk.init_check()) {
@@ -191,6 +202,7 @@ public static int main(string[] args) {
                   test_editor_font_style_maps_style_and_stretch_to_css);
     Test.add_func("/preferences_dialog/custom_font_toggle_applies_session_only_style",
                   test_custom_font_toggle_applies_session_only_style);
+    Test.add_func("/holder/preferences/editor-font-style-removes-css-class-when-released", test_editor_font_style_removes_its_css_class_when_released);
     Test.add_func("/preferences_dialog/custom_font_selection_persists_family_size_and_disabled_choice",
                   test_custom_font_selection_persists_family_size_and_disabled_choice);
     Test.add_func("/preferences_dialog/plaintext_recovery_opt_out_is_persisted",

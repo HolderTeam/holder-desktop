@@ -1,7 +1,7 @@
 namespace HolderLinux {
 
 // Offset/string decisions the editor view makes around a markdown selection.
-internal class MarkdownSelectionRules {
+internal class MarkdownSelectionRules { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public static string? inline_marker_for(MarkdownInlineCommand command) {
         switch (command) {
             case MarkdownInlineCommand.BOLD:

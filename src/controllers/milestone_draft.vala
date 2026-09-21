@@ -76,7 +76,7 @@ public class MilestoneDraftResult : Object {
 
 // Form rules for adding/editing a milestone: which cards can be chosen, what the form starts
 // with, and how the chosen dates/times become epochs. The view only reads and writes widgets.
-public class MilestoneDraft {
+public class MilestoneDraft { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public const string NOT_READY_MESSAGE = "Select a project and connect to Holder first.";
     public const string NO_CARDS_MESSAGE = "Create a card before adding a milestone.";
     public const string END_BEFORE_START_MESSAGE = "The end must not be before the start.";

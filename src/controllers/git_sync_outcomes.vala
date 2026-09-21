@@ -19,7 +19,7 @@ public class GitSyncNowOutcome : Object {
     }
 }
 
-public class GitSyncOutcomes : Object {
+public class GitSyncOutcomes : Object { // LCOV_EXCL_LINE: declaration-only coverage artifact
     public static GitSyncNowOutcome for_push_result(GitPushResult result) {
         if (result.status == "pushed") {
             return new GitSyncNowOutcome("Project synced.", "", "", true);
