@@ -34,6 +34,9 @@ public class AssetPreviewPane : Object {
 
     public void set_attachments(Gee.ArrayList<CardAttachment> values, int selected_index = 0) {
         attachments = values;
+        // The dropdown selects the first item as soon as one is appended, which would announce a
+        // selection nobody made; keep the guard up for the whole rebuild.
+        changing_selection = true;
         attachment_names.splice(0, attachment_names.get_n_items(), {});
         foreach (var attachment in attachments) {
             attachment_names.append(attachment.asset.original_filename);
@@ -43,11 +46,11 @@ public class AssetPreviewPane : Object {
         previous_button.set_visible(has_many);
         next_button.set_visible(has_many);
         if (attachments.size == 0) {
+            changing_selection = false;
             show_empty();
             return;
         }
         var index = selected_index.clamp(0, attachments.size - 1);
-        changing_selection = true;
         attachment_selector.set_selected((uint) index);
         changing_selection = false;
         show_loading(attachments[index]);

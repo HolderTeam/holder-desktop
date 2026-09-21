@@ -2410,6 +2410,41 @@ asset_preview_test_exe = executable(
 
 test('holder-linux-asset-preview-tests', asset_preview_test_exe)
 
+asset_preview_pane_test_exe = executable(
+  'holder-linux-asset-preview-pane-tests',
+  [
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/controllers/asset_preview.vala',
+    'src/controllers/asset_preview_presenter.vala',
+    'src/views/asset_preview_pane.vala',
+    'tests/asset_preview_pane_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  c_args: vala_generated_c_args,
+  install: false,
+)
+
+test('holder-linux-asset-preview-pane-tests', asset_preview_pane_test_exe)
+
 tool_scope_presenter_test_exe = executable(
   'holder-linux-tool-scope-presenter-tests',
   [
