@@ -348,6 +348,8 @@ public static int main(string[] args) {
                   test_refresh_failure_after_committed_resources_preserves_visible_list);
     Test.add_func("/holder/resources-view/mutations", test_mutations_call_api_emit_feedback_and_refresh);
     Test.add_func("/holder/resources-view/mutation-failure", test_mutation_failure_reports_error);
+    register_resources_view_dialog_tests();
+    register_resources_view_storage_tests();
     return Test.run();
 }
 

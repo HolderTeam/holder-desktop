@@ -3560,6 +3560,10 @@ resources_tool_view_test_exe = executable(
     'src/views/toolbox/tool_adapter.vala',
     'src/views/adapters/windows_monospace.vala',
     'src/views/toolbox/resources_tool_view.vala',
+    'tests/support/storage_api_fakes.vala',
+    'tests/support/resources_view_support.vala',
+    'tests/resources_tool_view_dialogs_test.vala',
+    'tests/resources_tool_view_storage_test.vala',
     'tests/resources_tool_view_test.vala',
   ],
   dependencies: [
@@ -3874,6 +3878,11 @@ git_sync_tool_view_test_exe = executable(
     'src/views/adapters/windows_monospace.vala',
     'src/controllers/tool_scope_presenter.vala',
     'src/views/toolbox/git_sync_tool_view.vala',
+    'tests/support/git_sync_view_support.vala',
+    'tests/git_sync_tool_view_state_test.vala',
+    'tests/git_sync_tool_view_setup_test.vala',
+    'tests/git_sync_tool_view_guided_test.vala',
+    'tests/git_sync_tool_view_cli_test.vala',
     'tests/git_sync_tool_view_test.vala',
   ],
   dependencies: [

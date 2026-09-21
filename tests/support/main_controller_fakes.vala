@@ -276,6 +276,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public string last_resource_uri = "";
     public string last_resource_label = "";
     public string? last_resource_desc = null;
+    public Gee.HashMap<string, Gee.ArrayList<string>>? last_resource_extra_metadata = null;
     public string last_resource_id = "";
     public int64 last_resource_updated_at = 0;
     public string last_git_project_id = "";
@@ -352,7 +353,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return new HolderLinux.HealthInfo(true, 1234, "0.1", "dev", 42);
     }
 
-    public async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
+    public virtual async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
         if (fail_list_projects_once) {
             fail_list_projects_once = false;
             throw new IOError.FAILED(list_projects_failure_message);
@@ -661,6 +662,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_resource_uri = uri;
         last_resource_label = label;
         last_resource_desc = desc;
+        last_resource_extra_metadata = extra_metadata;
         return "r1";
     }
 
@@ -680,6 +682,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_resource_uri = uri ?? "";
         last_resource_label = label ?? "";
         last_resource_desc = desc;
+        last_resource_extra_metadata = extra_metadata;
         last_resource_updated_at = updated_at;
     }
 
@@ -966,7 +969,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return new HolderLinux.NudgeEvaluationResult(kind, false, false, "fake_not_implemented");
     }
 
-    public async Gee.ArrayList<HolderLinux.GitProviderCatalogEntry> list_git_provider_catalog() throws Error {
+    public virtual async Gee.ArrayList<HolderLinux.GitProviderCatalogEntry> list_git_provider_catalog() throws Error {
         return new Gee.ArrayList<HolderLinux.GitProviderCatalogEntry>();
     }
 
@@ -1002,7 +1005,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
                                                    "");
     }
 
-    public async HolderLinux.GitPushResult push_project_git(string project_id,
+    public virtual async HolderLinux.GitPushResult push_project_git(string project_id,
                                                             string branch = "",
                                                             bool set_upstream = true) throws Error {
         if (fail_push_project_git) {
