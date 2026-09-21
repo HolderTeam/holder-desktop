@@ -16,8 +16,33 @@ public class GitSyncViewFakeApi : MainControllerFakeApi {
     public string push_next_action = "";
     public bool stall_next_list_projects = false;
     public bool stall_next_push = false;
+    public bool stall_next_set_remote = false;
     private SourceFunc? stalled_list = null;
     private SourceFunc? stalled_push = null;
+    private SourceFunc? stalled_set_remote = null;
+
+    public bool has_stalled_set_remote() {
+        return stalled_set_remote != null;
+    }
+
+    public void release_stalled_set_remote() {
+        if (stalled_set_remote != null) {
+            var resume = (owned) stalled_set_remote;
+            stalled_set_remote = null;
+            resume();
+        }
+    }
+
+    public override async void set_project_git_remote(string project_id,
+                                                      string? git_remote_url,
+                                                      int64 updated_at) throws Error {
+        if (stall_next_set_remote) {
+            stall_next_set_remote = false;
+            stalled_set_remote = set_project_git_remote.callback;
+            yield;
+        }
+        yield base.set_project_git_remote(project_id, git_remote_url, updated_at);
+    }
 
     public bool has_stalled_list() {
         return stalled_list != null;
@@ -78,6 +103,171 @@ public class GitSyncViewFakeApi : MainControllerFakeApi {
     }
 }
 
+// A GitSyncService that never starts a process: every gh/git/ssh answer is set by the test, so the
+// view's CLI, guided and SSH logic runs the same on every platform (the shim based tests need POSIX
+// shell scripts). configure_remote_and_sync is the real one, which talks to the fake backend API.
+// A stalled call resumes with the answer that was set when the call started, like a slow real one.
+public class GitSyncViewFakeService : HolderLinux.GitSyncService {
+    public HolderLinux.GitHubCliState cli_state =
+        new HolderLinux.GitHubCliState(true, true, "octocat", "");
+    public HolderLinux.GitRepoCheckResult repo_check = new HolderLinux.GitRepoCheckResult(true, "");
+    public HolderLinux.GitRepoCreateResult repo_create = new HolderLinux.GitRepoCreateResult(true, true, "");
+    public string ssh_probe_output = "";
+    public HolderLinux.GitCommandResult keygen_result = new HolderLinux.GitCommandResult(0, "");
+    public bool keygen_writes_key = true;
+    public bool stall_next_detect = false;
+    public bool stall_next_repo_check = false;
+    public bool stall_next_repo_create = false;
+    public bool stall_next_probe = false;
+    public Gee.ArrayList<string> calls = new Gee.ArrayList<string>();
+    private SourceFunc? stalled_detect = null;
+    private SourceFunc? stalled_repo_check = null;
+    private SourceFunc? stalled_repo_create = null;
+    private SourceFunc? stalled_probe = null;
+
+    public int count(string prefix) {
+        int total = 0;
+        foreach (var call in calls) {
+            if (call.has_prefix(prefix)) {
+                total++;
+            }
+        }
+        return total;
+    }
+
+    public bool has_stalled_detect() {
+        return stalled_detect != null;
+    }
+
+    public bool has_stalled_repo_check() {
+        return stalled_repo_check != null;
+    }
+
+    public bool has_stalled_repo_create() {
+        return stalled_repo_create != null;
+    }
+
+    public bool has_stalled_probe() {
+        return stalled_probe != null;
+    }
+
+    public void release_stalled_probe() {
+        if (stalled_probe != null) {
+            var resume = (owned) stalled_probe;
+            stalled_probe = null;
+            resume();
+        }
+    }
+
+    public void release_stalled_detect() {
+        if (stalled_detect != null) {
+            var resume = (owned) stalled_detect;
+            stalled_detect = null;
+            resume();
+        }
+    }
+
+    public void release_stalled_repo_check() {
+        if (stalled_repo_check != null) {
+            var resume = (owned) stalled_repo_check;
+            stalled_repo_check = null;
+            resume();
+        }
+    }
+
+    public void release_stalled_repo_create() {
+        if (stalled_repo_create != null) {
+            var resume = (owned) stalled_repo_create;
+            stalled_repo_create = null;
+            resume();
+        }
+    }
+
+    public override async HolderLinux.GitHubCliState detect_github_cli_state() {
+        calls.add("detect");
+        var state = cli_state;
+        if (stall_next_detect) {
+            stall_next_detect = false;
+            stalled_detect = detect_github_cli_state.callback;
+            yield;
+        }
+        return state;
+    }
+
+    public override async HolderLinux.GitRepoCheckResult check_repository_exists_via_ssh(string username,
+                                                                                          string repo_name) {
+        calls.add("check %s/%s".printf(username, repo_name));
+        var result = repo_check;
+        if (stall_next_repo_check) {
+            stall_next_repo_check = false;
+            stalled_repo_check = check_repository_exists_via_ssh.callback;
+            yield;
+        }
+        return result;
+    }
+
+    public override async HolderLinux.GitRepoCreateResult create_private_repo_and_verify(string username,
+                                                                                          string repo_name) {
+        calls.add("create %s/%s".printf(username, repo_name));
+        var result = repo_create;
+        if (stall_next_repo_create) {
+            stall_next_repo_create = false;
+            stalled_repo_create = create_private_repo_and_verify.callback;
+            yield;
+        }
+        return result;
+    }
+
+    public override async string probe_github_ssh() {
+        calls.add("probe");
+        var output = ssh_probe_output;
+        if (stall_next_probe) {
+            stall_next_probe = false;
+            stalled_probe = probe_github_ssh.callback;
+            yield;
+        }
+        return output;
+    }
+
+    public override async HolderLinux.GitCommandResult generate_ssh_key(string email, string key_path) {
+        calls.add("keygen %s".printf(email));
+        if (keygen_writes_key) {
+            try {
+                FileUtils.set_contents(key_path, "fake private key");
+                FileUtils.set_contents("%s.pub".printf(key_path), "ssh-ed25519 AAAAFAKEKEY %s".printf(email));
+            } catch (Error e) {
+                assert_not_reached();
+            }
+        }
+        return keygen_result;
+    }
+}
+
+public class GitSyncViewFakeLauncher : Object, HolderLinux.IUriLauncher {
+    public Gee.ArrayList<string> uris = new Gee.ArrayList<string>();
+    public Error? failure = null;
+
+    public void launch(string uri) throws Error {
+        uris.add(uri);
+        if (failure != null) {
+            throw (!) failure;
+        }
+    }
+}
+
+public class GitSyncViewFakeClipboard : Object, HolderLinux.ITextClipboard {
+    public Gee.ArrayList<string> texts = new Gee.ArrayList<string>();
+    public bool available { get; set; default = true; }
+
+    public bool set_text(string text) {
+        if (!available) {
+            return false;
+        }
+        texts.add(text);
+        return true;
+    }
+}
+
 public HolderLinux.Project gsv_project(string id,
                                        string name,
                                        string? remote_url,
@@ -108,14 +298,28 @@ public class GitSyncViewHarness : Object {
     public Gee.ArrayList<string> errors = new Gee.ArrayList<string>();
     public Gee.ArrayList<string> histories = new Gee.ArrayList<string>();
     public Gee.ArrayList<string> activities = new Gee.ArrayList<string>();
+    public GitSyncViewFakeService? service = null;
+    public GitSyncViewFakeLauncher launcher = new GitSyncViewFakeLauncher();
+    public GitSyncViewFakeClipboard clipboard = new GitSyncViewFakeClipboard();
+    public string home = "";
 
+    // With use_fake_service the view runs against a GitSyncViewFakeService and its own empty home
+    // directory, so nothing touches the real ~/.ssh or starts a process.
     public GitSyncViewHarness(string? remote_url = null,
                               bool with_project = true,
                               bool with_api = true,
                               bool attach_window = true,
                               bool auto_check_cli = false,
-                              HolderLinux.ProjectSyncState? sync = null) {
-        view = new HolderLinux.GitSyncToolView(auto_check_cli);
+                              HolderLinux.ProjectSyncState? sync = null,
+                              bool use_fake_service = false,
+                              string? home_override = null) {
+        string? view_home = null;
+        if (use_fake_service) {
+            service = new GitSyncViewFakeService();
+            home = GitSyncViewEnv.make_home();
+            view_home = home_override ?? home;
+        }
+        view = new HolderLinux.GitSyncToolView(auto_check_cli, service, launcher, clipboard, view_home);
         selection = new Gtk.SingleSelection(store);
         view.toast_requested.connect((message) => { toasts.add(message); });
         view.error_reported.connect((title, details) => { errors.add("%s|%s".printf(title, details)); });
@@ -136,6 +340,11 @@ public class GitSyncViewHarness : Object {
         }
         view.set_project_selection(selection);
         settle();
+    }
+
+    public GitSyncViewFakeService fake() {
+        assert(service != null);
+        return (!) service;
     }
 
     // Async calls hand their results back through idle callbacks even when nothing really waits, so
@@ -413,6 +622,7 @@ public class GitSyncViewEnv : Object {
     public static string log_path = "";
     public static bool home_isolated = false;
     public static bool shims_available = false;
+    public static Gee.ArrayList<string> temp_dirs;
 
     private const string SHIM_SCRIPT = """#!/bin/sh
 name=$(basename "$0")
@@ -476,6 +686,7 @@ exit 0
         log_path = "";
         home_isolated = false;
         shims_available = false;
+        temp_dirs = new Gee.ArrayList<string>();
 
         try {
             home = DirUtils.make_tmp("holder-git-view-home-XXXXXX");
@@ -559,6 +770,21 @@ exit 0
             if (root.length > 0) {
                 remove_tree(root);
             }
+        }
+        foreach (var root in temp_dirs) {
+            remove_tree(root);
+        }
+    }
+
+    // A fresh, empty directory for a view to use as its home directory; removed by cleanup(). The
+    // fake service tests use it instead of redirecting HOME, so they run on every platform.
+    public static string make_home() {
+        try {
+            var dir = DirUtils.make_tmp("holder-git-view-fakehome-XXXXXX");
+            temp_dirs.add(dir);
+            return dir;
+        } catch (Error e) {
+            assert_not_reached();
         }
     }
 

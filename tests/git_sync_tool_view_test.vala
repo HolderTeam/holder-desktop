@@ -277,6 +277,9 @@ public static int main(string[] args) {
     register_git_sync_view_setup_tests();
     register_git_sync_view_guided_tests();
     register_git_sync_view_cli_tests();
+    register_git_sync_view_service_cli_tests();
+    register_git_sync_view_service_guided_tests();
+    register_git_sync_view_service_state_tests();
 
     var result = Test.run();
     GitSyncViewEnv.cleanup();

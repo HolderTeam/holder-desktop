@@ -171,8 +171,10 @@ private void gsc_test_automatic_setup_creates_the_repo_saves_the_remote_and_push
     h.api.release_stalled_push();
     assert(h.wait_for_toast("GitHub CLI sync setup completed."));
     h.settle();
-    assert(h.cli_status().get_text() ==
-           "GitHub CLI: created repo `octocat/Runbook-Project`. Remote test: reachable. Push: pushed.");
+    // The setup page is hidden now but returns after a disconnect, so it is back to its normal state
+    // rather than showing the in-flight status with the buttons still disabled.
+    assert(h.cli_status().get_text() == GSC_AUTHENTICATED);
+    assert(automatic.get_sensitive() && shortcut.get_sensitive());
     assert(h.histories.size == 1 && h.histories[0] == "p1");
     assert(h.errors.size == 0);
     assert(h.api.last_git_remote_url == "git@github.com:octocat/Runbook-Project.git");
@@ -192,8 +194,8 @@ private void gsc_test_automatic_setup_reuses_a_repo_that_already_exists() {
     h.setup_button("Use GitHub CLI (Automatic)").clicked();
 
     assert(wait_for_condition(() => h.toasts.contains("GitHub CLI sync setup completed."), 8000));
-    assert(h.cli_status().get_text() ==
-           "GitHub CLI: using existing repo `octocat/Runbook-Project`. Remote test: reachable. Push: pushed.");
+    h.settle();
+    assert(h.cli_status().get_text() == GSC_AUTHENTICATED);
     assert(h.api.set_project_git_remote_calls == 1);
 }
 
@@ -533,9 +535,13 @@ private void gsc_test_an_unreadable_public_key_is_treated_as_empty() {
     DirUtils.create_with_parents(Path.build_filename(GitSyncViewEnv.ssh_dir(), "id_ed25519.pub"), 0700);
     h.click("guided-part2", "Re-check");
 
-    var done = "SSH key found and authenticated with GitHub. You're all set.";
+    // An unreadable key file is no key: the generate controls stay available and nothing is probed
+    // (it used to claim GitHub had authenticated an empty key).
+    var done = "No SSH key found. Enter your email address and generate one.";
     assert(wait_for_condition(() => h.ssh_status().get_text() == done, 8000));
-    assert(gsc_pubkey_text(h) == "");
+    assert(h.missing_key_box().get_visible());
+    assert(!h.key_ready_box().get_visible());
+    assert(!GitSyncViewEnv.ran("ssh -o"));
 }
 
 public void register_git_sync_view_cli_tests() {

@@ -988,7 +988,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return new Gee.ArrayList<HolderLinux.GitProviderCatalogEntry>();
     }
 
-    public async void set_project_git_remote(string project_id,
+    public virtual async void set_project_git_remote(string project_id,
                                              string? git_remote_url,
                                              int64 updated_at) throws Error {
         if (fail_set_project_git_remote) {

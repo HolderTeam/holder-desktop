@@ -61,6 +61,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     private Gtk.Button git_guided_push_btn;
     private string git_guided_part4_username = "";
     private string git_guided_part4_repo_name = "";
+    private string git_guided_part4_project_id = "";
     private Gtk.Box git_guided_missing_key_box;
     private Gtk.Box git_guided_key_ready_box;
     private Gtk.Button git_guided_open_keys_btn;
@@ -72,6 +73,11 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     private bool git_gh_authenticated = false;
     private string git_gh_login = "";
     private bool auto_check_github_cli;
+    private IUriLauncher uri_launcher;
+    private ITextClipboard clipboard;
+    private string? home_directory_override;
+    private uint cli_check_serial = 0;
+    private ulong project_selection_handler_id = 0;
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id {
@@ -90,9 +96,19 @@ public class GitSyncToolView : Object, IToolShellAdapter {
                                           string? card_id,
                                           ActivityDetails? details);
 
-    public GitSyncToolView(bool auto_check_github_cli = true) {
+    // The service, launcher, clipboard and home directory default to the real implementations, so
+    // callers are unchanged; tests pass fakes so they need no gh/git/ssh, browser, display clipboard
+    // or real ~/.ssh. An empty home_directory means "no home directory available".
+    public GitSyncToolView(bool auto_check_github_cli = true,
+                           GitSyncService? service = null,
+                           IUriLauncher? uri_launcher = null,
+                           ITextClipboard? clipboard = null,
+                           string? home_directory = null) {
         this.auto_check_github_cli = auto_check_github_cli;
-        controller = new GitSyncController();
+        this.uri_launcher = uri_launcher ?? new AppInfoUriLauncher();
+        this.clipboard = clipboard ?? new GtkTextClipboard();
+        this.home_directory_override = home_directory;
+        controller = new GitSyncController(service);
         controller.activity_requested.connect((kind, message, project_id, card_id, details) => {
             activity_requested(kind, message, project_id, card_id, details);
         });
@@ -150,9 +166,13 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     }
 
     public void set_project_selection(Gtk.SingleSelection? project_selection) {
+        if (this.project_selection != null && project_selection_handler_id != 0) {
+            this.project_selection.disconnect(project_selection_handler_id);
+        }
+        project_selection_handler_id = 0;
         this.project_selection = project_selection;
         if (this.project_selection != null) {
-            this.project_selection.notify["selected"].connect(() => {
+            project_selection_handler_id = this.project_selection.notify["selected"].connect(() => {
                 project_state.editing_remote = false;
                 refresh_guided_repo_name_default();
                 refresh_provider_setup_defaults();
@@ -442,7 +462,12 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         // Render the selection immediately, then replace it with the backend's current
         // immutable Project snapshot. This is especially important just after configuring
         // a remote, because the selection still contains the old git_remote_url.
-        render_git_project_state(optimistic_project ?? selected);
+        // A slow flow can finish after the selection moved to another project; its snapshot must not
+        // be shown for the project that is selected now.
+        var shown = optimistic_project != null && optimistic_project.project_id == selected.project_id
+            ? optimistic_project
+            : selected;
+        render_git_project_state(shown);
         if (api == null) {
             return;
         }
@@ -468,7 +493,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
 
     private void render_git_project_state(Project? project) {
         if (git_start_state_stack == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: guard for a call before the start page is built; nothing does that
         }
         var page = project_state.select_page(project);
         if (page.show_setup) {
@@ -530,7 +555,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             return;
         }
         try {
-            AppInfo.launch_default_for_uri(git_configured_web_url, null);
+            uri_launcher.launch(git_configured_web_url);
         } catch (Error e) {
             error_reported("Could not open repository", e.message);
         }
@@ -541,11 +566,10 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         if (project == null || project.git_remote_url == null) {
             return;
         }
-        var display = widget.get_display();
-        if (display == null) {
+        if (!clipboard.set_text(project.git_remote_url)) {
+            error_reported("Clipboard unavailable", "No display available.");
             return;
         }
-        display.get_clipboard().set_text(project.git_remote_url);
         toast_requested("Repository URL copied.");
     }
 
@@ -601,11 +625,18 @@ public class GitSyncToolView : Object, IToolShellAdapter {
                 new DateTime.now_utc().to_unix()
             );
             project_state.mark_disconnected(project.project_id);
-            git_configured_web_url = "";
-            git_remote_entry.set_text("");
-            git_branch_entry.set_text("");
-            git_manual_status_label.set_text("Git sync disconnected. The remote repository was not deleted.");
-            git_start_state_stack.set_visible_child_name("setup");
+            var selected = current_project();
+            if (selected != null && selected.project_id == project.project_id) {
+                git_configured_web_url = "";
+                git_remote_entry.set_text("");
+                git_branch_entry.set_text("");
+                git_manual_status_label.set_text("Git sync disconnected. The remote repository was not deleted.");
+                git_provider_status_label.set_text("");
+                git_start_state_stack.set_visible_child_name("setup");
+            } else {
+                // Another project is selected now, so the page belongs to it: show its own state.
+                refresh_git_configured_state.begin();
+            }
             toast_requested("Git sync disconnected.");
         } catch (Error e) {
             error_reported("Could not disconnect Git sync", e.message);
@@ -640,10 +671,6 @@ public class GitSyncToolView : Object, IToolShellAdapter {
                                                          string branch,
                                                          Gtk.Label? status_label,
                                                          Gtk.Button? action_button) {
-        if (api == null) {
-            error_reported("Git sync failed", "Backend API client is not ready.");
-            return;
-        }
         if (action_button != null) {
             action_button.set_sensitive(false);
         }
@@ -744,7 +771,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
 
     private void refresh_guided_github_username() {
         if (git_guided_username_entry == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: guard for a call before the guided page is built; nothing does that
         }
         git_guided_username_entry.set_text(
             GitSyncGuided.prefill_username(git_gh_login, controller.get_saved_github_username())
@@ -788,7 +815,12 @@ public class GitSyncToolView : Object, IToolShellAdapter {
     }
 
     private async void check_github_cli_state() {
+        var serial = ++cli_check_serial;
         var state = yield controller.detect_github_cli_state();
+        if (serial != cli_check_serial) {
+            // A newer check was started while this one ran; its result is the current one.
+            return;
+        }
         git_gh_available = state.available;
         git_gh_authenticated = state.authenticated;
         git_gh_login = state.login;
@@ -833,15 +865,14 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             git_guided_repo_status_label.set_text(create_result.status_text);
         }
         if (create_result.exists) {
-            git_guided_part4_username = username;
-            git_guided_part4_repo_name = repo_name;
+            remember_guided_part4_target(username, repo_name);
             if (git_guided_push_intro_label != null) {
                 git_guided_push_intro_label.set_text(create_result.push_intro_text);
             }
             if (git_guided_push_status_label != null) {
                 git_guided_push_status_label.set_text("");
             }
-            git_sync_stack.set_visible_child_name("guided-part4");
+            advance_guided_repository_page();
             return;
         }
 
@@ -897,6 +928,9 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             if (flow_result.error_title.strip().length == 0) {
                 repository_history_changed(selected_project.project_id);
                 project_state.mark_connected();
+                // The setup page is hidden now but comes back after a disconnect: give its buttons
+                // and status line their normal state instead of the in-flight one.
+                refresh_git_cli_controls();
                 git_sync_stack.set_visible_child_name("start");
                 var remote_url = GitSyncGuided.github_ssh_remote(username, repo_name);
                 yield refresh_git_configured_state(
@@ -1253,7 +1287,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
 
     private void refresh_guided_ssh_email_default() {
         if (git_guided_email_entry == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: guard for a call before the SSH page is built; nothing does that
         }
         if (git_guided_email_entry.get_text().strip().length > 0) {
             return;
@@ -1315,14 +1349,14 @@ public class GitSyncToolView : Object, IToolShellAdapter {
 
     private GitProviderCatalogEntry? selected_git_provider_entry() {
         if (git_provider_dropdown == null) {
-            return null;
+            return null; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: guard for a call before the provider page is built; nothing does that
         }
         return GitProviderOptions.entry_at(git_provider_entries, git_provider_dropdown.get_selected());
     }
 
     private void refresh_provider_transport_options() {
         if (git_provider_transport_dropdown == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: guard for a call before the transport row is built; nothing does that
         }
         var choices = GitProviderOptions.transport_options(selected_git_provider_entry());
         git_provider_transport_choices = choices.options;
@@ -1337,7 +1371,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
 
     private string selected_provider_transport() {
         if (git_provider_transport_dropdown == null) {
-            return "ssh";
+            return "ssh"; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: guard for a call before the transport row is built; nothing does that
         }
         return GitProviderOptions.resolve_transport(
             git_provider_transport_choices,
@@ -1347,7 +1381,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
 
     private void update_provider_remote_preview() {
         if (git_provider_remote_entry == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: guard for a call before the provider page is built; nothing does that
         }
         var provider = selected_git_provider_entry();
         if (provider == null) {
@@ -1358,15 +1392,10 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             return;
         }
 
-        var namespace_value = git_provider_namespace_entry != null
-            ? git_provider_namespace_entry.get_text().strip()
-            : "";
-        var repo_value = git_provider_repo_entry != null
-            ? git_provider_repo_entry.get_text().strip()
-            : "";
-        var host_value = git_provider_host_entry != null
-            ? git_provider_host_entry.get_text().strip()
-            : "";
+        // The remote entry checked above is built after these entries, so they all exist.
+        var namespace_value = git_provider_namespace_entry.get_text().strip();
+        var repo_value = git_provider_repo_entry.get_text().strip();
+        var host_value = git_provider_host_entry.get_text().strip();
         var preview = GitSyncPresenter.provider_remote_preview(
             provider,
             selected_provider_transport(),
@@ -1410,7 +1439,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
 
     private void refresh_guided_repo_name_default() {
         if (git_guided_repo_name_entry == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: guard for a call before the repository page is built; nothing does that
         }
         git_guided_repo_name_entry.set_text(GitSyncGuided.default_repo_name(current_project()));
     }
@@ -1447,20 +1476,36 @@ public class GitSyncToolView : Object, IToolShellAdapter {
 
         if (verify_result.exists) {
             git_guided_repo_status_label.set_text(verify_result.status_text);
-            git_guided_part4_username = username;
-            git_guided_part4_repo_name = repo_name;
+            remember_guided_part4_target(username, repo_name);
             if (git_guided_push_intro_label != null) {
                 git_guided_push_intro_label.set_text(verify_result.push_intro_text);
             }
             if (git_guided_push_status_label != null) {
                 git_guided_push_status_label.set_text("");
             }
-            git_sync_stack.set_visible_child_name("guided-part4");
+            advance_guided_repository_page();
             return;
         }
 
         git_guided_repo_status_label.set_text(verify_result.status_text);
         error_reported(verify_result.error_title, verify_result.error_details);
+    }
+
+    // The repository that part 4 pushes to, and the project it was set up for (empty when none was
+    // selected yet, in which case any project may be pushed).
+    private void remember_guided_part4_target(string username, string repo_name) {
+        git_guided_part4_username = username;
+        git_guided_part4_repo_name = repo_name;
+        var project = current_project();
+        git_guided_part4_project_id = project != null ? project.project_id : "";
+    }
+
+    // A slow check can finish after the user went back or left the guided flow; only move on if they
+    // are still waiting on the repository page.
+    private void advance_guided_repository_page() {
+        if (git_sync_stack.get_visible_child_name() == "guided-part3") {
+            git_sync_stack.set_visible_child_name("guided-part4");
+        }
     }
 
     private async void run_guided_part4_setup(string username, string repo_name) {
@@ -1472,6 +1517,14 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             } else {
                 error_reported(validation.error_title, validation.error_details);
             }
+            return;
+        }
+        if (git_guided_part4_project_id.length > 0 &&
+            selected_project.project_id != git_guided_part4_project_id) {
+            // The selection moved to another project since this repository was set up; pushing it
+            // there would put the wrong project's cards into the repository.
+            toast_requested("The selected project changed. Set up the repository again for this project.");
+            git_sync_stack.set_visible_child_name("guided-part3");
             return;
         }
 
@@ -1545,9 +1598,17 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         }
     }
 
-    private string? guided_public_key_path_or_null() {
-        var home = Environment.get_home_dir();
+    private string? home_directory() {
+        var home = home_directory_override ?? Environment.get_home_dir();
         if (home == null || home.strip().length == 0) {
+            return null;
+        }
+        return home;
+    }
+
+    private string? guided_public_key_path_or_null() {
+        var home = home_directory();
+        if (home == null) {
             return null;
         }
         var ed = Path.build_filename(home, ".ssh", "id_ed25519.pub");
@@ -1581,7 +1642,16 @@ public class GitSyncToolView : Object, IToolShellAdapter {
 
         git_guided_public_key = read_text_file_or_empty(pub_path).strip();
         git_guided_pubkey_view.buffer.set_text(git_guided_public_key, -1);
-        set_guided_key_ui_visibility(git_guided_public_key.length > 0);
+        if (git_guided_public_key.length == 0) {
+            // An empty or unreadable key file is no key: show the generate controls instead of an
+            // empty "key ready" box that hides them.
+            git_guided_github_authenticated = false;
+            set_guided_key_ui_visibility(false);
+            git_guided_ssh_status_label.set_text("No SSH key found. Enter your email address and generate one.");
+            git_guided_check_running = false;
+            return;
+        }
+        set_guided_key_ui_visibility(true);
 
         var probe_result = GitSyncPresenter.guided_ssh_probe_status(
             yield controller.probe_github_ssh()
@@ -1599,8 +1669,8 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             return;
         }
 
-        var home = Environment.get_home_dir();
-        if (home == null || home.strip().length == 0) {
+        var home = home_directory();
+        if (home == null) {
             error_reported("SSH key generation failed", "Home directory not available.");
             return;
         }
@@ -1640,18 +1710,16 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             toast_requested("No public key to copy.");
             return;
         }
-        var display = Gdk.Display.get_default();
-        if (display == null) {
+        if (!clipboard.set_text(git_guided_public_key)) {
             error_reported("Clipboard unavailable", "No display available.");
             return;
         }
-        display.get_clipboard().set_text(git_guided_public_key);
         toast_requested("Public key copied.");
     }
 
     private void open_guided_github_ssh_keys_page() {
         try {
-            AppInfo.launch_default_for_uri("https://github.com/settings/ssh/new", null);
+            uri_launcher.launch("https://github.com/settings/ssh/new");
         } catch (Error e) {
             error_reported("Failed to open browser", e.message);
         }
@@ -1659,7 +1727,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
 
     private void persist_guided_github_username() {
         if (git_guided_username_entry == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: guard for a call before the guided page is built; nothing does that
         }
         var username = git_guided_username_entry.get_text().strip();
         controller.set_saved_github_username(username);
@@ -1667,7 +1735,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
 
     private void refresh_guided_next_button_state() {
         if (git_guided_next_btn == null || git_guided_username_entry == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: guard for a call before the guided page is built; nothing does that
         }
         git_guided_next_btn.set_sensitive(git_guided_username_entry.get_text().strip().length > 0);
     }
