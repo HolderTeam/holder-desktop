@@ -468,6 +468,15 @@ exit 0
 """;
 
     public static void install() {
+        // The field initialisers above only run when the class type is initialised, which never
+        // happens for this static-only helper, so the strings start out NULL. Windows returns early
+        // below without creating shims, and reset() and cleanup() read every one of them.
+        home = "";
+        shim_dir = "";
+        log_path = "";
+        home_isolated = false;
+        shims_available = false;
+
         try {
             home = DirUtils.make_tmp("holder-git-view-home-XXXXXX");
         } catch (Error e) {
