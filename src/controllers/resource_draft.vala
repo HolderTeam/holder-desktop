@@ -60,12 +60,25 @@ public class ResourceDraft { // LCOV_EXCL_LINE: declaration-only coverage artifa
         if (existing == null) {
             return new ResourceKindSelection(0, "");
         }
-        for (int i = 0; i < options.length; i++) {
+        // The last option is the "enter your own" slot, not a kind: a Resource whose kind is
+        // literally "custom" must land in that slot with "custom" prefilled, otherwise saving it
+        // would resolve an empty custom entry to the default kind and silently rewrite it.
+        int custom_slot = options.length - 1;
+        for (int i = 0; i < custom_slot; i++) {
             if (options[i] == existing.kind) {
                 return new ResourceKindSelection((uint) i, "");
             }
         }
-        return new ResourceKindSelection(options.length - 1, existing.kind);
+        if (existing.kind.strip().length == 0) {
+            // No kind at all: show (and save) the default kind rather than an empty custom entry.
+            for (int i = 0; i < custom_slot; i++) {
+                if (options[i] == DEFAULT_KIND) {
+                    return new ResourceKindSelection((uint) i, "");
+                }
+            }
+            return new ResourceKindSelection(0, "");
+        }
+        return new ResourceKindSelection(custom_slot, existing.kind);
     }
 
     public static string resolve_kind(string[] options, uint selected_index, string custom_text) {

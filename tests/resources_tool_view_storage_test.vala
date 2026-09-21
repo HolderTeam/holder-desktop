@@ -482,12 +482,255 @@ private void test_location_actions_are_ignored_once_the_api_has_no_storage_suppo
     assert(h.errors.size == 0);
 }
 
+// ---- Google Drive outcomes (fake browser launcher and scheduler) -------------------------------
+
+private Gtk.Spinner? rvs_find_spinner(Gtk.Widget root) {
+    foreach (var widget in rv_descendants(root)) {
+        if (widget is Gtk.Spinner) {
+            return (Gtk.Spinner) widget;
+        }
+    }
+    return null;
+}
+
+// Queues what the Drive flow will see: first a list with nothing to reuse (so it creates a
+// Location), then, for every poll after that, `polled`.
+private void rvs_script_drive_lists(ResourcesViewHarness h, HolderLinux.StorageLocationList first,
+                                    HolderLinux.StorageLocationList polled) {
+    h.api.storage.list_calls = 0;
+    h.api.storage.list_responses.clear();
+    h.api.storage.list_responses.add(first);
+    h.api.storage.list_responses.add(polled);
+    rvs_clear_calls(h);
+}
+
+private bool rvs_wait_for_drive_poll(ResourcesViewHarness h) {
+    return wait_for_condition(
+        () => h.scheduler.pending_with_delay(HolderLinux.GoogleDriveConnectFlow.POLL_INTERVAL_MS) == 1
+    );
+}
+
+private void test_drive_connect_opens_the_browser_then_reports_success_once_bound() {
+    var h = new ResourcesViewHarness();
+    assert(h.wait_for_locations_refresh());
+    rvs_script_drive_lists(h, make_location_list({}), make_location_list({
+        make_location("new-location", "google-drive", true, null, "Drive")
+    }));
+
+    rv_button(h.view.widget, "Add Google Drive").clicked();
+    assert(h.wait_for_dialog());
+    var dialog = (!) h.dialog();
+    assert(rvs_wait_for_drive_poll(h));
+
+    // The flow got as far as the first poll: the browser was opened at the consent URL and the
+    // dialog says it is waiting, with its spinner running.
+    assert(h.launcher.launched.size == 1);
+    assert(h.launcher.launched[0] == h.api.storage.oauth_url);
+    assert(rvs_find_label(rvs_content(dialog), "Waiting for you to finish in your browser…") != null);
+    var spinner = rvs_find_spinner(rvs_content(dialog));
+    assert(spinner != null && ((!) spinner).spinning);
+    assert(rvs_mutating_calls(h) == "create,oauth");
+    assert(h.toasts.size == 0 && h.errors.size == 0);
+
+    h.scheduler.run_due(HolderLinux.GoogleDriveConnectFlow.POLL_INTERVAL_MS);
+
+    assert(h.wait_for_toast("Google Drive connected."));
+    // Nothing was preferred yet, so the new Location becomes the project's default.
+    assert(rvs_mutating_calls(h) == "create,oauth,prefer:new-location");
+    assert(h.errors.size == 0);
+    // The Locations list is reloaded so the new row shows up.
+    assert(wait_for_condition(() => h.api.storage.list_calls >= 3));
+}
+
+private void test_drive_connect_keeps_an_existing_preferred_location() {
+    var local = make_location("l1", "local_directory", true, "/data", "Local");
+    var h = rvs_harness_with_locations(make_location_list({ local }, "l1"));
+    rvs_script_drive_lists(h, make_location_list({ local }, "l1"), make_location_list({
+        local, make_location("new-location", "google-drive", true, null, "Drive")
+    }, "l1"));
+
+    rv_button(h.view.widget, "Add Google Drive").clicked();
+    assert(rvs_wait_for_drive_poll(h));
+    h.scheduler.run_due(HolderLinux.GoogleDriveConnectFlow.POLL_INTERVAL_MS);
+
+    assert(h.wait_for_toast("Google Drive connected."));
+    assert(rvs_mutating_calls(h) == "create,oauth");
+}
+
+private void test_drive_connect_gives_up_after_the_polling_limit() {
+    var h = new ResourcesViewHarness();
+    assert(h.wait_for_locations_refresh());
+    rvs_script_drive_lists(h, make_location_list({}), make_location_list({
+        make_location("new-location", "google-drive", false, null, "Drive")
+    }));
+
+    rv_button(h.view.widget, "Add Google Drive").clicked();
+    assert(rvs_wait_for_drive_poll(h));
+    assert(h.launcher.launched.size == 1);
+
+    // One poll per interval; the flow stops exactly at the limit, no fake sleeping involved. A
+    // coroutine resumed from a timer completes its caller from an idle callback, so let the main
+    // loop run between ticks before the next poll is scheduled.
+    for (int poll = 0; poll < HolderLinux.GoogleDriveConnectFlow.MAX_POLL_ATTEMPTS; poll++) {
+        assert(h.errors.size == 0);
+        assert(h.scheduler.run_due(HolderLinux.GoogleDriveConnectFlow.POLL_INTERVAL_MS) == 1);
+        h.settle();
+    }
+
+    assert(wait_for_condition(() => h.errors.size == 1));
+    assert(h.errors[0] == "Google Drive connection timed out|Try connecting again from the Resources tool.");
+    assert(h.toasts.size == 0);
+    assert(h.scheduler.pending_one_shots() == 0);
+    // The initial list plus one per poll, and never a "prefer": the Location never became bound.
+    assert(h.api.storage.list_calls == 1 + HolderLinux.GoogleDriveConnectFlow.MAX_POLL_ATTEMPTS);
+    assert(rvs_mutating_calls(h) == "create,oauth");
+}
+
+private void test_cancelling_the_drive_dialog_while_waiting_for_the_browser_stops_polling() {
+    var h = new ResourcesViewHarness();
+    assert(h.wait_for_locations_refresh());
+    rvs_script_drive_lists(h, make_location_list({}), make_location_list({
+        make_location("new-location", "google-drive", true, null, "Drive")
+    }));
+
+    rv_button(h.view.widget, "Add Google Drive").clicked();
+    assert(h.wait_for_dialog());
+    var dialog = (!) h.dialog();
+    assert(rvs_wait_for_drive_poll(h));
+    assert(h.launcher.launched.size == 1);
+    var lists_before = h.api.storage.list_calls;
+
+    rvs_press(dialog, "Cancel");
+    h.scheduler.run_due(HolderLinux.GoogleDriveConnectFlow.POLL_INTERVAL_MS);
+    h.settle();
+
+    // The flow woke up, saw the cancel and stopped: no further list, nothing bound or reported.
+    assert(h.scheduler.pending_one_shots() == 0);
+    assert(h.api.storage.list_calls == lists_before);
+    assert(rvs_mutating_calls(h) == "create,oauth");
+    assert(h.errors.size == 0);
+    assert(h.toasts.size == 0);
+}
+
+private void test_drive_connect_reports_a_browser_that_cannot_be_opened() {
+    var h = new ResourcesViewHarness();
+    assert(h.wait_for_locations_refresh());
+    h.launcher.error = "no default browser";
+    rvs_clear_calls(h);
+
+    rv_button(h.view.widget, "Add Google Drive").clicked();
+
+    assert(wait_for_condition(() => h.errors.size == 1));
+    assert(h.errors[0] == "Failed to connect Google Drive|no default browser");
+    assert(rvs_mutating_calls(h) == "create,oauth");
+    assert(h.launcher.launched.size == 0);
+    assert(h.scheduler.pending_one_shots() == 0);
+    assert(h.toasts.size == 0);
+}
+
+// ---- folder chooser (fake file picker) ---------------------------------------------------------
+
+private Gtk.Entry rvs_open_folder_dialog_path(ResourcesViewHarness h) {
+    var dialog = rvs_open_dialog(h, "Add Folder");
+    var path = rv_entry(rvs_content(dialog), "/path/to/assets");
+    assert(path.get_text() == "");
+    return path;
+}
+
+private void test_choosing_a_folder_fills_the_path_entry() {
+    var h = new ResourcesViewHarness();
+    assert(h.wait_for_locations_refresh());
+    var path = rvs_open_folder_dialog_path(h);
+    var folder = File.new_for_path(Path.build_filename(Environment.get_tmp_dir(), "holder-photos"));
+    h.picker.choice = folder;
+
+    rv_button(rvs_content((!) h.dialog()), "Choose…").clicked();
+
+    assert(wait_for_condition(() => path.get_text() != ""));
+    assert(path.get_text() == (!) folder.get_path());
+    assert(h.picker.requests.size == 1);
+    assert(h.picker.requests[0] == "folder|Choose Storage Folder");
+    assert(h.errors.size == 0);
+}
+
+private void test_dismissing_the_folder_chooser_changes_nothing_and_says_nothing() {
+    var h = new ResourcesViewHarness();
+    assert(h.wait_for_locations_refresh());
+    var path = rvs_open_folder_dialog_path(h);
+    path.set_text("/typed/by/hand");
+    h.picker.cancel = true;
+
+    rv_button(rvs_content((!) h.dialog()), "Choose…").clicked();
+    h.settle();
+
+    // The chooser was asked, and dismissing it (IOError.CANCELLED) is not an error.
+    assert(h.picker.requests.size == 1);
+    assert(path.get_text() == "/typed/by/hand");
+    assert(h.errors.size == 0);
+}
+
+private void test_a_failing_folder_chooser_is_reported() {
+    var h = new ResourcesViewHarness();
+    assert(h.wait_for_locations_refresh());
+    var path = rvs_open_folder_dialog_path(h);
+    h.picker.error = "portal unavailable";
+
+    rv_button(rvs_content((!) h.dialog()), "Choose…").clicked();
+
+    assert(wait_for_condition(() => h.errors.size == 1));
+    assert(h.errors[0] == "Failed to choose folder|portal unavailable");
+    assert(path.get_text() == "");
+}
+
+private void test_a_folder_without_a_local_path_leaves_the_entry_alone() {
+    var h = new ResourcesViewHarness();
+    assert(h.wait_for_locations_refresh());
+    var path = rvs_open_folder_dialog_path(h);
+
+    // Nothing chosen at all, then a location that has no local path (e.g. a remote share).
+    rv_button(rvs_content((!) h.dialog()), "Choose…").clicked();
+    h.settle();
+    h.picker.choice = File.new_for_uri("https://files.example.test/folder");
+    rv_button(rvs_content((!) h.dialog()), "Choose…").clicked();
+    h.settle();
+
+    assert(h.picker.requests.size == 2);
+    assert(path.get_text() == "");
+    assert(h.errors.size == 0);
+}
+
+// ---- stale storage location refreshes -----------------------------------------------------------
+
+private void test_a_stale_locations_failure_does_not_clobber_the_newer_list() {
+    var h = rvs_harness_with_locations(rvs_three_locations());
+    // A slow refresh starts and stalls in the API, then a newer refresh completes first.
+    h.api.stall_next_list = true;
+    h.view.request_refresh();
+    assert(h.api.has_stalled_list());
+    h.view.request_refresh();
+    assert(wait_for_condition(() => rvs_find_label(h.view.widget, "Local") != null));
+    assert(rvs_find_label(h.view.widget, "Failed to load storage locations.") == null);
+    var calls = h.api.storage.list_calls;
+    var errors_before = h.errors.size;
+
+    // The old request now fails. Nobody is waiting for it any more.
+    h.api.storage.list_error = "old request failed";
+    h.api.release_stalled_list();
+    assert(wait_for_condition(() => h.api.storage.list_calls == calls + 1));
+    wait_for_condition(() => false, 100);
+
+    assert(h.errors.size == errors_before);
+    assert(rvs_find_label(h.view.widget, "Failed to load storage locations.") == null);
+    assert(rvs_find_label(h.view.widget, "Local") != null);
+}
+
 public void register_resources_view_storage_tests() {
     var prefix = "/holder/resources-view/storage/";
     Test.add_func(prefix + "list/empty", test_locations_show_the_empty_state_when_none_are_configured);
     Test.add_func(prefix + "list/no-project", test_locations_without_a_project_skip_the_api);
     Test.add_func(prefix + "list/failure", test_locations_load_failure_shows_the_failed_text_and_reports_it);
     Test.add_func(prefix + "list/rows", test_location_rows_show_summaries_the_preferred_badge_and_actions);
+    Test.add_func(prefix + "list/stale-failure", test_a_stale_locations_failure_does_not_clobber_the_newer_list);
     Test.add_func(prefix + "actions/prefer", test_use_by_default_prefers_the_location_and_refreshes);
     Test.add_func(prefix + "actions/prefer-failure", test_use_by_default_failure_is_reported);
     Test.add_func(prefix + "actions/test", test_testing_a_location_reports_availability);
@@ -508,6 +751,15 @@ public void register_resources_view_storage_tests() {
     Test.add_func(prefix + "drive/failure", test_drive_connect_failure_closes_the_dialog_and_reports_it);
     Test.add_func(prefix + "drive/reuse", test_drive_connect_reuses_an_unbound_google_drive_location);
     Test.add_func(prefix + "drive/cancel", test_cancelling_the_drive_dialog_stops_the_flow_before_the_browser_opens);
+    Test.add_func(prefix + "drive/connected", test_drive_connect_opens_the_browser_then_reports_success_once_bound);
+    Test.add_func(prefix + "drive/keeps-preferred", test_drive_connect_keeps_an_existing_preferred_location);
+    Test.add_func(prefix + "drive/timed-out", test_drive_connect_gives_up_after_the_polling_limit);
+    Test.add_func(prefix + "drive/cancel-while-polling", test_cancelling_the_drive_dialog_while_waiting_for_the_browser_stops_polling);
+    Test.add_func(prefix + "drive/browser-failure", test_drive_connect_reports_a_browser_that_cannot_be_opened);
+    Test.add_func(prefix + "folder/choose", test_choosing_a_folder_fills_the_path_entry);
+    Test.add_func(prefix + "folder/choose-dismissed", test_dismissing_the_folder_chooser_changes_nothing_and_says_nothing);
+    Test.add_func(prefix + "folder/choose-failure", test_a_failing_folder_chooser_is_reported);
+    Test.add_func(prefix + "folder/choose-no-path", test_a_folder_without_a_local_path_leaves_the_entry_alone);
 }
 
 }

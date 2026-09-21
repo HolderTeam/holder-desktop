@@ -1,25 +1,29 @@
 namespace HolderLinux {
 
 public class ResourcesToolView : Object, IToolShellAdapter {
-    private ResourcesController controller;
+    private ResourcesController controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private StorageLocationsController locations_controller = new StorageLocationsController();
-    private IHolderApi? api;
-    private Gtk.SingleSelection? project_selection;
-    private Gtk.Box resources_actions_bar;
-    private GLib.ListStore resources_store;
-    private Gtk.SingleSelection resources_selection;
-    private Gtk.SearchEntry resources_search_entry;
-    private Gtk.Label resources_empty_label;
-    private Gtk.Button resources_open_btn;
-    private Gtk.Button resources_edit_btn;
-    private Gtk.Button resources_delete_btn;
-    private Gtk.ListBox locations_list;
-    private Gtk.Label locations_empty_label;
-    private string? preferred_location_id;
+    private IHolderApi? api; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection? project_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Box resources_actions_bar; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private GLib.ListStore resources_store; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection resources_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SearchEntry resources_search_entry; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label resources_empty_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Button resources_open_btn; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Button resources_edit_btn; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Button resources_delete_btn; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.ListBox locations_list; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label locations_empty_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private string? preferred_location_id; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private Gee.ArrayList<ProjectResource> all_resources = new Gee.ArrayList<ProjectResource>();
-    private uint resources_refresh_serial = 0;
-    private bool has_committed_resources = false;
-    private string? pending_resource_selection_id;
+    private uint resources_refresh_serial = 0; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ulong project_selection_handler_id = 0; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private bool has_committed_resources = false; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private string? pending_resource_selection_id; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private IUriLauncher uri_launcher; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private IScheduler scheduler; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private IFilePicker file_picker; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id {
@@ -42,7 +46,14 @@ public class ResourcesToolView : Object, IToolShellAdapter {
                                           string? resource_id,
                                           ActivityDetails? details);
 
-    public ResourcesToolView() {
+    // The launcher, scheduler and file picker default to the real desktop implementations; tests pass
+    // fakes so they need no browser, timers or file chooser.
+    public ResourcesToolView(IUriLauncher? uri_launcher = null,
+                             IScheduler? scheduler = null,
+                             IFilePicker? file_picker = null) {
+        this.uri_launcher = uri_launcher ?? new AppInfoUriLauncher();
+        this.scheduler = scheduler ?? new MainLoopScheduler();
+        this.file_picker = file_picker ?? new GtkFilePicker();
         controller = new ResourcesController();
         controller.activity_requested.connect((kind, message, project_id, resource_id, details) => {
             activity_requested(kind, message, project_id, resource_id, details);
@@ -64,9 +75,13 @@ public class ResourcesToolView : Object, IToolShellAdapter {
     }
 
     public void set_project_selection(Gtk.SingleSelection? project_selection) {
+        if (this.project_selection != null && project_selection_handler_id != 0) {
+            this.project_selection.disconnect(project_selection_handler_id);
+        }
+        project_selection_handler_id = 0;
         this.project_selection = project_selection;
         if (this.project_selection != null) {
-            this.project_selection.notify["selected"].connect(() => {
+            project_selection_handler_id = this.project_selection.notify["selected"].connect(() => {
                 queue_resources_refresh();
             });
         }
@@ -209,7 +224,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         factory.setup.connect((item_obj) => {
             var item = item_obj as Gtk.ListItem;
             if (item == null) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: defensive; GTK hands these callbacks the ListItem, item and child set up here
             }
             var label = new Gtk.Label("") { xalign = 0.0f };
             label.set_wrap(false);
@@ -219,12 +234,12 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         factory.bind.connect((item_obj) => {
             var item = item_obj as Gtk.ListItem;
             if (item == null) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: defensive; GTK hands these callbacks the ListItem, item and child set up here
             }
             var resource = item.get_item() as ProjectResource;
             var label = item.get_child() as Gtk.Label;
             if (resource == null || label == null) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: defensive; GTK hands these callbacks the ListItem, item and child set up here
             }
             var cell = ResourcesPresenter.cell(controller, resource, field);
             label.set_text(cell.text);
@@ -241,7 +256,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         factory.setup.connect((item_obj) => {
             var item = item_obj as Gtk.ListItem;
             if (item == null) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: defensive; GTK hands these callbacks the ListItem, item and child set up here
             }
             var links = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 2);
             links.set_hexpand(true);
@@ -250,12 +265,12 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         factory.bind.connect((item_obj) => {
             var item = item_obj as Gtk.ListItem;
             if (item == null) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: defensive; GTK hands these callbacks the ListItem, item and child set up here
             }
             var resource = item.get_item() as ProjectResource;
             var links = item.get_child() as Gtk.Box;
             if (resource == null || links == null) {
-                return;
+                return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: defensive; GTK hands these callbacks the ListItem, item and child set up here
             }
             clear_box(links);
             populate_resource_usage(links, resource);
@@ -318,9 +333,9 @@ public class ResourcesToolView : Object, IToolShellAdapter {
     private static void clear_box(Gtk.Box box) {
         var child = box.get_first_child();
         while (child != null) {
-            var next = child.get_next_sibling();
-            box.remove(child);
-            child = next;
+            var next = child.get_next_sibling(); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: only runs when GTK recycles a bound row for another resource, which needs a scrolled, presented list
+            box.remove(child); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: see above
+            child = next; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: see above
         }
     }
 
@@ -331,15 +346,14 @@ public class ResourcesToolView : Object, IToolShellAdapter {
     }
 
     private async void refresh_locations(uint request_serial) {
-        if (locations_list == null) {
-            return;
-        }
         clear_locations();
         var project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
         var result = yield locations_controller.refresh_flow(api as IResourceStorageApi, project);
-        if (result.success && request_serial != resources_refresh_serial) {
+        if (request_serial != resources_refresh_serial) {
+            // A newer refresh owns the list now; a stale failure must not overwrite its empty text or
+            // report an error for a project that is no longer shown.
             return;
         }
         locations_empty_label.set_text(result.empty_text);
@@ -402,13 +416,6 @@ public class ResourcesToolView : Object, IToolShellAdapter {
     }
 
     private async void refresh_resources(uint request_serial) {
-        if (request_serial != resources_refresh_serial) {
-            return;
-        }
-        if (resources_store == null) {
-            return;
-        }
-
         var project = project_selection != null
             ? project_selection.get_selected_item() as Project
             : null;
@@ -443,15 +450,12 @@ public class ResourcesToolView : Object, IToolShellAdapter {
     }
 
     private void apply_resources_filter() {
-        if (resources_store == null) {
-            return;
-        }
         var previous = selected_resource();
         var previous_id = pending_resource_selection_id ??
             (previous != null ? previous.resource_id : null);
         clear_visible_resources();
 
-        var query = resources_search_entry != null ? resources_search_entry.get_text() : "";
+        var query = resources_search_entry.get_text();
         var result = controller.apply_resources_filter_flow(all_resources, query);
         uint index = 0;
         uint selected_index = Gtk.INVALID_LIST_POSITION;
@@ -481,9 +485,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
     }
 
     private ProjectResource? selected_resource() {
-        return resources_selection != null
-            ? resources_selection.get_selected_item() as ProjectResource
-            : null;
+        return resources_selection.get_selected_item() as ProjectResource;
     }
 
     private void refresh_resource_action_state() {
@@ -549,16 +551,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             path_row.append(path);
             var choose = new Gtk.Button.with_label("Choose…");
             choose.clicked.connect(() => {
-                var picker = new Gtk.FileDialog();
-                picker.set_title("Choose Storage Folder");
-                picker.select_folder.begin(root_window, null, (obj, result) => {
-                    try {
-                        var folder = picker.select_folder.end(result);
-                        if (folder != null && folder.get_path() != null) path.set_text((!) folder.get_path());
-                    } catch (Error e) {
-                        if (!(e is IOError.CANCELLED)) error_reported("Failed to choose folder", e.message);
-                    }
-                });
+                choose_storage_folder.begin(root_window, path);
             });
             path_row.append(choose);
             content.append(new Gtk.Label("Folder") { xalign = 0.0f });
@@ -694,7 +687,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         dialog.set_extra_child(status_row);
 
         var flow = new GoogleDriveConnectFlow(
-            storage_api, new AppInfoUriLauncher(), new MainLoopScheduler(), () => preferred_location_id
+            storage_api, uri_launcher, scheduler, () => preferred_location_id
         );
         flow.status_changed.connect((text) => { status_label.set_text(text); });
         dialog.response.connect(() => { flow.cancel(); });
@@ -795,12 +788,12 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         var local_picker_row = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
         var pick_file_btn = new Gtk.Button.with_label("Pick File...");
         pick_file_btn.clicked.connect(() => {
-            open_local_resource_picker(root_window, uri_entry, label_entry, false);
+            open_local_resource_picker.begin(root_window, uri_entry, label_entry, false);
         });
         local_picker_row.append(pick_file_btn);
         var pick_image_btn = new Gtk.Button.with_label("Pick Image...");
         pick_image_btn.clicked.connect(() => {
-            open_local_resource_picker(root_window, uri_entry, label_entry, true);
+            open_local_resource_picker.begin(root_window, uri_entry, label_entry, true);
         });
         local_picker_row.append(pick_image_btn);
         content.append(local_picker_row);
@@ -871,7 +864,8 @@ public class ResourcesToolView : Object, IToolShellAdapter {
             }
             if (existing != null) {
                 update_resource.begin(
-                    existing.resource_id, draft.kind, draft.uri, draft.label, draft.desc, draft.extra_metadata
+                    existing.resource_id, draft.kind, draft.uri, draft.label, draft.desc, draft.extra_metadata,
+                    own_project_id(existing)
                 );
             } else {
                 create_resource.begin(
@@ -923,16 +917,28 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         error_reported(result.error_title, result.error_details);
     }
 
+    // The Resource's own project, or null when it does not say (the caller then falls back to
+    // whatever project is selected).
+    private static string? own_project_id(ProjectResource resource) {
+        return resource.project_id.strip().length > 0 ? resource.project_id : null;
+    }
+
+    // resource_project_id is the project the Resource belongs to; it is what the activity log
+    // records, so a selection that moved while a dialog was open cannot file it elsewhere.
     internal async void update_resource(string resource_id,
                                         string kind,
                                         string uri,
                                         string label,
                                         string? desc,
-                                        Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null) {
-        var project = project_selection != null
-            ? project_selection.get_selected_item() as Project
-            : null;
-        var project_id = project != null ? project.project_id : null;
+                                        Gee.HashMap<string, Gee.ArrayList<string>>? extra_metadata = null,
+                                        string? resource_project_id = null) {
+        var project_id = resource_project_id;
+        if (project_id == null) {
+            var project = project_selection != null
+                ? project_selection.get_selected_item() as Project
+                : null;
+            project_id = project != null ? project.project_id : null;
+        }
         var result = yield controller.update_resource_flow_scoped(
             api, resource_id, project_id, kind, uri, label, desc, extra_metadata
         );
@@ -966,7 +972,7 @@ public class ResourcesToolView : Object, IToolShellAdapter {
                 break;
         }
         try {
-            AppInfo.launch_default_for_uri(action.text, null);
+            uri_launcher.launch(action.text);
         } catch (Error e) {
             error_reported("Failed to open resource", e.message);
         }
@@ -998,20 +1004,30 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         dialog.set_response_appearance("delete", Adw.ResponseAppearance.DESTRUCTIVE);
         dialog.response.connect((response) => {
             if (response == "delete") {
-                delete_resource.begin(selected.resource_id);
+                delete_resource.begin(selected.resource_id, own_project_id(selected), selected.label);
             }
         });
         dialog.present(root_window);
     }
 
-    internal async void delete_resource(string resource_id) {
-        var project = project_selection != null
-            ? project_selection.get_selected_item() as Project
-            : null;
-        var project_id = project != null ? project.project_id : "";
-        var selected = selected_resource();
-        var resource_label = selected != null ? selected.label : "resource";
-        var result = yield controller.delete_resource_flow_scoped(api, resource_id, project_id, resource_label);
+    // resource_project_id and resource_label describe the Resource being deleted; without them the
+    // selected project and Resource are used.
+    internal async void delete_resource(string resource_id,
+                                        string? resource_project_id = null,
+                                        string? resource_label = null) {
+        var project_id = resource_project_id;
+        if (project_id == null) {
+            var project = project_selection != null
+                ? project_selection.get_selected_item() as Project
+                : null;
+            project_id = project != null ? project.project_id : "";
+        }
+        var label = resource_label;
+        if (label == null) {
+            var selected = selected_resource();
+            label = selected != null ? selected.label : "resource";
+        }
+        var result = yield controller.delete_resource_flow_scoped(api, resource_id, project_id, label);
         if (result.ignored) {
             return;
         }
@@ -1025,46 +1041,47 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         error_reported(result.error_title, result.error_details);
     }
 
-    private void open_local_resource_picker(Gtk.Window root_window,
-                                            Gtk.Entry uri_entry,
-                                            Gtk.Entry? label_entry,
-                                            bool images_only) {
-        var dialog = new Gtk.FileDialog();
-        dialog.set_title(images_only ? "Choose Image" : "Choose File");
-
-        if (images_only) {
-            var image_filter = new Gtk.FileFilter();
-            image_filter.add_mime_type("image/*");
-            var filters = new GLib.ListStore(typeof(Gtk.FileFilter));
-            filters.append(image_filter);
-            dialog.set_filters(filters);
-            dialog.set_default_filter(image_filter);
+    private async void choose_storage_folder(Gtk.Window root_window, Gtk.Entry path_entry) {
+        try {
+            var folder = yield file_picker.pick_folder(root_window, "Choose Storage Folder");
+            if (folder != null && ((!) folder).get_path() != null) {
+                path_entry.set_text((!) ((!) folder).get_path());
+            }
+        } catch (Error e) {
+            if (!(e is IOError.CANCELLED)) {
+                error_reported("Failed to choose folder", e.message);
+            }
         }
+    }
 
-        dialog.open.begin(root_window, null, (obj, res) => {
-            try {
-                var file = dialog.open.end(res);
-                if (file == null) {
-                    return;
-                }
-                var uri = file.get_uri();
-                if (uri != null && uri.length > 0) {
-                    uri_entry.set_text(uri);
-                }
-                if (label_entry != null) {
-                    var picked_label = ResourcesPresenter.picked_file_label(
-                        label_entry.get_text(), file.get_basename()
-                    );
-                    if (picked_label != null) {
-                        label_entry.set_text((!) picked_label);
-                    }
-                }
-            } catch (Error e) {
-                if (!(e is IOError.CANCELLED)) {
-                    error_reported("Failed to choose file", e.message);
+    private async void open_local_resource_picker(Gtk.Window root_window,
+                                                  Gtk.Entry uri_entry,
+                                                  Gtk.Entry? label_entry,
+                                                  bool images_only) {
+        try {
+            var file = yield file_picker.pick_file(
+                root_window, images_only ? "Choose Image" : "Choose File", images_only
+            );
+            if (file == null) {
+                return;
+            }
+            var uri = ((!) file).get_uri();
+            if (uri != null && uri.length > 0) {
+                uri_entry.set_text(uri);
+            }
+            if (label_entry != null) {
+                var picked_label = ResourcesPresenter.picked_file_label(
+                    label_entry.get_text(), ((!) file).get_basename()
+                );
+                if (picked_label != null) {
+                    label_entry.set_text((!) picked_label);
                 }
             }
-        });
+        } catch (Error e) {
+            if (!(e is IOError.CANCELLED)) {
+                error_reported("Failed to choose file", e.message);
+            }
+        }
     }
 }
 

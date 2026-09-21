@@ -42,9 +42,38 @@ private void test_select_kind_defaults_matches_and_falls_back_to_custom_slot() {
     assert(unknown.index == options.length - 1);
     assert(unknown.custom_text == "recipe");
 
+    // "custom" is the name of the enter-your-own slot, but it is also a perfectly good kind: it goes
+    // to that slot with the text prefilled, so saving it again keeps it.
     var literal_custom = HolderLinux.ResourceDraft.select_kind(options, existing_resource("custom"));
     assert(literal_custom.index == options.length - 1);
-    assert(literal_custom.custom_text == "");
+    assert(literal_custom.custom_text == "custom");
+}
+
+private void test_a_resource_of_kind_custom_keeps_its_kind_when_saved_again() {
+    var controller = new HolderLinux.ResourcesController();
+    var options = HolderLinux.ResourceDraft.kind_options(controller);
+    var selection = HolderLinux.ResourceDraft.select_kind(options, existing_resource("custom"));
+    assert(selection.custom_text == "custom");
+    assert(HolderLinux.ResourceDraft.resolve_kind(options, selection.index, selection.custom_text) == "custom");
+}
+
+private void test_select_kind_treats_a_missing_kind_as_the_default_kind() {
+    var controller = new HolderLinux.ResourcesController();
+    var options = HolderLinux.ResourceDraft.kind_options(controller);
+
+    foreach (var blank in new string[] { "", "   " }) {
+        var selection = HolderLinux.ResourceDraft.select_kind(options, existing_resource(blank));
+        assert(options[selection.index] == HolderLinux.ResourceDraft.DEFAULT_KIND);
+        assert(selection.custom_text == "");
+        assert(HolderLinux.ResourceDraft.resolve_kind(options, selection.index, selection.custom_text)
+               == HolderLinux.ResourceDraft.DEFAULT_KIND);
+    }
+
+    // Without a default kind among the options the first real kind is shown instead.
+    string[] no_default = { "document", "image", "custom" };
+    var fallback = HolderLinux.ResourceDraft.select_kind(no_default, existing_resource(""));
+    assert(fallback.index == 0);
+    assert(fallback.custom_text == "");
 }
 
 private void test_resolve_kind_uses_listed_option_or_stripped_custom_text() {
@@ -129,6 +158,8 @@ public static int main(string[] args) {
     Test.init(ref args);
     Test.add_func("/holder/resource-draft/kind-options", test_kind_options_are_defaults_followed_by_custom);
     Test.add_func("/holder/resource-draft/select-kind", test_select_kind_defaults_matches_and_falls_back_to_custom_slot);
+    Test.add_func("/holder/resource-draft/custom-kind-round-trip", test_a_resource_of_kind_custom_keeps_its_kind_when_saved_again);
+    Test.add_func("/holder/resource-draft/missing-kind", test_select_kind_treats_a_missing_kind_as_the_default_kind);
     Test.add_func("/holder/resource-draft/resolve-kind", test_resolve_kind_uses_listed_option_or_stripped_custom_text);
     Test.add_func("/holder/resource-draft/save-state", test_save_state_requires_label_and_valid_details);
     Test.add_func("/holder/resource-draft/build-rejections", test_build_rejects_blank_label_and_bad_details);

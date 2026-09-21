@@ -230,20 +230,32 @@ private void test_open_button_without_a_selection_does_nothing() {
     assert(h.dialog() == null);
 }
 
+private void test_open_button_hands_the_identifier_to_the_desktop_launcher() {
+    var h = rvd_harness_with(new HolderLinux.ProjectResource[] {
+        rv_resource("r1", "url", "https://example.test/page", "A page")
+    });
+    assert(h.launcher.launched.size == 0);
+
+    rv_button(h.actions(), "Open").clicked();
+
+    assert(h.launcher.launched.size == 1);
+    assert(h.launcher.launched[0] == "https://example.test/page");
+    assert(h.errors.size == 0);
+    assert(h.previews.size == 0);
+    assert(h.toasts.size == 0);
+}
+
 private void test_open_button_reports_a_uri_that_cannot_be_launched() {
-    if (Path.DIR_SEPARATOR == '\\') {
-        // The Windows shell would show its "open with" picker for an unregistered scheme.
-        Test.skip("launching an unregistered URI scheme is interactive on Windows");
-        return;
-    }
     var h = rvd_harness_with(new HolderLinux.ProjectResource[] {
         rv_resource("r1", "url", "x-holder-no-such-scheme-9f3a:probe", "Unlaunchable")
     });
+    h.launcher.error = "No application is registered for this scheme";
 
     rv_button(h.actions(), "Open").clicked();
 
     assert(h.errors.size == 1);
-    assert(h.errors[0].has_prefix("Failed to open resource|"));
+    assert(h.errors[0] == "Failed to open resource|No application is registered for this scheme");
+    assert(h.launcher.launched.size == 0);
 }
 
 private void test_activating_a_row_selects_and_opens_it() {
@@ -553,6 +565,39 @@ private void test_edit_dialog_shows_an_unknown_kind_in_the_custom_entry() {
     assert(rv_entry(content, "custom kind").get_text() == "gizmo");
 }
 
+private void test_editing_a_resource_of_kind_custom_keeps_that_kind() {
+    var h = rvd_harness_with(new HolderLinux.ProjectResource[] { rvd_editable_resource("custom") });
+    var dialog = rvd_open_edit_dialog(h);
+    var content = rvd_content(dialog);
+
+    // "custom" is also the name of the enter-your-own slot: the resource lands in that slot with its
+    // kind prefilled, rather than with an empty entry that would save as the default kind.
+    assert(rv_dropdown(content).get_selected() == 7);
+    assert(rv_entry(content, "custom kind").get_visible());
+    assert(rv_entry(content, "custom kind").get_text() == "custom");
+
+    rvd_label_entry(dialog).set_text("Renamed");
+    rvd_press(dialog, "Save");
+
+    assert(wait_for_condition(() => h.api.update_resource_calls == 1));
+    assert(h.api.last_resource_id == "r1");
+    assert(h.api.last_resource_kind == "custom");
+}
+
+private void test_editing_a_resource_without_a_kind_shows_and_saves_the_default_kind() {
+    var h = rvd_harness_with(new HolderLinux.ProjectResource[] { rvd_editable_resource("") });
+    var dialog = rvd_open_edit_dialog(h);
+    var content = rvd_content(dialog);
+
+    assert(rv_dropdown(content).get_selected() == 0);
+    assert(!rv_entry(content, "custom kind").get_visible());
+
+    rvd_press(dialog, "Save");
+
+    assert(wait_for_condition(() => h.api.update_resource_calls == 1));
+    assert(h.api.last_resource_kind == "thing");
+}
+
 private void test_saving_the_edit_dialog_updates_the_resource_and_keeps_omitted_metadata_keys() {
     var h = rvd_harness_with(new HolderLinux.ProjectResource[] { rvd_editable_resource() });
     var dialog = rvd_open_edit_dialog(h);
@@ -638,11 +683,11 @@ private void rvd_run_all_mutations(ResourcesViewHarness h) {
         h.view.create_resource.end(res);
         finished++;
     });
-    h.view.update_resource.begin("r1", "url", "https://x.test", "X", null, null, (obj, res) => {
+    h.view.update_resource.begin("r1", "url", "https://x.test", "X", null, null, null, (obj, res) => {
         h.view.update_resource.end(res);
         finished++;
     });
-    h.view.delete_resource.begin("r1", (obj, res) => {
+    h.view.delete_resource.begin("r1", null, null, (obj, res) => {
         h.view.delete_resource.end(res);
         finished++;
     });
@@ -666,11 +711,11 @@ private void test_update_and_delete_still_run_when_no_project_is_selected() {
     var h = new ResourcesViewHarness(false);
 
     int finished = 0;
-    h.view.update_resource.begin("r1", "url", "https://x.test", "X", null, null, (obj, res) => {
+    h.view.update_resource.begin("r1", "url", "https://x.test", "X", null, null, null, (obj, res) => {
         h.view.update_resource.end(res);
         finished++;
     });
-    h.view.delete_resource.begin("r1", (obj, res) => {
+    h.view.delete_resource.begin("r1", null, null, (obj, res) => {
         h.view.delete_resource.end(res);
         finished++;
     });
@@ -714,6 +759,195 @@ private void test_usage_cells_are_rebuilt_when_a_row_is_bound_to_another_resourc
     assert(rv_button_labeled(h.view.widget, "Alpha notes") == null);
 }
 
+// ---- state that outlives what the user was looking at ------------------------------------------
+
+private string rvd_activity(ResourcesViewHarness h, string kind) {
+    foreach (var entry in h.activities) {
+        if (entry.has_prefix(kind + "|")) {
+            return entry;
+        }
+    }
+    return "";
+}
+
+private void test_an_update_is_logged_against_the_resources_own_project() {
+    var h = rvd_harness_with(new HolderLinux.ProjectResource[] { rvd_editable_resource() });
+    var dialog = rvd_open_edit_dialog(h);
+    // The sidebar selection moves to another project while the edit dialog is still open.
+    h.projects.set_selected(1);
+    h.settle();
+    assert(rv_selected_id(h.view) == "r1" || rv_selected_id(h.view) == null);
+
+    rvd_press(dialog, "Save");
+
+    assert(wait_for_condition(() => h.api.update_resource_calls == 1));
+    assert(wait_for_condition(() => rvd_activity(h, "result.resource.update") != ""));
+    assert(rvd_activity(h, "result.resource.update") == "result.resource.update|Updated resource: Original|p1|r1");
+}
+
+private void test_a_delete_is_logged_against_the_resources_own_project() {
+    var h = rvd_harness_with(new HolderLinux.ProjectResource[] {
+        rv_resource("r1", "url", "https://a.test", "First")
+    });
+    rv_button(h.actions(), "Delete").clicked();
+    assert(h.wait_for_dialog());
+    var dialog = (!) h.dialog();
+    h.projects.set_selected(1);
+    h.settle();
+
+    rvd_press(dialog, "Delete");
+
+    assert(wait_for_condition(() => h.api.delete_resource_calls == 1));
+    assert(wait_for_condition(() => rvd_activity(h, "result.resource.delete") != ""));
+    assert(rvd_activity(h, "result.resource.delete") == "result.resource.delete|Deleted resource: First|p1|r1");
+}
+
+private void test_a_delete_is_logged_with_the_label_of_the_deleted_resource() {
+    var h = rvd_harness_with(new HolderLinux.ProjectResource[] {
+        rv_resource("r1", "url", "https://a.test", "First"),
+        rv_resource("r2", "url", "https://b.test", "Second")
+    });
+    assert(rv_selected_id(h.view) == "r1");
+    rv_button(h.actions(), "Delete").clicked();
+    assert(h.wait_for_dialog());
+    var dialog = (!) h.dialog();
+    assert(dialog.get_body() == "Delete \"First\"?");
+    // The list selection moves before the user confirms.
+    rv_selection(h.view).set_selected(1);
+    assert(rv_selected_id(h.view) == "r2");
+
+    rvd_press(dialog, "Delete");
+
+    assert(wait_for_condition(() => h.api.delete_resource_calls == 1));
+    assert(h.api.last_resource_id == "r1");
+    assert(wait_for_condition(() => rvd_activity(h, "result.resource.delete") != ""));
+    assert(rvd_activity(h, "result.resource.delete") == "result.resource.delete|Deleted resource: First|p1|r1");
+}
+
+private void test_replacing_the_project_selection_stops_listening_to_the_old_one() {
+    var h = rvd_harness_with(new HolderLinux.ProjectResource[] {
+        rv_resource("r1", "url", "https://a.test", "First")
+    });
+    var old_projects = (!) h.projects;
+    var replacement = rv_project_selection();
+    h.view.set_project_selection(replacement);
+    h.settle();
+    var calls = h.api.list_resources_calls;
+
+    // Nothing shows this selection any more, so moving it must not reload the list.
+    old_projects.set_selected(1);
+    h.settle();
+    assert(h.api.list_resources_calls == calls);
+
+    // The replacement still drives refreshes.
+    replacement.set_selected(1);
+    assert(wait_for_condition(() => h.api.list_resources_calls > calls));
+}
+
+// ---- file and image pickers (fake file picker) -------------------------------------------------
+
+private File rvd_temp_file(string name) {
+    return File.new_for_path(Path.build_filename(Environment.get_tmp_dir(), name));
+}
+
+private void test_picking_a_file_fills_the_identifier_and_an_empty_label() {
+    var h = new ResourcesViewHarness();
+    var dialog = rvd_open_add_dialog(h);
+    var content = rvd_content(dialog);
+    var uri = rv_entry_after_label(content, "Identifier (optional)");
+    assert(uri.get_text() == "" && rvd_label_entry(dialog).get_text() == "");
+    var file = rvd_temp_file("holder-notes.txt");
+    h.picker.choice = file;
+
+    rv_button(content, "Pick File...").clicked();
+
+    assert(wait_for_condition(() => uri.get_text() != ""));
+    assert(uri.get_text() == file.get_uri());
+    assert(rvd_label_entry(dialog).get_text() == "holder-notes.txt");
+    assert(dialog.get_response_enabled("save"));
+    assert(h.picker.requests.size == 1);
+    assert(h.picker.requests[0] == "file|Choose File|any");
+    assert(h.errors.size == 0);
+}
+
+private void test_picking_a_file_keeps_a_label_the_user_already_typed() {
+    var h = new ResourcesViewHarness();
+    var dialog = rvd_open_add_dialog(h);
+    var content = rvd_content(dialog);
+    rvd_label_entry(dialog).set_text("My own name");
+    var file = rvd_temp_file("holder-scan.pdf");
+    h.picker.choice = file;
+
+    rv_button(content, "Pick File...").clicked();
+
+    var uri = rv_entry_after_label(content, "Identifier (optional)");
+    assert(wait_for_condition(() => uri.get_text() != ""));
+    assert(uri.get_text() == file.get_uri());
+    assert(rvd_label_entry(dialog).get_text() == "My own name");
+}
+
+private void test_picking_an_image_asks_for_images_only() {
+    var h = new ResourcesViewHarness();
+    var dialog = rvd_open_add_dialog(h);
+    var content = rvd_content(dialog);
+    var file = rvd_temp_file("holder-photo.png");
+    h.picker.choice = file;
+
+    rv_button(content, "Pick Image...").clicked();
+
+    var uri = rv_entry_after_label(content, "Identifier (optional)");
+    assert(wait_for_condition(() => uri.get_text() != ""));
+    assert(h.picker.requests.size == 1);
+    assert(h.picker.requests[0] == "file|Choose Image|images");
+    assert(uri.get_text() == file.get_uri());
+    assert(rvd_label_entry(dialog).get_text() == "holder-photo.png");
+}
+
+private void test_dismissing_the_file_picker_changes_nothing_and_says_nothing() {
+    var h = new ResourcesViewHarness();
+    var dialog = rvd_open_add_dialog(h);
+    var content = rvd_content(dialog);
+    var uri = rv_entry_after_label(content, "Identifier (optional)");
+    uri.set_text("https://kept.test/");
+    h.picker.cancel = true;
+
+    rv_button(content, "Pick File...").clicked();
+    h.settle();
+
+    assert(h.picker.requests.size == 1);
+    assert(uri.get_text() == "https://kept.test/");
+    assert(rvd_label_entry(dialog).get_text() == "");
+    assert(h.errors.size == 0);
+}
+
+private void test_a_picker_with_no_answer_changes_nothing() {
+    var h = new ResourcesViewHarness();
+    var dialog = rvd_open_add_dialog(h);
+    var content = rvd_content(dialog);
+    var uri = rv_entry_after_label(content, "Identifier (optional)");
+
+    rv_button(content, "Pick File...").clicked();
+    h.settle();
+
+    assert(h.picker.requests.size == 1);
+    assert(uri.get_text() == "");
+    assert(rvd_label_entry(dialog).get_text() == "");
+    assert(h.errors.size == 0);
+}
+
+private void test_a_failing_file_picker_is_reported() {
+    var h = new ResourcesViewHarness();
+    var dialog = rvd_open_add_dialog(h);
+    var content = rvd_content(dialog);
+    h.picker.error = "portal unavailable";
+
+    rv_button(content, "Pick Image...").clicked();
+
+    assert(wait_for_condition(() => h.errors.size == 1));
+    assert(h.errors[0] == "Failed to choose file|portal unavailable");
+    assert(rv_entry_after_label(content, "Identifier (optional)").get_text() == "");
+}
+
 public void register_resources_view_dialog_tests() {
     var prefix = "/holder/resources-view/";
     Test.add_func(prefix + "list/cells", test_list_cells_render_presenter_text_and_tooltips);
@@ -724,6 +958,7 @@ public void register_resources_view_dialog_tests() {
     Test.add_func(prefix + "open/asset", test_open_button_previews_the_first_asset);
     Test.add_func(prefix + "open/nothing", test_open_button_explains_a_resource_with_nothing_to_open);
     Test.add_func(prefix + "open/no-selection", test_open_button_without_a_selection_does_nothing);
+    Test.add_func(prefix + "open/launches-uri", test_open_button_hands_the_identifier_to_the_desktop_launcher);
     Test.add_func(prefix + "open/unlaunchable-uri", test_open_button_reports_a_uri_that_cannot_be_launched);
     Test.add_func(prefix + "open/row-activation", test_activating_a_row_selects_and_opens_it);
     Test.add_func(prefix + "view/project-change", test_project_selection_change_reloads_resources_for_the_new_project);
@@ -733,6 +968,12 @@ public void register_resources_view_dialog_tests() {
     Test.add_func(prefix + "add/no-window", test_add_button_outside_a_window_does_nothing);
     Test.add_func(prefix + "add/defaults", test_add_dialog_starts_empty_and_enables_save_only_with_a_label);
     Test.add_func(prefix + "add/save", test_saving_the_add_dialog_creates_the_resource_with_trimmed_values);
+    Test.add_func(prefix + "add/pick-file", test_picking_a_file_fills_the_identifier_and_an_empty_label);
+    Test.add_func(prefix + "add/pick-file-keeps-label", test_picking_a_file_keeps_a_label_the_user_already_typed);
+    Test.add_func(prefix + "add/pick-image", test_picking_an_image_asks_for_images_only);
+    Test.add_func(prefix + "add/pick-dismissed", test_dismissing_the_file_picker_changes_nothing_and_says_nothing);
+    Test.add_func(prefix + "add/pick-no-answer", test_a_picker_with_no_answer_changes_nothing);
+    Test.add_func(prefix + "add/pick-failure", test_a_failing_file_picker_is_reported);
     Test.add_func(prefix + "add/description", test_description_is_sent_when_it_is_not_blank);
     Test.add_func(prefix + "add/kind", test_kind_dropdown_selection_becomes_the_created_kind);
     Test.add_func(prefix + "add/custom-kind", test_custom_kind_entry_appears_for_the_last_option_and_is_used);
@@ -745,6 +986,8 @@ public void register_resources_view_dialog_tests() {
     Test.add_func(prefix + "add/failure", test_create_failure_from_the_dialog_is_reported);
     Test.add_func(prefix + "edit/prefilled", test_edit_dialog_is_prefilled_from_the_selected_resource);
     Test.add_func(prefix + "edit/unknown-kind", test_edit_dialog_shows_an_unknown_kind_in_the_custom_entry);
+    Test.add_func(prefix + "edit/custom-kind", test_editing_a_resource_of_kind_custom_keeps_that_kind);
+    Test.add_func(prefix + "edit/missing-kind", test_editing_a_resource_without_a_kind_shows_and_saves_the_default_kind);
     Test.add_func(prefix + "edit/save", test_saving_the_edit_dialog_updates_the_resource_and_keeps_omitted_metadata_keys);
     Test.add_func(prefix + "edit/failure", test_update_failure_from_the_edit_dialog_is_reported);
     Test.add_func(prefix + "delete/confirm", test_delete_asks_for_confirmation_before_deleting);
@@ -753,6 +996,10 @@ public void register_resources_view_dialog_tests() {
     Test.add_func(prefix + "guards/no-project", test_update_and_delete_still_run_when_no_project_is_selected);
     Test.add_func(prefix + "guards/no-window", test_edit_and_delete_outside_a_window_do_not_open_dialogs);
     Test.add_func(prefix + "guards/usage-rebind", test_usage_cells_are_rebuilt_when_a_row_is_bound_to_another_resource);
+    Test.add_func(prefix + "stale/update-project", test_an_update_is_logged_against_the_resources_own_project);
+    Test.add_func(prefix + "stale/delete-project", test_a_delete_is_logged_against_the_resources_own_project);
+    Test.add_func(prefix + "stale/delete-label", test_a_delete_is_logged_with_the_label_of_the_deleted_resource);
+    Test.add_func(prefix + "stale/selection-handler", test_replacing_the_project_selection_stops_listening_to_the_old_one);
 }
 
 }

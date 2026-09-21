@@ -279,7 +279,7 @@ private void test_mutations_call_api_emit_feedback_and_refresh() {
     assert(last_activity == "result.resource.create");
 
     bool update_done = false;
-    view.update_resource.begin("r1", "repo", "git@example.test:new.git", "Repo", null, null, (obj, res) => {
+    view.update_resource.begin("r1", "repo", "git@example.test:new.git", "Repo", null, null, null, (obj, res) => {
         view.update_resource.end(res);
         update_done = true;
     });
@@ -293,7 +293,7 @@ private void test_mutations_call_api_emit_feedback_and_refresh() {
 
     select_resource_index(view, 0);
     bool delete_done = false;
-    view.delete_resource.begin("r1", (obj, res) => {
+    view.delete_resource.begin("r1", null, null, (obj, res) => {
         view.delete_resource.end(res);
         delete_done = true;
     });
@@ -320,7 +320,7 @@ private void test_mutation_failure_reports_error() {
     assert(wait_for_condition(() => api.list_resources_calls > 0));
 
     bool done = false;
-    view.update_resource.begin("r1", "url", "https://bad.test", "Bad", null, null, (obj, res) => {
+    view.update_resource.begin("r1", "url", "https://bad.test", "Bad", null, null, null, (obj, res) => {
         view.update_resource.end(res);
         done = true;
     });

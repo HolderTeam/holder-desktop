@@ -71,6 +71,48 @@ public class ResourcesViewFakeApi : MainControllerFakeApi, HolderLinux.IResource
     }
 }
 
+// Records what the view asks the desktop to open, and can be told to refuse.
+public class RvFakeUriLauncher : Object, HolderLinux.IUriLauncher {
+    public Gee.ArrayList<string> launched = new Gee.ArrayList<string>();
+    public string? error = null;
+
+    public void launch(string uri) throws Error {
+        if (error != null) {
+            throw new IOError.FAILED((!) error);
+        }
+        launched.add(uri);
+    }
+}
+
+// Answers the view's file and folder questions without a real chooser. Set `choice` to what the
+// user "picked", `cancel` to dismiss the chooser, or `error` to make it fail.
+public class RvFakeFilePicker : Object, HolderLinux.IFilePicker {
+    public File? choice = null;
+    public bool cancel = false;
+    public string? error = null;
+    public Gee.ArrayList<string> requests = new Gee.ArrayList<string>();
+
+    public async File? pick_folder(Gtk.Window parent, string title) throws Error {
+        requests.add("folder|" + title);
+        return answer();
+    }
+
+    public async File? pick_file(Gtk.Window parent, string title, bool images_only) throws Error {
+        requests.add("file|%s|%s".printf(title, images_only ? "images" : "any"));
+        return answer();
+    }
+
+    private File? answer() throws Error {
+        if (cancel) {
+            throw new IOError.CANCELLED("Dismissed by user");
+        }
+        if (error != null) {
+            throw new IOError.FAILED((!) error);
+        }
+        return choice;
+    }
+}
+
 public Gtk.SingleSelection rv_project_selection() {
     var store = new GLib.ListStore(typeof(HolderLinux.Project));
     store.append(new HolderLinux.Project("p1", "Project 1", "encrypted_git", "/tmp/p1", 10, 10));
@@ -97,7 +139,10 @@ public HolderLinux.ProjectResource rv_resource(string id,
 // to, and records everything the view reports.
 public class ResourcesViewHarness : Object {
     public ResourcesViewFakeApi api = new ResourcesViewFakeApi();
-    public HolderLinux.ResourcesToolView view = new HolderLinux.ResourcesToolView();
+    public HolderLinux.ResourcesToolView view;
+    public RvFakeUriLauncher launcher = new RvFakeUriLauncher();
+    public RvFakeFilePicker picker = new RvFakeFilePicker();
+    public TestScheduler scheduler = new TestScheduler();
     public Adw.Window window = new Adw.Window();
     public Gtk.SingleSelection? projects = null;
     public Gee.ArrayList<string> toasts = new Gee.ArrayList<string>();
@@ -107,8 +152,13 @@ public class ResourcesViewHarness : Object {
     public Gee.ArrayList<string> reference_requests = new Gee.ArrayList<string>();
     public Gee.ArrayList<string> loaded_projects = new Gee.ArrayList<string>();
     public int activity_count { get; set; default = 0; }
+    // Every activity the view asked to log, as "kind|message|project_id|resource_id".
+    public Gee.ArrayList<string> activities = new Gee.ArrayList<string>();
 
+    // The view gets fakes for everything it would otherwise hand to the desktop: the browser, the
+    // 1 s polling timer and the file chooser.
     public ResourcesViewHarness(bool with_project = true, bool attach_window = true) {
+        view = new HolderLinux.ResourcesToolView(launcher, scheduler, picker);
         view.toast_requested.connect((message) => { toasts.add(message); });
         view.error_reported.connect((title, details) => { errors.add("%s|%s".printf(title, details)); });
         view.asset_preview_requested.connect((resource, asset) => {
@@ -119,6 +169,7 @@ public class ResourcesViewHarness : Object {
         view.project_resources_loaded.connect((project_id, resources) => { loaded_projects.add(project_id); });
         view.activity_requested.connect((kind, message, project_id, resource_id, details) => {
             activity_count++;
+            activities.add("%s|%s|%s|%s".printf(kind, message, project_id ?? "(none)", resource_id ?? "(none)"));
         });
         if (attach_window) {
             window.set_content(view.widget);
