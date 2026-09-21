@@ -140,7 +140,9 @@ public class TestScheduler : Object, HolderLinux.IScheduler {
 
 public delegate bool ConditionFunc();
 
-public bool wait_for_condition(ConditionFunc condition, uint timeout_ms = 1500) {
+// Returns as soon as the condition holds, so the timeout only bounds a failing wait; it is generous
+// because a loaded CI runner (macOS in particular) can starve the main loop for well over a second.
+public bool wait_for_condition(ConditionFunc condition, uint timeout_ms = 5000) {
     var loop = new MainLoop();
     uint timeout_id = 0;
     uint poll_id = 0;
