@@ -326,6 +326,13 @@ private Gtk.Popover? cvb_popover(Gtk.Button node) {
 }
 
 private void test_right_clicking_a_card_offers_open_and_create_child() {
+    if (Environment.get_variable("HOLDER_DESKTOP_TEST_PLATFORM") == "darwin") {
+        // A popover realises a native surface on macOS, and GDK's macOS backend then warns
+        // "gdk_frame_timings_presented() called on skipped frame", which GLib's test harness turns
+        // into a fatal SIGTRAP.
+        Test.skip("popovers create native surfaces on macOS, where GDK's frame warning is fatal");
+        return;
+    }
     var h = cvb_project_harness();
     assert(h.wait_for_nodes(3));
     var node = cv_node(h.content(), "Card Two");
