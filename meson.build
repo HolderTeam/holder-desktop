@@ -882,6 +882,7 @@ test('holder-linux-connections-controller-tests', connections_controller_test_ex
 connections_tool_view_test_exe = executable(
   'holder-linux-connections-tool-view-tests',
   [
+    'tests/support/test_utils.vala',
     'tests/support/main_controller_fakes.vala',
     'src/services/editor_recovery_draft_service.vala',
     'src/models/server.vala',
@@ -909,6 +910,10 @@ connections_tool_view_test_exe = executable(
     'src/controllers/tool_scope_presenter.vala',
     'src/views/toolbox/tool_adapter.vala',
     'src/views/toolbox/connections_tool_view.vala',
+    'tests/support/connections_view_support.vala',
+    'tests/connections_tool_view_relations_test.vala',
+    'tests/connections_tool_view_addlink_test.vala',
+    'tests/connections_tool_view_board_test.vala',
     'tests/connections_tool_view_test.vala',
   ],
   dependencies: [
@@ -925,7 +930,9 @@ connections_tool_view_test_exe = executable(
   install: false,
 )
 
-test('holder-linux-connections-tool-view-tests', connections_tool_view_test_exe)
+# The view schedules its graph refresh and empty-state checks on real timers, so this binary takes
+# about 15 s; give slower CI runners headroom over meson's 30 s default.
+test('holder-linux-connections-tool-view-tests', connections_tool_view_test_exe, timeout: 120)
 
 connections_refresh_planner_test_exe = executable(
   'holder-linux-connections-refresh-planner-tests',

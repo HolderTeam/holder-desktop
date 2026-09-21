@@ -333,6 +333,10 @@ public static int main(string[] args) {
     }
     Adw.init();
 
+    register_connections_view_relations_tests();
+    register_connections_view_addlink_tests();
+    register_connections_view_board_tests();
+
     Test.add_func("/holder/connections-tool-view/hidden-refresh-suppressed-until-visible",
                   test_hidden_connections_tool_does_not_refresh_until_visible);
     Test.add_func("/holder/connections-tool-view/visible-refresh-debounced",

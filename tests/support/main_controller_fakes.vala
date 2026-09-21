@@ -88,6 +88,8 @@ public class FakeEditorRecoveryDraftService : Object, HolderLinux.IEditorRecover
     }
 }
 
+public delegate void ListCardLinksHook(string card_id);
+
 public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux.IMilestoneApi {
     public int list_projects_calls = 0;
     public int list_cards_calls = 0;
@@ -298,6 +300,10 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public string last_link_to_type = "";
     public Gee.ArrayList<HolderLinux.CardLink> card_links = new Gee.ArrayList<HolderLinux.CardLink>();
     public Gee.ArrayList<HolderLinux.CardLink> card_backlinks = new Gee.ArrayList<HolderLinux.CardLink>();
+    // Optional per-card override for list_card_links (falls back to card_links).
+    public Gee.HashMap<string, Gee.ArrayList<HolderLinux.CardLink>>? card_links_by_source = null;
+    // Runs inside list_card_links (while the call is in flight) so a test can change state mid-load.
+    public ListCardLinksHook? list_card_links_hook = null;
     public Gee.ArrayList<HolderLinux.ProjectResource> resources = new Gee.ArrayList<HolderLinux.ProjectResource>();
     public Gee.ArrayList<HolderLinux.TrashItem> trash_items = new Gee.ArrayList<HolderLinux.TrashItem>();
     public Gee.ArrayList<HolderLinux.AiRunnerInfo> ai_runners = new Gee.ArrayList<HolderLinux.AiRunnerInfo>();
@@ -561,6 +567,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         if (list_card_links_in_flight > max_list_card_links_in_flight) {
             max_list_card_links_in_flight = list_card_links_in_flight;
         }
+        if (list_card_links_hook != null) {
+            ((!) list_card_links_hook)(card_id);
+        }
         if (list_card_links_delay_ms > 0) {
             var loop = new MainLoop(null, false);
             Timeout.add(list_card_links_delay_ms, () => {
@@ -571,6 +580,12 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         }
         list_card_links_calls++;
         list_card_links_in_flight--;
+        if (card_links_by_source != null) {
+            var per_card = ((!) card_links_by_source).get(card_id);
+            if (per_card != null) {
+                return (!) per_card;
+            }
+        }
         return card_links;
     }
 
