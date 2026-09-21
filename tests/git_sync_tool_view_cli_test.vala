@@ -208,9 +208,8 @@ private void gsc_test_automatic_setup_reports_a_repo_that_cannot_be_created() {
     automatic.clicked();
 
     assert(h.wait_for_error("GitHub CLI setup failed|permission denied"));
-    // Not asserted: the status line. The view sets "GitHub CLI setup failed: ..." and then calls
-    // refresh_git_cli_controls(), which immediately rewrites the label, so the failure text is never
-    // visible (the error dialog still carries the reason).
+    // The failure text has to survive the controls refresh so it stays visible under the buttons.
+    assert(h.cli_status().get_text() == "GitHub CLI setup failed: permission denied");
     assert(h.api.set_project_git_remote_calls == 0);
     assert(h.histories.size == 0);
     assert(h.page() == "start");
@@ -231,6 +230,7 @@ private void gsc_test_automatic_setup_explains_an_unreachable_repo_when_gh_says_
     var details = "Could not verify git@github.com:octocat/Runbook-Project.git via SSH. " +
                   "Repository not reachable over SSH.";
     assert(h.wait_for_error("GitHub CLI setup failed|" + details));
+    assert(h.cli_status().get_text() == "GitHub CLI setup failed: " + details);
 }
 
 private void gsc_test_automatic_setup_reports_a_backend_failure() {
@@ -242,6 +242,7 @@ private void gsc_test_automatic_setup_reports_a_backend_failure() {
     automatic.clicked();
 
     assert(h.wait_for_error("Git sync failed|push project git failed"));
+    assert(h.cli_status().get_text() == "GitHub CLI setup failed: push project git failed");
     assert(h.histories.size == 0);
     assert(h.page() == "start");
     assert(automatic.get_sensitive());

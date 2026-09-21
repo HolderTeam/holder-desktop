@@ -878,6 +878,8 @@ public class GitSyncToolView : Object, IToolShellAdapter {
             git_gh_cli_status_label.set_text(GitSyncGuided.auto_sync_progress(username, repo_name));
         }
 
+        // Kept until after refresh_git_cli_controls(), which would otherwise overwrite the label.
+        string? failure_status = null;
         try {
             var flow_result = yield controller.run_github_cli_auto_sync_flow(
                 api,
@@ -902,15 +904,15 @@ public class GitSyncToolView : Object, IToolShellAdapter {
                 );
                 return;
             }
+            failure_status = flow_result.status_text;
         } catch (Error e) {
-            if (git_gh_cli_status_label != null) {
-                git_gh_cli_status_label.set_text("GitHub CLI setup failed: %s".printf(e.message));
-            }
+            failure_status = "GitHub CLI setup failed: %s".printf(e.message);
             error_reported("Git sync failed", e.message);
-            refresh_git_cli_controls();
-            return;
         }
         refresh_git_cli_controls();
+        if (failure_status != null && git_gh_cli_status_label != null) {
+            git_gh_cli_status_label.set_text(failure_status);
+        }
     }
 
     private Gtk.Widget build_git_sync_guided_part2_page() {
