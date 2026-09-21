@@ -78,9 +78,10 @@ private void test_recovery_draft_body_uses_the_given_time_zone() {
     assert(body == "Holder found a local recovery copy of “My card” from %s.".printf(expected_time));
     assert(HolderLinux.WindowPresenter.RECOVERY_DIALOG_TITLE == "Recover unsaved changes?");
 
+    // Fixed offset: named zones need a tz database, which the Windows CI runner lacks.
     TimeZone tokyo;
     try {
-        tokyo = new TimeZone.identifier("Asia/Tokyo");
+        tokyo = new TimeZone.identifier("+09:00");
     } catch (Error e) {
         assert_not_reached();
     }

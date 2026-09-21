@@ -169,9 +169,10 @@ private void test_row_subtitle_matches_the_original_local_time_formatting_and_ho
 
     assert(HolderLinux.TerminalPresenter.session_row_subtitle(session, new TimeZone.utc())
            == "Completed · 14 Nov 22:13");
+    // Fixed offset: named zones need a tz database, which the Windows CI runner lacks.
     TimeZone tokyo;
     try {
-        tokyo = new TimeZone.identifier("Asia/Tokyo");
+        tokyo = new TimeZone.identifier("+09:00");
     } catch (Error e) {
         assert_not_reached();
     }
