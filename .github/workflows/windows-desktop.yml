@@ -56,6 +56,22 @@ jobs:
               holder-linux-milestones-presenter-tests \
               holder-linux-milestones-controller-tests
 
+      # Temporary: the git sync view tests crashed with an access violation (0xc0000005) at
+      # /holder/git-sync-view/guided/username-gates-next. Run it alone to see whether the crash
+      # depends on the tests before it, then run the whole binary under gdb for a backtrace.
+      - name: Diagnose crashing git sync view tests
+        if: failure()
+        run: |
+          pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-gdb || true
+          export GSETTINGS_BACKEND=memory GSETTINGS_SCHEMA_DIR="${PWD}/build-win/data"
+          cd build-win
+          echo "=== username-gates-next alone ==="
+          ./holder-linux-git-sync-tool-view-tests.exe -p /holder/git-sync-view/guided/username-gates-next || echo "exit status $?"
+          echo "=== guided tests only ==="
+          ./holder-linux-git-sync-tool-view-tests.exe -p /holder/git-sync-view/guided || echo "exit status $?"
+          echo "=== whole binary under gdb ==="
+          gdb -batch -ex run -ex bt -ex "info threads" --args ./holder-linux-git-sync-tool-view-tests.exe 2>&1 | tail -80 || true
+
       - name: Stage desktop artifact
         run: |
           set -euo pipefail
