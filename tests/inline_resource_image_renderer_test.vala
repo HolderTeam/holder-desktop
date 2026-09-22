@@ -502,7 +502,19 @@ private bool ir_wait_for(SourceFunc predicate, int timeout_ms = 5000) {
     return predicate();
 }
 
+// GDK's macOS backend warns "gdk_frame_timings_presented() called on skipped frame" once a window
+// has been presented and drops a frame, and GLib's test harness makes warnings fatal (SIGTRAP), so the
+// tests that present a window run everywhere else.
+private bool ir_skip_when_presenting_is_fatal() {
+    if (Environment.get_variable("HOLDER_DESKTOP_TEST_PLATFORM") == "darwin") {
+        Test.skip("presenting a window makes GDK's macOS frame warning fatal");
+        return true;
+    }
+    return false;
+}
+
 private void test_decorations_take_the_views_width_and_follow_it_when_it_changes() {
+    if (ir_skip_when_presenting_is_fatal()) return;
     var h = new RendererHarness(TEXT, true);
     assert(ir_wait_for(() => h.view.get_width() > 200));
     h.renderer.set_items(h.items());
@@ -527,6 +539,7 @@ private void test_decorations_take_the_views_width_and_follow_it_when_it_changes
 }
 
 private void test_the_renderer_is_freed_with_its_last_reference_while_the_view_lives_on() {
+    if (ir_skip_when_presenting_is_fatal()) return;
     var buffer = new GtkSource.Buffer(null);
     var view = new GtkSource.View.with_buffer(buffer);
     var window = new Gtk.Window();
