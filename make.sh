@@ -95,9 +95,17 @@ build() {
   meson compile -C "${BUILD_DIR}"
 }
 
+run_gui_tests() {
+  local dir="$1"
+  # GTK popovers need a display with a stable monitor layout. Use an isolated
+  # display so tests do not depend on the developer's desktop arrangement.
+  GSETTINGS_BACKEND=memory \
+    xvfb-run -a meson test -C "${dir}" --print-errorlogs
+}
+
 test_only() {
   build
-  meson test -C "${BUILD_DIR}" --print-errorlogs
+  run_gui_tests "${BUILD_DIR}"
 }
 
 run_app() {
@@ -114,7 +122,7 @@ coverage() {
   setup_build "${COVERAGE_BUILD_DIR}" -Db_coverage=true
   refresh_compiled_schemas "${COVERAGE_BUILD_DIR}"
   meson compile -C "${COVERAGE_BUILD_DIR}"
-  GSETTINGS_BACKEND=memory meson test -C "${COVERAGE_BUILD_DIR}" --print-errorlogs
+  run_gui_tests "${COVERAGE_BUILD_DIR}"
 
   local out_dir="${COVERAGE_BUILD_DIR}/coverage"
   mkdir -p "${out_dir}"
