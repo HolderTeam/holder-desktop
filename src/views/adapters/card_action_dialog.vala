@@ -3,7 +3,7 @@ namespace HolderLinux {
 public delegate void CardActionConfirmed();
 
 internal class CardActionDialogAdapter : Object {
-    private Gtk.Window parent;
+    private Gtk.Window parent; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
     public CardActionDialogAdapter(Gtk.Window parent) {
         this.parent = parent;
@@ -12,7 +12,7 @@ internal class CardActionDialogAdapter : Object {
     public void confirm_move_to_trash(string card_title, owned CardActionConfirmed on_confirmed) {
         var dialog = new Adw.AlertDialog(
             "Move to Trash",
-            "Move \"%s\" to Trash?\n\nYou can restore it from the Trash tool.".printf(card_title)
+            DialogTextPresenter.move_to_trash_body(card_title)
         );
         dialog.add_response("cancel", "Cancel");
         dialog.add_response("trash", "Move to Trash");
@@ -30,7 +30,7 @@ internal class CardActionDialogAdapter : Object {
     public void confirm_create_linked_card(string target, owned CardActionConfirmed on_confirmed) {
         var dialog = new Adw.AlertDialog(
             "Create Linked Card?",
-            "No card matches [[%s]] in this project.".printf(target)
+            DialogTextPresenter.create_linked_card_body(target)
         );
         dialog.add_response("cancel", "Cancel");
         dialog.add_response("create", "Create Card");

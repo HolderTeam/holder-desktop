@@ -123,7 +123,7 @@ coverage() {
     --object-directory "${COVERAGE_BUILD_DIR}"
     --filter 'src/'
     --exclude 'tests/'
-    --gcov-executable gcov-13
+    --gcov-executable gcov
     --gcov-ignore-errors all
     --exclude-unreachable-branches
     --exclude-throw-branches

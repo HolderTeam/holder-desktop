@@ -45,6 +45,17 @@ jobs:
       - name: Build and test
         run: bash ./make-win.sh test
 
+      # Meson hides the output of passing tests, so a test that calls Test.skip looks like a pass.
+      # Print the time zone tests verbosely to see whether their DST cases ran or were skipped.
+      - name: Show time zone test results
+        if: always()
+        run: |
+          GSETTINGS_BACKEND=memory GSETTINGS_SCHEMA_DIR="${PWD}/build-win/data" \
+            meson test -C build-win --no-rebuild --verbose \
+              holder-linux-milestone-draft-tests \
+              holder-linux-milestones-presenter-tests \
+              holder-linux-milestones-controller-tests
+
       - name: Stage desktop artifact
         run: |
           set -euo pipefail

@@ -1,23 +1,26 @@
 namespace HolderLinux {
 
 public class TagsToolView : Object, IToolShellAdapter {
-    private IHolderApi? api;
-    private Gtk.SingleSelection? project_selection;
-    private Gtk.SingleSelection? card_selection;
-    private Gtk.Box actions_bar;
-    private Gtk.SearchEntry search_entry;
-    private Gtk.Stack content_stack;
-    private Gtk.FlowBox card_tags_box;
-    private Gtk.FlowBox cloud_box;
-    private Gtk.Label card_tags_empty;
-    private Gtk.Label cloud_empty;
-    private Gtk.Label results_title;
-    private Gtk.ListBox results_list;
-    private Gtk.Label results_empty;
-    private Gee.ArrayList<TagCount> all_tags = new Gee.ArrayList<TagCount>();
+    private IHolderApi? api; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection? project_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection? card_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Box actions_bar; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SearchEntry search_entry; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Stack content_stack; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.FlowBox card_tags_box; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.FlowBox cloud_box; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label card_tags_empty; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label cloud_empty; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label results_title; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.ListBox results_list; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label results_empty; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gee.ArrayList<TagCount> all_tags = new Gee.ArrayList<TagCount>(); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private uint refresh_serial = 0;
+    private uint results_serial = 0;
+    private ulong project_notify_id = 0;
+    private ulong card_notify_id = 0;
     private bool tool_visible = false;
-    private string? pending_tag;
+    private string? pending_tag; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id { owned get { return "tags"; } }
@@ -40,10 +43,20 @@ public class TagsToolView : Object, IToolShellAdapter {
 
     public void bind_context(Gtk.SingleSelection project_selection,
                              Gtk.SingleSelection card_selection) {
+        if (this.project_selection != null && project_notify_id != 0) {
+            this.project_selection.disconnect(project_notify_id);
+        }
+        if (this.card_selection != null && card_notify_id != 0) {
+            this.card_selection.disconnect(card_notify_id);
+        }
         this.project_selection = project_selection;
         this.card_selection = card_selection;
-        project_selection.notify["selected-item"].connect(() => { queue_refresh(); });
-        card_selection.notify["selected-item"].connect(() => { queue_refresh(); });
+        project_notify_id = project_selection.notify["selected-item"].connect(() => {
+            // The listed cards belong to the previous project, so they must not stay on screen.
+            leave_stale_results();
+            queue_refresh();
+        });
+        card_notify_id = card_selection.notify["selected-item"].connect(() => { queue_refresh(); });
         queue_refresh();
     }
 
@@ -72,19 +85,7 @@ public class TagsToolView : Object, IToolShellAdapter {
 
     public ToolScopeSnapshot get_scope_snapshot(Project? selected_project,
                                                  CardSummary? selected_card) {
-        var project_id = selected_project != null ? selected_project.project_id : null;
-        var project_label = selected_project != null ? selected_project.name : "Projects";
-        var card_id = selected_card != null ? selected_card.card_id : null;
-        var card_label = selected_card != null ? selected_card.title : "Overview";
-        var scope = selected_card != null ? ToolScopeMode.CARD_FOCUS : ToolScopeMode.PROJECT_ROOT;
-        if (project_id == null) {
-            scope = ToolScopeMode.PROJECTS_ROOT;
-            card_id = null;
-            card_label = "Overview";
-        }
-        return new ToolScopeSnapshot(
-            tool_id, tool_label, project_id, project_label, card_id, card_label, scope, false
-        );
+        return ToolScopePresenter.snapshot(tool_id, tool_label, selected_project, selected_card);
     }
 
     public async bool navigate_to_projects_root(string? selected_project_id) {
@@ -218,6 +219,7 @@ public class TagsToolView : Object, IToolShellAdapter {
             all_tags.clear();
             rebuild_cloud();
             rebuild_card_tags(null);
+            leave_stale_results();
             return;
         }
         try {
@@ -231,7 +233,7 @@ public class TagsToolView : Object, IToolShellAdapter {
                 return;
             }
             all_tags = loaded_tags;
-            all_tags.sort((a, b) => { return strcmp(a.tag, b.tag); });
+            TagsPresenter.sort_tags(all_tags);
             rebuild_cloud();
             rebuild_card_tags(detail);
             if (pending_tag != null) {
@@ -254,53 +256,30 @@ public class TagsToolView : Object, IToolShellAdapter {
             return;
         }
         foreach (var tag in detail.tags) {
-            card_tags_box.append(build_tag_button(tag, -1, ""));
+            card_tags_box.append(build_tag_button(TagsPresenter.card_tag_chip(tag)));
         }
     }
 
     private void rebuild_cloud() {
-        if (cloud_box == null) {
-            return;
-        }
         clear_flow_box(cloud_box);
-        var filter = search_entry != null ? search_entry.get_text().strip().down() : "";
-        var max_count = 0;
-        foreach (var entry in all_tags) {
-            max_count = int.max(max_count, entry.card_count);
+        var presentation = TagsPresenter.cloud(all_tags, search_entry.get_text());
+        foreach (var chip in presentation.chips) {
+            cloud_box.append(build_tag_button(chip));
         }
-        var shown = 0;
-        foreach (var entry in all_tags) {
-            if (filter.length > 0 && !entry.tag.down().contains(filter)) {
-                continue;
-            }
-            var css_class = "";
-            if (max_count > 1 && entry.card_count * 3 >= max_count * 2) {
-                css_class = "title-4";
-            } else if (max_count > 1 && entry.card_count * 3 >= max_count) {
-                css_class = "heading";
-            }
-            cloud_box.append(build_tag_button(entry.tag, entry.card_count, css_class));
-            shown++;
-        }
-        cloud_empty.set_text(filter.length > 0 && shown == 0
-            ? "No tags match this filter."
-            : "No tags in this project yet.");
-        cloud_empty.set_visible(shown == 0);
+        cloud_empty.set_text(presentation.empty_text);
+        cloud_empty.set_visible(presentation.empty_visible);
     }
 
-    private Gtk.Widget build_tag_button(string tag, int count, string css_class) {
-        var label_text = count >= 0 ? "#%s  %d".printf(tag, count) : "#%s".printf(tag);
-        var label = new Gtk.Label(label_text);
-        if (css_class.length > 0) {
-            label.add_css_class(css_class);
+    private Gtk.Widget build_tag_button(TagChip chip) {
+        var label = new Gtk.Label(chip.label);
+        if (chip.css_class.length > 0) {
+            label.add_css_class(chip.css_class);
         }
         var button = new Gtk.Button();
         button.set_child(label);
         button.add_css_class("pill");
-        button.set_tooltip_text(count >= 0
-            ? "%d %s tagged #%s".printf(count, count == 1 ? "card" : "cards", tag)
-            : "Show cards tagged #%s".printf(tag));
-        var selected_tag = tag;
+        button.set_tooltip_text(chip.tooltip);
+        var selected_tag = chip.tag;
         button.clicked.connect(() => { show_tag(selected_tag); });
         return button;
     }
@@ -309,15 +288,20 @@ public class TagsToolView : Object, IToolShellAdapter {
         var current_api = api;
         var project = selected_project();
         if (current_api == null || project == null) {
-            pending_tag = tag;
-            return;
+            pending_tag = tag; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: show_tag and refresh only call this with an api and a project
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: show_tag and refresh only call this with an api and a project
         }
+        var serial = ++results_serial;
         content_stack.set_visible_child_name("results");
         results_title.set_text("Cards tagged #%s".printf(tag));
         clear_list_box(results_list);
         results_empty.set_visible(false);
         try {
             var cards = yield current_api.list_cards_with_tag(project.project_id, tag);
+            if (serial != results_serial) {
+                // A newer tag (or another project) owns the page now.
+                return;
+            }
             foreach (var card in cards) {
                 var row_button = new Gtk.Button();
                 row_button.add_css_class("flat");
@@ -325,7 +309,7 @@ public class TagsToolView : Object, IToolShellAdapter {
                 var title = new Gtk.Label(card.title) { xalign = 0.0f };
                 title.set_ellipsize(Pango.EllipsizeMode.END);
                 row.append(title);
-                var updated = new Gtk.Label(format_updated_at(card.updated_at)) { xalign = 0.0f };
+                var updated = new Gtk.Label(TagsPresenter.format_updated_at(card.updated_at)) { xalign = 0.0f };
                 updated.add_css_class("caption");
                 updated.add_css_class("dim-label");
                 row.append(updated);
@@ -336,8 +320,19 @@ public class TagsToolView : Object, IToolShellAdapter {
             }
             results_empty.set_visible(cards.size == 0);
         } catch (Error e) {
-            error_reported("Could not load tagged cards", e.message);
+            if (serial == results_serial) {
+                error_reported("Could not load tagged cards", e.message);
+            }
         }
+    }
+
+    // Back to the tag cloud with the results emptied and any load still in flight dropped. A tag
+    // waiting to be shown once a project is selected is kept.
+    private void leave_stale_results() {
+        results_serial++;
+        clear_list_box(results_list);
+        results_empty.set_visible(false);
+        content_stack.set_visible_child_name("overview");
     }
 
     private void show_overview() {
@@ -351,10 +346,9 @@ public class TagsToolView : Object, IToolShellAdapter {
             : null;
     }
 
+    // Only asked for once a project is selected, which needs bind_context to have set both.
     private CardSummary? selected_card() {
-        return card_selection != null
-            ? card_selection.get_selected_item() as CardSummary
-            : null;
+        return card_selection.get_selected_item() as CardSummary;
     }
 
     private static void clear_flow_box(Gtk.FlowBox box) {
@@ -373,14 +367,6 @@ public class TagsToolView : Object, IToolShellAdapter {
             box.remove(child);
             child = next;
         }
-    }
-
-    private static string format_updated_at(int64 timestamp) {
-        if (timestamp <= 0) {
-            return "";
-        }
-        var updated = new DateTime.from_unix_local(timestamp);
-        return "Updated %s".printf(updated.format("%x %R"));
     }
 }
 

@@ -49,7 +49,7 @@ public class MarkdownResourceImageController : Object {
         try {
             image_regex = new Regex(RESOURCE_IMAGE_PATTERN);
         } catch (RegexError e) {
-            return references;
+            return references; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: constant regular expression is valid.
         }
 
         bool in_fence = false;

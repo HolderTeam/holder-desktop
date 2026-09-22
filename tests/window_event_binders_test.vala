@@ -496,6 +496,77 @@ private void test_selection_editor_binder_forwards_selection_buffer_and_internal
     assert(sink.last_state == Gdk.ModifierType.CONTROL_MASK);
 }
 
+// The test above always passes both an IInternalLinkControllerFactory and an
+// IEditorControllerAttachTarget fake, so it never touches the real, GTK-backed
+// GtkInternalLinkClickController/GtkInternalLinkKeyController/GtkInternalLinkControllerFactory/
+// GtkSourceViewControllerAttachTarget classes, or the constructor's default-attach-target branch.
+// Exercise those for real here: bind with no factory/attach_target, find the controllers GTK actually
+// attached to the view, and trigger their signals directly.
+private void test_selection_editor_binder_uses_the_real_gtk_controllers_by_default() {
+    var project_selection = new Gtk.SingleSelection(new GLib.ListStore(typeof(Project)));
+    var card_selection = new Gtk.SingleSelection(new GLib.ListStore(typeof(CardSummary)));
+    var ai_thread_selection = new Gtk.SingleSelection(new GLib.ListStore(typeof(AiThreadSummary)));
+    var editor_buffer = new GtkSource.Buffer(null);
+    var editor_view = new GtkSource.View.with_buffer(editor_buffer);
+    var sink = new HolderLinux.RecordingWindowSelectionEditorEventSink();
+
+    // GtkSourceView/GtkTextView already attach their own click and key controllers for text
+    // selection and input, so find ours by what bind() actually added rather than by type: snapshot
+    // the controllers before and after, and take the new ones.
+    var before = new Gee.HashSet<Gtk.EventController>();
+    var before_list = editor_view.observe_controllers();
+    for (uint i = 0; i < before_list.get_n_items(); i++) {
+        before.add((Gtk.EventController) before_list.get_item(i));
+    }
+
+    var binder = new HolderLinux.WindowSelectionEditorEventBinder(
+        project_selection,
+        card_selection,
+        ai_thread_selection,
+        editor_buffer,
+        editor_view,
+        sink
+    );
+    binder.bind();
+
+    Gtk.GestureClick? click = null;
+    Gtk.EventControllerKey? key = null;
+    var controllers = editor_view.observe_controllers();
+    for (uint i = 0; i < controllers.get_n_items(); i++) {
+        var candidate = (Gtk.EventController) controllers.get_item(i);
+        if (candidate in before) {
+            continue;
+        }
+        if (candidate is Gtk.GestureClick) {
+            click = (Gtk.GestureClick) candidate;
+        } else if (candidate is Gtk.EventControllerKey) {
+            key = (Gtk.EventControllerKey) candidate;
+        }
+    }
+    assert(click != null);
+    assert(key != null);
+    assert(((!) click).get_button() == Gdk.BUTTON_PRIMARY);
+
+    ((!) click).pressed(1, 12.5, 33.0);
+    assert(sink.last_n_press == 1);
+    assert(sink.last_x == 12.5);
+    assert(sink.last_y == 33.0);
+
+    sink.key_result = true;
+    var handled = ((!) key).key_pressed(Gdk.Key.Return, 13, Gdk.ModifierType.CONTROL_MASK);
+    assert(handled);
+    assert(sink.last_keyval == Gdk.Key.Return);
+    assert(sink.last_keycode == 13);
+    assert(sink.last_state == Gdk.ModifierType.CONTROL_MASK);
+}
+
+// The gesture accessor is part of IInternalLinkClickController's contract (fakes need it to let
+// tests trigger a press), but no production caller reads it off the real, GTK-backed controller.
+private void test_gtk_internal_link_click_controller_exposes_its_gesture() {
+    var click = new HolderLinux.GtkInternalLinkClickController();
+    assert(click.gesture != null);
+}
+
 private void test_sidebar_binder_forwards_sidebar_events() {
     var source = new HolderLinux.FakeSidebarEventSource();
     var sink = new HolderLinux.RecordingSidebarEventSink();
@@ -596,6 +667,29 @@ private void test_lifecycle_binder_forwards_project_create_and_window_close() {
     assert(sink.close_calls == 1);
 }
 
+// The test above always passes a fake IWindowCloseRequestSource, so it never touches the real
+// GtkWindowCloseRequestSource. Exercise it for real: wrap a real Gtk.Window and trigger its own
+// close-request signal directly.
+private void test_lifecycle_binder_uses_the_real_gtk_close_request_source() {
+    var controller = new ProjectCreateController();
+    var window = new Gtk.Window();
+    var source = new HolderLinux.GtkWindowCloseRequestSource(window);
+    var sink = new HolderLinux.RecordingWindowLifecycleEventSink();
+    var binder = new HolderLinux.WindowLifecycleEventBinder(controller, source, sink);
+
+    binder.bind();
+
+    sink.close_result = true;
+    bool close_result = window.close_request();
+    assert(close_result);
+    assert(sink.close_calls == 1);
+
+    sink.close_result = false;
+    bool second_result = window.close_request();
+    assert(!second_result);
+    assert(sink.close_calls == 2);
+}
+
 private void test_state_binder_forwards_paned_app_state_and_navigation_loading() {
     var root_paned = new HolderLinux.FakePanedPositionSource();
     var app_state_store = new AppStateStore();
@@ -624,8 +718,36 @@ private void test_state_binder_forwards_paned_app_state_and_navigation_loading()
     assert(!sink.loading_values[1]);
 }
 
+// The test above always passes a fake IPanedPositionSource, so it never touches the real, GTK-backed
+// GtkPanedPositionSource. Exercise it for real: wrap a real Gtk.Paned and move it.
+private void test_state_binder_uses_the_real_gtk_paned_position_source() {
+    var root_paned = new Gtk.Paned(Gtk.Orientation.HORIZONTAL);
+    var source = new HolderLinux.GtkPanedPositionSource(root_paned);
+    var app_state_store = new AppStateStore();
+    var transition_controller = new SelectionTransitionController(
+        new AppTransitionController(app_state_store)
+    );
+    var sink = new HolderLinux.RecordingWindowStateEventSink();
+    var binder = new HolderLinux.WindowStateEventBinder(
+        source,
+        app_state_store,
+        transition_controller,
+        sink
+    );
+
+    binder.bind();
+
+    root_paned.set_position(240);
+
+    assert(sink.last_position == root_paned.get_position());
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
+    if (!Gtk.init_check()) {
+        stdout.printf("Skipping window event binder tests: GTK display is unavailable.\n");
+        return 0;
+    }
 
     Test.add_func(
         "/holder/window-event-binders/transitive-controller-methods-are-referenced",
@@ -634,6 +756,14 @@ public static int main(string[] args) {
     Test.add_func(
         "/holder/window-event-binders/selection-editor-binder-forwards-selection-buffer-and-internal-link-events",
         test_selection_editor_binder_forwards_selection_buffer_and_internal_link_events
+    );
+    Test.add_func(
+        "/holder/window-event-binders/selection-editor-binder-uses-the-real-gtk-controllers-by-default",
+        test_selection_editor_binder_uses_the_real_gtk_controllers_by_default
+    );
+    Test.add_func(
+        "/holder/window-event-binders/gtk-internal-link-click-controller-exposes-its-gesture",
+        test_gtk_internal_link_click_controller_exposes_its_gesture
     );
     Test.add_func(
         "/holder/window-event-binders/sidebar-binder-forwards-sidebar-events",
@@ -652,8 +782,16 @@ public static int main(string[] args) {
         test_lifecycle_binder_forwards_project_create_and_window_close
     );
     Test.add_func(
+        "/holder/window-event-binders/lifecycle-binder-uses-the-real-gtk-close-request-source",
+        test_lifecycle_binder_uses_the_real_gtk_close_request_source
+    );
+    Test.add_func(
         "/holder/window-event-binders/state-binder-forwards-paned-app-state-and-navigation-loading",
         test_state_binder_forwards_paned_app_state_and_navigation_loading
+    );
+    Test.add_func(
+        "/holder/window-event-binders/state-binder-uses-the-real-gtk-paned-position-source",
+        test_state_binder_uses_the_real_gtk_paned_position_source
     );
     return Test.run();
 }

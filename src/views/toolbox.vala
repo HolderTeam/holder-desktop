@@ -225,8 +225,8 @@ public class ToolboxPane : Object {
             ? project_selection.get_selected_item() as Project : null;
         var card = card_selection != null
             ? card_selection.get_selected_item() as CardSummary : null;
-        if (history_tool != null && project != null && card != null &&
-            project.project_id == project_id && card.card_id == card_id) {
+        if (history_tool != null &&
+            ToolboxHeaderBreadcrumbs.selection_matches(project, card, project_id, card_id)) {
             history_tool.refresh();
         }
     }
@@ -659,53 +659,23 @@ public class ToolboxPane : Object {
         var adapter = tool_adapters.get(page_name);
         if (adapter != null) {
             var snapshot = adapter.get_scope_snapshot(selected_project, selected_card);
-            var segments_adapter = new Gee.ArrayList<NavigationBreadcrumbSegment>();
-            segments_adapter.add(new NavigationBreadcrumbSegment(
-                snapshot.tool_label,
-                true,
-                true,
-                0
-            ));
-            segments_adapter.add(new NavigationBreadcrumbSegment(
-                snapshot.project_label,
-                false,
-                snapshot.project_id != null,
-                1
-            ));
-            segments_adapter.add(new NavigationBreadcrumbSegment(
-                snapshot.card_label,
-                false,
-                snapshot.card_id != null,
-                2
-            ));
-            ((!) header_breadcrumbs).set_segments(segments_adapter);
+            ((!) header_breadcrumbs).set_segments(ToolboxHeaderBreadcrumbs.from_snapshot(snapshot));
             return;
         }
 
-        string tool_name = "Tool";
+        string? page_title = null;
         if (toolbox_stack != null) {
             var visible = toolbox_stack.get_visible_child();
             if (visible != null) {
                 var page = toolbox_stack.get_page(visible);
-                if (page != null && page.title != null && page.title.strip().length > 0) {
-                    tool_name = page.title;
+                if (page != null) {
+                    page_title = page.title;
                 }
             }
         }
-        string project_name = selected_project != null && selected_project.name.strip().length > 0
-            ? selected_project.name
-            : "(none)";
-        string card_name = selected_card != null &&
-            (selected_project == null || selected_card.project_id == selected_project.project_id) &&
-            selected_card.title.strip().length > 0
-            ? selected_card.title
-            : "Overview";
-
-        var segments = new Gee.ArrayList<NavigationBreadcrumbSegment>();
-        segments.add(new NavigationBreadcrumbSegment(tool_name, true, true, 0));
-        segments.add(new NavigationBreadcrumbSegment(project_name, false, selected_project != null, 1));
-        segments.add(new NavigationBreadcrumbSegment(card_name, false, selected_card != null, 2));
-        ((!) header_breadcrumbs).set_segments(segments);
+        ((!) header_breadcrumbs).set_segments(
+            ToolboxHeaderBreadcrumbs.from_selection(page_title, selected_project, selected_card)
+        );
     }
 
     private void on_header_breadcrumb_clicked(int segment_index) {
@@ -738,17 +708,14 @@ public class ToolboxPane : Object {
 
     private string current_tool_id() {
         if (toolbox_stack == null) {
-            return "tool";
+            return ToolboxHeaderBreadcrumbs.DEFAULT_TOOL_ID;
         }
         var child = toolbox_stack.get_visible_child();
         if (child == null) {
-            return "tool";
+            return ToolboxHeaderBreadcrumbs.DEFAULT_TOOL_ID;
         }
         var page = toolbox_stack.get_page(child);
-        if (page == null || page.name == null || page.name.strip().length == 0) {
-            return "tool";
-        }
-        return page.name;
+        return ToolboxHeaderBreadcrumbs.tool_id_for_page(page != null ? page.name : null);
     }
 
 }

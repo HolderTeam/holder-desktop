@@ -61,8 +61,20 @@ private void test_activity_debug_line_omits_blank_ai_detail_fields() {
     assert(line == "ACTIVITY result.ai.run Run failed [success=false]");
 }
 
+private void test_error_text_and_debug_line() {
+    assert(HolderLinux.WindowFeedbackFormat.error_status_text("Save failed", "disk full") ==
+           "Save failed: disk full");
+    assert(HolderLinux.WindowFeedbackFormat.error_debug_line("Save failed", "disk full") ==
+           "ERROR: Save failed | disk full");
+    // The status text is what is_serious_status inspects, so the details must stay in it.
+    assert(HolderLinux.WindowFeedbackFormat.is_serious_status(
+        HolderLinux.WindowFeedbackFormat.error_status_text("Oops", "backend unavailable")
+    ));
+}
+
 public int main(string[] args) {
     Test.init(ref args);
+    Test.add_func("/holder/window-feedback-format/error-text-and-debug-line", test_error_text_and_debug_line);
 
     Test.add_func(
         "/holder/window-feedback-format/serious-status",

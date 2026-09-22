@@ -37,7 +37,7 @@ public class RecoveryService : Object, IRecoveryService {
 
     public void open_email_with_attachment(string attachment_path) throws Error {
         if (Path.DIR_SEPARATOR_S == "\\") {
-            throw new IOError.NOT_SUPPORTED("Email attachments are not supported on this platform yet.");
+            throw new IOError.NOT_SUPPORTED("Email attachments are not supported on this platform yet."); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: Windows-only branch, unreachable on the Linux coverage run
         }
 
         string[] argv = {

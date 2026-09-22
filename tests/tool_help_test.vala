@@ -18,6 +18,7 @@ private void test_load_uses_known_titles_for_all_explicit_tool_ids() {
     var connections = controller.load("connections");
     var resources = controller.load("resources");
     var milestones = controller.load("milestones");
+    var history = controller.load("history");
     var sharing = controller.load("sharing");
     var terminals = controller.load("terminals");
     var git = controller.load("git");
@@ -28,6 +29,7 @@ private void test_load_uses_known_titles_for_all_explicit_tool_ids() {
     assert(connections.title == "Connections");
     assert(resources.title == "Resources");
     assert(milestones.title == "Milestones");
+    assert(history.title == "History");
     assert(sharing.title == "Sharing");
     assert(terminals.title == "Terminals");
     assert(git.title == "Git Sync");

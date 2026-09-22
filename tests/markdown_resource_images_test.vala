@@ -35,6 +35,17 @@ private void test_extracts_standalone_holder_images() {
     ) == "abc123");
 }
 
+private void test_alt_text_ending_in_a_lone_backslash_keeps_the_backslash() {
+    var controller = new HolderLinux.MarkdownResourceImageController();
+    // "\\]" would read as an escaped bracket, so the regex backtracks and the backslash becomes the
+    // last character of the alt text; unescaping must keep it rather than drop it.
+    var references = controller.extract("![trailing\\](holder://resource/abc123)");
+
+    assert(references.size == 1);
+    assert(references[0].alt_text == "trailing\\");
+    assert(references[0].resource_id == "abc123");
+}
+
 private void test_ignores_code_and_nonstandalone_images() {
     var controller = new HolderLinux.MarkdownResourceImageController();
     var markdown = "```md\n![No](holder://resource/code)\n```\n" +
@@ -183,16 +194,60 @@ private void test_inline_decoration_does_not_change_markdown_text() {
     window.destroy();
 }
 
+private void test_out_of_range_offsets_missing_resources_and_blank_filenames() {
+    var controller = new HolderLinux.MarkdownResourceImageController();
+    var markdown = "![Image](holder://resource/r1)";
+
+    assert(controller.resource_id_at_byte_offset(markdown, -1) == null);
+    assert(controller.resource_id_at_byte_offset(markdown, markdown.length + 1) == null);
+    assert(controller.resolve(markdown, new Gee.ArrayList<HolderLinux.ProjectResource>()).size == 0);
+    assert(HolderLinux.MarkdownResourceImageController.markdown_for_file("/tmp/___.png", "r1")
+           == "![Image](holder://resource/r1)");
+}
+
+private void test_short_backtick_runs_are_not_code_fences() {
+    var controller = new HolderLinux.MarkdownResourceImageController();
+    var references = controller.extract("``\n![Live](holder://resource/live)");
+
+    assert(references.size == 1);
+    assert(references[0].resource_id == "live");
+}
+
+private void test_spellcheck_controller_survives_repeated_safe_mutations() {
+    var buffer = new GtkSource.Buffer(null);
+    var view = new GtkSource.View.with_buffer(buffer);
+    var spellcheck = new HolderLinux.EditorSpellcheckController(buffer, view);
+
+    assert(spellcheck.backend_available == (spellcheck.adapter != null));
+    var adapter_before = spellcheck.adapter;
+    spellcheck.finish_buffer_mutation(false);
+    assert(spellcheck.adapter == adapter_before);
+    spellcheck.set_enabled_preference(false);
+    assert(!spellcheck.requested_enabled);
+    spellcheck.finish_buffer_mutation(true);
+    assert(spellcheck.adapter == null);
+    spellcheck.finish_buffer_mutation(false);
+    assert(spellcheck.backend_available == (spellcheck.adapter != null));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     var gtk_available = Gtk.init_check();
     Test.add_func("/holder/markdown-resource-images/extract", test_extracts_standalone_holder_images);
+    Test.add_func("/holder/markdown-resource-images/trailing-backslash-alt-text",
+                  test_alt_text_ending_in_a_lone_backslash_keeps_the_backslash);
     Test.add_func("/holder/markdown-resource-images/exclusions", test_ignores_code_and_nonstandalone_images);
     Test.add_func("/holder/markdown-resource-images/build", test_builds_readable_safe_markdown);
     Test.add_func("/holder/markdown-resource-images/resolve", test_resolves_first_image_asset_only);
+    Test.add_func("/holder/markdown-resource-images/out-of-range-and-blank-names",
+                  test_out_of_range_offsets_missing_resources_and_blank_filenames);
+    Test.add_func("/holder/markdown-resource-images/short-backtick-runs",
+                  test_short_backtick_runs_are_not_code_fences);
     if (gtk_available) {
         Test.add_func("/holder/markdown-resource-images/buffer-purity",
                       test_inline_decoration_does_not_change_markdown_text);
+        Test.add_func("/holder/markdown-resource-images/spellcheck-safe-mutations",
+                      test_spellcheck_controller_survives_repeated_safe_mutations);
     }
     return Test.run();
 }

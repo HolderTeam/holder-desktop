@@ -30,7 +30,9 @@ private void test_parse_resources_full_and_defaults() {
         "{\"data\":[" +
         "{\"resource_id\":\"r1\",\"project_id\":\"p1\",\"type\":\"website\",\"label\":\"Example\",\"metadata\":{\"identifier\":[\"https://example.com\"],\"description\":[\"Docs\"],\"creator\":[\"One\",\"Two\"]},\"assets\":[{\"asset_id\":\"a1\",\"resource_id\":\"r1\",\"original_filename\":\"page.pdf\",\"media_type\":\"application/pdf\",\"byte_size\":42,\"plaintext_sha256\":\"abc123\",\"placements\":[{\"placement_id\":\"pl1\",\"location_id\":\"l1\",\"encoding\":\"plain\",\"stored_byte_size\":42}]}],\"referenced_by_cards\":[{\"card_id\":\"c1\",\"title\":\"Research notes\",\"updated_at\":333,\"link_kinds\":[\"attachment\",\"reference\"]}],\"created_at\":111,\"updated_at\":222}," +
         "{\"resource_id\":\"r2\",\"project_id\":\"p2\",\"type\":\"document\",\"label\":\"Local\",\"metadata\":{},\"assets\":[]}," +
-        "{\"resource_id\":\"r3\"}" +
+        "{\"resource_id\":\"r3\"}," +
+        "{\"resource_id\":\"r4\",\"assets\":[{\"asset_id\":\"a2\",\"resource_id\":\"r4\",\"original_filename\":\"note.txt\",\"media_type\":\"text/plain\",\"placements\":[{\"placement_id\":\"pl2\",\"location_id\":\"l2\",\"encoding\":\"plain\"}]}]," +
+        "\"referenced_by_cards\":[{\"card_id\":\"c2\",\"title\":\"Untimed note\"}]}" +
         "]}"
     );
 
@@ -41,7 +43,7 @@ private void test_parse_resources_full_and_defaults() {
         assert_not_reached();
     }
 
-    assert(resources.size == 3);
+    assert(resources.size == 4);
 
     var r1 = resources[0];
     assert(r1.resource_id == "r1");
@@ -84,6 +86,14 @@ private void test_parse_resources_full_and_defaults() {
     assert(r3.desc == null);
     assert(r3.created_at == 0);
     assert(r3.updated_at == 0);
+
+    var r4 = resources[3];
+    assert(r4.assets.size == 1);
+    assert(r4.assets[0].placements.size == 1);
+    assert(r4.assets[0].placements[0].stored_byte_size == 0);
+    assert(r4.assets[0].byte_size == 0);
+    assert(r4.referenced_by_cards.size == 1);
+    assert(r4.referenced_by_cards[0].updated_at == 0);
 }
 
 private void test_parse_import_job_retains_reuse_and_link_state() {
@@ -100,6 +110,109 @@ private void test_parse_import_job_retains_reuse_and_link_state() {
     assert(job.job_id == "j1");
     assert(job.duplicate_reused);
     assert(!job.link_created);
+}
+
+private void test_parse_locations_missing_data_is_protocol_error() {
+    var root = parse_json_object("{\"ok\":true}");
+
+    bool got_protocol = false;
+    try {
+        HolderLinux.ApiParsersResources.parse_locations(root);
+    } catch (Error e) {
+        got_protocol = e.message.contains("Missing data for locations response");
+    }
+
+    assert(got_protocol);
+}
+
+private void test_parse_locations_full_and_defaults() {
+    var root = parse_json_object(
+        "{\"data\":[" +
+        "{\"location_id\":\"l1\",\"project_id\":\"p1\",\"name\":\"Drive\",\"provider\":\"google-drive\"," +
+        "\"configuration\":{\"folder\":\"root\",\"team\":\"eng\"},\"bound\":true,\"binding_preview\":\"Folder: root\"}," +
+        "{\"location_id\":\"l2\",\"project_id\":\"p1\",\"name\":\"Local\",\"provider\":\"filesystem\"}" +
+        "],\"preferred_location_id\":\"l1\"}"
+    );
+
+    HolderLinux.StorageLocationList list;
+    try {
+        list = HolderLinux.ApiParsersResources.parse_locations(root);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+
+    assert(list.locations.size == 2);
+    var l1 = list.locations[0];
+    assert(l1.location_id == "l1");
+    assert(l1.project_id == "p1");
+    assert(l1.name == "Drive");
+    assert(l1.provider == "google-drive");
+    assert(l1.configuration.get("folder") == "root");
+    assert(l1.configuration.get("team") == "eng");
+    assert(l1.bound);
+    assert(l1.binding_preview == "Folder: root");
+
+    var l2 = list.locations[1];
+    assert(l2.location_id == "l2");
+    assert(l2.configuration.size == 0);
+    assert(!l2.bound);
+    assert(l2.binding_preview == null);
+
+    assert(list.preferred_location_id == "l1");
+}
+
+private void test_parse_locations_null_binding_preview_and_no_preferred_location() {
+    var root = parse_json_object(
+        "{\"data\":[" +
+        "{\"location_id\":\"l1\",\"project_id\":\"p1\",\"name\":\"Drive\",\"provider\":\"google-drive\"," +
+        "\"bound\":false,\"binding_preview\":null}" +
+        "],\"preferred_location_id\":null}"
+    );
+
+    HolderLinux.StorageLocationList list;
+    try {
+        list = HolderLinux.ApiParsersResources.parse_locations(root);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+
+    assert(list.locations.size == 1);
+    assert(list.locations[0].binding_preview == null);
+    assert(list.preferred_location_id == null);
+}
+
+private void test_parse_import_job_defaults_when_optional_fields_absent() {
+    var root = parse_json_object(
+        "{\"data\":{\"job_id\":\"j1\",\"status\":\"pending\"}}"
+    );
+
+    HolderLinux.AssetImportJob job;
+    try {
+        job = HolderLinux.ApiParsersResources.parse_import_job(root);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+
+    assert(job.job_id == "j1");
+    assert(job.status == "pending");
+    assert(job.resource_id == null);
+    assert(job.asset_id == null);
+    assert(!job.duplicate_reused);
+    assert(!job.link_created);
+    assert(job.error == null);
+}
+
+private void test_parse_import_job_missing_data_is_protocol_error() {
+    var root = parse_json_object("{\"ok\":true}");
+
+    bool got_protocol = false;
+    try {
+        HolderLinux.ApiParsersResources.parse_import_job(root);
+    } catch (Error e) {
+        got_protocol = e.message.contains("Missing data for import job response");
+    }
+
+    assert(got_protocol);
 }
 
 private void test_parse_resources_empty_data_returns_empty_list() {
@@ -122,6 +235,16 @@ public static int main(string[] args) {
     Test.add_func("/parsers/resources/full-and-defaults", test_parse_resources_full_and_defaults);
     Test.add_func("/parsers/resources/empty-data-returns-empty-list", test_parse_resources_empty_data_returns_empty_list);
     Test.add_func("/parsers/resources/import-job-reuse-state", test_parse_import_job_retains_reuse_and_link_state);
+    Test.add_func("/parsers/resources/locations-missing-data-protocol-error",
+                  test_parse_locations_missing_data_is_protocol_error);
+    Test.add_func("/parsers/resources/locations-full-and-defaults",
+                  test_parse_locations_full_and_defaults);
+    Test.add_func("/parsers/resources/locations-null-binding-preview-and-no-preferred",
+                  test_parse_locations_null_binding_preview_and_no_preferred_location);
+    Test.add_func("/parsers/resources/import-job-defaults-when-optional-fields-absent",
+                  test_parse_import_job_defaults_when_optional_fields_absent);
+    Test.add_func("/parsers/resources/import-job-missing-data-protocol-error",
+                  test_parse_import_job_missing_data_is_protocol_error);
 
     return Test.run();
 }

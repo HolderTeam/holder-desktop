@@ -456,6 +456,62 @@ private void test_card_history_endpoints() {
     assert(transport.last_uri.contains("oid=restore%20oid"));
 }
 
+private void test_milestone_endpoints_report_missing_data_and_trim_update_text() {
+    var transport = new FakeApiHttpTransport();
+    transport.enqueue_read(200, "{\"ok\":true}");
+    transport.enqueue_read(200, "{\"ok\":true}");
+    transport.enqueue_read(200, "{\"ok\":true}");
+    transport.enqueue_read(
+        200,
+        "{\"ok\":true,\"data\":{\"milestone_id\":\"m3\",\"card_id\":\"c1\"," +
+        "\"start_at\":10,\"end_at\":null,\"all_day\":false,\"kind\":\"Service\"," +
+        "\"description\":\"Boiler\",\"created_at\":1,\"updated_at\":2}}"
+    );
+    var client = make_client(transport);
+
+    bool create_done = false;
+    bool create_protocol = false;
+    client.add_card_milestone.begin("c1", 10, null, false, null, null, (obj, res) => {
+        try { client.add_card_milestone.end(res); }
+        catch (Error e) { create_protocol = (e is HolderLinux.ApiError.PROTOCOL); }
+        create_done = true;
+    });
+    assert(wait_for_condition(() => create_done));
+    assert(create_protocol);
+
+    bool remove_done = false;
+    bool remove_protocol = false;
+    client.remove_card_milestone.begin("c1", "m1", (obj, res) => {
+        try { client.remove_card_milestone.end(res); }
+        catch (Error e) { remove_protocol = (e is HolderLinux.ApiError.PROTOCOL); }
+        remove_done = true;
+    });
+    assert(wait_for_condition(() => remove_done));
+    assert(remove_protocol);
+
+    bool update_done = false;
+    bool update_protocol = false;
+    client.update_card_milestone.begin("c1", "m1", 10, null, false, null, null, (obj, res) => {
+        try { client.update_card_milestone.end(res); }
+        catch (Error e) { update_protocol = (e is HolderLinux.ApiError.PROTOCOL); }
+        update_done = true;
+    });
+    assert(wait_for_condition(() => update_done));
+    assert(update_protocol);
+
+    bool trimmed_done = false;
+    HolderLinux.Milestone? updated = null;
+    client.update_card_milestone.begin("c1", "m3", 10, null, false, " Service ", " Boiler ", (obj, res) => {
+        try { updated = client.update_card_milestone.end(res); }
+        catch (Error e) { updated = null; }
+        trimmed_done = true;
+    });
+    assert(wait_for_condition(() => trimmed_done));
+    assert(updated != null);
+    assert(updated.milestone_id == "m3");
+    assert(transport.last_method == "PATCH");
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -475,6 +531,8 @@ public static int main(string[] args) {
                   test_calendar_and_milestone_endpoints);
     Test.add_func("/api_client_cards/card_history_endpoints",
                   test_card_history_endpoints);
+    Test.add_func("/api_client_cards/milestone_endpoints_report_missing_data_and_trim_update_text",
+                  test_milestone_endpoints_report_missing_data_and_trim_update_text);
 
     return Test.run();
 }

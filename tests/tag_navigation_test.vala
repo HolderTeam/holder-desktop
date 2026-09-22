@@ -28,10 +28,23 @@ private void test_rejects_unvalidated_markdown_and_other_hash_uses() {
     assert(controller.tag_at_byte_offset("changed", 2, { stale }) == null);
 }
 
+private void test_ignores_occurrences_with_an_invalid_range() {
+    var controller = new HolderLinux.TagNavigationController();
+    var text = "#todo now";
+    // The offset falls inside each range, but the range itself is not usable.
+    HolderLinux.CardTagOccurrence[] past_the_end = { new HolderLinux.CardTagOccurrence("todo", 0, 100) };
+    HolderLinux.CardTagOccurrence[] empty_range = { new HolderLinux.CardTagOccurrence("todo", 3, 3) };
+    HolderLinux.CardTagOccurrence[] negative_start = { new HolderLinux.CardTagOccurrence("todo", -2, 5) };
+    assert(controller.tag_at_byte_offset(text, 3, past_the_end) == null);
+    assert(controller.tag_at_byte_offset(text, 3, empty_range) == null);
+    assert(controller.tag_at_byte_offset(text, 3, negative_start) == null);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     Test.add_func("/holder/tags/navigation-finds-validated-tag", test_finds_backend_validated_tag_at_cursor);
     Test.add_func("/holder/tags/navigation-rejects-other-hashes", test_rejects_unvalidated_markdown_and_other_hash_uses);
+    Test.add_func("/holder/tags/navigation-ignores-invalid-ranges", test_ignores_occurrences_with_an_invalid_range);
     return Test.run();
 }
 

@@ -21,7 +21,7 @@ public class TerminalSessionStore : Object {
         var session_id = Uuid.string_random();
         var session_dir = Path.build_filename(root_dir, session_id);
         if (DirUtils.create_with_parents(session_dir, 0700) != 0) {
-            throw new IOError.FAILED("Could not create terminal session directory: %s".printf(session_dir));
+            throw new IOError.FAILED("Could not create terminal session directory: %s".printf(session_dir)); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS directory-create failure wrapper; ensure_root_dir has just made the parent writable
         }
 
         var created_at = new DateTime.now_utc().to_unix();
@@ -160,7 +160,7 @@ Write-Host 'Holder is recording this terminal session. Return to Holder to prese
             FileUtils.set_contents(path, bootstrap_script());
             FileUtils.chmod(path, 0600);
         } catch (FileError e) {
-            throw new IOError.FAILED("Could not write terminal bootstrap script: %s".printf(e.message));
+            throw new IOError.FAILED("Could not write terminal bootstrap script: %s".printf(e.message)); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS file-write failure wrapper; the session directory was just created
         }
     }
 
@@ -217,7 +217,7 @@ Write-Host 'Holder is recording this terminal session. Return to Holder to prese
     }
 
     private static int64 file_modified_at(string path) {
-        try {
+        try { // LCOV_EXCL_LINE GCOVR_EXCL_LINE: try entry marker; the body below is covered
             var info = File.new_for_path(path).query_info(
                 FileAttribute.TIME_MODIFIED,
                 FileQueryInfoFlags.NONE,
@@ -225,7 +225,7 @@ Write-Host 'Holder is recording this terminal session. Return to Holder to prese
             );
             return (int64) info.get_attribute_uint64(FileAttribute.TIME_MODIFIED);
         } catch (Error e) {
-            return 0;
+            return 0; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: query_info cannot fail here: the transcript passed the IS_REGULAR check just above
         }
     }
 

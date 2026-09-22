@@ -294,8 +294,25 @@ private void test_save_load_import_and_summary_behaviour() {
     assert(summary.index_of("Remote error: remote down") >= 0);
 }
 
+private void test_pin_and_path_blank_rules_have_one_definition() {
+    assert(HolderLinux.RecoveryUiController.normalize_pin("  1234 \n") == "1234");
+    assert(HolderLinux.RecoveryUiController.normalize_pin("   ") == "");
+    assert(HolderLinux.RecoveryUiController.pin_is_submittable("1234"));
+    assert(HolderLinux.RecoveryUiController.pin_is_submittable(" 1 "));
+    assert(!HolderLinux.RecoveryUiController.pin_is_submittable(""));
+    assert(!HolderLinux.RecoveryUiController.pin_is_submittable(" \t "));
+
+    assert(HolderLinux.RecoveryUiController.accepted_path(null) == null);
+    assert(HolderLinux.RecoveryUiController.accepted_path("") == null);
+    assert(HolderLinux.RecoveryUiController.accepted_path("  ") == null);
+    assert(HolderLinux.RecoveryUiController.accepted_path("/tmp/key.hrk") == "/tmp/key.hrk");
+    // The path is handed on untouched, not stripped.
+    assert(HolderLinux.RecoveryUiController.accepted_path(" /tmp/key.hrk ") == " /tmp/key.hrk ");
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
+    Test.add_func("/holder/recovery-ui/pin-and-path-blank-rules", test_pin_and_path_blank_rules_have_one_definition);
     Test.add_func("/holder/recovery-ui/validate-pin-and-export-prepare-behaviour", test_validate_pin_and_export_prepare_behaviour);
     Test.add_func("/holder/recovery-ui/save-load-import-and-summary-behaviour", test_save_load_import_and_summary_behaviour);
     return Test.run();

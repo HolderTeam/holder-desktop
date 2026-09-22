@@ -305,7 +305,12 @@ private void test_transient_null_project_selection_keeps_committed_board() {
     assert(committed != null);
     assert(committed.card_id == "p1a");
 
+    // A SingleSelection autoselects by default and would refuse to clear, so the transient
+    // null selection these tests describe could never happen.
+    project_selection.set_autoselect(false);
+    project_selection.set_can_unselect(true);
     project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+    assert(project_selection.get_selected_item() == null);
     controller.refresh();
 
     model = controller.get_visible_model();
@@ -527,7 +532,12 @@ private void test_transient_null_selection_preserves_committed_breadcrumbs() {
     controller.activate_position(0); // enter root => parent_stack contains root
 
     // Selected project removed => transient null selection keeps committed breadcrumb state.
+    // A SingleSelection autoselects by default and would refuse to clear, so the transient
+    // null selection these tests describe could never happen.
+    project_selection.set_autoselect(false);
+    project_selection.set_can_unselect(true);
     project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+    assert(project_selection.get_selected_item() == null);
     controller.refresh();
     assert(crumbs != null);
     assert(crumbs.size >= 1);
@@ -569,7 +579,12 @@ private void test_transient_null_selection_preserves_committed_breadcrumbs_when_
 
     // Remove root before deselect. Breadcrumbs stay on last committed state.
     card_store.remove(0);
+    // A SingleSelection autoselects by default and would refuse to clear, so the transient
+    // null selection these tests describe could never happen.
+    project_selection.set_autoselect(false);
+    project_selection.set_can_unselect(true);
     project_selection.set_selected(Gtk.INVALID_LIST_POSITION);
+    assert(project_selection.get_selected_item() == null);
     controller.refresh();
 
     assert(crumbs != null);
@@ -818,6 +833,44 @@ private void test_on_background_drop_moves_card_to_project_root() {
     assert(moved_card == "c");
     assert(moved_intent == "to_end");
     assert(moved_parent == null);
+}
+
+private void test_before_and_after_drops_onto_a_descendant_are_rejected() {
+    GLib.ListStore project_store;
+    Gtk.SingleSelection project_selection;
+    GLib.ListStore card_store;
+    var controller = make_controller(out project_store, out project_selection, out card_store);
+
+    project_store.append(make_project("p1", "Project One", 10));
+    project_selection.set_selected(0);
+    card_store.append(make_card("p", "p1", "Parent", 1024.0));
+    card_store.append(make_card("c", "p1", "Child", 1024.0, "p"));
+    card_store.append(make_card("g", "p1", "Grandchild", 1024.0, "c"));
+    card_store.append(make_card("s", "p1", "Sibling", 2048.0));
+
+    var intents = new Gee.ArrayList<string>();
+    var toasts = 0;
+    controller.move_intent_requested.connect((card_id, project_id, intent, target_card_id, parent_card_id) => {
+        intents.add("%s:%s:%s".printf(card_id, intent, target_card_id ?? "-"));
+    });
+    controller.toast_requested.connect((message) => { toasts++; });
+    controller.refresh();
+
+    // Beside a child or a grandchild would put "p" inside its own subtree.
+    controller.on_card_drop("p", "c", 0.1);
+    controller.on_card_drop("p", "c", 0.9);
+    controller.on_card_drop("p", "g", 0.1);
+    controller.on_card_drop("p", "g", 0.9);
+    controller.on_card_drop("p", "g", 0.5);
+    assert(intents.size == 0);
+    assert(toasts == 0);
+
+    // A card that is not in the subtree can still be reordered around and nested.
+    controller.on_card_drop("p", "s", 0.9);
+    controller.on_card_drop("c", "p", 0.1);
+    assert(intents.size == 2);
+    assert(intents[0] == "p:after:s");
+    assert(intents[1] == "c:before:p");
 }
 
 private void test_on_card_drop_prevents_descendant_cycle() {
@@ -1727,6 +1780,8 @@ int main(string[] args) {
                   test_on_background_drop_moves_card_to_project_root);
     Test.add_func("/flowboard/on_card_drop_prevents_descendant_cycle",
                   test_on_card_drop_prevents_descendant_cycle);
+    Test.add_func("/flowboard/before_and_after_drops_onto_a_descendant_are_rejected",
+                  test_before_and_after_drops_onto_a_descendant_are_rejected);
     Test.add_func("/flowboard/move_card_to_start_and_end_emit_expected_intents",
                   test_move_card_to_start_and_end_emit_expected_intents);
     Test.add_func("/flowboard/projects_mode_with_no_projects_shows_empty_projects_message",

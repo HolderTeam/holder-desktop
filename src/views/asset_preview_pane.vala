@@ -34,6 +34,9 @@ public class AssetPreviewPane : Object {
 
     public void set_attachments(Gee.ArrayList<CardAttachment> values, int selected_index = 0) {
         attachments = values;
+        // The dropdown selects the first item as soon as one is appended, which would announce a
+        // selection nobody made; keep the guard up for the whole rebuild.
+        changing_selection = true;
         attachment_names.splice(0, attachment_names.get_n_items(), {});
         foreach (var attachment in attachments) {
             attachment_names.append(attachment.asset.original_filename);
@@ -43,11 +46,11 @@ public class AssetPreviewPane : Object {
         previous_button.set_visible(has_many);
         next_button.set_visible(has_many);
         if (attachments.size == 0) {
+            changing_selection = false;
             show_empty();
             return;
         }
         var index = selected_index.clamp(0, attachments.size - 1);
-        changing_selection = true;
         attachment_selector.set_selected((uint) index);
         changing_selection = false;
         show_loading(attachments[index]);
@@ -226,13 +229,13 @@ public class AssetPreviewPane : Object {
         actual_button.clicked.connect(() => { set_zoom(1.0); });
         controls.append(actual_button);
         var zoom_out = icon_button("zoom-out-symbolic", "Zoom out");
-        zoom_out.clicked.connect(() => { set_zoom(zoom == 0.0 ? 0.8 : zoom - 0.2); });
+        zoom_out.clicked.connect(() => { set_zoom(AssetPreviewPresenter.zoom_out_target(zoom)); });
         controls.append(zoom_out);
-        zoom_label = new Gtk.Label("Fit");
+        zoom_label = new Gtk.Label(AssetPreviewPresenter.FIT_LABEL);
         zoom_label.set_width_chars(5);
         controls.append(zoom_label);
         var zoom_in = icon_button("zoom-in-symbolic", "Zoom in");
-        zoom_in.clicked.connect(() => { set_zoom(zoom == 0.0 ? 1.2 : zoom + 0.2); });
+        zoom_in.clicked.connect(() => { set_zoom(AssetPreviewPresenter.zoom_in_target(zoom)); });
         controls.append(zoom_in);
         root.append(controls);
 
@@ -263,28 +266,29 @@ public class AssetPreviewPane : Object {
         picture.set_size_request(-1, -1);
         picture.set_hexpand(true);
         picture.set_vexpand(true);
-        zoom_label.set_text("Fit");
+        zoom_label.set_text(AssetPreviewPresenter.FIT_LABEL);
     }
 
     private void set_zoom(double requested_zoom) {
         if (texture == null) {
             return;
         }
-        zoom = requested_zoom.clamp(0.2, 4.0);
+        var presentation = AssetPreviewPresenter.zoom(
+            requested_zoom, ((!) texture).get_width(), ((!) texture).get_height()
+        );
+        zoom = presentation.zoom;
         picture.set_can_shrink(false);
         picture.set_content_fit(Gtk.ContentFit.CONTAIN);
         picture.set_hexpand(false);
         picture.set_vexpand(false);
-        picture.set_size_request(
-            ((int) (((double) ((!) texture).get_width()) * zoom)).clamp(1, 16384),
-            ((int) (((double) ((!) texture).get_height()) * zoom)).clamp(1, 16384)
-        );
-        zoom_label.set_text("%d%%".printf((int) (zoom * 100.0 + 0.5)));
+        picture.set_size_request(presentation.width, presentation.height);
+        zoom_label.set_text(presentation.label);
     }
 
     private void refresh_navigation_buttons(int selected_index) {
-        previous_button.set_sensitive(selected_index > 0);
-        next_button.set_sensitive(selected_index >= 0 && selected_index + 1 < attachments.size);
+        var state = AssetPreviewPresenter.navigation(selected_index, attachments.size);
+        previous_button.set_sensitive(state.previous_enabled);
+        next_button.set_sensitive(state.next_enabled);
     }
 
     private static Gtk.Label centered_label(string text) {

@@ -71,7 +71,7 @@ public class EditorRecoveryDraftService : Object, IEditorRecoveryDraftService {
                 null
             );
             if (FileUtils.chmod(destination_path, 0600) != 0) {
-                throw new IOError.FAILED("Could not make recovery draft private.");
+                throw new IOError.FAILED("Could not make recovery draft private."); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS chmod failure wrapper; only fails on a file this process does not own
             }
         } catch (Error e) {
             throw new IOError.FAILED("Could not save recovery draft: %s".printf(e.message));
@@ -135,7 +135,7 @@ public class EditorRecoveryDraftService : Object, IEditorRecoveryDraftService {
             throw new IOError.FAILED("Could not create recovery draft directory: %s".printf(root_dir));
         }
         if (FileUtils.chmod(root_dir, 0700) != 0) {
-            throw new IOError.FAILED("Could not make recovery draft directory private: %s".printf(root_dir));
+            throw new IOError.FAILED("Could not make recovery draft directory private: %s".printf(root_dir)); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: direct OS chmod failure wrapper; only fails on a directory this process does not own
         }
     }
 

@@ -398,6 +398,80 @@ private void test_parse_card_history_missing_data_is_protocol_error() {
     assert(comparison_error);
 }
 
+private void test_parse_project_history_page_supports_legacy_paths_and_reports_missing_data() {
+    var root = parse_json_object(
+        "{\"data\":{\"head_oid\":\"h1\",\"next_cursor\":\"n1\",\"scan_limited\":false,\"activities\":[{" +
+        "\"oid\":\"o1\",\"parent_oids\":[\"p1\"],\"author\":{\"name\":\"Ezra\",\"email\":\"e@example.test\"}," +
+        "\"committed_at\":5,\"message\":\"Edit\",\"is_merge\":false,\"affected_objects\":[" +
+        "{\"kind\":\"card\",\"paths\":[\"cards/a.md\",\"cards/b.md\"]}," +
+        "{\"kind\":\"resource\",\"items\":[{\"path\":\"r/1\",\"title\":\"One\",\"detail\":null}]}]}]}}"
+    );
+    HolderLinux.ProjectHistoryPage page;
+    try {
+        page = HolderLinux.ApiParsersCards.parse_project_history_page(root);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    assert(page.head_oid == "h1");
+    assert(page.next_cursor == "n1");
+    assert(!page.scan_limited);
+    assert(page.activities.length == 1);
+    var affected = page.activities[0].affected_objects;
+    assert(affected.length == 2);
+    assert(affected[0].items.length == 2);
+    assert(affected[0].items[1].path == "cards/b.md");
+    assert(affected[0].items[0].title == null);
+    assert(affected[1].items[0].title == "One");
+
+    bool missing = false;
+    try {
+        HolderLinux.ApiParsersCards.parse_project_history_page(parse_json_object("{\"ok\":true}"));
+    } catch (Error e) {
+        missing = e.message.contains("Missing data for project history response");
+    }
+    assert(missing);
+}
+
+private void test_parse_card_history_page_defaults_missing_saves_and_authored_at() {
+    var root = parse_json_object(
+        "{\"data\":{\"head_oid\":\"head1\",\"entries\":[" +
+        "{\"first_oid\":\"f1\",\"last_oid\":\"l1\",\"parent_oids\":[\"p1\"],\"author\":{}," +
+        "\"started_at\":1,\"ended_at\":2,\"kind\":\"updated\",\"summary\":\"s\",\"commit_count\":1,\"is_merge\":false}," +
+        "{\"first_oid\":\"f2\",\"last_oid\":\"l2\",\"parent_oids\":[],\"author\":{}," +
+        "\"started_at\":3,\"ended_at\":4,\"kind\":\"updated\",\"summary\":\"s\",\"commit_count\":1,\"is_merge\":false," +
+        "\"saves\":[{\"oid\":\"l2\",\"parent_oids\":[],\"committed_at\":4}]}]}}"
+    );
+    HolderLinux.CardHistoryPage page;
+    try {
+        page = HolderLinux.ApiParsersCards.parse_card_history_page(root);
+    } catch (Error e) {
+        assert_not_reached();
+    }
+    assert(page.entries.length == 2);
+    assert(page.entries[0].saves.length == 1);
+    assert(page.entries[0].saves[0].oid == "l1");
+    assert(page.entries[0].saves[0].committed_at == 2);
+    assert(page.entries[1].saves[0].authored_at == 4);
+    assert(page.entries[1].saves[0].message == "");
+}
+
+private void test_parse_milestones_and_calendar_missing_data_are_protocol_errors() {
+    bool milestones = false;
+    bool calendar = false;
+    try {
+        HolderLinux.ApiParsersCards.parse_milestones_response(parse_json_object("{\"ok\":true}"));
+    } catch (Error e) {
+        milestones = e.message.contains("Missing data for milestones response");
+    }
+    try {
+        HolderLinux.ApiParsersCards.parse_project_calendar(parse_json_object("{\"ok\":true}"));
+    } catch (Error e) {
+        calendar = e.message.contains("Missing data for calendar response");
+    }
+    assert(milestones);
+    assert(calendar);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -415,6 +489,9 @@ public static int main(string[] args) {
     Test.add_func("/parsers/cards/project-calendar-and-milestones", test_parse_project_calendar_and_milestones);
     Test.add_func("/parsers/cards/card-history-page-and-comparison", test_parse_card_history_page_and_comparison);
     Test.add_func("/parsers/cards/card-history-missing-data-protocol-error", test_parse_card_history_missing_data_is_protocol_error);
+    Test.add_func("/parsers/cards/project-history-legacy-paths-and-missing-data", test_parse_project_history_page_supports_legacy_paths_and_reports_missing_data);
+    Test.add_func("/parsers/cards/card-history-defaults-missing-saves", test_parse_card_history_page_defaults_missing_saves_and_authored_at);
+    Test.add_func("/parsers/cards/milestones-and-calendar-missing-data", test_parse_milestones_and_calendar_missing_data_are_protocol_errors);
 
     return Test.run();
 }

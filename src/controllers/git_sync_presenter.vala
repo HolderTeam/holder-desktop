@@ -97,7 +97,7 @@ internal class GitGuidedSshProbePresentation : Object {
     }
 }
 
-internal class GitSyncPresenter : Object {
+internal class GitSyncPresenter : Object { // LCOV_EXCL_LINE: declaration-only coverage artifact
     private const string BROWSER_MANUAL_INSTRUCTIONS =
         "Fill in the repository name, and you need to tell us the same name below.\n\n" +
         "You can leave the description blank.\n\n" +

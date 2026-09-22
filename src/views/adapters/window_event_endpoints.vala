@@ -193,7 +193,7 @@ internal class WindowAiPanelEventSink : Object, IAiPanelEventSink {
                              string? card_id,
                              ActivityDetails? details) {
         owner.log_activity(kind, message, project_id, card_id, details);
-        if (kind == "result.trash.restore") {
+        if (TrashController.is_restored_activity(kind)) {
             owner.on_trash_item_restored.begin(card_id);
         }
     }

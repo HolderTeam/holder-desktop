@@ -54,6 +54,7 @@ public class FakeEditorRecoveryDraftService : Object, HolderLinux.IEditorRecover
     public int remove_calls = 0;
     public bool fail_save = false;
     public bool fail_remove = false;
+    public bool fail_load = false;
     public HolderLinux.EditorRecoveryDraft? last_saved_draft = null;
     public Gee.HashMap<string, HolderLinux.EditorRecoveryDraft> drafts =
         new Gee.HashMap<string, HolderLinux.EditorRecoveryDraft>();
@@ -68,6 +69,9 @@ public class FakeEditorRecoveryDraftService : Object, HolderLinux.IEditorRecover
     }
 
     public HolderLinux.EditorRecoveryDraft? load_draft(string card_id) throws Error {
+        if (fail_load) {
+            throw new IOError.FAILED("load draft failed");
+        }
         return drafts.get(card_id);
     }
 
@@ -83,6 +87,9 @@ public class FakeEditorRecoveryDraftService : Object, HolderLinux.IEditorRecover
         return "/tmp/%s.json".printf(card_id);
     }
 }
+
+public delegate void ListCardLinksHook(string card_id);
+public delegate void AiConfigCallHook();
 
 public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux.IMilestoneApi {
     public int list_projects_calls = 0;
@@ -132,6 +139,22 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public int create_card_link_calls = 0;
     public int delete_card_link_calls = 0;
     public int get_project_calendar_calls = 0;
+    public bool fail_get_project_calendar = false;
+    public bool fail_remove_card_milestone = false;
+    public bool stall_next_project_calendar = false;
+    private SourceFunc? stalled_project_calendar = null;
+
+    public bool has_stalled_project_calendar() {
+        return stalled_project_calendar != null;
+    }
+
+    public void release_stalled_project_calendar() {
+        if (stalled_project_calendar != null) {
+            var resume = (owned) stalled_project_calendar;
+            stalled_project_calendar = null;
+            resume();
+        }
+    }
     public int add_card_milestone_calls = 0;
     public int update_card_milestone_calls = 0;
     public int remove_card_milestone_calls = 0;
@@ -230,6 +253,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public bool list_threads_empty = false;
     public bool include_created_card = false;
     public bool fail_update_card = false;
+    public bool fail_update_card_after_hook = false;
     public bool reflect_update_in_get_card = false;
     public bool fail_update_card_position = false;
     public bool fail_delete_card = false;
@@ -271,6 +295,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public string last_resource_uri = "";
     public string last_resource_label = "";
     public string? last_resource_desc = null;
+    public Gee.HashMap<string, Gee.ArrayList<string>>? last_resource_extra_metadata = null;
     public string last_resource_id = "";
     public int64 last_resource_updated_at = 0;
     public string last_git_project_id = "";
@@ -292,6 +317,14 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public string last_link_to_type = "";
     public Gee.ArrayList<HolderLinux.CardLink> card_links = new Gee.ArrayList<HolderLinux.CardLink>();
     public Gee.ArrayList<HolderLinux.CardLink> card_backlinks = new Gee.ArrayList<HolderLinux.CardLink>();
+    // Optional per-card override for list_card_links (falls back to card_links).
+    public Gee.HashMap<string, Gee.ArrayList<HolderLinux.CardLink>>? card_links_by_source = null;
+    // Runs inside list_card_links (while the call is in flight) so a test can change state mid-load.
+    public ListCardLinksHook? list_card_links_hook = null;
+    // Run inside the call, so a test can change the view's API while a request is in flight.
+    public AiConfigCallHook? list_ai_runners_hook = null;
+    public AiConfigCallHook? set_ai_local_model_config_hook = null;
+    public AiConfigCallHook? list_ai_nudges_hook = null;
     public Gee.ArrayList<HolderLinux.ProjectResource> resources = new Gee.ArrayList<HolderLinux.ProjectResource>();
     public Gee.ArrayList<HolderLinux.TrashItem> trash_items = new Gee.ArrayList<HolderLinux.TrashItem>();
     public Gee.ArrayList<HolderLinux.AiRunnerInfo> ai_runners = new Gee.ArrayList<HolderLinux.AiRunnerInfo>();
@@ -347,7 +380,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return new HolderLinux.HealthInfo(true, 1234, "0.1", "dev", 42);
     }
 
-    public async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
+    public virtual async Gee.ArrayList<HolderLinux.Project> list_projects() throws Error {
         if (fail_list_projects_once) {
             fail_list_projects_once = false;
             throw new IOError.FAILED(list_projects_failure_message);
@@ -535,12 +568,12 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         );
     }
 
-    public async Gee.ArrayList<HolderLinux.TagCount> list_project_tags(string project_id) throws Error {
+    public virtual async Gee.ArrayList<HolderLinux.TagCount> list_project_tags(string project_id) throws Error {
         list_project_tags_calls++;
         return project_tags;
     }
 
-    public async Gee.ArrayList<HolderLinux.CardSummary> list_cards_with_tag(string project_id,
+    public virtual async Gee.ArrayList<HolderLinux.CardSummary> list_cards_with_tag(string project_id,
                                                                             string tag) throws Error {
         list_cards_with_tag_calls++;
         last_requested_tag = tag;
@@ -555,6 +588,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         if (list_card_links_in_flight > max_list_card_links_in_flight) {
             max_list_card_links_in_flight = list_card_links_in_flight;
         }
+        if (list_card_links_hook != null) {
+            ((!) list_card_links_hook)(card_id);
+        }
         if (list_card_links_delay_ms > 0) {
             var loop = new MainLoop(null, false);
             Timeout.add(list_card_links_delay_ms, () => {
@@ -565,6 +601,12 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         }
         list_card_links_calls++;
         list_card_links_in_flight--;
+        if (card_links_by_source != null) {
+            var per_card = ((!) card_links_by_source).get(card_id);
+            if (per_card != null) {
+                return (!) per_card;
+            }
+        }
         return card_links;
     }
 
@@ -596,7 +638,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return resources;
     }
 
-    public async Gee.ArrayList<HolderLinux.TrashItem> list_trash_items(string project_id,
+    public virtual async Gee.ArrayList<HolderLinux.TrashItem> list_trash_items(string project_id,
                                                                         string type = "all") throws Error {
         if (list_trash_before_complete_hook != null) {
             ((!) list_trash_before_complete_hook)(project_id, type);
@@ -656,6 +698,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_resource_uri = uri;
         last_resource_label = label;
         last_resource_desc = desc;
+        last_resource_extra_metadata = extra_metadata;
         return "r1";
     }
 
@@ -675,6 +718,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_resource_uri = uri ?? "";
         last_resource_label = label ?? "";
         last_resource_desc = desc;
+        last_resource_extra_metadata = extra_metadata;
         last_resource_updated_at = updated_at;
     }
 
@@ -757,6 +801,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     }
 
     public async Gee.ArrayList<HolderLinux.AiRunnerInfo> list_ai_runners() throws Error {
+        if (list_ai_runners_hook != null) {
+            ((!) list_ai_runners_hook)();
+        }
         if (fail_list_ai_runners) {
             throw new IOError.FAILED("list AI runners failed");
         }
@@ -846,7 +893,17 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return new Gee.ArrayList<HolderLinux.AiCatalogProvider>();
     }
 
+    public bool slow_list_ai_runtime_providers_once = false;
+
     public async Gee.ArrayList<HolderLinux.AiRuntimeProvider> list_ai_runtime_providers() throws Error {
+        if (slow_list_ai_runtime_providers_once) {
+            slow_list_ai_runtime_providers_once = false;
+            var end = GLib.get_monotonic_time() + 50 * 1000;
+            while (GLib.get_monotonic_time() < end) {
+                while (MainContext.default().iteration(false)) {}
+                Thread.usleep(1000);
+            }
+        }
         if (fail_list_ai_runtime_providers) {
             throw new IOError.FAILED("list AI runtime providers failed");
         }
@@ -873,6 +930,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_strong_model = strong_model;
         last_deep_model = deep_model;
         ai_local_model_config = new HolderLinux.AiLocalModelConfigInfo(fast_model, strong_model, deep_model, 0);
+        if (set_ai_local_model_config_hook != null) {
+            ((!) set_ai_local_model_config_hook)();
+        }
         return ai_local_model_config;
     }
 
@@ -920,13 +980,17 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
 
     public async Gee.ArrayList<HolderLinux.AiNudge> list_ai_nudges(string project_id,
                                                                    string? card_id = null) throws Error {
+        var answer = ai_nudges;
+        if (list_ai_nudges_hook != null) {
+            ((!) list_ai_nudges_hook)();
+        }
         if (fail_list_ai_nudges) {
             throw new IOError.FAILED("list nudges failed");
         }
         list_ai_nudges_calls++;
         last_nudge_project_id = project_id;
         last_nudge_card_id = card_id;
-        return ai_nudges;
+        return answer;
     }
 
     public async void dismiss_ai_nudge(string nudge_id) throws Error {
@@ -961,11 +1025,11 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return new HolderLinux.NudgeEvaluationResult(kind, false, false, "fake_not_implemented");
     }
 
-    public async Gee.ArrayList<HolderLinux.GitProviderCatalogEntry> list_git_provider_catalog() throws Error {
+    public virtual async Gee.ArrayList<HolderLinux.GitProviderCatalogEntry> list_git_provider_catalog() throws Error {
         return new Gee.ArrayList<HolderLinux.GitProviderCatalogEntry>();
     }
 
-    public async void set_project_git_remote(string project_id,
+    public virtual async void set_project_git_remote(string project_id,
                                              string? git_remote_url,
                                              int64 updated_at) throws Error {
         if (fail_set_project_git_remote) {
@@ -997,7 +1061,7 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
                                                    "");
     }
 
-    public async HolderLinux.GitPushResult push_project_git(string project_id,
+    public virtual async HolderLinux.GitPushResult push_project_git(string project_id,
                                                             string branch = "",
                                                             bool set_upstream = true) throws Error {
         if (fail_push_project_git) {
@@ -1071,6 +1135,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
                 return Source.REMOVE;
             });
             yield;
+            if (fail_update_card_after_hook) {
+                throw new IOError.FAILED("update failed");
+            }
         }
     }
 
@@ -1120,6 +1187,14 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_calendar_project_id = project_id;
         last_calendar_from = from_epoch;
         last_calendar_to = to_epoch;
+        if (stall_next_project_calendar) {
+            stall_next_project_calendar = false;
+            stalled_project_calendar = get_project_calendar.callback;
+            yield;
+        }
+        if (fail_get_project_calendar) {
+            throw new IOError.FAILED("calendar down");
+        }
         return new HolderLinux.ProjectCalendar(
             project_id,
             from_epoch,
@@ -1186,6 +1261,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
 
     public async bool remove_card_milestone(string card_id, string milestone_id) throws Error {
         remove_card_milestone_calls++;
+        if (fail_remove_card_milestone) {
+            throw new IOError.FAILED("remove down");
+        }
         for (var i = 0; i < milestones.size; i++) {
             if (milestones[i].card_id == card_id && milestones[i].milestone_id == milestone_id) {
                 milestones.remove_at(i);

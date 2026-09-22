@@ -249,6 +249,9 @@ private void test_git_sync_tool_view_setup_success_becomes_persistent_state() {
 }
 
 public static int main(string[] args) {
+    // HOME and PATH are redirected before GLib caches the home directory and before any test can
+    // start a process; see GitSyncViewEnv.
+    GitSyncViewEnv.install();
     Test.init(ref args);
     if (!Gtk.init_check()) {
         stdout.printf("Skipping git sync tool view tests: GTK display is unavailable.\n");
@@ -270,8 +273,17 @@ public static int main(string[] args) {
                   test_git_sync_tool_view_sync_now_uses_configured_project);
     Test.add_func("/holder/git-sync-tool-view/setup-success-is-persistent",
                   test_git_sync_tool_view_setup_success_becomes_persistent_state);
+    register_git_sync_view_state_tests();
+    register_git_sync_view_setup_tests();
+    register_git_sync_view_guided_tests();
+    register_git_sync_view_cli_tests();
+    register_git_sync_view_service_cli_tests();
+    register_git_sync_view_service_guided_tests();
+    register_git_sync_view_service_state_tests();
 
-    return Test.run();
+    var result = Test.run();
+    GitSyncViewEnv.cleanup();
+    return result;
 }
 
 }

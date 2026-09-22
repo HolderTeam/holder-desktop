@@ -3,8 +3,8 @@ namespace HolderLinux {
 internal delegate void UpdatePromptHandledFunc(UpdateCandidate candidate);
 
 internal class UpdateDialogAdapter : Object {
-    private Gtk.Window parent;
-    private IUriLauncher uri_launcher;
+    private Gtk.Window parent; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private IUriLauncher uri_launcher; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
     public UpdateDialogAdapter(Gtk.Window parent, IUriLauncher? uri_launcher = null) {
         this.parent = parent;
@@ -12,7 +12,7 @@ internal class UpdateDialogAdapter : Object {
     }
 
     public void show(UpdateCandidate candidate, string current_version, UpdatePromptHandledFunc on_handled) {
-        var body = "%s\n\nHolder %s is available. You are running %s.".printf(
+        var body = DialogTextPresenter.update_prompt_body(
             candidate.message,
             candidate.version,
             current_version

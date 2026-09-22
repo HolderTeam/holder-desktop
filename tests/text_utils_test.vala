@@ -205,6 +205,11 @@ private void test_trim_an_unfenced_trailing_whitespace_line_between_two_code_blo
     assert(trim(raw) == expected);
 }
 
+private void test_trim_a_run_of_fewer_than_three_backticks_is_not_a_fence() {
+    // Two backticks do not open a code block, so the trailing whitespace inside is still cleaned.
+    assert(trim("``\ncode \n``") == "``\ncode\n``");
+}
+
 int main(string[] args) {
     Test.init(ref args);
 
@@ -269,6 +274,8 @@ int main(string[] args) {
                   test_trim_two_independent_code_blocks_are_both_exempt_by_default);
     Test.add_func("/text/trim/an_unfenced_trailing_whitespace_line_between_two_code_blocks_is_still_cleaned",
                   test_trim_an_unfenced_trailing_whitespace_line_between_two_code_blocks_is_still_cleaned);
+    Test.add_func("/text/trim/a_run_of_fewer_than_three_backticks_is_not_a_fence",
+                  test_trim_a_run_of_fewer_than_three_backticks_is_not_a_fence);
 
     return Test.run();
 }

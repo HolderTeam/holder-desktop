@@ -2,10 +2,14 @@ using GLib;
 
 namespace HolderLinuxTests {
 
-private bool wait_until_true(owned SourceFunc predicate, int timeout_ms = 2000) {
+private const uint DEBOUNCE_MS = HolderLinux.ConnectionsRefreshPlanner.GRAPH_REFRESH_DEBOUNCE_MS;
+
+// Polls until the predicate holds, firing the view's pending refresh debounce on every poll.
+private bool wait_until_true(owned SourceFunc predicate, TestScheduler scheduler, int timeout_ms = 2000) {
     var loop = new MainLoop(null, false);
     var deadline = GLib.get_monotonic_time() + (int64) timeout_ms * 1000;
     Timeout.add(5, () => {
+        scheduler.run_due(DEBOUNCE_MS);
         if (predicate()) {
             loop.quit();
             return Source.REMOVE;
@@ -20,13 +24,22 @@ private bool wait_until_true(owned SourceFunc predicate, int timeout_ms = 2000) 
     return predicate();
 }
 
-private void spin_main_loop_briefly(int duration_ms = 80) {
-    var loop = new MainLoop(null, false);
-    Timeout.add((uint) duration_ms, () => {
-        loop.quit();
-        return Source.REMOVE;
-    });
-    loop.run();
+// Runs the main loop until idle without advancing time, so anything the view queued behind its
+// debounce stays queued.
+private void settle_main_loop() {
+    while (MainContext.default().iteration(false)) {}
+}
+
+// Fires the refresh debounce and lets the refresh finish, until nothing is left.
+private void drain_view(TestScheduler scheduler) {
+    for (int i = 0; i < 50; i++) {
+        var fired = scheduler.run_due(DEBOUNCE_MS);
+        settle_main_loop();
+        if (fired == 0 && scheduler.pending_with_delay(DEBOUNCE_MS) == 0) {
+            return;
+        }
+    }
+    assert_not_reached();
 }
 
 private bool widget_tree_contains_label_text(Gtk.Widget? widget, string needle) {
@@ -80,7 +93,8 @@ private HolderLinux.CardSummary card(string id,
 
 private void test_hidden_connections_tool_does_not_refresh_until_visible() {
     var api = new MainControllerFakeApi();
-    var view = new HolderLinux.ConnectionsToolView();
+    var scheduler = new TestScheduler();
+    var view = new HolderLinux.ConnectionsToolView(scheduler);
 
     var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
     project_store.append(project("p1", "Project"));
@@ -96,31 +110,36 @@ private void test_hidden_connections_tool_does_not_refresh_until_visible() {
     view.set_api_client(api);
     view.bind_context(project_selection, card_store, card_selection);
 
-    spin_main_loop_briefly();
+    // Hidden: the refresh is held back, not merely delayed.
+    assert(scheduler.pending_one_shots() == 0);
+    drain_view(scheduler);
     assert(api.list_card_links_calls == 0);
     assert(api.list_card_backlinks_calls == 0);
 
     view.set_tool_visible(true);
+    assert(scheduler.pending_with_delay(DEBOUNCE_MS) == 1);
     assert(wait_until_true(() => {
         return api.list_card_links_calls == 1 && api.list_card_backlinks_calls == 1;
-    }));
+    }, scheduler));
 
     view.set_tool_visible(false);
     card_selection.set_selected(1);
 
-    spin_main_loop_briefly();
+    assert(scheduler.pending_one_shots() == 0);
+    drain_view(scheduler);
     assert(api.list_card_links_calls == 1);
     assert(api.list_card_backlinks_calls == 1);
 
     view.set_tool_visible(true);
     assert(wait_until_true(() => {
         return api.list_card_links_calls == 2 && api.list_card_backlinks_calls == 2;
-    }));
+    }, scheduler));
 }
 
 private void test_visible_connections_refresh_is_debounced() {
     var api = new MainControllerFakeApi();
-    var view = new HolderLinux.ConnectionsToolView();
+    var scheduler = new TestScheduler();
+    var view = new HolderLinux.ConnectionsToolView(scheduler);
 
     var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
     project_store.append(project("p1", "Project"));
@@ -140,25 +159,29 @@ private void test_visible_connections_refresh_is_debounced() {
 
     assert(wait_until_true(() => {
         return api.list_card_links_calls == 1 && api.list_card_backlinks_calls == 1;
-    }));
+    }, scheduler));
 
     card_selection.set_selected(1);
     card_selection.set_selected(2);
     card_selection.set_selected(0);
 
-    spin_main_loop_briefly(40);
+    // Three selection changes, one pending debounce, nothing loaded yet.
+    settle_main_loop();
+    assert(scheduler.pending_with_delay(DEBOUNCE_MS) == 1);
     assert(api.list_card_links_calls == 1);
     assert(api.list_card_backlinks_calls == 1);
 
     assert(wait_until_true(() => {
         return api.list_card_links_calls == 2 && api.list_card_backlinks_calls == 2;
-    }));
+    }, scheduler));
+    drain_view(scheduler);
+    assert(api.list_card_links_calls == 2);
 }
 
 private void test_visible_connections_refresh_is_single_flight_for_latest_selection() {
     var api = new MainControllerFakeApi();
-    api.list_card_links_delay_ms = 180;
-    var view = new HolderLinux.ConnectionsToolView();
+    var scheduler = new TestScheduler();
+    var view = new HolderLinux.ConnectionsToolView(scheduler);
 
     var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
     project_store.append(project("p1", "Project"));
@@ -178,28 +201,56 @@ private void test_visible_connections_refresh_is_single_flight_for_latest_select
 
     assert(wait_until_true(() => {
         return api.list_card_links_calls == 1 && api.list_card_backlinks_calls == 1;
-    }, 3000));
+    }, scheduler));
 
+    // The selection changes while the second load is in flight.
+    var interrupted = false;
+    var loaded = new Gee.ArrayList<string>();
+    api.list_card_links_hook = (card_id) => {
+        loaded.add(card_id);
+        if (!interrupted) {
+            interrupted = true;
+            card_selection.set_selected(2);
+            card_selection.set_selected(0);
+        }
+    };
     card_selection.set_selected(1);
-    spin_main_loop_briefly(130);
-    card_selection.set_selected(2);
-    card_selection.set_selected(0);
 
-    assert(wait_until_true(() => {
+    // One debounce is pending and nothing has been loaded for the new selection yet.
+    assert(scheduler.pending_with_delay(DEBOUNCE_MS) == 1);
+    assert(loaded.size == 0);
+
+    // Fire only that debounce: the load of Card Two starts, and the hook changes the selection
+    // twice while it is in flight.
+    assert(scheduler.run_due(DEBOUNCE_MS) == 1);
+    assert(wait_for_condition(() => {
         return api.list_card_links_calls == 2 && api.list_card_backlinks_calls == 2;
-    }, 3000));
+    }));
+    assert(interrupted);
+    assert(api.max_list_card_links_in_flight == 1);
+    // The two changes made during the flight coalesced into a single refresh queued behind it.
+    assert(scheduler.pending_with_delay(DEBOUNCE_MS) == 1);
+    assert(api.list_card_links_calls == 2);
 
-    assert(wait_until_true(() => {
+    assert(scheduler.run_due(DEBOUNCE_MS) == 1);
+    assert(wait_for_condition(() => {
         return api.list_card_links_calls == 3 && api.list_card_backlinks_calls == 3;
-    }, 3000));
+    }));
+    drain_view(scheduler);
 
+    // Card Two was loaded first (interrupted), then the latest selection, Card One; the
+    // intermediate Card Three was never loaded, and only one load was ever in flight.
+    assert(loaded.size == 2);
+    assert(loaded[0] == "c2");
+    assert(loaded[1] == "c1");
+    assert(api.list_card_links_calls == 3);
     assert(api.max_list_card_links_in_flight == 1);
 }
 
 private void test_stale_project_graph_refresh_result_is_dropped_when_generation_changes() {
     var api = new MainControllerFakeApi();
-    api.list_card_links_delay_ms = 180;
-    var view = new HolderLinux.ConnectionsToolView();
+    var scheduler = new TestScheduler();
+    var view = new HolderLinux.ConnectionsToolView(scheduler);
 
     var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
     project_store.append(project("p1", "Project One"));
@@ -222,22 +273,30 @@ private void test_stale_project_graph_refresh_result_is_dropped_when_generation_
     assert(wait_until_true(() => {
         return api.list_card_links_calls == 1
             && widget_tree_contains_label_text(view.get_content_widget(), "P2 Unique Node");
-    }, 3000));
+    }, scheduler));
 
+    // Project One starts loading, and the selection returns to Project Two while it is in flight.
+    var interrupted = false;
+    api.list_card_links_hook = (card_id) => {
+        if (!interrupted && card_id == "p1-card") {
+            interrupted = true;
+            project_selection.set_selected(1);
+        }
+    };
     project_selection.set_selected(0);
-    spin_main_loop_briefly(130);
-    project_selection.set_selected(1);
 
     assert(wait_until_true(() => {
         return api.list_card_links_calls == 3
             && widget_tree_contains_label_text(view.get_content_widget(), "P2 Unique Node")
             && !widget_tree_contains_label_text(view.get_content_widget(), "P1 Unique Node");
-    }, 3000));
+    }, scheduler));
+    assert(interrupted);
 }
 
 private void test_duplicate_refresh_triggers_for_same_effective_target_are_suppressed() {
     var api = new MainControllerFakeApi();
-    var view = new HolderLinux.ConnectionsToolView();
+    var scheduler = new TestScheduler();
+    var view = new HolderLinux.ConnectionsToolView(scheduler);
 
     var project_store = new GLib.ListStore(typeof(HolderLinux.Project));
     project_store.append(project("p1", "Project"));
@@ -255,10 +314,11 @@ private void test_duplicate_refresh_triggers_for_same_effective_target_are_suppr
 
     assert(wait_until_true(() => {
         return api.list_card_links_calls == 1 && api.list_card_backlinks_calls == 1;
-    }, 3000));
+    }, scheduler));
 
     view.set_api_client(api);
-    spin_main_loop_briefly(160);
+    assert(scheduler.pending_one_shots() == 0);
+    drain_view(scheduler);
     assert(api.list_card_links_calls == 1);
     assert(api.list_card_backlinks_calls == 1);
 
@@ -267,20 +327,21 @@ private void test_duplicate_refresh_triggers_for_same_effective_target_are_suppr
     view.set_internal_links(internal_links);
     assert(wait_until_true(() => {
         return api.list_card_links_calls == 2 && api.list_card_backlinks_calls == 2;
-    }, 3000));
+    }, scheduler));
 
     var same_internal_links = new Gee.ArrayList<string>();
     same_internal_links.add("Card One");
     view.set_internal_links(same_internal_links);
-    spin_main_loop_briefly(160);
+    assert(scheduler.pending_one_shots() == 0);
+    drain_view(scheduler);
     assert(api.list_card_links_calls == 2);
     assert(api.list_card_backlinks_calls == 2);
 }
 
 private void test_debug_logs_cover_skipped_suppressed_stale_and_coalesced_refreshes() {
     var api = new MainControllerFakeApi();
-    api.list_card_links_delay_ms = 180;
-    var view = new HolderLinux.ConnectionsToolView();
+    var scheduler = new TestScheduler();
+    var view = new HolderLinux.ConnectionsToolView(scheduler);
     var logs = new Gee.ArrayList<string>();
     view.debug_log_requested.connect((line) => {
         logs.add(line);
@@ -304,25 +365,61 @@ private void test_debug_logs_cover_skipped_suppressed_stale_and_coalesced_refres
     card_selection.set_selected(1);
     assert(wait_until_true(() => {
         return logs_contain(logs, "suppressed while hidden");
-    }, 3000));
+    }, scheduler));
 
     view.set_tool_visible(true);
     assert(wait_until_true(() => {
         return api.list_card_links_calls == 1 && api.list_card_backlinks_calls == 1;
-    }, 3000));
+    }, scheduler));
 
     view.set_api_client(api);
     assert(wait_until_true(() => {
         return logs_contain(logs, "skipped unchanged target");
-    }, 3000));
+    }, scheduler));
 
+    // The selection changes back while the load for the third card is in flight.
+    var interrupted = false;
+    api.list_card_links_hook = (card_id) => {
+        if (!interrupted) {
+            interrupted = true;
+            card_selection.set_selected(0);
+        }
+    };
     card_selection.set_selected(2);
-    spin_main_loop_briefly(130);
-    card_selection.set_selected(0);
     assert(wait_until_true(() => {
         return logs_contain(logs, "coalesced after in-flight refresh")
             && logs_contain(logs, "dropped stale card result");
-    }, 3000));
+    }, scheduler));
+    assert(interrupted);
+}
+
+private void test_the_default_relations_split_waits_for_a_width_and_is_applied_once() {
+    var h = new ConnectionsViewHarness();
+    var pane = cv_find_paned(h.content());
+    assert(pane != null);
+    var paned = (!) pane;
+    // Building the view queued exactly one repeating layout check.
+    assert(h.scheduler.pending_repeating() == 1);
+    var initial = paned.get_position();
+
+    // No width yet (the harness window is never shown): the check stays queued and changes nothing.
+    assert(paned.get_width() == 0);
+    assert(h.scheduler.tick_repeating() == 1);
+    assert(h.scheduler.pending_repeating() == 1);
+    assert(paned.get_position() == initial);
+
+    // Give the pane a width the way a layout pass would.
+    paned.allocate(1200, 600, -1, null);
+    assert(paned.get_width() == 1200);
+
+    assert(h.scheduler.tick_repeating() == 1);
+    assert(paned.get_position() == HolderLinux.ConnectionsBoardPresenter.default_relations_split_position(1200));
+    assert(h.scheduler.pending_repeating() == 0);
+
+    // Applied once: nothing is left queued, so a later divider position is never overwritten.
+    paned.set_position(100);
+    assert(h.scheduler.tick_repeating() == 0);
+    assert(paned.get_position() == 100);
 }
 
 public static int main(string[] args) {
@@ -332,6 +429,10 @@ public static int main(string[] args) {
         return 0;
     }
     Adw.init();
+
+    register_connections_view_relations_tests();
+    register_connections_view_addlink_tests();
+    register_connections_view_board_tests();
 
     Test.add_func("/holder/connections-tool-view/hidden-refresh-suppressed-until-visible",
                   test_hidden_connections_tool_does_not_refresh_until_visible);
@@ -343,6 +444,8 @@ public static int main(string[] args) {
                   test_stale_project_graph_refresh_result_is_dropped_when_generation_changes);
     Test.add_func("/holder/connections-tool-view/duplicate-effective-target-refresh-suppressed",
                   test_duplicate_refresh_triggers_for_same_effective_target_are_suppressed);
+    Test.add_func("/holder/connections-tool-view/default-split-waits-for-width",
+                  test_the_default_relations_split_waits_for_a_width_and_is_applied_once);
     Test.add_func("/holder/connections-tool-view/debug-logs-cover-refresh-scheduler-decisions",
                   test_debug_logs_cover_skipped_suppressed_stale_and_coalesced_refreshes);
 

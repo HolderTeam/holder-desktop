@@ -64,7 +64,7 @@ internal class WindowActivityFeedback : Object {
     public void log_error_activity(string title_text, string details) {
         log_activity(
             "feedback.error",
-            "%s: %s".printf(title_text, details),
+            WindowFeedbackFormat.error_status_text(title_text, details),
             controller.selected_project_id(),
             controller.selected_card_id()
         );
@@ -75,9 +75,9 @@ internal class WindowActivityFeedback : Object {
     }
 
     public void show_error(string title_text, string details) {
-        set_status("%s: %s".printf(title_text, details));
+        set_status(WindowFeedbackFormat.error_status_text(title_text, details));
         add_toast("%s".printf(title_text));
-        toolbox.log_debug("ERROR: %s | %s".printf(title_text, details));
+        toolbox.log_debug(WindowFeedbackFormat.error_debug_line(title_text, details));
     }
 
 }

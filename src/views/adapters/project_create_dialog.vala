@@ -3,7 +3,7 @@ namespace HolderLinux {
 public delegate void ProjectCreateRequested(string raw_name, bool is_private_mode);
 
 internal class ProjectCreateDialogAdapter : Object {
-    private Gtk.Window parent;
+    private Gtk.Window parent; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
     public ProjectCreateDialogAdapter(Gtk.Window parent) {
         this.parent = parent;

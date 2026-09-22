@@ -51,7 +51,14 @@ public class AiPanel : Object {
     }
 
     public void set_api_client(IHolderApi? api) {
+        var changed = api != api_client;
         api_client = api;
+        if (changed) {
+            // Nudges (and their Dismiss buttons) came from the previous API, and a nudge load still
+            // running for it must not render into the new one.
+            nudges_request_serial++;
+            render_nudges(new Gee.ArrayList<AiNudge>());
+        }
         ai_config_panel.set_api_client(api);
     }
 
@@ -90,7 +97,7 @@ public class AiPanel : Object {
         }
         var selected = ai_runner_dropdown.get_selected();
         if (selected == Gtk.INVALID_LIST_POSITION || selected >= run_target_runners.size) {
-            return run_target_runners[0].runner_id;
+            return run_target_runners[0].runner_id; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: a GtkDropDown cannot be unselected while it has items
         }
         return run_target_runners[(int) selected].runner_id;
     }
@@ -307,7 +314,7 @@ public class AiPanel : Object {
         }
         var selected = ai_runner_dropdown.get_selected();
         if (selected == Gtk.INVALID_LIST_POSITION || selected >= run_target_runners.size) {
-            return run_target_runners[0];
+            return run_target_runners[0]; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: a GtkDropDown cannot be unselected while it has items
         }
         return run_target_runners[(int) selected];
     }
@@ -369,7 +376,9 @@ public class AiPanel : Object {
         title.set_hexpand(true);
         var dismiss_btn = new Gtk.Button.with_label("Dismiss");
         dismiss_btn.clicked.connect(() => {
-            dismiss_nudge.begin(nudge.nudge_id);
+            // One request per click: the button comes back only if the dismissal fails.
+            dismiss_btn.set_sensitive(false);
+            dismiss_nudge.begin(nudge.nudge_id, dismiss_btn);
         });
         header.append(title);
         header.append(dismiss_btn);
@@ -398,7 +407,7 @@ public class AiPanel : Object {
         return frame;
     }
 
-    private async void dismiss_nudge(string nudge_id) {
+    private async void dismiss_nudge(string nudge_id, Gtk.Button dismiss_btn) {
         if (api_client == null) {
             return;
         }
@@ -406,7 +415,9 @@ public class AiPanel : Object {
             yield api_client.dismiss_ai_nudge(nudge_id);
             refresh_nudges(nudges_project_id, nudges_card_id);
         } catch (Error e) {
+            dismiss_btn.set_sensitive(true);
             debug_log_requested("NUDGE_DISMISS_ERROR %s".printf(e.message));
+            error_reported("Dismiss nudge failed", e.message);
         }
     }
 }

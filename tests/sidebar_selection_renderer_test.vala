@@ -82,10 +82,78 @@ private void test_apply_from_snapshot_leaves_existing_selection_when_target_is_s
     assert(thread_selection.get_selected() == Gtk.INVALID_LIST_POSITION);
 }
 
+private Gtk.SingleSelection default_selection_with_two_items() {
+    var store = new GLib.ListStore(typeof(Object));
+    store.append(new Object());
+    store.append(new Object());
+    // Gtk.SingleSelection defaults to autoselect on with the first item selected, which is how the
+    // sidebar models start out in the app.
+    return new Gtk.SingleSelection(store);
+}
+
+private void test_apply_from_snapshot_clears_selections_when_targets_are_missing() {
+    var project_selection = default_selection_with_two_items();
+    var card_selection = default_selection_with_two_items();
+    var thread_selection = default_selection_with_two_items();
+    // Guard against a vacuous test: the invalid-target branch is only reached when something is
+    // currently selected.
+    assert(project_selection.get_selected() == 0);
+    assert(card_selection.get_selected() == 0);
+    assert(thread_selection.get_selected() == 0);
+    assert(project_selection.get_autoselect());
+    assert(!project_selection.get_can_unselect());
+
+    var explorer = new HolderLinux.ExplorerSelectionController();
+    var renderer = new HolderLinux.SidebarSelectionRenderer(
+        project_selection,
+        card_selection,
+        thread_selection,
+        explorer
+    );
+
+    renderer.apply_from_snapshot(null, null, null);
+
+    assert(project_selection.get_selected() == Gtk.INVALID_LIST_POSITION);
+    assert(card_selection.get_selected() == Gtk.INVALID_LIST_POSITION);
+    assert(thread_selection.get_selected() == Gtk.INVALID_LIST_POSITION);
+    // Clearing has to turn autoselect off and allow unselecting, or GTK would reselect item 0.
+    assert(!project_selection.get_autoselect());
+    assert(project_selection.get_can_unselect());
+}
+
+private void test_apply_from_snapshot_clears_only_the_selection_whose_target_is_missing() {
+    var project_selection = default_selection_with_two_items();
+    var card_selection = default_selection_with_two_items();
+    var thread_selection = default_selection_with_two_items();
+    var explorer = new HolderLinux.ExplorerSelectionController();
+    explorer.project_target = 1;
+    explorer.card_target = Gtk.INVALID_LIST_POSITION;
+    explorer.thread_target = 0;
+    var renderer = new HolderLinux.SidebarSelectionRenderer(
+        project_selection,
+        card_selection,
+        thread_selection,
+        explorer
+    );
+    assert(card_selection.get_selected() == 0);
+
+    renderer.apply_from_snapshot("proj-1", "missing-card", "thread-1");
+
+    assert(project_selection.get_selected() == 1);
+    assert(card_selection.get_selected() == Gtk.INVALID_LIST_POSITION);
+    assert(thread_selection.get_selected() == 0);
+    // Only the cleared selection has its autoselect turned off.
+    assert(project_selection.get_autoselect());
+    assert(!card_selection.get_autoselect());
+    assert(thread_selection.get_autoselect());
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     Test.add_func("/holder/sidebar-selection-renderer/apply-from-snapshot-sets-all-three-selections", test_apply_from_snapshot_sets_all_three_selections);
     Test.add_func("/holder/sidebar-selection-renderer/apply-from-snapshot-leaves-existing-selection-when-target-is-same", test_apply_from_snapshot_leaves_existing_selection_when_target_is_same);
+    Test.add_func("/holder/sidebar-selection-renderer/apply-from-snapshot-clears-selections-when-targets-are-missing", test_apply_from_snapshot_clears_selections_when_targets_are_missing);
+    Test.add_func("/holder/sidebar-selection-renderer/apply-from-snapshot-clears-only-the-selection-whose-target-is-missing", test_apply_from_snapshot_clears_only_the_selection_whose_target_is_missing);
     return Test.run();
 }
 

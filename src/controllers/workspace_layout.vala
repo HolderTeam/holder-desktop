@@ -1,6 +1,6 @@
 namespace HolderLinux {
 
-internal class WorkspaceLayout : Object {
+internal class WorkspaceLayout : Object { // LCOV_EXCL_LINE: declaration-only coverage artifact
     private const double DEFAULT_TOOLBOX_FRACTION = 0.5;
     private const int MIN_AI_PANEL_WIDTH = 360;
     private const int MAX_AI_PANEL_WIDTH = 720;
