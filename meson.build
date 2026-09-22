@@ -2702,6 +2702,37 @@ window_feedback_format_test_exe = executable(
 
 test('holder-linux-window-feedback-format-tests', window_feedback_format_test_exe)
 
+# WorkspacePane, ToolboxPane and MainController are compiled alone by dozens of other test targets;
+# tests/window_activity_feedback_test.vala carries lightweight local stand-ins for them instead of
+# linking the real workspace_pane.vala/toolbox.vala/main.vala.
+window_activity_feedback_test_exe = executable(
+  'holder-linux-window-activity-feedback-tests',
+  [
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/ai.vala',
+    'src/models/activity_details.vala',
+    'src/state/activity_log.vala',
+    'src/controllers/activity_log.vala',
+    'src/controllers/window_feedback_format.vala',
+    'src/views/adapters/window_activity_feedback.vala',
+    'tests/window_activity_feedback_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  c_args: vala_generated_c_args,
+  install: false,
+)
+
+test('holder-linux-window-activity-feedback-tests', window_activity_feedback_test_exe)
+
 app_transition_test_exe = executable(
   'holder-linux-app-transition-tests',
   [
@@ -3011,6 +3042,29 @@ find_replace_test_exe = executable(
 )
 
 test('holder-linux-find-replace-tests', find_replace_test_exe)
+
+window_find_replace_ops_test_exe = executable(
+  'holder-linux-window-find-replace-ops-tests',
+  [
+    'src/controllers/find_replace.vala',
+    'src/views/adapters/window_find_replace_ops.vala',
+    'tests/window_find_replace_ops_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('gtksourceview-5'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  c_args: vala_generated_c_args,
+  install: false,
+)
+
+test('holder-linux-window-find-replace-ops-tests', window_find_replace_ops_test_exe)
 
 search_selection_test_exe = executable(
   'holder-linux-search-selection-tests',
@@ -3456,6 +3510,50 @@ dialog_adapters_test_exe = executable(
 )
 
 test('holder-linux-dialog-adapters-tests', dialog_adapters_test_exe)
+
+# This target does not link the real window.vala, toolbox.vala, workspace_pane.vala or sidebar.vala:
+# tests/window_event_endpoints_test.vala carries its own copies of the interfaces
+# window_event_endpoints.vala's (and window_local_info.vala's) classes implement (taken verbatim from
+# the controller files that declare them) and lightweight stand-ins for MainWindow/MainController/
+# ToolboxPane/WorkspacePane/SidebarPane, since both adapters are pure signal-forwarding glue between
+# those and only need their public shape.
+window_event_endpoints_test_exe = executable(
+  'holder-linux-window-event-endpoints-tests',
+  [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/editor_recovery_draft_service.vala',
+    'src/views/adapters/window_event_endpoints.vala',
+    'src/views/adapters/window_local_info.vala',
+    'tests/window_event_endpoints_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  c_args: vala_generated_c_args,
+  install: false,
+)
+
+test('holder-linux-window-event-endpoints-tests', window_event_endpoints_test_exe)
 
 recovery_ui_test_exe = executable(
   'holder-linux-recovery-ui-tests',
@@ -4612,6 +4710,35 @@ preferences_dialog_test_exe = executable(
 )
 
 test('holder-linux-preferences-dialog-tests', preferences_dialog_test_exe)
+
+window_actions_test_exe = executable(
+  'holder-linux-window-actions-tests',
+  [
+    holder_config,
+    'src/services/app_settings.vala',
+    'src/services/editor_font_style.vala',
+    'src/controllers/editor_spellcheck.vala',
+    'src/views/adapters/font_picker.vala',
+    'src/views/preferences_dialog.vala',
+    'src/views/adapters/window_actions.vala',
+    'tests/window_actions_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('gtksourceview-5'),
+    dependency('libadwaita-1'),
+    dependency('libspelling-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  c_args: vala_generated_c_args,
+  install: false,
+)
+
+test('holder-linux-window-actions-tests', window_actions_test_exe)
 
 ai_catalog_panel_view_test_exe = executable(
   'holder-linux-ai-catalog-panel-view-tests',

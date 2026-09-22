@@ -44,7 +44,7 @@ internal interface IEditorControllerAttachTarget : Object {
     public abstract void attach_key_controller(IInternalLinkKeyController controller);
 }
 
-private class GtkInternalLinkClickController : Object, IInternalLinkClickController {
+internal class GtkInternalLinkClickController : Object, IInternalLinkClickController {
     private Gtk.GestureClick inner = new Gtk.GestureClick();
 
     public Gtk.GestureClick gesture {
@@ -68,7 +68,7 @@ private class GtkInternalLinkClickController : Object, IInternalLinkClickControl
     }
 }
 
-private class GtkInternalLinkKeyController : Object, IInternalLinkKeyController {
+internal class GtkInternalLinkKeyController : Object, IInternalLinkKeyController {
     private Gtk.EventControllerKey inner = new Gtk.EventControllerKey();
 
     public void set_key_pressed_handler(owned InternalLinkKeyHandler handler) {
@@ -93,7 +93,7 @@ internal class GtkInternalLinkControllerFactory : Object, IInternalLinkControlle
 }
 
 internal class GtkSourceViewControllerAttachTarget : Object, IEditorControllerAttachTarget {
-    private GtkSource.View editor_view;
+    private GtkSource.View editor_view; // LCOV_EXCL_LINE: field declaration-only coverage artifact
 
     public GtkSourceViewControllerAttachTarget(GtkSource.View editor_view) {
         this.editor_view = editor_view;
