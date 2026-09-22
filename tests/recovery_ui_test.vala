@@ -295,12 +295,12 @@ private void test_save_load_import_and_summary_behaviour() {
 }
 
 private void test_pin_and_path_blank_rules_have_one_definition() {
-    assert(HolderLinux.RecoveryUiController.normalize_pin("  1234 \n") == "1234");
-    assert(HolderLinux.RecoveryUiController.normalize_pin("   ") == "");
-    assert(HolderLinux.RecoveryUiController.pin_is_submittable("1234"));
-    assert(HolderLinux.RecoveryUiController.pin_is_submittable(" 1 "));
-    assert(!HolderLinux.RecoveryUiController.pin_is_submittable(""));
-    assert(!HolderLinux.RecoveryUiController.pin_is_submittable(" \t "));
+    assert(HolderLinux.RecoveryDialogPin.normalize("  1234 \n") == "1234");
+    assert(HolderLinux.RecoveryDialogPin.normalize("   ") == "");
+    assert(HolderLinux.RecoveryDialogPin.is_submittable("1234"));
+    assert(HolderLinux.RecoveryDialogPin.is_submittable(" 1 "));
+    assert(!HolderLinux.RecoveryDialogPin.is_submittable(""));
+    assert(!HolderLinux.RecoveryDialogPin.is_submittable(" \t "));
 
     assert(HolderLinux.RecoveryUiController.accepted_path(null) == null);
     assert(HolderLinux.RecoveryUiController.accepted_path("") == null);

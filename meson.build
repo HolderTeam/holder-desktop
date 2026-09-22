@@ -271,6 +271,7 @@ sources = [
   'src/controllers/flowboard_context.vala',
   'src/controllers/trash.vala',
   'src/controllers/tool_help.vala',
+  'src/controllers/find_replace_ops.vala',
   'src/controllers/find_replace.vala',
   'src/controllers/app_transition.vala',
   'src/controllers/main_signal_binder.vala',
@@ -279,6 +280,7 @@ sources = [
   'src/controllers/local_info_ui.vala',
   'src/controllers/local_info_presenter.vala',
   'src/controllers/recovery.vala',
+  'src/controllers/recovery_dialog_ops.vala',
   'src/controllers/recovery_ui.vala',
   'src/controllers/internal_link.vala',
   'src/controllers/tag_navigation.vala',
@@ -3028,6 +3030,7 @@ test('holder-linux-explorer-selection-tests', explorer_selection_test_exe)
 find_replace_test_exe = executable(
   'holder-linux-find-replace-tests',
   [
+    'src/controllers/find_replace_ops.vala',
     'src/controllers/find_replace.vala',
     'tests/find_replace_test.vala',
   ],
@@ -3046,7 +3049,7 @@ test('holder-linux-find-replace-tests', find_replace_test_exe)
 window_find_replace_ops_test_exe = executable(
   'holder-linux-window-find-replace-ops-tests',
   [
-    'src/controllers/find_replace.vala',
+    'src/controllers/find_replace_ops.vala',
     'src/views/adapters/window_find_replace_ops.vala',
     'tests/window_find_replace_ops_test.vala',
   ],
@@ -3481,10 +3484,8 @@ dialog_adapters_test_exe = executable(
     'src/services/app_settings.vala',
     'src/services/update_check.vala',
     'src/services/uri_launcher.vala',
-    'src/services/recovery_service.vala',
     'src/services/print_service.vala',
-    'src/controllers/recovery.vala',
-    'src/controllers/recovery_ui.vala',
+    'src/controllers/recovery_dialog_ops.vala',
     'src/controllers/dialog_text_presenter.vala',
     'src/views/adapters/file_picker.vala',
     'src/views/adapters/update_dialog.vala',
@@ -3558,6 +3559,7 @@ test('holder-linux-window-event-endpoints-tests', window_event_endpoints_test_ex
 recovery_ui_test_exe = executable(
   'holder-linux-recovery-ui-tests',
   [
+    'src/controllers/recovery_dialog_ops.vala',
     'src/controllers/recovery_ui.vala',
     'tests/recovery_ui_test.vala',
   ],

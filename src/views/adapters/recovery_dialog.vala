@@ -7,16 +7,16 @@ public delegate void RecoverySavePathReady(string? path);
 
 internal class RecoveryDialogAdapter : Object {
     private Gtk.Window parent;
-    private RecoveryUiController recovery_ui_controller;
+    private IRecoveryDialogOps recovery_ui_ops;
     private IFilePicker file_picker;
 
     public signal void error_reported(string title, string details);
 
     public RecoveryDialogAdapter(Gtk.Window parent,
-                                 RecoveryUiController recovery_ui_controller,
+                                 IRecoveryDialogOps recovery_ui_ops,
                                  IFilePicker? file_picker = null) {
         this.parent = parent;
-        this.recovery_ui_controller = recovery_ui_controller;
+        this.recovery_ui_ops = recovery_ui_ops;
         this.file_picker = file_picker ?? new GtkFilePicker();
     }
 
@@ -41,15 +41,15 @@ internal class RecoveryDialogAdapter : Object {
         dialog.set_extra_child(content);
         dialog.set_response_enabled("continue", false);
         pin_entry.changed.connect(() => {
-            dialog.set_response_enabled("continue", RecoveryUiController.pin_is_submittable(pin_entry.get_text()));
+            dialog.set_response_enabled("continue", RecoveryDialogPin.is_submittable(pin_entry.get_text()));
         });
 
         dialog.response.connect((response) => {
             if (response != "continue") {
                 return;
             }
-            var pin = RecoveryUiController.normalize_pin(pin_entry.get_text());
-            if (!recovery_ui_controller.validate_pin(pin)) {
+            var pin = RecoveryDialogPin.normalize(pin_entry.get_text());
+            if (!recovery_ui_ops.validate_pin(pin)) {
                 return;
             }
             on_pin(pin);
@@ -67,7 +67,7 @@ internal class RecoveryDialogAdapter : Object {
             if (file == null) {
                 return;
             }
-            var recovery_token = recovery_ui_controller.load_import_payload_from_path(file.get_path());
+            var recovery_token = recovery_ui_ops.load_import_payload_from_path(file.get_path());
             if (recovery_token == null) {
                 return;
             }
@@ -109,7 +109,7 @@ internal class RecoveryDialogAdapter : Object {
     public void show_import_summary(RecoveryTokenImportResult result) {
         var dialog = new Adw.AlertDialog(
             "Recovery Key Imported",
-            recovery_ui_controller.import_summary_body(result)
+            recovery_ui_ops.import_summary_body(result)
         );
         dialog.add_response("ok", "OK");
         dialog.set_default_response("ok");

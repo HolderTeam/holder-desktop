@@ -43,38 +43,43 @@ private class FakeLauncher : Object, HolderLinux.IUriLauncher {
     }
 }
 
-private class FakeRecoveryService : Object, HolderLinux.IRecoveryService {
+private class FakeRecoveryDialogOps : Object, HolderLinux.IRecoveryDialogOps {
     public string payload = "recovery-token-payload";
     public bool fail_load = false;
     public string loaded_from = "";
+    public Gee.ArrayList<string> toasts = new Gee.ArrayList<string>();
+    public Gee.ArrayList<string> errors = new Gee.ArrayList<string>();
 
-    public string build_safe_filename(string project_name) {
-        return "%s.hrk".printf(project_name);
+    public bool validate_pin(string pin) {
+        if (HolderLinux.RecoveryDialogPin.is_submittable(pin)) {
+            return true;
+        }
+        toasts.add("PIN is required.");
+        return false;
     }
 
-    public string write_payload_to_temp_attachment(string project_name, string payload) throws Error {
-        return "/tmp/fake.hrk";
-    }
-
-    public void open_email_with_attachment(string attachment_path) throws Error {}
-
-    public void save_payload_to_path(string path, string payload) throws Error {}
-
-    public string load_payload_from_path(string path) throws Error {
+    public string? load_import_payload_from_path(string? path) {
+        if (path == null || path.strip().length == 0) {
+            errors.add("Recovery key import failed|Please choose a local filesystem path.");
+            return null;
+        }
         loaded_from = path;
         if (fail_load) {
-            throw new IOError.FAILED("unreadable key file");
+            errors.add("Recovery key import failed|unreadable key file");
+            return null;
         }
         return payload;
     }
-}
 
-private class FakeRecoveryContext : Object, HolderLinux.IRecoveryContext {
-    public HolderLinux.IHolderApi? get_api_client() {
-        return null;
+    public string import_summary_body(HolderLinux.RecoveryTokenImportResult result) {
+        return "Fake import summary for %s".printf(result.project_id);
     }
 
-    public async void reload_everything() {}
+    public void save_payload_to_path(string? path, string payload) {
+        if (path == null || path.strip().length == 0) {
+            errors.add("Recovery key export failed|Please choose a local filesystem path.");
+        }
+    }
 }
 
 // Answers the chooser questions: `choice` is what the user "picked", `cancel` dismisses the chooser,
@@ -113,20 +118,17 @@ private class FakePicker : Object, HolderLinux.IFilePicker {
 
 private class RecoveryFixture : Object {
     public DialogHost host = new DialogHost();
-    public FakeRecoveryService service = new FakeRecoveryService();
     public FakePicker picker = new FakePicker();
-    public HolderLinux.RecoveryUiController ui;
+    public FakeRecoveryDialogOps ui = new FakeRecoveryDialogOps();
     public HolderLinux.RecoveryDialogAdapter adapter;
-    public Gee.ArrayList<string> toasts = new Gee.ArrayList<string>();
-    public Gee.ArrayList<string> ui_errors = new Gee.ArrayList<string>();
+    public Gee.ArrayList<string> toasts;
+    public Gee.ArrayList<string> ui_errors;
     public Gee.ArrayList<string> adapter_errors = new Gee.ArrayList<string>();
 
     public RecoveryFixture() {
-        var controller = new HolderLinux.RecoveryController(new FakeRecoveryContext(), service);
-        ui = new HolderLinux.RecoveryUiController(controller);
-        ui.toast_requested.connect((message) => { toasts.add(message); });
-        ui.error_reported.connect((title, details) => { ui_errors.add("%s|%s".printf(title, details)); });
         adapter = new HolderLinux.RecoveryDialogAdapter(host.window, ui, picker);
+        toasts = ui.toasts;
+        ui_errors = ui.errors;
         adapter.error_reported.connect((title, details) => {
             adapter_errors.add("%s|%s".printf(title, details));
         });
@@ -419,7 +421,7 @@ private void test_importing_a_key_asks_for_its_pin_and_hands_over_the_payload() 
 
     var dialog = f.host.wait_for_dialog();
     assert(f.picker.requests.size == 1 && f.picker.requests[0] == "file|Import Recovery Key|any");
-    assert(f.service.loaded_from == f.picker.choice.get_path());
+    assert(f.ui.loaded_from == f.picker.choice.get_path());
     assert(dialog.get_heading() == "Unlock Recovery Key");
     assert(dialog.get_body() == "Set your recovery key PIN to unlock and import this `.hrk` file.");
     assert(pin == null);
@@ -464,7 +466,7 @@ private void test_importing_reports_a_chooser_failure() {
 
 private void test_importing_reports_an_unreadable_key_and_a_non_local_file() {
     var f = new RecoveryFixture();
-    f.service.fail_load = true;
+    f.ui.fail_load = true;
     f.picker.choice = File.new_for_path(Path.build_filename(Environment.get_tmp_dir(), "broken.hrk"));
 
     f.adapter.open_import_dialog((p, t) => {});
