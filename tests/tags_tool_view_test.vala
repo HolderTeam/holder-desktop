@@ -175,7 +175,7 @@ private class TagsFakeApi : MainControllerFakeApi {
 
     public void release_stalled_list() {
         stall_tag = null;
-        var callback = stalled;
+        SourceFunc? callback = (owned) stalled;
         stalled = null;
         if (callback != null) {
             Idle.add((owned) callback);

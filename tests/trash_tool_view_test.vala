@@ -281,7 +281,7 @@ private class TrashStallApi : MainControllerFakeApi {
 
     public void release_stalled_list() {
         stall_project = null;
-        var callback = stalled;
+        SourceFunc? callback = (owned) stalled;
         stalled = null;
         if (callback != null) {
             Idle.add((owned) callback);
