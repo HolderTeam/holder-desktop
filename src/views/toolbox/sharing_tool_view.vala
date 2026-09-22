@@ -1,7 +1,7 @@
 namespace HolderLinux {
 
 public class SharingToolView : Object, IToolShellAdapter {
-    private Gtk.Button email_btn;
+    private Gtk.Button email_btn; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id {

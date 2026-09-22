@@ -1,13 +1,28 @@
 namespace HolderLinux {
 
-public class EditorSpellcheckController : Object {
+// What the preferences dialog needs from spell checking, so it can be tested without a spelling
+// backend on the machine.
+public interface IEditorSpellcheckPreference : Object {
+    public abstract bool requested_enabled { get; }
+    public abstract bool buffer_safe { get; }
+    public abstract bool backend_available { get; }
+    public abstract void set_enabled_preference(bool enabled);
+}
+
+public class EditorSpellcheckController : Object, IEditorSpellcheckPreference {
     private GtkSource.Buffer buffer;
     private GtkSource.View view;
     private Spelling.Checker? checker;
 
     public Spelling.TextBufferAdapter? adapter { get; private set; }
-    public bool requested_enabled { get; private set; default = true; }
-    public bool buffer_safe { get; private set; default = true; }
+    private bool requested_enabled_value = true;
+    private bool buffer_safe_value = true;
+    public bool requested_enabled {
+        get { return requested_enabled_value; }
+    }
+    public bool buffer_safe {
+        get { return buffer_safe_value; }
+    }
     public bool backend_available {
         get { return checker != null; }
     }
@@ -21,7 +36,7 @@ public class EditorSpellcheckController : Object {
     }
 
     public void set_enabled_preference(bool enabled) {
-        requested_enabled = enabled;
+        requested_enabled_value = enabled;
         if (adapter != null) {
             adapter.set_enabled(enabled);
         }
@@ -32,8 +47,8 @@ public class EditorSpellcheckController : Object {
     }
 
     public void finish_buffer_mutation(bool has_inline_images) {
-        buffer_safe = !has_inline_images;
-        if (buffer_safe) {
+        buffer_safe_value = !has_inline_images;
+        if (buffer_safe_value) {
             restore_adapter_if_safe();
         } else {
             retire_adapter();
@@ -52,11 +67,11 @@ public class EditorSpellcheckController : Object {
     }
 
     private void restore_adapter_if_safe() {
-        if (!buffer_safe || checker == null || adapter != null) {
+        if (!buffer_safe_value || checker == null || adapter != null) {
             return;
         }
         var restored = new Spelling.TextBufferAdapter(buffer, (!) checker);
-        restored.set_enabled(requested_enabled);
+        restored.set_enabled(requested_enabled_value);
         adapter = restored;
         view.insert_action_group("spelling", restored);
         view.set_extra_menu(restored.get_menu_model());

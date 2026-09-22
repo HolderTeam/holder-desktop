@@ -138,6 +138,22 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public int create_card_link_calls = 0;
     public int delete_card_link_calls = 0;
     public int get_project_calendar_calls = 0;
+    public bool fail_get_project_calendar = false;
+    public bool fail_remove_card_milestone = false;
+    public bool stall_next_project_calendar = false;
+    private SourceFunc? stalled_project_calendar = null;
+
+    public bool has_stalled_project_calendar() {
+        return stalled_project_calendar != null;
+    }
+
+    public void release_stalled_project_calendar() {
+        if (stalled_project_calendar != null) {
+            var resume = (owned) stalled_project_calendar;
+            stalled_project_calendar = null;
+            resume();
+        }
+    }
     public int add_card_milestone_calls = 0;
     public int update_card_milestone_calls = 0;
     public int remove_card_milestone_calls = 0;
@@ -1146,6 +1162,14 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_calendar_project_id = project_id;
         last_calendar_from = from_epoch;
         last_calendar_to = to_epoch;
+        if (stall_next_project_calendar) {
+            stall_next_project_calendar = false;
+            stalled_project_calendar = get_project_calendar.callback;
+            yield;
+        }
+        if (fail_get_project_calendar) {
+            throw new IOError.FAILED("calendar down");
+        }
         return new HolderLinux.ProjectCalendar(
             project_id,
             from_epoch,
@@ -1212,6 +1236,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
 
     public async bool remove_card_milestone(string card_id, string milestone_id) throws Error {
         remove_card_milestone_calls++;
+        if (fail_remove_card_milestone) {
+            throw new IOError.FAILED("remove down");
+        }
         for (var i = 0; i < milestones.size; i++) {
             if (milestones[i].card_id == card_id && milestones[i].milestone_id == milestone_id) {
                 milestones.remove_at(i);

@@ -1,20 +1,20 @@
 namespace HolderLinux {
 
 public class MilestonesToolView : Object, IToolShellAdapter {
-    private IHolderApi? api;
-    private Gtk.SingleSelection? project_selection;
-    private GLib.ListStore? card_store;
-    private Gtk.SingleSelection? card_selection;
-    private Gtk.Calendar calendar;
-    private Gtk.Box actions_bar;
-    private Gtk.Box details_box;
-    private Gtk.Label empty_label;
-    private Gtk.ToggleButton upcoming_button;
-    private Gtk.Button add_button;
-    private ProjectCalendar? calendar_data;
-    private MilestonesController controller = new MilestonesController(
-        new SystemClock(), new TimeZone.local()
-    );
+    private IHolderApi? api; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection? project_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private GLib.ListStore? card_store; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection? card_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Calendar calendar; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Box actions_bar; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Box details_box; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label empty_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.ToggleButton upcoming_button; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Button add_button; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ProjectCalendar? calendar_data; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private MilestonesController controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ulong project_selection_handler_id = 0;
+    private ulong card_store_handler_id = 0;
     private bool tool_visible = false;
 
     public Gtk.Widget widget { get; private set; }
@@ -25,7 +25,12 @@ public class MilestonesToolView : Object, IToolShellAdapter {
     public signal void toast_requested(string message);
     public signal void card_open_requested(string card_id);
 
-    public MilestonesToolView() {
+    // The clock and time zone default to the system's; tests pass fixed ones so "Today" and the
+    // date text are deterministic.
+    public MilestonesToolView(IClock? clock = null, TimeZone? time_zone = null) {
+        controller = new MilestonesController(
+            clock ?? new SystemClock(), time_zone ?? new TimeZone.local()
+        );
         widget = build_ui();
     }
 
@@ -45,17 +50,28 @@ public class MilestonesToolView : Object, IToolShellAdapter {
     public void bind_context(Gtk.SingleSelection? project_selection,
                              GLib.ListStore? card_store,
                              Gtk.SingleSelection? card_selection) {
+        if (this.project_selection != null && project_selection_handler_id != 0) {
+            ((!) this.project_selection).disconnect(project_selection_handler_id);
+        }
+        if (this.card_store != null && card_store_handler_id != 0) {
+            ((!) this.card_store).disconnect(card_store_handler_id);
+        }
+        project_selection_handler_id = 0;
+        card_store_handler_id = 0;
         this.project_selection = project_selection;
         this.card_store = card_store;
         this.card_selection = card_selection;
         if (project_selection != null) {
-            project_selection.notify["selected"].connect(() => {
+            project_selection_handler_id = project_selection.notify["selected"].connect(() => {
+                // Nothing is known about the newly selected project yet, so the old project's day
+                // marks must not stay on the calendar while its data loads.
                 calendar_data = null;
+                calendar.clear_marks();
                 queue_refresh();
             });
         }
         if (card_store != null) {
-            card_store.items_changed.connect(() => {
+            card_store_handler_id = card_store.items_changed.connect(() => {
                 refresh_add_button_state();
                 queue_refresh();
             });

@@ -1,12 +1,13 @@
 namespace HolderLinux {
 
 public class PreferencesDialog : Adw.PreferencesDialog {
-    private GtkSource.Buffer editor_buffer;
-    private GtkSource.View editor_view;
-    private EditorSpellcheckController? editor_spellcheck;
-    private Settings? settings;
-    private EditorFontStyle editor_font_style;
-    private Gee.HashMap<string, GtkSource.StyleSchemePreview> scheme_previews;
+    private GtkSource.Buffer editor_buffer; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private GtkSource.View editor_view; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private IEditorSpellcheckPreference? editor_spellcheck; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Settings? settings; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private EditorFontStyle editor_font_style; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private IFontPicker font_picker; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gee.HashMap<string, GtkSource.StyleSchemePreview> scheme_previews; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     internal Adw.SwitchRow custom_font_row { get; private set; }
     internal Adw.ActionRow custom_font_choice_row { get; private set; }
     internal Adw.SwitchRow inline_image_previews_row { get; private set; }
@@ -16,10 +17,12 @@ public class PreferencesDialog : Adw.PreferencesDialog {
 
     public PreferencesDialog(GtkSource.Buffer editor_buffer,
                              GtkSource.View editor_view,
-                             EditorSpellcheckController? editor_spellcheck,
+                             IEditorSpellcheckPreference? editor_spellcheck,
                              Settings? settings,
-                             EditorFontStyle editor_font_style) {
+                             EditorFontStyle editor_font_style,
+                             IFontPicker? font_picker = null) {
         Object();
+        this.font_picker = font_picker ?? new GtkFontPicker();
         this.editor_buffer = editor_buffer;
         this.editor_view = editor_view;
         this.editor_spellcheck = editor_spellcheck;
@@ -282,13 +285,11 @@ public class PreferencesDialog : Adw.PreferencesDialog {
     }
 
     private async void choose_custom_font() {
-        var font_dialog = new Gtk.FontDialog();
-        font_dialog.set_title("Pick a Font");
         var initial = Pango.FontDescription.from_string(custom_font_choice_row.get_title());
         var parent = get_root() as Gtk.Window;
 
         try {
-            var selected = yield font_dialog.choose_font(parent, initial, null);
+            var selected = yield font_picker.pick_font(parent, initial);
             if (selected != null) {
                 select_custom_font(selected);
             }
@@ -312,13 +313,13 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         var manager = GtkSource.StyleSchemeManager.get_default();
         var ids = manager.get_scheme_ids();
         if (ids == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: GtkSourceView always ships schemes; only an empty install returns null
         }
 
         foreach (var scheme_id in ids) {
             var scheme = manager.get_scheme(scheme_id);
             if (scheme == null) {
-                continue;
+                continue; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: every id the manager lists resolves to a scheme
             }
 
             var preview = new GtkSource.StyleSchemePreview(scheme);
@@ -343,7 +344,7 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         var manager = GtkSource.StyleSchemeManager.get_default();
         var scheme = manager.get_scheme(scheme_id);
         if (scheme == null) {
-            return;
+            return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: only reached with the id of a preview built from a real scheme
         }
         editor_buffer.set_style_scheme(scheme);
         if (settings != null) {

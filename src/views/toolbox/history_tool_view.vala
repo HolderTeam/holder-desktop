@@ -1,7 +1,7 @@
 namespace HolderLinux {
 
-private class HistoryLaneGutter : Gtk.DrawingArea {
-    private HistoryLaneLayout? layout;
+internal class HistoryLaneGutter : Gtk.DrawingArea {
+    private HistoryLaneLayout? layout; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private int lane_count = 1;
     private bool is_merge = false;
 
@@ -80,7 +80,7 @@ private class HistoryLaneGutter : Gtk.DrawingArea {
 private class HistoryEntryRow : Gtk.ListBoxRow {
     public CardHistoryEntry entry { get; construct; }
     public signal void save_activated(CardHistorySave save);
-    private HistoryLaneGutter lane_gutter;
+    private HistoryLaneGutter lane_gutter; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
     public HistoryEntryRow(CardHistoryEntry entry) {
         Object(entry: entry);
@@ -127,7 +127,7 @@ private class HistoryEntryRow : Gtk.ListBoxRow {
 
 private class ProjectHistoryActivityRow : Gtk.ListBoxRow {
     public ProjectHistoryActivity activity { get; construct; }
-    private HistoryLaneGutter lane_gutter;
+    private HistoryLaneGutter lane_gutter; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
 
     public ProjectHistoryActivityRow(ProjectHistoryActivity activity, Gtk.Widget content) {
         Object(activity: activity);
@@ -159,35 +159,43 @@ private class HistorySelectionScope : Object, IHistoryScope {
 }
 
 public class HistoryToolView : Object, IToolShellAdapter {
-    private IHolderApi? api;
-    private HistoryController controller = new HistoryController();
-    private HistorySelectionScope scope = new HistorySelectionScope();
-    private Gtk.Box actions_bar;
-    private Gtk.Stack content_stack;
-    private Gtk.ListBox timeline;
-    private Gtk.ListBox project_timeline;
-    private Gtk.DropDown project_kind_filter;
-    private Gtk.StringList project_kind_options;
-    private Gtk.Button load_older_project_button;
-    private Gtk.Button load_older_button;
-    private Gtk.ToggleButton since_button;
-    private Gtk.ToggleButton change_button;
-    private Gtk.ToggleButton version_button;
-    private Gtk.Label detail_title;
-    private Gtk.Label detail_meta;
-    private Gtk.Label git_oid_label;
-    private Gtk.Label git_parents_label;
-    private Gtk.Label git_author_label;
-    private Gtk.Label git_authored_label;
-    private Gtk.Label git_committed_label;
-    private Gtk.Label git_message_label;
-    private Gtk.Button copy_as_card_button;
-    private Gtk.Button copy_text_button;
-    private Gtk.Button copy_commit_button;
-    private Gtk.Button restore_version_button;
-    private Gtk.TextView diff_view;
-    private Gtk.TextTag diff_added_tag;
-    private Gtk.TextTag diff_removed_tag;
+    private IHolderApi? api; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private HistoryController controller = new HistoryController(); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private HistorySelectionScope scope = new HistorySelectionScope(); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Box actions_bar; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Stack content_stack; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.ListBox timeline; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.ListBox project_timeline; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.DropDown project_kind_filter; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.StringList project_kind_options; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Button load_older_project_button; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Button load_older_button; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.ToggleButton since_button; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.ToggleButton change_button; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.ToggleButton version_button; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label detail_title; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label detail_meta; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label git_oid_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label git_parents_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label git_author_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label git_authored_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label git_committed_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Label git_message_label; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Button copy_as_card_button; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Button copy_text_button; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Button copy_commit_button; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Button restore_version_button; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.TextView diff_view; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.TextTag diff_added_tag; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.TextTag diff_removed_tag; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ITextClipboard clipboard; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection? bound_project_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.SingleSelection? bound_card_selection; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ulong project_selection_handler_id = 0;
+    private ulong card_selection_handler_id = 0;
+    // The card the shown comparison belongs to, so a refresh only keeps the user's chosen row for
+    // the same card and not for another card that happens to share a commit.
+    private string? detail_card_id = null; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
     private bool tool_visible = false;
     private bool selecting_initial_row = false;
     private bool setting_comparison_mode = false;
@@ -205,7 +213,9 @@ public class HistoryToolView : Object, IToolShellAdapter {
     public signal void project_history_ai_thread_open_requested(string thread_id);
     public signal void debug_log_requested(string line);
 
-    public HistoryToolView() {
+    // The clipboard defaults to the display's; tests pass a fake so they need no display.
+    public HistoryToolView(ITextClipboard? clipboard = null) {
+        this.clipboard = clipboard ?? new GtkTextClipboard();
         widget = build_ui();
     }
 
@@ -219,10 +229,18 @@ public class HistoryToolView : Object, IToolShellAdapter {
 
     public void bind_context(Gtk.SingleSelection project_selection,
                              Gtk.SingleSelection card_selection) {
+        if (bound_project_selection != null && project_selection_handler_id != 0) {
+            ((!) bound_project_selection).disconnect(project_selection_handler_id);
+        }
+        if (bound_card_selection != null && card_selection_handler_id != 0) {
+            ((!) bound_card_selection).disconnect(card_selection_handler_id);
+        }
+        bound_project_selection = project_selection;
+        bound_card_selection = card_selection;
         scope.project_selection = project_selection;
         scope.card_selection = card_selection;
-        project_selection.notify["selected-item"].connect(() => { queue_refresh(); });
-        card_selection.notify["selected-item"].connect(() => { queue_refresh(); });
+        project_selection_handler_id = project_selection.notify["selected-item"].connect(() => { queue_refresh(); });
+        card_selection_handler_id = card_selection.notify["selected-item"].connect(() => { queue_refresh(); });
         queue_refresh();
     }
 
@@ -538,7 +556,7 @@ public class HistoryToolView : Object, IToolShellAdapter {
                                             CardSummary card,
                                             IHistoryApi history_api,
                                             uint serial) {
-        var selected_oid = selected_detail_oid();
+        var selected_oid = detail_card_id == card.card_id ? selected_detail_oid() : null;
         content_stack.set_visible_child_name("loading");
         var load = yield controller.load_card_page(
             history_api, project.project_id, card.card_id, serial
@@ -558,9 +576,8 @@ public class HistoryToolView : Object, IToolShellAdapter {
         content_stack.set_visible_child_name("history");
         debug_log_requested((!) load.debug_line);
         if (page.entries.length == 0) {
-            controller.detail_entry = null;
+            clear_detail_state();
             apply_detail(HistoryPresenter.no_history_detail());
-            diff_view.get_buffer().set_text("");
             return;
         }
         // Keep the user's explicit choice only when this is the same row restored by a
@@ -576,6 +593,8 @@ public class HistoryToolView : Object, IToolShellAdapter {
 
     private void request_comparison(CardHistoryEntry entry) {
         var serial = controller.begin_comparison(entry);
+        var card = selected_card();
+        detail_card_id = card != null ? ((!) card).card_id : null;
         restore_version_button.set_sensitive(
             HistoryPresenter.can_restore(entry, controller.captured_head_oid)
         );
@@ -584,12 +603,11 @@ public class HistoryToolView : Object, IToolShellAdapter {
     }
 
     private void request_selected_comparison() {
+        // A shown row always has a detail entry (selecting it requests its comparison), so there is
+        // nothing to compare when there is none.
         if (controller.detail_entry != null) {
             request_comparison((!) controller.detail_entry);
-            return;
         }
-        var row = timeline.get_selected_row() as HistoryEntryRow;
-        if (row != null) request_comparison(row.entry);
     }
 
     private void set_default_comparison_mode(CardHistoryEntry entry) {
@@ -727,7 +745,10 @@ public class HistoryToolView : Object, IToolShellAdapter {
     }
 
     private void update_git_details(CardHistoryEntry entry) {
-        var details = HistoryPresenter.git_details(entry);
+        apply_git_details(HistoryPresenter.git_details(entry));
+    }
+
+    private void apply_git_details(HistoryGitDetails details) {
         copy_as_card_button.set_sensitive(false);
         copy_text_button.set_sensitive(false);
         git_oid_label.set_text(details.oid_text);
@@ -754,8 +775,16 @@ public class HistoryToolView : Object, IToolShellAdapter {
         dialog.add_response("restore", "Restore version");
         dialog.set_response_appearance("restore", Adw.ResponseAppearance.SUGGESTED);
         var oid = ((!) entry).last_oid;
+        var project_id = card.project_id;
+        var card_id = card.card_id;
         dialog.response.connect((response) => {
-            if (response == "restore") restore_selected_version.begin(oid);
+            if (response != "restore") return;
+            // The commit belongs to the card the dialog was opened for; if the selection has moved
+            // on, restoring it would write that version into a different card.
+            var current = selected_card();
+            if (current == null || ((!) current).card_id != card_id
+                || ((!) current).project_id != project_id) return;
+            restore_selected_version.begin(oid);
         });
         dialog.present(root_window);
     }
@@ -815,12 +844,10 @@ public class HistoryToolView : Object, IToolShellAdapter {
 
     private void copy_to_clipboard(string text) {
         if (text.length == 0) return;
-        var display = Gdk.Display.get_default();
-        if (display == null) {
+        if (!clipboard.set_text(text)) {
             error_reported("Clipboard unavailable", "No display available.");
             return;
         }
-        display.get_clipboard().set_text(text);
         history_text_copied(text);
         debug_log_requested(HistoryPresenter.copied_debug(text.length));
     }
@@ -977,9 +1004,20 @@ public class HistoryToolView : Object, IToolShellAdapter {
         }
     }
 
+    // Forgets the shown comparison so nothing from the previous card (git details, copy and restore
+    // buttons, the diff) is left acting on it.
+    private void clear_detail_state() {
+        controller.detail_entry = null;
+        detail_card_id = null;
+        restore_version_button.set_sensitive(false);
+        apply_git_details(HistoryPresenter.no_git_details());
+        diff_view.get_buffer().set_text("");
+    }
+
     private void clear_timeline() {
         clear_timeline_rows();
         controller.reset_card_timeline();
+        clear_detail_state();
         update_load_older_button();
     }
 }

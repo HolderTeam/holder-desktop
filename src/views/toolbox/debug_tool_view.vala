@@ -2,11 +2,12 @@ namespace HolderLinux {
 
 public class DebugToolView : Object, IToolShellAdapter {
 
-    private Gtk.Box debug_actions_bar;
-    private Gtk.Button clear_btn;
-    private Gtk.TextBuffer debug_buffer;
-    private Gtk.TextView debug_view;
-    private ActivityLogStore? activity_log_store;
+    private Gtk.Box debug_actions_bar; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.Button clear_btn; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.TextBuffer debug_buffer; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private Gtk.TextView debug_view; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ActivityLogStore? activity_log_store; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field released only by the generated finalizer
+    private ulong cleared_handler_id = 0;
 
     public Gtk.Widget widget { get; private set; }
     public string tool_id {
@@ -61,8 +62,12 @@ public class DebugToolView : Object, IToolShellAdapter {
     }
 
     public void bind_activity_log(ActivityLogStore store) {
+        // Only the store bound now may clear the view; the previous one is let go.
+        if (activity_log_store != null && cleared_handler_id != 0) {
+            ((!) activity_log_store).disconnect(cleared_handler_id);
+        }
         activity_log_store = store;
-        store.cleared.connect(() => {
+        cleared_handler_id = store.cleared.connect(() => {
             debug_buffer.set_text("", -1);
         });
     }

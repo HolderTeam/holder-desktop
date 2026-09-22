@@ -208,6 +208,108 @@ private void test_sharing_view_button_state_signal_and_scope() {
     assert_projects_root_scope(view, "sharing", "Sharing");
 }
 
+// ---- release-quality pass: shell surface, scrolling and activity-log binding ----
+
+// Runs a tool view's three async navigations and reports whether each answered "handled".
+private bool small_navigation_is_handled(HolderLinux.IToolShellAdapter view) {
+    bool root_ok = false;
+    bool project_ok = false;
+    bool card_ok = false;
+    bool done = false;
+    int finished = 0;
+    view.navigate_to_projects_root.begin(null, (obj, res) => { root_ok = view.navigate_to_projects_root.end(res); finished++; });
+    view.navigate_to_project_root.begin("p1", (obj, res) => { project_ok = view.navigate_to_project_root.end(res); finished++; });
+    view.navigate_to_card.begin("c1", (obj, res) => { card_ok = view.navigate_to_card.end(res); finished++; });
+    while (finished < 3) {
+        MainContext.default().iteration(true);
+    }
+    done = true;
+    return done && root_ok && project_ok && card_ok;
+}
+
+private void test_small_views_expose_their_widgets_and_answer_every_navigation() {
+    var debug = new HolderLinux.DebugToolView();
+    assert(debug.tool_id == "debug" && debug.tool_label == "Debug");
+    assert(debug.get_content_widget() == debug.widget);
+    assert(debug.get_actions_widget() != null);
+    assert(small_navigation_is_handled(debug));
+
+    var recovery = new HolderLinux.RecoveryKeyToolView();
+    assert(recovery.tool_id == "recovery" && recovery.tool_label == "Recovery Key");
+    assert(recovery.get_content_widget() == recovery.widget);
+    assert(recovery.get_actions_widget() == null);
+    assert(small_navigation_is_handled(recovery));
+
+    var sharing = new HolderLinux.SharingToolView();
+    assert(sharing.tool_id == "sharing" && sharing.tool_label == "Sharing");
+    assert(sharing.get_content_widget() == sharing.widget);
+    assert(sharing.get_actions_widget() == null);
+    assert(small_navigation_is_handled(sharing));
+}
+
+private void test_debug_view_scrolls_the_cursor_to_the_newest_line() {
+    var view = new HolderLinux.DebugToolView();
+    var text_view = find_text_view(view.widget);
+    assert(text_view != null);
+    var buffer = ((!) text_view).get_buffer();
+    view.append_log_line("first");
+    while (MainContext.default().iteration(false)) {}
+
+    // Park the cursor at the start so the move to the end is something the view had to do.
+    Gtk.TextIter start;
+    buffer.get_start_iter(out start);
+    buffer.place_cursor(start);
+    view.append_log_line("second");
+    Gtk.TextIter cursor;
+    buffer.get_iter_at_mark(out cursor, buffer.get_insert());
+    assert(cursor.get_offset() == 0);
+
+    while (MainContext.default().iteration(false)) {}
+
+    buffer.get_iter_at_mark(out cursor, buffer.get_insert());
+    assert(cursor.get_offset() == buffer.get_char_count());
+    assert(text_buffer_contents(buffer).contains("second"));
+}
+
+private void test_debug_clear_goes_through_the_bound_activity_log() {
+    var view = new HolderLinux.DebugToolView();
+    var store = new HolderLinux.ActivityLogStore();
+    store.append("test.kind", "something happened");
+    assert(store.snapshot().size == 1);
+    view.bind_activity_log(store);
+    view.append_log_line("visible line");
+    var text_view = find_text_view(view.widget);
+    assert(text_view != null);
+    assert(text_buffer_contents(((!) text_view).get_buffer()).contains("visible line"));
+
+    var clear_btn = find_button_with_label((!) view.get_actions_widget(), "Clear");
+    assert(clear_btn != null);
+    ((!) clear_btn).clicked();
+
+    // The store is cleared, and its cleared signal is what empties the view.
+    assert(store.snapshot().size == 0);
+    assert(text_buffer_contents(((!) text_view).get_buffer()) == "");
+}
+
+private void test_debug_view_only_listens_to_the_activity_log_bound_last() {
+    var view = new HolderLinux.DebugToolView();
+    var first = new HolderLinux.ActivityLogStore();
+    var second = new HolderLinux.ActivityLogStore();
+    view.bind_activity_log(first);
+    view.bind_activity_log(second);
+    view.append_log_line("still here");
+    var text_view = find_text_view(view.widget);
+    assert(text_view != null);
+
+    // The replaced store no longer has a say ...
+    first.clear();
+    assert(text_buffer_contents(((!) text_view).get_buffer()).contains("still here"));
+
+    // ... and the current one still does.
+    second.clear();
+    assert(text_buffer_contents(((!) text_view).get_buffer()) == "");
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     if (!Gtk.init_check()) {
@@ -221,6 +323,10 @@ public static int main(string[] args) {
     Test.add_func("/holder/debug-view/appends-and-clears", test_debug_view_appends_and_clears_log_text);
     Test.add_func("/holder/recovery-key-view/buttons-and-scope", test_recovery_key_view_buttons_emit_signals_and_scope);
     Test.add_func("/holder/sharing-view/button-state-signal-and-scope", test_sharing_view_button_state_signal_and_scope);
+    Test.add_func("/holder/small-views/shell-surface", test_small_views_expose_their_widgets_and_answer_every_navigation);
+    Test.add_func("/holder/debug-view/scrolls-to-newest", test_debug_view_scrolls_the_cursor_to_the_newest_line);
+    Test.add_func("/holder/debug-view/clear-through-activity-log", test_debug_clear_goes_through_the_bound_activity_log);
+    Test.add_func("/holder/debug-view/rebinding-activity-log", test_debug_view_only_listens_to_the_activity_log_bound_last);
     return Test.run();
 }
 

@@ -237,9 +237,13 @@ public class HistoryPresenter { // LCOV_EXCL_LINE: declaration-only coverage art
         return version.body;
     }
 
+    public static HistoryGitDetails no_git_details() {
+        return new HistoryGitDetails(false, "", "", "", "", "", "");
+    }
+
     public static HistoryGitDetails git_details(CardHistoryEntry entry) {
         if (entry.saves.length == 0) {
-            return new HistoryGitDetails(false, "", "", "", "", "", "");
+            return no_git_details();
         }
         var save = entry.saves[entry.saves.length - 1];
         var authored = new DateTime.from_unix_local(save.authored_at);
