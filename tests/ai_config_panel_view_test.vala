@@ -373,6 +373,36 @@ private void test_refresh_failure_reports_error() {
     assert(debug_line == "AI Config load failed: list AI runtime providers failed");
 }
 
+private void test_a_refresh_that_fails_after_being_superseded_does_not_report_it() {
+    var api = new MainControllerFakeApi();
+    api.fail_list_ai_runtime_providers = true;
+    api.slow_list_ai_runtime_providers_once = true;
+    var view = new HolderLinux.AiConfigPanelView();
+
+    int error_calls = 0;
+    view.error_reported.connect((title, details) => { error_calls++; });
+
+    view.set_api_client(api);
+
+    // While the first refresh's call to list_ai_runtime_providers is busy-waiting, start a second
+    // refresh (via a fresh set_api_client, which is what a project switch does) so its serial has
+    // already moved on by the time the first refresh's failure would be reported.
+    Timeout.add(5, () => {
+        view.set_api_client(new MainControllerFakeApi());
+        return Source.REMOVE;
+    });
+
+    var loop = new MainLoop();
+    view.refresh.begin(null, (obj, res) => {
+        view.refresh.end(res);
+        loop.quit();
+    });
+    loop.run();
+
+    assert(error_calls == 0);
+    assert(!collect_widget_text(view.widget).contains("Failed to load AI config."));
+}
+
 private void test_manual_runner_validation_failure_and_switch_update() {
     var api = new MainControllerFakeApi();
     api.ai_runners.add(runner("r1", "Runner One", "manual", true, "http://old:11434", {"llama"}));
@@ -881,6 +911,7 @@ public static int main(string[] args) {
     Test.add_func("/ai_config_panel_view/local_model_refresh_cancels_pending_save", test_local_model_refresh_cancels_pending_save);
     Test.add_func("/ai_config_panel_view/local_model_save_failure_reports_error", test_local_model_save_failure_reports_error);
     Test.add_func("/ai_config_panel_view/refresh_failure_reports_error", test_refresh_failure_reports_error);
+    Test.add_func("/ai_config_panel_view/stale_refresh_failure_is_not_reported", test_a_refresh_that_fails_after_being_superseded_does_not_report_it);
     Test.add_func("/ai_config_panel_view/manual_runner_validation_failure_and_switch_update", test_manual_runner_validation_failure_and_switch_update);
     Test.add_func("/ai_config_panel_view/manual_runner_create_update_delete", test_manual_runner_create_update_delete);
     Test.add_func("/ai_config_panel_view/provider_fallback_rendering_and_empty_key_validation", test_provider_fallback_rendering_and_empty_key_validation);

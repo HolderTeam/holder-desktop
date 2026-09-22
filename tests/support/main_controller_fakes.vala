@@ -893,7 +893,17 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         return new Gee.ArrayList<HolderLinux.AiCatalogProvider>();
     }
 
+    public bool slow_list_ai_runtime_providers_once = false;
+
     public async Gee.ArrayList<HolderLinux.AiRuntimeProvider> list_ai_runtime_providers() throws Error {
+        if (slow_list_ai_runtime_providers_once) {
+            slow_list_ai_runtime_providers_once = false;
+            var end = GLib.get_monotonic_time() + 50 * 1000;
+            while (GLib.get_monotonic_time() < end) {
+                while (MainContext.default().iteration(false)) {}
+                Thread.usleep(1000);
+            }
+        }
         if (fail_list_ai_runtime_providers) {
             throw new IOError.FAILED("list AI runtime providers failed");
         }

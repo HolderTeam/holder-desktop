@@ -361,8 +361,8 @@ public class AiConfigPanelView : Object {
 
     private async void save_local_model_config() {
         var api = api_client;
-        if (api == null) {
-            return;
+        if (api == null) { // LCOV_EXCL_LINE: unreachable — set_api_client cancels the pending save
+            return; // LCOV_EXCL_LINE: before it could ever fire with a null api_client
         }
 
         var fast_model = fast_model_choices.value_at(fast_model_dropdown.get_selected());
