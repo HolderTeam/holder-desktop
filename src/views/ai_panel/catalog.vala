@@ -18,6 +18,7 @@ internal class HolderApiAiCatalogProviderSource : Object, IAiCatalogProviderSour
 
 public class AiCatalogPanelView : Object {
     private IAiCatalogProviderSource? catalog_source;
+    private uint refresh_serial = 0;
     private AiCatalogController controller;
     private Gtk.ListBox ai_catalog_list;
 
@@ -32,20 +33,28 @@ public class AiCatalogPanelView : Object {
     }
 
     public void set_api_client(IHolderApi? api) {
-        catalog_source = api != null ? new HolderApiAiCatalogProviderSource(api) : null;
+        set_catalog_source(api != null ? new HolderApiAiCatalogProviderSource(api) : null);
     }
 
     internal void set_catalog_source(IAiCatalogProviderSource? source) {
         catalog_source = source;
+        // A load still running for the previous source must not render its rows.
+        refresh_serial++;
     }
 
     public async void refresh() {
         if (catalog_source == null) {
             return;
         }
+        var serial = ++refresh_serial;
         clear_list_box(ai_catalog_list);
         try {
             var providers = yield catalog_source.list_ai_provider_catalog();
+            // Refreshing twice (or swapping the source) while a load is running leaves only the newest
+            // answer to render; otherwise every overlapping load appends its own copy of the rows.
+            if (serial != refresh_serial) {
+                return;
+            }
             if (providers.size == 0) {
                 ai_catalog_list.append(new Gtk.Label("No providers in catalog.") { xalign = 0.0f });
                 return;
@@ -70,6 +79,9 @@ public class AiCatalogPanelView : Object {
             }
             debug_log_requested("AI catalog refreshed: %d providers".printf(providers.size));
         } catch (Error e) {
+            if (serial != refresh_serial) {
+                return;
+            }
             debug_log_requested("AI catalog refresh failed: %s".printf(e.message));
             error_reported("AI catalog refresh failed", e.message);
         }

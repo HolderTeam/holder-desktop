@@ -2,9 +2,9 @@ namespace HolderLinux {
 
 // Gives text views a monospace face: GTK's own monospace switch elsewhere, and a Cascadia/Consolas
 // stack on Windows where the generic monospace alias resolves poorly.
-public class WindowsMonospace {
+public class WindowsMonospace { // LCOV_EXCL_LINE: declaration-only coverage artifact
     private const string CSS_CLASS = "holder-windows-monospace";
-    private static bool css_installed = false;
+    internal static bool css_installed = false;
 
     [CCode(cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
     private static extern void gtk_style_context_add_provider_for_display(
@@ -14,20 +14,24 @@ public class WindowsMonospace {
     );
 
     public static void apply(Gtk.TextView view) {
-        if (Path.DIR_SEPARATOR_S != "\\") {
+        apply_for_platform(view, Path.DIR_SEPARATOR_S == "\\", Gdk.Display.get_default());
+    }
+
+    // The platform and display are parameters so both branches can be exercised on any host.
+    internal static void apply_for_platform(Gtk.TextView view, bool windows, Gdk.Display? display) {
+        if (!windows) {
             view.set_monospace(true);
             return;
         }
 
-        ensure_css();
+        ensure_css(display);
         view.add_css_class(CSS_CLASS);
     }
 
-    private static void ensure_css() {
+    private static void ensure_css(Gdk.Display? display) {
         if (css_installed) {
             return;
         }
-        var display = Gdk.Display.get_default();
         if (display == null) {
             return;
         }

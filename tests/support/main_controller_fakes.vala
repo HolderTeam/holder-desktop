@@ -89,6 +89,7 @@ public class FakeEditorRecoveryDraftService : Object, HolderLinux.IEditorRecover
 }
 
 public delegate void ListCardLinksHook(string card_id);
+public delegate void AiConfigCallHook();
 
 public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux.IMilestoneApi {
     public int list_projects_calls = 0;
@@ -320,6 +321,10 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     public Gee.HashMap<string, Gee.ArrayList<HolderLinux.CardLink>>? card_links_by_source = null;
     // Runs inside list_card_links (while the call is in flight) so a test can change state mid-load.
     public ListCardLinksHook? list_card_links_hook = null;
+    // Run inside the call, so a test can change the view's API while a request is in flight.
+    public AiConfigCallHook? list_ai_runners_hook = null;
+    public AiConfigCallHook? set_ai_local_model_config_hook = null;
+    public AiConfigCallHook? list_ai_nudges_hook = null;
     public Gee.ArrayList<HolderLinux.ProjectResource> resources = new Gee.ArrayList<HolderLinux.ProjectResource>();
     public Gee.ArrayList<HolderLinux.TrashItem> trash_items = new Gee.ArrayList<HolderLinux.TrashItem>();
     public Gee.ArrayList<HolderLinux.AiRunnerInfo> ai_runners = new Gee.ArrayList<HolderLinux.AiRunnerInfo>();
@@ -796,6 +801,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
     }
 
     public async Gee.ArrayList<HolderLinux.AiRunnerInfo> list_ai_runners() throws Error {
+        if (list_ai_runners_hook != null) {
+            ((!) list_ai_runners_hook)();
+        }
         if (fail_list_ai_runners) {
             throw new IOError.FAILED("list AI runners failed");
         }
@@ -912,6 +920,9 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
         last_strong_model = strong_model;
         last_deep_model = deep_model;
         ai_local_model_config = new HolderLinux.AiLocalModelConfigInfo(fast_model, strong_model, deep_model, 0);
+        if (set_ai_local_model_config_hook != null) {
+            ((!) set_ai_local_model_config_hook)();
+        }
         return ai_local_model_config;
     }
 
@@ -959,13 +970,17 @@ public class MainControllerFakeApi : Object, HolderLinux.IHolderApi, HolderLinux
 
     public async Gee.ArrayList<HolderLinux.AiNudge> list_ai_nudges(string project_id,
                                                                    string? card_id = null) throws Error {
+        var answer = ai_nudges;
+        if (list_ai_nudges_hook != null) {
+            ((!) list_ai_nudges_hook)();
+        }
         if (fail_list_ai_nudges) {
             throw new IOError.FAILED("list nudges failed");
         }
         list_ai_nudges_calls++;
         last_nudge_project_id = project_id;
         last_nudge_card_id = card_id;
-        return ai_nudges;
+        return answer;
     }
 
     public async void dismiss_ai_nudge(string nudge_id) throws Error {

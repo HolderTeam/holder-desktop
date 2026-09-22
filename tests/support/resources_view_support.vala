@@ -102,6 +102,11 @@ public class RvFakeFilePicker : Object, HolderLinux.IFilePicker {
         return answer();
     }
 
+    public async File? save_file(Gtk.Window parent, string title, string initial_name) throws Error {
+        requests.add("save|%s|%s".printf(title, initial_name));
+        return answer();
+    }
+
     private File? answer() throws Error {
         if (cancel) {
             throw new IOError.CANCELLED("Dismissed by user");

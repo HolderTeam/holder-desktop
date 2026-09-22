@@ -2,17 +2,22 @@ namespace HolderLinux {
 
 public delegate void RecoveryPinAccepted(string pin);
 public delegate void RecoveryImportReady(string pin, string recovery_token);
-public delegate void RecoverySavePathReady(string path);
+// The path is null when the chosen location is not a local file; the receiver reports that.
+public delegate void RecoverySavePathReady(string? path);
 
 internal class RecoveryDialogAdapter : Object {
     private Gtk.Window parent;
     private RecoveryUiController recovery_ui_controller;
+    private IFilePicker file_picker;
 
     public signal void error_reported(string title, string details);
 
-    public RecoveryDialogAdapter(Gtk.Window parent, RecoveryUiController recovery_ui_controller) {
+    public RecoveryDialogAdapter(Gtk.Window parent,
+                                 RecoveryUiController recovery_ui_controller,
+                                 IFilePicker? file_picker = null) {
         this.parent = parent;
         this.recovery_ui_controller = recovery_ui_controller;
+        this.file_picker = file_picker ?? new GtkFilePicker();
     }
 
     public void request_pin(string title, string body, owned RecoveryPinAccepted on_pin) {
@@ -53,54 +58,52 @@ internal class RecoveryDialogAdapter : Object {
     }
 
     public void open_import_dialog(owned RecoveryImportReady on_import_ready) {
-        var dialog = new Gtk.FileDialog();
-        dialog.set_title("Import Recovery Key");
-        dialog.open.begin(parent, null, (obj, res) => {
-            try {
-                var file = dialog.open.end(res);
-                if (file == null) {
-                    return;
-                }
-                var recovery_token = recovery_ui_controller.load_import_payload_from_path(file.get_path());
-                if (recovery_token == null) {
-                    return;
-                }
-                request_pin(
-                    "Unlock Recovery Key",
-                    "Set your recovery key PIN to unlock and import this `.hrk` file.",
-                    (pin) => {
-                        on_import_ready(pin, recovery_token);
-                    }
-                );
-            } catch (IOError.CANCELLED e) {
-                // User cancelled.
-            } catch (Error e) {
-                error_reported("Recovery key import failed", e.message);
+        choose_import_file.begin((owned) on_import_ready);
+    }
+
+    private async void choose_import_file(owned RecoveryImportReady on_import_ready) {
+        try {
+            var file = yield file_picker.pick_file(parent, "Import Recovery Key", false);
+            if (file == null) {
+                return;
             }
-        });
+            var recovery_token = recovery_ui_controller.load_import_payload_from_path(file.get_path());
+            if (recovery_token == null) {
+                return;
+            }
+            request_pin(
+                "Unlock Recovery Key",
+                "Set your recovery key PIN to unlock and import this `.hrk` file.",
+                (pin) => {
+                    on_import_ready(pin, recovery_token);
+                }
+            );
+        } catch (IOError.CANCELLED e) {
+            // User cancelled.
+        } catch (Error e) {
+            error_reported("Recovery key import failed", e.message);
+        }
     }
 
     public void open_save_dialog(string default_filename, owned RecoverySavePathReady on_save_path_ready) {
-        var dialog = new Gtk.FileDialog();
-        dialog.set_title("Save Recovery Key");
-        dialog.set_initial_name(default_filename);
-        dialog.save.begin(parent, null, (obj, res) => {
-            try {
-                var file = dialog.save.end(res);
-                if (file == null) {
-                    return;
-                }
-                var path = RecoveryUiController.accepted_path(file.get_path());
-                if (path == null) {
-                    return;
-                }
-                on_save_path_ready((!) path);
-            } catch (IOError.CANCELLED e) {
-                // User cancelled.
-            } catch (Error e) {
-                error_reported("Recovery key export failed", e.message);
+        choose_save_file.begin(default_filename, (owned) on_save_path_ready);
+    }
+
+    private async void choose_save_file(string default_filename,
+                                        owned RecoverySavePathReady on_save_path_ready) {
+        try {
+            var file = yield file_picker.save_file(parent, "Save Recovery Key", default_filename);
+            if (file == null) {
+                return;
             }
-        });
+            // A location that is not a local file has no path; the receiver tells the user so, the
+            // same way importing does, instead of the choice silently doing nothing.
+            on_save_path_ready(file.get_path());
+        } catch (IOError.CANCELLED e) {
+            // User cancelled.
+        } catch (Error e) {
+            error_reported("Recovery key export failed", e.message);
+        }
     }
 
     public void show_import_summary(RecoveryTokenImportResult result) {

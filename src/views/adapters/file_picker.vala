@@ -6,6 +6,7 @@ namespace HolderLinux {
 public interface IFilePicker : Object {
     public abstract async File? pick_folder(Gtk.Window parent, string title) throws Error;
     public abstract async File? pick_file(Gtk.Window parent, string title, bool images_only) throws Error;
+    public abstract async File? save_file(Gtk.Window parent, string title, string initial_name) throws Error;
 }
 
 // LCOV_EXCL_START
@@ -30,6 +31,13 @@ internal class GtkFilePicker : Object, IFilePicker {
             dialog.set_default_filter(image_filter);
         }
         return yield dialog.open(parent, null);
+    }
+
+    public async File? save_file(Gtk.Window parent, string title, string initial_name) throws Error {
+        var dialog = new Gtk.FileDialog();
+        dialog.set_title(title);
+        dialog.set_initial_name(initial_name);
+        return yield dialog.save(parent, null);
     }
 }
 // GCOVR_EXCL_STOP

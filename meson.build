@@ -3408,6 +3408,55 @@ window_action_binder_test_exe = executable(
 
 test('holder-linux-window-action-binder-tests', window_action_binder_test_exe)
 
+dialog_adapters_test_exe = executable(
+  'holder-linux-dialog-adapters-tests',
+  [
+    holder_config,
+    'tests/support/test_utils.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/app_settings.vala',
+    'src/services/update_check.vala',
+    'src/services/uri_launcher.vala',
+    'src/services/recovery_service.vala',
+    'src/services/print_service.vala',
+    'src/controllers/recovery.vala',
+    'src/controllers/recovery_ui.vala',
+    'src/controllers/dialog_text_presenter.vala',
+    'src/views/adapters/file_picker.vala',
+    'src/views/adapters/update_dialog.vala',
+    'src/views/adapters/card_action_dialog.vala',
+    'src/views/adapters/project_create_dialog.vala',
+    'src/views/adapters/recovery_dialog.vala',
+    'src/views/adapters/print_ui.vala',
+    'tests/dialog_adapters_test.vala',
+  ],
+  dependencies: [
+    dependency('gtk4'),
+    dependency('libadwaita-1'),
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  c_args: vala_generated_c_args,
+  install: false,
+)
+
+test('holder-linux-dialog-adapters-tests', dialog_adapters_test_exe)
+
 recovery_ui_test_exe = executable(
   'holder-linux-recovery-ui-tests',
   [
@@ -4443,6 +4492,8 @@ toolbox_small_views_test_exe = executable(
     'src/models/nudges.vala',
     'src/models/toolbox_nav.vala',
     'src/state/activity_log.vala',
+    'src/services/core_interfaces.vala',
+    'src/views/search.vala',
     'src/views/components/navigation_breadcrumbs.vala',
     'src/views/toolbox/tool_adapter.vala',
     'src/views/adapters/windows_monospace.vala',
@@ -4457,6 +4508,7 @@ toolbox_small_views_test_exe = executable(
     dependency('libadwaita-1'),
     dependency('gio-2.0'),
     dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
   ],
   vala_args: [
     '--target-glib=2.70',
@@ -4564,6 +4616,9 @@ test('holder-linux-preferences-dialog-tests', preferences_dialog_test_exe)
 ai_catalog_panel_view_test_exe = executable(
   'holder-linux-ai-catalog-panel-view-tests',
   [
+    'tests/support/test_utils.vala',
+    'tests/support/main_controller_fakes.vala',
+    'src/services/editor_recovery_draft_service.vala',
     'src/models/server.vala',
     'src/models/project.vala',
     'src/models/card.vala',
@@ -4574,6 +4629,7 @@ ai_catalog_panel_view_test_exe = executable(
     'src/models/activity_details.vala',
     'src/models/nudges.vala',
     'src/services/core_interfaces.vala',
+    'src/services/uri_launcher.vala',
     'src/controllers/ai_catalog.vala',
     'src/views/ai_panel/catalog.vala',
     'tests/ai_catalog_panel_view_test.vala',

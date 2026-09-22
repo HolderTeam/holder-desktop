@@ -127,6 +127,74 @@ private void test_navigation_breadcrumbs_renders_and_emits_segment_index() {
     assert(root.get_first_child() == null);
 }
 
+private void test_navigation_breadcrumbs_style_each_segment_kind() {
+    var breadcrumbs = new HolderLinux.NavigationBreadcrumbs();
+    var segments = new Gee.ArrayList<HolderLinux.NavigationBreadcrumbSegment>();
+    // (label, emphasized, clickable, index): all four combinations, in order.
+    segments.add(new HolderLinux.NavigationBreadcrumbSegment("Link", false, true, 0));
+    segments.add(new HolderLinux.NavigationBreadcrumbSegment("Current link", true, true, 1));
+    segments.add(new HolderLinux.NavigationBreadcrumbSegment("Plain", false, false, 2));
+    segments.add(new HolderLinux.NavigationBreadcrumbSegment("Current", true, false, 3));
+    breadcrumbs.set_segments(segments);
+
+    var root = breadcrumbs.widget;
+    // Segments sit at even positions with a separator label between each pair.
+    var link = (!) nth_child(root, 0);
+    var current_link = (!) nth_child(root, 2);
+    var plain = (!) nth_child(root, 4);
+    var current = (!) nth_child(root, 6);
+    assert(link is Gtk.Button && current_link is Gtk.Button);
+    assert(plain is Gtk.Label && current is Gtk.Label);
+    assert(link.has_css_class("flat") && link.has_css_class("heading") && !link.has_css_class("title-5"));
+    assert(current_link.has_css_class("flat") && current_link.has_css_class("title-5")
+           && !current_link.has_css_class("heading"));
+    assert(plain.has_css_class("heading") && !plain.has_css_class("title-5"));
+    assert(current.has_css_class("title-5") && !current.has_css_class("heading"));
+    var separator = (!) nth_child(root, 1);
+    assert(separator.has_css_class("dim-label"));
+    assert(nth_child(root, 7) == null);
+}
+
+private void test_search_entry_text_provider_reads_the_live_entry_text() {
+    var entry = new Gtk.SearchEntry();
+    HolderLinux.ITextProvider provider = new HolderLinux.SearchEntryTextProvider(entry);
+    assert(provider.get_text() == "");
+
+    entry.set_text("find me");
+    assert(provider.get_text() == "find me");
+    entry.set_text("");
+    assert(provider.get_text() == "");
+}
+
+private void test_windows_monospace_uses_gtks_switch_off_windows_and_a_css_class_on_it() {
+    // Off Windows the view just turns on GTK's own monospace face.
+    var native = new Gtk.TextView();
+    assert(!native.get_monospace());
+    HolderLinux.WindowsMonospace.apply_for_platform(native, false, Gdk.Display.get_default());
+    assert(native.get_monospace());
+    assert(!native.has_css_class("holder-windows-monospace"));
+
+    HolderLinux.WindowsMonospace.css_installed = false;
+    // With no display the class is still added, but there is nowhere to install the stylesheet.
+    var no_display = new Gtk.TextView();
+    HolderLinux.WindowsMonospace.apply_for_platform(no_display, true, null);
+    assert(no_display.has_css_class("holder-windows-monospace"));
+    assert(!no_display.get_monospace());
+    assert(!HolderLinux.WindowsMonospace.css_installed);
+
+    // With a display the stylesheet is installed once and every view gets the class.
+    var first = new Gtk.TextView();
+    HolderLinux.WindowsMonospace.apply_for_platform(first, true, Gdk.Display.get_default());
+    assert(first.has_css_class("holder-windows-monospace"));
+    assert(HolderLinux.WindowsMonospace.css_installed);
+
+    var second = new Gtk.TextView();
+    HolderLinux.WindowsMonospace.apply_for_platform(second, true, Gdk.Display.get_default());
+    assert(second.has_css_class("holder-windows-monospace"));
+    assert(HolderLinux.WindowsMonospace.css_installed);
+    HolderLinux.WindowsMonospace.css_installed = false;
+}
+
 private void test_debug_view_appends_and_clears_log_text() {
     var view = new HolderLinux.DebugToolView();
     view.append_log_line("first line");
@@ -320,6 +388,9 @@ public static int main(string[] args) {
 
     Test.add_func("/holder/navigation-breadcrumbs/render-and-activate",
                   test_navigation_breadcrumbs_renders_and_emits_segment_index);
+    Test.add_func("/holder/navigation-breadcrumbs/segment-styles", test_navigation_breadcrumbs_style_each_segment_kind);
+    Test.add_func("/holder/search-entry-text-provider/reads-live-text", test_search_entry_text_provider_reads_the_live_entry_text);
+    Test.add_func("/holder/windows-monospace/platform-branches", test_windows_monospace_uses_gtks_switch_off_windows_and_a_css_class_on_it);
     Test.add_func("/holder/debug-view/appends-and-clears", test_debug_view_appends_and_clears_log_text);
     Test.add_func("/holder/recovery-key-view/buttons-and-scope", test_recovery_key_view_buttons_emit_signals_and_scope);
     Test.add_func("/holder/sharing-view/button-state-signal-and-scope", test_sharing_view_button_state_signal_and_scope);

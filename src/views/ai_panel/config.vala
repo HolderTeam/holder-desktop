@@ -34,9 +34,10 @@ public class AiConfigPanelView : Object {
     private AiLocalModelConfigInfo local_model_config =
         new AiLocalModelConfigInfo(null, null, null, 0);
 
-    private bool suppress_enable_signal = false;
     private bool suppress_local_model_signal = false;
     private uint local_model_save_timeout_id = 0;
+    private uint refresh_serial = 0;
+    private IScheduler scheduler;
     private bool local_model_save_in_flight = false;
     private string? pending_fast_model = null;
     private string? pending_strong_model = null;
@@ -48,14 +49,19 @@ public class AiConfigPanelView : Object {
     public signal void debug_log_requested(string line);
     public signal void pull_model_requested(string model_tag);
 
-    public AiConfigPanelView(IUriLauncher? uri_launcher = null) {
+    public AiConfigPanelView(IUriLauncher? uri_launcher = null, IScheduler? scheduler = null) {
         this.uri_launcher = uri_launcher ?? new AppInfoUriLauncher();
+        this.scheduler = scheduler ?? new MainLoopScheduler();
         widget = build_ui();
         set_idle_state(AiConfigPresenter.CONNECT_MESSAGE);
     }
 
     public void set_api_client(IHolderApi? api) {
         api_client = api;
+        // A load still running for the previous API must not render into this one, and a model choice
+        // waiting to be saved was made against the previous API's models.
+        refresh_serial++;
+        cancel_pending_local_model_save();
         if (api_client == null) {
             set_idle_state(AiConfigPresenter.CONNECT_MESSAGE);
         }
@@ -67,15 +73,25 @@ public class AiConfigPanelView : Object {
             return;
         }
 
+        // The API can be swapped out or removed between the awaits below, so keep the one this load
+        // started with and let only the newest load render.
+        var api = api_client;
+        var serial = ++refresh_serial;
         set_idle_state(AiConfigPresenter.LOADING_MESSAGE);
         try {
-            var providers = yield api_client.list_ai_runtime_providers();
-            var runners = yield api_client.list_ai_runners();
-            var credentials = yield api_client.list_ai_provider_credentials();
-            var settings = yield api_client.list_ai_provider_settings();
-            var local_models = yield api_client.get_ai_local_model_config();
+            var providers = yield api.list_ai_runtime_providers();
+            var runners = yield api.list_ai_runners();
+            var credentials = yield api.list_ai_provider_credentials();
+            var settings = yield api.list_ai_provider_settings();
+            var local_models = yield api.get_ai_local_model_config();
+            if (serial != refresh_serial) {
+                return;
+            }
             render(runners, providers, credentials, settings, local_models);
         } catch (Error e) {
+            if (serial != refresh_serial) {
+                return;
+            }
             set_idle_state(AiConfigPresenter.LOAD_FAILED_MESSAGE);
             error_reported("AI Config", e.message);
             debug_log_requested("AI Config load failed: %s".printf(e.message));
@@ -305,11 +321,15 @@ public class AiConfigPanelView : Object {
         status_label.set_text(AiConfigPresenter.READY_MESSAGE);
     }
 
-    private void update_local_model_dropdowns() {
+    private void cancel_pending_local_model_save() {
         if (local_model_save_timeout_id != 0) {
-            Source.remove(local_model_save_timeout_id);
+            scheduler.cancel(local_model_save_timeout_id);
             local_model_save_timeout_id = 0;
         }
+    }
+
+    private void update_local_model_dropdowns() {
+        cancel_pending_local_model_save();
 
         suppress_local_model_signal = true;
         fast_model_choices = populate_local_model_dropdown(
@@ -340,7 +360,8 @@ public class AiConfigPanelView : Object {
     }
 
     private async void save_local_model_config() {
-        if (api_client == null) {
+        var api = api_client;
+        if (api == null) {
             return;
         }
 
@@ -352,11 +373,16 @@ public class AiConfigPanelView : Object {
             pending_fast_model = fast_model;
             pending_strong_model = strong_model;
             pending_deep_model = deep_model;
-            local_model_config = yield api_client.set_ai_local_model_config(
+            var saved = yield api.set_ai_local_model_config(
                 fast_model,
                 strong_model,
                 deep_model
             );
+            // The API was swapped out while saving: the answer belongs to models this view no longer shows.
+            if (api != api_client) {
+                return;
+            }
+            local_model_config = saved;
             update_local_model_dropdowns();
             debug_log_requested("Saved local model preferences.");
         } catch (Error e) {
@@ -387,13 +413,10 @@ public class AiConfigPanelView : Object {
             return;
         }
 
-        if (local_model_save_timeout_id != 0) {
-            Source.remove(local_model_save_timeout_id);
-            local_model_save_timeout_id = 0;
-        }
+        cancel_pending_local_model_save();
 
         debug_log_requested("Saving local model preferences...");
-        local_model_save_timeout_id = Timeout.add(AiConfigPresenter.LOCAL_MODEL_SAVE_DELAY_MS, () => {
+        local_model_save_timeout_id = scheduler.schedule_once(AiConfigPresenter.LOCAL_MODEL_SAVE_DELAY_MS, () => {
             local_model_save_timeout_id = 0;
             save_local_model_config.begin();
             return Source.REMOVE;
@@ -610,9 +633,6 @@ public class AiConfigPanelView : Object {
         var enabled_switch = new Gtk.Switch();
         enabled_switch.set_active(presentation.enabled);
         enabled_switch.notify["active"].connect(() => {
-            if (suppress_enable_signal) {
-                return;
-            }
             set_provider_enabled.begin(provider_id, enabled_switch.get_active());
         });
         var setup_btn = new Gtk.Button.with_label("Setup");

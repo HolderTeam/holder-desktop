@@ -375,6 +375,269 @@ private void test_refresh_nudges_failure_hides_section_and_logs_debug() {
     assert(!collect_widget_text(panel.widget).contains("Suggest a title"));
 }
 
+private void settle() {
+    while (MainContext.default().iteration(false)) {}
+}
+
+private HolderLinux.AiNudge summary_nudge() {
+    return new HolderLinux.AiNudge(
+        "n2", "card.summary", "p1", "c1", "Link related cards",
+        "Remember to link the related cards.", "fp", "commit", 1
+    );
+}
+
+private Gee.ArrayList<HolderLinux.AiRunnerInfo> two_runners() {
+    var runners = new Gee.ArrayList<HolderLinux.AiRunnerInfo>();
+    runners.add(runner("r1", "Local", true, {"mistral", "llama"}));
+    runners.add(runner("r2", "Remote", false, {"gpt"}));
+    return runners;
+}
+
+private void test_refresh_config_loads_the_config_panel_from_the_api() {
+    var api = new MainControllerFakeApi();
+    api.ai_runners.add(runner("r1", "Config Runner", true, {"llama"}));
+    var panel = new HolderLinux.AiPanel();
+    panel.set_api_client(api);
+
+    panel.refresh_config("p1");
+
+    assert(wait_for_condition(() => collect_widget_text(panel.widget).contains("Config Runner")));
+}
+
+private void test_config_panel_events_are_forwarded() {
+    var api = new MainControllerFakeApi();
+    api.fail_list_ai_runners = true;
+    var panel = new HolderLinux.AiPanel();
+    panel.set_api_client(api);
+    string? error_title = null;
+    string? error_details = null;
+    string? pulled = null;
+    var debug_lines = new Gee.ArrayList<string>();
+    panel.error_reported.connect((title, details) => { error_title = title; error_details = details; });
+    panel.debug_log_requested.connect((line) => { debug_lines.add(line); });
+    panel.pull_model_requested.connect((tag) => { pulled = tag; });
+
+    panel.refresh_config("p1");
+    assert(wait_for_condition(() => error_title != null));
+    assert(error_title == "AI Config" && error_details == "list AI runners failed");
+
+    // A recommended install offered by the config panel is passed on as a pull request.
+    var caps = new HolderLinux.AiCapabilitiesInfo(
+        true, "", 1, "1.0", "user", new Gee.ArrayList<string>(),
+        strings({"llama3.2:3b"})
+    );
+    panel.render_status(caps, status(), new Gee.ArrayList<HolderLinux.AiRunnerInfo>());
+    var install = find_button_with_label(panel.widget, "Install llama3.2:3b");
+    assert(install != null);
+    ((!) install).clicked();
+    assert(pulled == "llama3.2:3b");
+
+    // Debug lines the config panel writes (a model choice being saved) reach the panel's log too.
+    var api2 = new MainControllerFakeApi();
+    api2.ai_runners.add(runner("r1", "Config Runner", true, {"llama"}));
+    panel.set_api_client(api2);
+    panel.refresh_config("p1");
+    assert(wait_for_condition(() => collect_widget_text(panel.widget).contains("Config Runner")));
+    var model_dropdowns = new Gee.ArrayList<Gtk.DropDown>();
+    collect_dropdowns(panel.widget, model_dropdowns);
+    // Dropdowns: run target runner, run target model, then the three saved-model choices.
+    assert(model_dropdowns.size == 5);
+    model_dropdowns[2].set_selected(1);
+    assert(debug_lines.contains("Saving local model preferences..."));
+}
+
+private Gee.ArrayList<string> strings(string[] values) {
+    var list = new Gee.ArrayList<string>();
+    foreach (var value in values) {
+        list.add(value);
+    }
+    return list;
+}
+
+private void test_the_run_target_selection_survives_a_status_refresh() {
+    var panel = new HolderLinux.AiPanel();
+    panel.render_status(capabilities(), status(), two_runners());
+    var runner_dropdown = panel_dropdown(panel, 0);
+    var model_dropdown = panel_dropdown(panel, 1);
+    runner_dropdown.set_selected(1);
+    model_dropdown.set_selected(1);
+    assert(panel.get_selected_runner_id() == "r2" && panel.get_selected_model_name() == "gpt");
+
+    // The same runners arrive again (the periodic status refresh): the user's choice stays.
+    panel.render_status(capabilities(), status(), two_runners());
+    assert(panel.get_selected_runner_id() == "r2");
+    assert(panel.get_selected_model_name() == "gpt");
+    assert(dropdown_item_count(runner_dropdown) == 2);
+
+    // The chosen runner is gone: fall back to the first one, with no model chosen.
+    var only_local = new Gee.ArrayList<HolderLinux.AiRunnerInfo>();
+    only_local.add(runner("r1", "Local", true, {"mistral", "llama"}));
+    panel.render_status(capabilities(), status(), only_local);
+    assert(panel.get_selected_runner_id() == "r1");
+    assert(panel.get_selected_model_name() == null);
+}
+
+private void test_no_runners_means_nothing_to_choose() {
+    var panel = new HolderLinux.AiPanel();
+    panel.render_status(capabilities(), status(), two_runners());
+
+    panel.render_status(capabilities(), status(), new Gee.ArrayList<HolderLinux.AiRunnerInfo>());
+
+    assert(panel.get_selected_runner_id() == null);
+    assert(panel.get_selected_model_name() == null);
+    assert(!panel_dropdown(panel, 0).get_sensitive());
+    assert(!panel_dropdown(panel, 1).get_sensitive());
+    assert(dropdown_item_count(panel_dropdown(panel, 1)) == 1);
+}
+
+private void test_a_nudge_that_is_not_a_title_suggestion_shows_its_body() {
+    var api = new MainControllerFakeApi();
+    api.ai_nudges.add(summary_nudge());
+    var panel = new HolderLinux.AiPanel();
+    panel.set_api_client(api);
+
+    panel.refresh_nudges("p1", "c1");
+
+    assert(wait_for_condition(() => collect_widget_text(panel.widget).contains("Link related cards")));
+    assert(collect_widget_text(panel.widget).contains("Remember to link the related cards."));
+    assert(find_button_with_label(panel.widget, "Apply") == null);
+    assert(find_button_with_label(panel.widget, "Dismiss") != null);
+}
+
+private void test_an_older_nudge_load_does_not_overwrite_a_newer_one() {
+    var api = new MainControllerFakeApi();
+    api.ai_nudges.add(title_nudge());
+    var panel = new HolderLinux.AiPanel();
+    panel.set_api_client(api);
+    bool fired = false;
+    // While the first request is in flight the answer changes and a second refresh starts.
+    api.list_ai_nudges_hook = () => {
+        if (fired) {
+            return;
+        }
+        fired = true;
+        var newer = new Gee.ArrayList<HolderLinux.AiNudge>();
+        newer.add(summary_nudge());
+        api.ai_nudges = newer;
+        panel.refresh_nudges("p1", "c1");
+    };
+
+    panel.refresh_nudges("p1", "c1");
+
+    assert(wait_for_condition(() => collect_widget_text(panel.widget).contains("Link related cards")));
+    settle();
+    assert(!collect_widget_text(panel.widget).contains("Suggest a title"));
+}
+
+private void test_an_older_failed_nudge_load_is_ignored() {
+    var api = new MainControllerFakeApi();
+    api.ai_nudges.add(summary_nudge());
+    var panel = new HolderLinux.AiPanel();
+    panel.set_api_client(api);
+    var debug_lines = new Gee.ArrayList<string>();
+    panel.debug_log_requested.connect((line) => { debug_lines.add(line); });
+    bool fired = false;
+    api.list_ai_nudges_hook = () => {
+        if (fired) {
+            return;
+        }
+        fired = true;
+        // The first request will fail, but a newer one has already been started and succeeds.
+        panel.refresh_nudges("p1", "c1");
+        api.fail_list_ai_nudges = true;
+    };
+
+    panel.refresh_nudges("p1", "c1");
+
+    assert(wait_for_condition(() => collect_widget_text(panel.widget).contains("Link related cards")));
+    settle();
+    assert(collect_widget_text(panel.widget).contains("Link related cards"));
+    foreach (var line in debug_lines) {
+        assert(!line.contains("NUDGE_LIST_ERROR"));
+    }
+}
+
+private void test_removing_the_api_clears_its_nudges() {
+    var api = new MainControllerFakeApi();
+    api.ai_nudges.add(title_nudge());
+    var panel = new HolderLinux.AiPanel();
+    panel.set_api_client(api);
+    panel.refresh_nudges("p1", "c1");
+    assert(wait_for_condition(() => collect_widget_text(panel.widget).contains("Suggest a title")));
+    var dismiss = find_button_with_label(panel.widget, "Dismiss");
+    assert(dismiss != null);
+    string? reported = null;
+    panel.error_reported.connect((title, details) => { reported = details; });
+
+    panel.set_api_client(null);
+
+    assert(!collect_widget_text(panel.widget).contains("Suggest a title"));
+    // A click that was already on its way finds nothing to do.
+    ((!) dismiss).clicked();
+    settle();
+    assert(api.dismiss_ai_nudge_calls == 0);
+    assert(reported == null);
+}
+
+private void test_a_nudge_load_for_a_replaced_api_is_not_rendered() {
+    var old_api = new MainControllerFakeApi();
+    old_api.ai_nudges.add(title_nudge());
+    var new_api = new MainControllerFakeApi();
+    var panel = new HolderLinux.AiPanel();
+    panel.set_api_client(old_api);
+    old_api.list_ai_nudges_hook = () => { panel.set_api_client(new_api); };
+
+    panel.refresh_nudges("p1", "c1");
+    assert(wait_for_condition(() => old_api.list_ai_nudges_calls == 1));
+    settle();
+
+    assert(!collect_widget_text(panel.widget).contains("Suggest a title"));
+}
+
+private void test_a_failed_dismissal_is_reported_and_can_be_retried() {
+    var api = new MainControllerFakeApi();
+    api.ai_nudges.add(title_nudge());
+    api.fail_dismiss_ai_nudge = true;
+    var panel = new HolderLinux.AiPanel();
+    panel.set_api_client(api);
+    panel.refresh_nudges("p1", "c1");
+    assert(wait_for_condition(() => find_button_with_label(panel.widget, "Dismiss") != null));
+    var errors = new Gee.ArrayList<string>();
+    var debug_lines = new Gee.ArrayList<string>();
+    panel.error_reported.connect((title, details) => { errors.add("%s|%s".printf(title, details)); });
+    panel.debug_log_requested.connect((line) => { debug_lines.add(line); });
+    var dismiss = (!) find_button_with_label(panel.widget, "Dismiss");
+
+    dismiss.clicked();
+    assert(!dismiss.get_sensitive());
+    assert(wait_for_condition(() => errors.size == 1));
+
+    assert(errors[0] == "Dismiss nudge failed|dismiss nudge failed");
+    assert(debug_lines.contains("NUDGE_DISMISS_ERROR dismiss nudge failed"));
+    // The nudge is still there, and the button is back so the user can try again.
+    assert(dismiss.get_sensitive());
+    assert(collect_widget_text(panel.widget).contains("Suggest a title"));
+}
+
+private void test_dismiss_is_disabled_while_its_request_is_running() {
+    var api = new MainControllerFakeApi();
+    api.ai_nudges.add(title_nudge());
+    var panel = new HolderLinux.AiPanel();
+    panel.set_api_client(api);
+    panel.refresh_nudges("p1", "c1");
+    assert(wait_for_condition(() => find_button_with_label(panel.widget, "Dismiss") != null));
+    var dismiss = (!) find_button_with_label(panel.widget, "Dismiss");
+    assert(dismiss.get_sensitive());
+
+    dismiss.clicked();
+
+    // GTK delivers no further clicks to an insensitive button, so a double click sends one request.
+    assert(!dismiss.get_sensitive());
+    assert(wait_for_condition(() => api.dismiss_ai_nudge_calls == 1));
+    settle();
+    assert(api.dismiss_ai_nudge_calls == 1);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
     if (!Gtk.init_check()) {
@@ -389,6 +652,17 @@ public static int main(string[] args) {
     Test.add_func("/holder/ai-panel/title-suggestion-apply", test_title_suggestion_nudge_renders_and_applies);
     Test.add_func("/holder/ai-panel/dismiss-nudge", test_dismiss_nudge_calls_api_and_refreshes);
     Test.add_func("/holder/ai-panel/nudge-refresh-failure", test_refresh_nudges_failure_hides_section_and_logs_debug);
+    Test.add_func("/holder/ai-panel/refresh-config", test_refresh_config_loads_the_config_panel_from_the_api);
+    Test.add_func("/holder/ai-panel/config-events-forwarded", test_config_panel_events_are_forwarded);
+    Test.add_func("/holder/ai-panel/run-target-survives-refresh", test_the_run_target_selection_survives_a_status_refresh);
+    Test.add_func("/holder/ai-panel/no-runners", test_no_runners_means_nothing_to_choose);
+    Test.add_func("/holder/ai-panel/nudge-body", test_a_nudge_that_is_not_a_title_suggestion_shows_its_body);
+    Test.add_func("/holder/ai-panel/nudge-stale-load", test_an_older_nudge_load_does_not_overwrite_a_newer_one);
+    Test.add_func("/holder/ai-panel/nudge-stale-failure", test_an_older_failed_nudge_load_is_ignored);
+    Test.add_func("/holder/ai-panel/api-removed-clears-nudges", test_removing_the_api_clears_its_nudges);
+    Test.add_func("/holder/ai-panel/api-replaced-nudge-load", test_a_nudge_load_for_a_replaced_api_is_not_rendered);
+    Test.add_func("/holder/ai-panel/dismiss-failure", test_a_failed_dismissal_is_reported_and_can_be_retried);
+    Test.add_func("/holder/ai-panel/dismiss-disabled-in-flight", test_dismiss_is_disabled_while_its_request_is_running);
     return Test.run();
 }
 
