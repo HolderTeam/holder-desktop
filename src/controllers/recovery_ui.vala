@@ -9,7 +9,7 @@ internal class RecoverySavePreparation : Object {
     }
 }
 
-internal class RecoveryUiController : Object {
+internal class RecoveryUiController : Object, IRecoveryDialogOps {
     private RecoveryController recovery_controller; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: field declaration-only coverage artifact
 
     public signal void toast_requested(string message);
@@ -17,14 +17,6 @@ internal class RecoveryUiController : Object {
 
     public RecoveryUiController(RecoveryController recovery_controller) {
         this.recovery_controller = recovery_controller;
-    }
-
-    public static string normalize_pin(string pin) {
-        return pin.strip();
-    }
-
-    public static bool pin_is_submittable(string pin) {
-        return normalize_pin(pin).length > 0;
     }
 
     // Returns the path unchanged when usable, or null when it is missing or blank.
@@ -36,7 +28,7 @@ internal class RecoveryUiController : Object {
     }
 
     public bool validate_pin(string pin) {
-        if (pin_is_submittable(pin)) {
+        if (RecoveryDialogPin.is_submittable(pin)) {
             return true;
         }
         toast_requested("PIN is required.");
