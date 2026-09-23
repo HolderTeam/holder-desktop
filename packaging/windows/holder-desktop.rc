@@ -1,0 +1,2 @@
+// Embed the application icon for Explorer and Windows taskbar fallbacks.
+1 ICON "Holder.ico"

@@ -334,9 +334,19 @@ else
   sources += 'src/views/toolbox/terminal_tool_view_disabled.vala'
 endif
 
+windows_resources = []
+if host_machine.system() == 'windows'
+  windows = import('windows')
+  windows_resources = windows.compile_resources(
+    'packaging/windows/holder-desktop.rc',
+    include_directories: include_directories('packaging/windows'),
+    depend_files: files('packaging/windows/Holder.ico'),
+  )
+endif
+
 executable(
   'holder-desktop',
-  [sources, help_resources],
+  [sources, help_resources, windows_resources],
   dependencies: deps,
   vala_args: [
     '--target-glib=2.70',
