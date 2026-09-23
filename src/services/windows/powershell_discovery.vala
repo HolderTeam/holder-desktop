@@ -191,10 +191,18 @@ public class PowerShellDiscoveryService : Object {
             return;
         }
         var current = (!) settings;
-        current.reset(AppSettings.KEY_TERMINAL_POWERSHELL_PATH);
-        current.reset(AppSettings.KEY_TERMINAL_POWERSHELL_VERSION);
-        current.reset(AppSettings.KEY_TERMINAL_WINDOWS_TERMINAL_PATH);
-        current.reset(AppSettings.KEY_TERMINAL_WINGET_PATH);
+        string[] cache_keys = {
+            AppSettings.KEY_TERMINAL_POWERSHELL_PATH,
+            AppSettings.KEY_TERMINAL_POWERSHELL_VERSION,
+            AppSettings.KEY_TERMINAL_WINDOWS_TERMINAL_PATH,
+            AppSettings.KEY_TERMINAL_WINGET_PATH
+        };
+        foreach (var key in cache_keys) {
+            // The Windows registry backend logs an error when resetting an unset value.
+            if (current.get_user_value(key) != null) {
+                current.reset(key);
+            }
+        }
     }
 
     internal string[] find_powershell_candidates() {
@@ -225,7 +233,7 @@ public class PowerShellDiscoveryService : Object {
         if (windows_apps != null) {
             add_unique_candidate(candidates, (!) windows_apps);
         }
-        return candidates.to_array();
+        return (string[]) candidates.to_array();
     }
 
     private static void add_unique_candidate(
@@ -263,16 +271,14 @@ public class PowerShellDiscoveryService : Object {
         if (is_windows_apps_alias(powershell_path)) {
             return yield query_version_through_file(powershell_path);
         }
-        var process = new Subprocess.newv(
-            {
-                powershell_path,
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                "$PSVersionTable.PSVersion.ToString()"
-            },
-            SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_PIPE
+        var process = new Subprocess(
+            SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_PIPE,
+            powershell_path,
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "$PSVersionTable.PSVersion.ToString()"
         );
         string? stdout_text = null;
         string? stderr_text = null;
