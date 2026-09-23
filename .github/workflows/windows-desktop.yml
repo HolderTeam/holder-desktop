@@ -38,6 +38,7 @@ jobs:
             mingw-w64-ucrt-x86_64-libadwaita
             mingw-w64-ucrt-x86_64-gtksourceview5
             mingw-w64-ucrt-x86_64-libspelling
+            mingw-w64-ucrt-x86_64-hunspell-en
             mingw-w64-ucrt-x86_64-libgee
             mingw-w64-ucrt-x86_64-libsoup3
             mingw-w64-ucrt-x86_64-json-glib
@@ -119,6 +120,9 @@ jobs:
           cp data/team.holder.Holder.gschema.xml "${stage_dir}/share/glib-2.0/schemas/"
 
           copy_tree_if_exists /ucrt64/lib/gdk-pixbuf-2.0
+          copy_tree_if_exists /ucrt64/lib/enchant-2
+          copy_tree_if_exists /ucrt64/share/enchant-2
+          copy_tree_if_exists /ucrt64/share/hunspell
           copy_tree_if_exists /ucrt64/lib/gio
           copy_tree_if_exists /ucrt64/lib/gtk-4.0
           copy_tree_if_exists /ucrt64/share/icons
@@ -185,6 +189,12 @@ jobs:
           test -f out/artifacts/windows-desktop/lib/gio/modules/giomodule.cache
           test -d out/artifacts/windows-desktop/lib/gdk-pixbuf-2.0
           test -f out/artifacts/windows-desktop/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
+          test -f out/artifacts/windows-desktop/lib/enchant-2/enchant_hunspell.dll
+          test -f out/artifacts/windows-desktop/share/enchant-2/enchant.ordering
+          test -f out/artifacts/windows-desktop/share/hunspell/en_GB.aff
+          test -f out/artifacts/windows-desktop/share/hunspell/en_GB.dic
+          test -f out/artifacts/windows-desktop/share/hunspell/en_US.aff
+          test -f out/artifacts/windows-desktop/share/hunspell/en_US.dic
           test -d out/artifacts/windows-desktop/share/icons
           test -f out/artifacts/windows-desktop/share/icons/hicolor/512x512/apps/team.holder.Holder.png
           test -f out/artifacts/windows-desktop/share/holder-desktop/icons/Holder.ico

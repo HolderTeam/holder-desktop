@@ -18,6 +18,7 @@ packages=(
   mingw-w64-ucrt-x86_64-libadwaita
   mingw-w64-ucrt-x86_64-gtksourceview5
   mingw-w64-ucrt-x86_64-libspelling
+  mingw-w64-ucrt-x86_64-hunspell-en
   mingw-w64-ucrt-x86_64-libgee
   mingw-w64-ucrt-x86_64-libsoup3
   mingw-w64-ucrt-x86_64-json-glib
