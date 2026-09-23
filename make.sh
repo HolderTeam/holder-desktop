@@ -5,6 +5,19 @@ BUILD_DIR="${BUILD_DIR:-build}"
 COVERAGE_BUILD_DIR="${COVERAGE_BUILD_DIR:-build-coverage}"
 MODE="${1:-run}"
 
+is_windows_shell() {
+  case "${OS:-}:$(uname -s 2>/dev/null || true)" in
+    Windows_NT:*|*:MINGW*|*:MSYS*|*:CYGWIN*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Windows uses the MSYS2 UCRT64 GTK toolchain.  Keep make.sh as the public
+# contract on every platform while retaining its dedicated provisioning logic.
+if is_windows_shell; then
+  exec "$(cd "$(dirname "$0")" && pwd)/make-win.sh" "$@"
+fi
+
 setup_build() {
   local dir="$1"
   shift
@@ -97,10 +110,15 @@ build() {
 
 run_gui_tests() {
   local dir="$1"
-  # GTK popovers need a display with a stable monitor layout. Use an isolated
-  # display so tests do not depend on the developer's desktop arrangement.
-  GSETTINGS_BACKEND=memory \
-    xvfb-run -a meson test -C "${dir}" --print-errorlogs
+  if command -v xvfb-run >/dev/null 2>&1; then
+    # GTK popovers need a display with a stable monitor layout. Use an isolated
+    # display so tests do not depend on the developer's desktop arrangement.
+    GSETTINGS_BACKEND=memory \
+      xvfb-run -a meson test -C "${dir}" --print-errorlogs
+  else
+    # macOS provides its native display services but not Xvfb.
+    GSETTINGS_BACKEND=memory meson test -C "${dir}" --print-errorlogs
+  fi
 }
 
 test_only() {

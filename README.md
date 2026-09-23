@@ -48,6 +48,11 @@ brew install \
   vte3
 ```
 
+Fresh Fedora setup:
+```bash
+sudo dnf install xorg-x11-server-Xvfb
+```
+
 Configure, build, and test:
 
 ```bash
