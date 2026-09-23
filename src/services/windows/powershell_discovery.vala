@@ -233,7 +233,7 @@ public class PowerShellDiscoveryService : Object {
         if (windows_apps != null) {
             add_unique_candidate(candidates, (!) windows_apps);
         }
-        return candidates.to_array();
+        return (string[]) candidates.to_array();
     }
 
     private static void add_unique_candidate(
@@ -271,16 +271,14 @@ public class PowerShellDiscoveryService : Object {
         if (is_windows_apps_alias(powershell_path)) {
             return yield query_version_through_file(powershell_path);
         }
-        var process = new Subprocess.newv(
-            {
-                powershell_path,
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                "$PSVersionTable.PSVersion.ToString()"
-            },
-            SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_PIPE
+        var process = new Subprocess(
+            SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_PIPE,
+            powershell_path,
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "$PSVersionTable.PSVersion.ToString()"
         );
         string? stdout_text = null;
         string? stderr_text = null;
