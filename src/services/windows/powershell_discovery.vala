@@ -191,10 +191,18 @@ public class PowerShellDiscoveryService : Object {
             return;
         }
         var current = (!) settings;
-        current.reset(AppSettings.KEY_TERMINAL_POWERSHELL_PATH);
-        current.reset(AppSettings.KEY_TERMINAL_POWERSHELL_VERSION);
-        current.reset(AppSettings.KEY_TERMINAL_WINDOWS_TERMINAL_PATH);
-        current.reset(AppSettings.KEY_TERMINAL_WINGET_PATH);
+        string[] cache_keys = {
+            AppSettings.KEY_TERMINAL_POWERSHELL_PATH,
+            AppSettings.KEY_TERMINAL_POWERSHELL_VERSION,
+            AppSettings.KEY_TERMINAL_WINDOWS_TERMINAL_PATH,
+            AppSettings.KEY_TERMINAL_WINGET_PATH
+        };
+        foreach (var key in cache_keys) {
+            // The Windows registry backend logs an error when resetting an unset value.
+            if (current.get_user_value(key) != null) {
+                current.reset(key);
+            }
+        }
     }
 
     internal string[] find_powershell_candidates() {
