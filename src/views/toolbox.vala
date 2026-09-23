@@ -337,7 +337,7 @@ public class ToolboxPane : Object {
             tags_tool.bind_context(project_selection, card_selection);
         }
         var tags_page = stack.add_titled(tags_tool.widget, "tags", "Tags");
-        tags_page.set_icon_name("tag-symbolic");
+        tags_page.set_icon_name("holder-tag-symbolic");
         tags_tool.set_tool_visible(false);
 
         resources_tool = new ResourcesToolView();

@@ -16,4 +16,7 @@
   <gresource prefix="/team/holder/Holder/assets">
     <file alias="holder.jpg">img/holder.jpg</file>
   </gresource>
+  <gresource prefix="/team/holder/Holder/icons">
+    <file alias="scalable/actions/holder-tag-symbolic.svg">data/icons/hicolor/scalable/actions/holder-tag-symbolic.svg</file>
+  </gresource>
 </gresources>
