@@ -34,15 +34,25 @@ public class App : Adw.Application {
         });
         add_action(quit_action);
 
-        set_accels_for_action("win.new-card", {"<Primary>n"});
-        set_accels_for_action("win.new-project", {"<Primary><Shift>n"});
-        set_accels_for_action("win.flowboard-new-child-card", {"<Primary><Alt>n"});
-        set_accels_for_action("win.find-replace", {"<Primary>f", "<Primary>h"});
-        set_accels_for_action("win.print", {"<Primary>p"});
-        set_accels_for_action("win.refresh", {"<Primary>r"});
-        set_accels_for_action("win.save", {"<Primary>s"});
-        set_accels_for_action("win.show-preferences", {"<Primary>comma"});
-        set_accels_for_action("app.quit", {"<Primary>q"}); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: accelerator normalization branch artifact
+        // GTK expects null-terminated arrays; Vala constants need an explicit sentinel.
+        const string[] WIN_NEW_CARD_ACCELS = {"<Primary>n", null};
+        set_accels_for_action("win.new-card", WIN_NEW_CARD_ACCELS);
+        const string[] WIN_NEW_PROJECT_ACCELS = {"<Primary><Shift>n", null};
+        set_accels_for_action("win.new-project", WIN_NEW_PROJECT_ACCELS);
+        const string[] WIN_FLOWBOARD_NEW_CHILD_CARD_ACCELS = {"<Primary><Alt>n", null};
+        set_accels_for_action("win.flowboard-new-child-card", WIN_FLOWBOARD_NEW_CHILD_CARD_ACCELS);
+        const string[] WIN_FIND_REPLACE_ACCELS = {"<Primary>f", "<Primary>h", null};
+        set_accels_for_action("win.find-replace", WIN_FIND_REPLACE_ACCELS);
+        const string[] WIN_PRINT_ACCELS = {"<Primary>p", null};
+        set_accels_for_action("win.print", WIN_PRINT_ACCELS);
+        const string[] WIN_REFRESH_ACCELS = {"<Primary>r", null};
+        set_accels_for_action("win.refresh", WIN_REFRESH_ACCELS);
+        const string[] WIN_SAVE_ACCELS = {"<Primary>s", null};
+        set_accels_for_action("win.save", WIN_SAVE_ACCELS);
+        const string[] WIN_SHOW_PREFERENCES_ACCELS = {"<Primary>comma", null};
+        set_accels_for_action("win.show-preferences", WIN_SHOW_PREFERENCES_ACCELS);
+        const string[] APP_QUIT_ACCELS = {"<Primary>q", null};
+        set_accels_for_action("app.quit", APP_QUIT_ACCELS); // LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: accelerator normalization branch artifact
     } // LCOV_EXCL_LINE GCOVR_EXCL_LINE: Vala constructor closing brace coverage artifact
 
     protected override void activate() { // LCOV_EXCL_LINE GCOVR_EXCL_LINE: requires display-backed windowing environment

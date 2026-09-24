@@ -758,7 +758,10 @@ public class ResourcesToolView : Object, IToolShellAdapter {
         content.append(project_notice);
         var kind_label = new Gtk.Label("Kind") { xalign = 0.0f };
         var kind_choices = ResourceDraft.kind_options(controller);
-        var kind_options = new Gtk.StringList(kind_choices);
+        var kind_options = new Gtk.StringList(null);
+        foreach (var kind in kind_choices) {
+            kind_options.append(kind);
+        }
         var kind_dropdown = new Gtk.DropDown(kind_options, null);
         var custom_kind_entry = new Gtk.Entry();
         custom_kind_entry.set_placeholder_text("custom kind");

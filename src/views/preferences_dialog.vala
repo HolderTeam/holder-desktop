@@ -50,7 +50,8 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         var variant_row = new Adw.ComboRow();
         variant_row.set_title("Style Variant");
         variant_row.set_model(variant_model);
-        variant_row.set_expression(new Gtk.PropertyExpression(typeof(Gtk.StringObject), null, "string"));
+        Gtk.Expression variant_expression = new Gtk.PropertyExpression(typeof(Gtk.StringObject), null, "string");
+        variant_row.set_expression(variant_expression);
         variant_row.set_selected(current_variant_index());
         variant_row.notify["selected"].connect(() => {
             var scheme = index_to_color_scheme(variant_row.get_selected());
@@ -311,11 +312,15 @@ public class PreferencesDialog : Adw.PreferencesDialog {
 
     private void populate_style_schemes(Gtk.FlowBox flowbox) {
         var manager = GtkSource.StyleSchemeManager.get_default();
-        var ids = manager.get_scheme_ids();
+        // Read the boxed property to avoid the getter's const-incorrect Vala binding.
+        string[]? ids = null;
+        manager.get("scheme-ids", out ids);
         if (ids == null) {
             return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: GtkSourceView always ships schemes; only an empty install returns null
         }
 
+        // Object.get cannot infer the length of a null-terminated string vector.
+        ids.length = (int) GLib.strv_length(ids);
         foreach (var scheme_id in ids) {
             var scheme = manager.get_scheme(scheme_id);
             if (scheme == null) {
