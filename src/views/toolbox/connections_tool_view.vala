@@ -255,6 +255,9 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
         connections_board_canvas.set_draw_func((area, cr, width, height) => {
             draw_connections_board(cr);
         });
+        Adw.StyleManager.get_for_display(connections_board_canvas.get_display()).notify["dark"].connect(() => {
+            connections_board_canvas.queue_draw();
+        });
         connections_board_overlay.set_child(connections_board_canvas);
 
         connections_board_nodes_layer = new Gtk.Fixed();
@@ -894,7 +897,9 @@ public class ConnectionsToolView : Object, IToolShellAdapter {
             node_map.set(node.card_id, node);
         }
         cr.set_line_width(1.6);
-        cr.set_source_rgba(1.0, 1.0, 1.0, 0.88);
+        double line_color = Adw.StyleManager.get_for_display(connections_board_canvas.get_display()).get_dark()
+            ? 1.0 : 0.0;
+        cr.set_source_rgba(line_color, line_color, line_color, 0.88);
         foreach (var edge in board_edges) {
             var from = node_map.get(edge.from_card_id);
             var to = node_map.get(edge.to_card_id);
