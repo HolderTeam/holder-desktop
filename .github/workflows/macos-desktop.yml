@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Check out holder-desktop
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install dependencies
         run: |
@@ -81,7 +81,7 @@ jobs:
           grep -qx 'bin/holder-desktop' out/artifacts/macos-desktop/manifest.txt
 
       - name: Upload desktop artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: holder-desktop-macos
           path: out/artifacts/macos-desktop/**
