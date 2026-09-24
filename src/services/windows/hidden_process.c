@@ -6,6 +6,7 @@
 gboolean
 holder_windows_run_hidden (const gchar *executable,
                            const gchar *command_line,
+                           guint        timeout_ms,
                            gint        *exit_code,
                            GError     **error)
 {
@@ -47,7 +48,25 @@ holder_windows_run_hidden (const gchar *executable,
       goto out;
     }
 
-  status = WaitForSingleObject (process.hProcess, INFINITE);
+  status = WaitForSingleObject (process.hProcess, timeout_ms);
+  if (status == WAIT_TIMEOUT)
+    {
+      /* Bound cleanup too: termination can wait for pending kernel I/O. */
+      gboolean terminated = TerminateProcess (process.hProcess, 1);
+      DWORD termination_error = terminated ? ERROR_SUCCESS : GetLastError ();
+      DWORD cleanup_status = WaitForSingleObject (process.hProcess, terminated ? 1000 : 0);
+      if (cleanup_status == WAIT_OBJECT_0)
+        g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_TIMED_OUT,
+                             "PowerShell version query timed out.");
+      else if (!terminated)
+        g_set_error (error, G_IO_ERROR, G_IO_ERROR_TIMED_OUT,
+                     "PowerShell version query timed out; could not stop it (Windows error %lu).",
+                     termination_error);
+      else
+        g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_TIMED_OUT,
+                             "PowerShell version query timed out; process termination is still pending.");
+      goto close_process;
+    }
   if (status != WAIT_OBJECT_0)
     {
       g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
@@ -80,11 +99,13 @@ out:
 gboolean
 holder_windows_run_hidden (const gchar *executable,
                            const gchar *command_line,
+                           guint        timeout_ms,
                            gint        *exit_code,
                            GError     **error)
 {
   (void) executable;
   (void) command_line;
+  (void) timeout_ms;
   (void) exit_code;
   g_set_error_literal (error,
                        G_IO_ERROR,
