@@ -4,6 +4,7 @@ namespace HolderLinux {
 private extern static bool run_windows_process_hidden(
     string executable,
     string command_line,
+    uint timeout_ms,
     out int exit_code
 ) throws Error;
 
@@ -46,6 +47,7 @@ public class PowerShellPrerequisites : Object {
 
 public class PowerShellDiscoveryService : Object {
     private Settings? settings;
+    internal uint query_timeout_ms { get; set; default = 10000; }
 
     public PowerShellDiscoveryService(Settings? settings = null) {
         this.settings = settings;
@@ -282,12 +284,29 @@ public class PowerShellDiscoveryService : Object {
         );
         string? stdout_text = null;
         string? stderr_text = null;
-        yield process.communicate_utf8_async(
-            null,
-            null,
-            out stdout_text,
-            out stderr_text
-        );
+        var cancellable = new Cancellable();
+        var timeout = new TimeoutSource(query_timeout_ms);
+        timeout.set_callback(() => {
+            cancellable.cancel();
+            return Source.REMOVE;
+        });
+        timeout.attach(MainContext.get_thread_default());
+        try {
+            yield process.communicate_utf8_async(
+                null,
+                cancellable,
+                out stdout_text,
+                out stderr_text
+            );
+        } catch (Error e) {
+            if (cancellable.is_cancelled()) {
+                process.force_exit();
+                throw new IOError.TIMED_OUT("PowerShell version query timed out.");
+            }
+            throw e;
+        } finally {
+            timeout.destroy();
+        }
         if (!process.get_successful()) {
             var details = (stderr_text ?? "").strip();
             if (details.length == 0) {
@@ -314,13 +333,48 @@ public class PowerShellDiscoveryService : Object {
                 powershell_path,
                 script
             );
-            int exit_code;
-            run_windows_process_hidden(powershell_path, command_line, out exit_code);
-            return version_from_output_file(output_path, exit_code); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: Windows-only, reached after the hidden-process helper succeeds; the logic is tested through version_from_output_file
+            var exit_code = yield run_hidden_process_async(powershell_path, command_line);
+            return version_from_output_file(output_path, exit_code);
         } finally {
             FileUtils.remove(output_path);
             DirUtils.remove(temp_dir);
         }
+    }
+
+    // Runs on a worker thread. Implementations must not access GTK or mutable UI state.
+    internal virtual int run_hidden_process(string executable, string command_line, uint timeout_ms) throws Error {
+        int exit_code;
+        run_windows_process_hidden(executable, command_line, timeout_ms, out exit_code);
+        return exit_code;
+    }
+
+    internal async int run_hidden_process_async(string executable, string command_line) throws Error {
+        var context = MainContext.ref_thread_default();
+        var timeout_ms = query_timeout_ms;
+        Error? failure = null;
+        var worker = new Thread<int>.try("powershell-version", () => {
+            int exit_code = -1;
+            try {
+                exit_code = run_hidden_process(executable, command_line, timeout_ms);
+            } catch (Error e) {
+                failure = e;
+            }
+            // An attached source always resumes on the caller's context, even if it is idle.
+            var completion = new IdleSource();
+            completion.set_callback(() => {
+                run_hidden_process_async.callback();
+                return Source.REMOVE;
+            });
+            completion.attach(context);
+            return exit_code;
+        });
+        yield;
+        // Synchronise with worker completion before reading its result or error.
+        var exit_code = worker.join();
+        if (failure != null) {
+            throw (!) failure;
+        }
+        return exit_code;
     }
 
     internal static string version_from_output_file(string output_path, int exit_code) throws Error {

@@ -2,6 +2,32 @@ using GLib;
 
 namespace HolderLinuxTests {
 
+private string test_executable;
+
+private class SlowHiddenProcessDiscovery : HolderLinux.PowerShellDiscoveryService {
+    public bool simulate_timeout = false;
+    public int worker_started = 0;
+    public int worker_finished = 0;
+    public string? output_path;
+    public uint received_timeout_ms;
+
+    internal override int run_hidden_process(string executable, string command_line, uint timeout_ms) throws Error {
+        AtomicInt.set(ref worker_started, 1);
+        try {
+            received_timeout_ms = timeout_ms;
+            output_path = command_line.split("'")[1];
+            Thread.usleep(200000);
+            if (simulate_timeout) {
+                throw new IOError.TIMED_OUT("simulated hidden query timeout");
+            }
+            FileUtils.set_contents((!) output_path, "7.4.1\n");
+            return 0;
+        } finally {
+            AtomicInt.set(ref worker_finished, 1);
+        }
+    }
+}
+
 private class FakePowerShellDiscoveryService : HolderLinux.PowerShellDiscoveryService {
     public Gee.HashMap<string, string> environment = new Gee.HashMap<string, string>();
     public Gee.HashSet<string> existing_paths = new Gee.HashSet<string>();
@@ -629,7 +655,7 @@ private void test_discovery_default_environment_lookups() {
     assert(!discovery.path_exists("/holder/no/such/path"));
 }
 
-private string? query_fake_powershell(string script_body, out Error? failure) {
+private string? query_fake_powershell(string script_body, out Error? failure, uint timeout_ms = 10000) {
     var dir = make_temp_dir();
     var path = Path.build_filename(dir, "pwsh");
     try {
@@ -640,6 +666,7 @@ private string? query_fake_powershell(string script_body, out Error? failure) {
     FileUtils.chmod(path, 0700);
 
     var discovery = new HolderLinux.PowerShellDiscoveryService();
+    discovery.query_timeout_ms = timeout_ms;
     var loop = new MainLoop();
     string? version = null;
     Error? caught = null;
@@ -653,7 +680,113 @@ private string? query_fake_powershell(string script_body, out Error? failure) {
     });
     loop.run();
     failure = caught;
+    FileUtils.remove(path);
+    DirUtils.remove(dir);
     return version;
+}
+
+private void test_query_version_times_out_a_stuck_subprocess() {
+    if (!FileUtils.test("/bin/sh", FileTest.IS_EXECUTABLE)) {
+        Test.skip("/bin/sh is not available");
+        return;
+    }
+    Error? failure;
+    var started = get_monotonic_time();
+    var version = query_fake_powershell("exec sleep 30", out failure, 100);
+    assert(version == null);
+    assert(failure is IOError.TIMED_OUT);
+    assert(get_monotonic_time() - started < 5000000);
+}
+
+private void check_hidden_query_keeps_caller_context_responsive(bool simulate_timeout) {
+    var context = new MainContext();
+    context.push_thread_default();
+    var loop = new MainLoop(context);
+    var caller_thread = Thread.self<void*>();
+    var discovery = new SlowHiddenProcessDiscovery();
+    discovery.simulate_timeout = simulate_timeout;
+    discovery.query_timeout_ms = 1234;
+    int ticks_while_working = 0;
+    var heartbeat = new TimeoutSource(5);
+    heartbeat.set_callback(() => {
+        if (AtomicInt.get(ref discovery.worker_started) != 0
+            && AtomicInt.get(ref discovery.worker_finished) == 0) {
+            ticks_while_working++;
+        }
+        return Source.CONTINUE;
+    });
+    heartbeat.attach(context);
+    var watchdog = new TimeoutSource(5000);
+    watchdog.set_callback(() => { assert_not_reached(); });
+    watchdog.attach(context);
+    string? version = null;
+    Error? failure = null;
+    discovery.query_version.begin("C:\\Microsoft\\WindowsApps\\pwsh.exe", (obj, res) => {
+        assert(Thread.self<void*>() == caller_thread);
+        assert(context.is_owner());
+        try {
+            version = discovery.query_version.end(res);
+        } catch (Error e) {
+            failure = e;
+        }
+        loop.quit();
+    });
+    loop.run();
+    heartbeat.destroy();
+    watchdog.destroy();
+    context.pop_thread_default();
+
+    assert(ticks_while_working > 0);
+    assert(discovery.received_timeout_ms == 1234);
+    assert(discovery.output_path != null);
+    assert(!FileUtils.test((!) discovery.output_path, FileTest.EXISTS));
+    assert(!FileUtils.test(Path.get_dirname((!) discovery.output_path), FileTest.EXISTS));
+    if (simulate_timeout) {
+        assert(version == null);
+        assert(failure is IOError.TIMED_OUT);
+        assert(failure.message == "simulated hidden query timeout");
+    } else {
+        assert(failure == null);
+        assert(version == "7.4.1");
+    }
+}
+
+private void test_hidden_query_keeps_caller_context_responsive() {
+    check_hidden_query_keeps_caller_context_responsive(false);
+    check_hidden_query_keeps_caller_context_responsive(true);
+}
+
+private void test_native_hidden_process_exit_and_timeout() {
+    if (Path.DIR_SEPARATOR != '\\') {
+        Test.skip("native hidden process creation requires Windows");
+        return;
+    }
+    var discovery = new HolderLinux.PowerShellDiscoveryService();
+    foreach (var child_mode in new string[] {"--hidden-child-exit", "--hidden-child-sleep"}) {
+        bool expect_timeout = child_mode == "--hidden-child-sleep";
+        discovery.query_timeout_ms = expect_timeout ? 100 : 10000;
+        var loop = new MainLoop();
+        Error? failure = null;
+        int exit_code = -1;
+        var started = get_monotonic_time();
+        discovery.run_hidden_process_async.begin(test_executable,
+            "\"%s\" %s".printf(test_executable, child_mode), (obj, res) => {
+                try {
+                    exit_code = discovery.run_hidden_process_async.end(res);
+                } catch (Error e) {
+                    failure = e;
+                }
+                loop.quit();
+            });
+        loop.run();
+        if (expect_timeout) {
+            assert(failure is IOError.TIMED_OUT);
+            assert(get_monotonic_time() - started < 5000000);
+        } else {
+            assert(failure == null);
+            assert(exit_code == 7);
+        }
+    }
 }
 
 private void test_query_version_runs_the_executable_and_reports_failures() {
@@ -779,7 +912,21 @@ private void test_session_store_skips_unreadable_session_metadata() {
 }
 
 public static int main(string[] args) {
+    if (args.length == 2 && args[1] == "--hidden-child-exit") {
+        return 7;
+    }
+    if (args.length == 2 && args[1] == "--hidden-child-sleep") {
+        Thread.usleep(10000000);
+        return 0;
+    }
+    test_executable = File.new_for_path(args[0]).get_path();
     Test.init(ref args);
+    Test.add_func("/windows_terminal/query_version_times_out_a_stuck_subprocess",
+                  test_query_version_times_out_a_stuck_subprocess);
+    Test.add_func("/windows_terminal/hidden_query_keeps_caller_context_responsive",
+                  test_hidden_query_keeps_caller_context_responsive);
+    Test.add_func("/windows_terminal/native_hidden_process_exit_and_timeout",
+                  test_native_hidden_process_exit_and_timeout);
     Test.add_func(
         "/windows_terminal/parse_power_shell_versions",
         test_parse_power_shell_versions
