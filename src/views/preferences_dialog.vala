@@ -50,7 +50,8 @@ public class PreferencesDialog : Adw.PreferencesDialog {
         var variant_row = new Adw.ComboRow();
         variant_row.set_title("Style Variant");
         variant_row.set_model(variant_model);
-        variant_row.set_expression(new Gtk.PropertyExpression(typeof(Gtk.StringObject), null, "string"));
+        Gtk.Expression variant_expression = new Gtk.PropertyExpression(typeof(Gtk.StringObject), null, "string");
+        variant_row.set_expression(variant_expression);
         variant_row.set_selected(current_variant_index());
         variant_row.notify["selected"].connect(() => {
             var scheme = index_to_color_scheme(variant_row.get_selected());

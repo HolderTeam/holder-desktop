@@ -119,7 +119,11 @@ public class TerminalToolView : Object, IToolShellAdapter {
 
         Gtk.Label tab_title_label;
         var tab_label = build_terminal_tab_label(terminal, fallback_title, out tab_title_label);
+#if VTE_0_78
+        terminal.termprop_changed[Vte.TERMPROP_XTERM_TITLE].connect(() => {
+#else
         terminal.window_title_changed.connect(() => {
+#endif
             sync_terminal_tab_title(terminal, tab_title_label, fallback_title);
         });
         sync_terminal_tab_title(terminal, tab_title_label, fallback_title);
@@ -234,7 +238,13 @@ public class TerminalToolView : Object, IToolShellAdapter {
     }
 
     private void sync_terminal_tab_title(Vte.Terminal terminal, Gtk.Label tab_title_label, string fallback_title) {
+#if VTE_0_78
+        var title = controller.title_or_fallback(
+            terminal.get_termprop_string(Vte.TERMPROP_XTERM_TITLE, null), fallback_title
+        );
+#else
         var title = controller.title_or_fallback(terminal.get_window_title(), fallback_title);
+#endif
         tab_title_label.set_text(title);
         tab_title_label.set_tooltip_text(title);
     }
