@@ -17,6 +17,7 @@ public class App : Adw.Application {
     public App(int startup_width = 0, int startup_height = 0) {
         Object(
             application_id: resolve_application_id(),
+            resource_base_path: "/team/holder/Holder",
             flags: ApplicationFlags.DEFAULT_FLAGS
         );
         this.startup_width = startup_width;

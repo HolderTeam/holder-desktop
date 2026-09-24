@@ -25,6 +25,7 @@
     <file alias="128x128/apps/team.holder.Holder.png">data/icons/hicolor/128x128/apps/team.holder.Holder.png</file>
     <file alias="256x256/apps/team.holder.Holder.png">data/icons/hicolor/256x256/apps/team.holder.Holder.png</file>
     <file alias="512x512/apps/team.holder.Holder.png">data/icons/hicolor/512x512/apps/team.holder.Holder.png</file>
-    <file alias="scalable/actions/holder-tag-symbolic.svg">data/icons/hicolor/scalable/actions/holder-tag-symbolic.svg</file>
+    <!-- The development launcher's local hicolor index only lists app icon directories. -->
+    <file alias="16x16/apps/holder-tag-symbolic.svg">data/icons/hicolor/scalable/actions/holder-tag-symbolic.svg</file>
   </gresource>
 </gresources>
