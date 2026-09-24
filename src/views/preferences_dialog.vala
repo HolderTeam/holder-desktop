@@ -312,15 +312,11 @@ public class PreferencesDialog : Adw.PreferencesDialog {
 
     private void populate_style_schemes(Gtk.FlowBox flowbox) {
         var manager = GtkSource.StyleSchemeManager.get_default();
-        // Read the boxed property to avoid the getter's const-incorrect Vala binding.
-        string[]? ids = null;
-        manager.get("scheme-ids", out ids);
+        var ids = manager.get_scheme_ids();
         if (ids == null) {
             return; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: GtkSourceView always ships schemes; only an empty install returns null
         }
 
-        // Object.get cannot infer the length of a null-terminated string vector.
-        ids.length = (int) GLib.strv_length(ids);
         foreach (var scheme_id in ids) {
             var scheme = manager.get_scheme(scheme_id);
             if (scheme == null) {
