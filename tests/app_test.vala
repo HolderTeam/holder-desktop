@@ -103,6 +103,72 @@ private void test_activate_creates_main_window_once() {
     assert(HolderLinux.MainWindow.created_count == 1);
 }
 
+private void run_icon_theme_startup_test(bool with_fallback) {
+    if (!Gtk.init_check()) {
+        Test.skip("A display is required to exercise application startup");
+        return;
+    }
+
+    // A fresh process keeps the fixture isolated from GTK's cached theme state.
+    if (!Test.subprocess()) {
+        Test.trap_subprocess(null, 10 * 1000000, 0);
+        Test.trap_assert_passed();
+        if (with_fallback) {
+            Test.trap_assert_stderr_unmatched("*Holder cannot start*");
+        } else {
+            Test.trap_assert_stderr("*Holder cannot start*image-missing*Icon search paths:*");
+            if (HolderLinux.PLATFORM == "darwin") {
+                Test.trap_assert_stderr("*brew install adwaita-icon-theme*");
+            }
+        }
+        return;
+    }
+
+    try {
+        var root = DirUtils.make_tmp("holder-startup-icons-XXXXXX");
+        var theme_dir = Path.build_filename(root, "hicolor");
+        var icons_dir = Path.build_filename(theme_dir, "16x16", "status");
+        DirUtils.create_with_parents(icons_dir, 0700);
+        var index_path = Path.build_filename(theme_dir, "index.theme");
+        FileUtils.set_contents(index_path,
+            "[Icon Theme]\nName=Startup test\nDirectories=16x16/status\n" +
+            "[16x16/status]\nSize=16\nType=Fixed\nContext=Status\n");
+        var icon_path = Path.build_filename(icons_dir, "image-missing.svg");
+        if (with_fallback) {
+            FileUtils.set_contents(icon_path,
+                "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\">" +
+                "<rect width=\"16\" height=\"16\"/></svg>");
+        }
+
+        HolderLinux.MainWindow.created_count = 0;
+        var app = new HolderLinux.App();
+        app.flags |= ApplicationFlags.NON_UNIQUE;
+        app.startup.connect(() => {
+            var theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default());
+            theme.set_search_path({root});
+            theme.set_resource_path({});
+        });
+        app.activate.connect_after(() => {
+            // End the successful case before rendering the intentionally sparse fixture.
+            app.quit();
+        });
+        app.run({"holder-startup-test"});
+        assert(app.startup_failed == !with_fallback);
+        assert(HolderLinux.MainWindow.created_count == (with_fallback ? 1 : 0));
+
+        if (with_fallback) {
+            FileUtils.remove(icon_path);
+        }
+        FileUtils.remove(index_path);
+        DirUtils.remove(icons_dir);
+        DirUtils.remove(Path.get_dirname(icons_dir));
+        DirUtils.remove(theme_dir);
+        DirUtils.remove(root);
+    } catch (Error e) {
+        Test.fail_printf("Startup fixture failed: %s", e.message);
+    }
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -118,6 +184,8 @@ public static int main(string[] args) {
                   test_constructor_registers_expected_accels);
     Test.add_func("/app/activate_creates_main_window_once",
                   test_activate_creates_main_window_once);
+    Test.add_func("/app/startup_missing_icons", () => run_icon_theme_startup_test(false));
+    Test.add_func("/app/startup_with_fallback_icon", () => run_icon_theme_startup_test(true));
 
     return Test.run();
 }

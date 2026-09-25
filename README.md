@@ -39,6 +39,7 @@ brew install \
   pkgconf \
   vala \
   gtk4 \
+  adwaita-icon-theme \
   libadwaita \
   gtksourceview5 \
   libspelling \

@@ -5,6 +5,7 @@ public class App : Adw.Application {
 
     private int startup_width;
     private int startup_height;
+    public bool startup_failed { get; private set; default = false; }
 
     private static string resolve_application_id() {
         var configured_id = Environment.get_variable("HOLDER_DESKTOP_APPLICATION_ID");
@@ -48,6 +49,25 @@ public class App : Adw.Application {
     protected override void activate() { // LCOV_EXCL_LINE GCOVR_EXCL_LINE: requires display-backed windowing environment
         var window = this.active_window as MainWindow; // LCOV_EXCL_LINE GCOVR_EXCL_LINE: requires display-backed windowing environment
         if (window == null) { // LCOV_EXCL_LINE GCOVR_EXCL_LINE: requires display-backed windowing environment
+            var icon_theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default());
+            // lookup_icon() can recurse indefinitely when even its fallback is absent.
+            // Check availability without loading an icon or constructing a window.
+            if (!icon_theme.has_icon("image-missing")) {
+                stderr.printf("Holder cannot start because required interface icons are missing or cannot be found.\n");
+                if (PLATFORM == "darwin") {
+                    stderr.printf("Install them with: brew install adwaita-icon-theme\n");
+                    stderr.printf("For a Homebrew source build, try: XDG_DATA_DIRS=\"$(brew --prefix)/share:/usr/local/share:/usr/share\" ./make.sh\n");
+                } else {
+                    stderr.printf("Install the Adwaita icon theme using your package manager, or repair your Holder installation.\n");
+                }
+                stderr.printf("GTK could not find the 'image-missing' fallback icon. Icon search paths:\n");
+                foreach (var path in icon_theme.get_search_path()) {
+                    stderr.printf("  %s\n", path);
+                }
+                startup_failed = true;
+                quit();
+                return;
+            }
             window = new MainWindow(this, startup_width, startup_height); // LCOV_EXCL_LINE GCOVR_EXCL_LINE: requires display-backed windowing environment
         }
         window.present(); // LCOV_EXCL_LINE GCOVR_EXCL_LINE LCOV_EXCL_BR_LINE GCOVR_EXCL_BR_LINE: display backend side-effect artifact

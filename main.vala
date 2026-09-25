@@ -47,5 +47,7 @@ public int main(string[] args) {
         forwarded.add(arg);
     }
 
-    return new HolderLinux.App(width, height).run(forwarded.to_array());
+    var app = new HolderLinux.App(width, height);
+    int status = app.run(forwarded.to_array());
+    return app.startup_failed ? 1 : status;
 }

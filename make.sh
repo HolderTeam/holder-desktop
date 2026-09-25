@@ -129,10 +129,14 @@ test_only() {
 run_app() {
   test_only
   local app_id="${HOLDER_DESKTOP_APPLICATION_ID:-team.holder.Holder.Devel}"
+  local runtime_data_dirs="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  if [[ "$(uname -s)" == Darwin ]] && command -v brew >/dev/null 2>&1; then
+    runtime_data_dirs="$(brew --prefix)/share:${runtime_data_dirs}"
+  fi
   install_dev_desktop_assets "${app_id}"
   HOLDER_DESKTOP_APPLICATION_ID="${app_id}" \
     GSETTINGS_SCHEMA_DIR="${PWD}/${BUILD_DIR}/data" \
-    XDG_DATA_DIRS="${PWD}/data:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}" \
+    XDG_DATA_DIRS="${PWD}/data:${runtime_data_dirs}" \
     "./${BUILD_DIR}/holder-desktop"
 }
 

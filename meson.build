@@ -3671,6 +3671,7 @@ test('holder-linux-models-tests', models_test_exe)
 app_test_exe = executable(
   'holder-linux-app-tests',
   [
+    holder_config,
     'src/app.vala',
     'tests/app_test.vala',
   ],
