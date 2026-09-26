@@ -513,13 +513,13 @@ class LinuxDogtailDriver(FrontendDriver):
         )
 
     def toggle_ai_panel(self) -> None:
-        self._click_named_control("Toggle AI panel")
+        self._click_named_control("Toggle Intelligence panel")
 
     def search_panel_is_visible(self) -> bool:
         return self._has_visible_named("Clear search", timeout=10.0)
 
     def ai_panel_is_visible(self) -> bool:
-        expected = ("AI", "Assistant", "Config", "Send", "New Thread")
+        expected = ("Intelligence", "Assistant", "Config", "Send", "New Thread")
         return all(self._has_visible_named(name, timeout=10.0) for name in expected)
 
     def toolbox_panel_is_visible(self) -> bool:

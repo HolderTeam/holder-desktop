@@ -157,7 +157,7 @@ public class AiPanel : Object {
         box.set_margin_end(8);
 
         var header = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
-        var title = new Gtk.Label("AI");
+        var title = new Gtk.Label("Intelligence");
         title.add_css_class("title-4");
         title.set_halign(Gtk.Align.START);
         title.set_hexpand(true);
