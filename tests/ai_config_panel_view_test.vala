@@ -636,9 +636,16 @@ private void test_provider_key_and_enabled_actions() {
     assert(api.last_provider_id == "openai");
     assert(api.last_provider_api_key == "sk-live");
 
+    // Recording the mutation does not mean its subsequent async refresh has rendered.
+    // Wait for that refresh before looking up controls or starting another action.
+    assert(wait_for_condition(() => api.get_ai_local_model_config_calls == 2
+        && collect_widget_text(view.widget).contains("Configured: yes")));
+
     ((!) find_button_with_label(view.widget, "Remove Key")).clicked();
     assert(wait_for_condition(() => api.delete_ai_provider_credential_calls == 1));
     assert(api.last_provider_id == "openai");
+    assert(wait_for_condition(() => api.get_ai_local_model_config_calls == 3
+        && collect_widget_text(view.widget).contains("Configured: yes")));
 
     var switches = new Gee.ArrayList<Gtk.Switch>();
     collect_switches(view.widget, switches);
@@ -648,6 +655,8 @@ private void test_provider_key_and_enabled_actions() {
     assert(wait_for_condition(() => api.set_ai_provider_enabled_calls == 1));
     assert(api.last_provider_id == "openai");
     assert(!api.last_provider_enabled);
+    assert(wait_for_condition(() => api.get_ai_local_model_config_calls == 4
+        && collect_widget_text(view.widget).contains("Configured: yes")));
 }
 
 private void test_local_model_dropdown_saves_preferences() {
