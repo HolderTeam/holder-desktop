@@ -70,7 +70,9 @@ public class AiPanel : Object {
         nudges_project_id = project_id;
         nudges_card_id = card_id;
         var request_serial = ++nudges_request_serial;
-        refresh_nudges_async.begin(request_serial, project_id, card_id);
+        // Arguments may alias the stored IDs (for example after dismissal). The assignments
+        // above replace those strings, so start the request from the newly owned copies.
+        refresh_nudges_async.begin(request_serial, nudges_project_id, nudges_card_id);
     }
 
     public void set_thread_title(string? title) {

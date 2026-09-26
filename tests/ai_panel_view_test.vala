@@ -355,6 +355,8 @@ private void test_dismiss_nudge_calls_api_and_refreshes() {
     assert(wait_for_condition(() => api.dismiss_ai_nudge_calls == 1));
     assert(api.last_dismissed_nudge_id == "n1");
     assert(wait_for_condition(() => api.list_ai_nudges_calls >= 2));
+    assert(api.last_nudge_project_id == "p1");
+    assert(api.last_nudge_card_id == "c1");
 }
 
 private void test_refresh_nudges_failure_hides_section_and_logs_debug() {
