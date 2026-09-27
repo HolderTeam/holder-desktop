@@ -10,5 +10,10 @@ override_dh_auto_configure:
 override_dh_auto_test:
 	# Tests are covered by CI; package builds disable tests.
 
+override_dh_auto_install:
+	dh_auto_install
+	sed -i 's/^Exec=holder-desktop$$/Exec=holder/' debian/tmp/usr/share/applications/team.holder.Holder.desktop
+	grep -qx 'Exec=holder' debian/tmp/usr/share/applications/team.holder.Holder.desktop
+
 %:
 	dh $@ --buildsystem=meson
