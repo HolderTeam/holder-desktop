@@ -67,8 +67,15 @@ install_man('man/holder-desktop.1')
 
 gtk_dep = dependency('gtk4', version: '>=4.14')
 calendar_compat_vala_args = []
-if gtk_dep.version().version_compare('>=4.20')
-  calendar_compat_vala_args += ['--define=GTK_4_20']
+# Vala's GTK bindings can lag behind the installed GTK library.
+calendar_has_set_date = meson.get_compiler('vala').compiles('''
+  void main() {
+    var calendar = new Gtk.Calendar();
+    calendar.set_date(new GLib.DateTime.now_local());
+  }
+''', args: ['--pkg=gtk4'], name: 'Gtk.Calendar.set_date Vala binding')
+if gtk_dep.version().version_compare('>=4.20') and calendar_has_set_date
+  calendar_compat_vala_args += ['--define=GTK_CALENDAR_HAS_SET_DATE']
 endif
 
 deps = [
