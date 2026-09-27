@@ -1,0 +1,77 @@
+name: Ubuntu Resolute desktop tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+
+    steps:
+      - name: Check out holder-desktop
+        uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y \
+            appstream \
+            dbus-x11 \
+            desktop-file-utils \
+            libadwaita-1-dev \
+            libgee-0.8-dev \
+            libglib2.0-bin \
+            libgtk-4-dev \
+            libgtksourceview-5-dev \
+            libjson-glib-dev \
+            libsoup-3.0-dev \
+            libspelling-1-dev \
+            libvte-2.91-gtk4-dev \
+            meson \
+            ninja-build \
+            pkg-config \
+            valac \
+            xvfb
+
+      - name: Configure Meson
+        run: |
+          meson setup build-resolute \
+            --prefix=/usr \
+            --buildtype=debugoptimized \
+            -Dtests=true \
+            -Dterminal=true
+
+      - name: Build desktop and tests
+        run: meson compile -C build-resolute
+
+      - name: Run tests
+        env:
+          # The GitHub runner has no accessibility bus or usable DRI device.
+          # GTK warnings are fatal under GLib's test harness, so use GTK's
+          # documented headless settings for widget tests.
+          GTK_A11Y: none
+          GSK_RENDERER: cairo
+        run: |
+          xvfb-run -a dbus-run-session -- \
+            meson test \
+              -C build-resolute \
+              --print-errorlogs \
+              --num-processes 8
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: holder-desktop-resolute-test-logs
+          path: build-resolute/meson-logs/
+          if-no-files-found: ignore
+          retention-days: 7
