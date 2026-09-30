@@ -128,7 +128,7 @@ internal class GitSyncPresenter : Object { // LCOV_EXCL_LINE: declaration-only c
         } else if (!cli_authenticated) {
             cli_status = "GitHub CLI detected, but not authenticated. Run `gh auth login` in a terminal to enable automation.";
         } else {
-            cli_status = "GitHub CLI authenticated as `%s`. Use the automatic button above to create repo, set remote, and push."
+            cli_status = "GitHub CLI authenticated as `%s`. Automatic setup verifies GitHub's SSH identity, configures the repository, and uploads your cards."
                 .printf(cli_login);
         }
 

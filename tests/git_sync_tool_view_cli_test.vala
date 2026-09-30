@@ -8,7 +8,7 @@ namespace HolderLinuxTests {
 private const string GSC_KEY_SETTING = "git-github-username";
 private const string GSC_NOT_DETECTED = "GitHub CLI not detected";
 private const string GSC_AUTHENTICATED =
-    "GitHub CLI authenticated as `octocat`. Use the automatic button above to create repo, set remote, and push.";
+    "GitHub CLI authenticated as `octocat`. Automatic setup verifies GitHub's SSH identity, configures the repository, and uploads your cards.";
 private const string GSC_REMOTE = "git@github.com:octocat/runbook.git";
 private const string GSC_PUSH_INTRO =
     "We'll now save this remote and push your cards.\nRemote: git@github.com:octocat/runbook.git";

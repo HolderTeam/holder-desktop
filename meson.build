@@ -17,6 +17,25 @@ hidden_process_lib = static_library(
 )
 hidden_process_link = []
 
+command_capture_lib = static_library(
+  'holder-command-capture',
+  'src/services/windows/command_capture.c',
+  dependencies: [dependency('gio-2.0')],
+  install: false,
+)
+
+if host_machine.system() == 'windows' and get_option('tests')
+  command_capture_test = executable(
+    'holder-windows-command-capture-tests',
+    'tests/windows_command_capture_test.c',
+    dependencies: [dependency('gio-2.0')],
+    link_with: [command_capture_lib],
+    win_subsystem: 'windows',
+    install: false,
+  )
+  test('holder-windows-command-capture-tests', command_capture_test)
+endif
+
 config_data = configuration_data()
 config_data.set('HOLDER_VERSION', meson.project_version())
 config_data.set('HOLDER_PLATFORM', host_machine.system())
@@ -360,7 +379,7 @@ executable(
   ] + calendar_compat_vala_args + terminal_compat_vala_args,
   win_subsystem: 'windows',
   c_args: vala_generated_c_args,
-  link_with: hidden_process_link,
+  link_with: hidden_process_link + [command_capture_lib],
   install: true,
 )
 
@@ -743,6 +762,7 @@ git_sync_controller_test_exe = executable(
     '--target-glib=2.70',
   ],
   c_args: vala_generated_c_args,
+  link_with: [command_capture_lib],
   install: false,
 )
 
@@ -1289,6 +1309,7 @@ git_sync_service_test_exe = executable(
     '--target-glib=2.70',
   ],
   c_args: vala_generated_c_args,
+  link_with: [command_capture_lib],
   install: false,
 )
 
@@ -4144,6 +4165,7 @@ git_sync_tool_view_test_exe = executable(
     '--target-glib=2.70',
   ],
   c_args: vala_generated_c_args,
+  link_with: [command_capture_lib],
   install: false,
 )
 

@@ -1,5 +1,11 @@
 namespace HolderLinux {
 
+[CCode (cname = "holder_windows_capture_async", finish_name = "holder_windows_capture_finish")]
+private extern static async string capture_windows_command(
+    [CCode (array_length = false, array_null_terminated = true)] string[] argv,
+    out int exit_code
+) throws Error;
+
 public class GitCommandResult : Object {
     public int exit_code { get; construct; }
     public string output { get; construct; }
@@ -51,6 +57,15 @@ public class GitRemoteApplyResult : Object {
 
 public class GitSyncService : Object {
     public virtual async GitCommandResult run_command(string[] argv) {
+        if (Path.DIR_SEPARATOR_S == "\\") {
+            try {
+                int status;
+                var output = yield capture_windows_command(argv, out status);
+                return new GitCommandResult(status, output.strip());
+            } catch (Error e) {
+                return new GitCommandResult(-1, e.message);
+            }
+        }
         try {
             var proc = new Subprocess.newv(argv,
                 SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_PIPE);
@@ -96,7 +111,11 @@ public class GitSyncService : Object {
         if (login.exit_code != 0) {
             return new GitHubCliState(true, false, "", login.output);
         }
-        return new GitHubCliState(true, true, login.output.strip(), "");
+        var username = login.output.strip();
+        if (username.length == 0) {
+            return new GitHubCliState(true, false, "", "GitHub CLI returned an empty username.");
+        }
+        return new GitHubCliState(true, true, username, "");
     }
 
     public virtual async GitRepoCheckResult check_repository_exists_via_ssh(string username,
@@ -129,15 +148,23 @@ public class GitSyncService : Object {
             "%s/%s".printf(username, repo_name),
             "--private",
             "--disable-issues",
-            "--disable-wiki",
-            "--confirm"
+            "--disable-wiki"
         });
-        var check = yield check_repository_exists_via_ssh(username, repo_name);
+        // GitHub CLI verifies existence; the daemon checks the SSH transport when syncing.
+        // A failed create can still mean that this repository already exists.
+        var check = yield run_command({
+            "gh", "repo", "view", "%s/%s".printf(username, repo_name),
+            "--json", "nameWithOwner"
+        });
         var details = create.output.strip();
-        if (details.length == 0 && !check.exists) {
-            details = check.error_text;
+        if (check.exit_code == 0) {
+            return new GitRepoCreateResult(create.exit_code == 0, true, "");
         }
-        return new GitRepoCreateResult(create.exit_code == 0, check.exists, details);
+        if (create.exit_code == 0 || details.length == 0) {
+            details = "Could not verify %s/%s on GitHub. %s".printf(
+                username, repo_name, check.output.strip());
+        }
+        return new GitRepoCreateResult(create.exit_code == 0, false, details);
     }
 
     public virtual async string probe_github_ssh() {

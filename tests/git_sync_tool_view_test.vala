@@ -164,7 +164,7 @@ private void test_git_sync_tool_view_shows_durable_configured_state() {
     assert(success_icon != null);
     assert(summary != null);
     assert(((!) success_icon).get_icon_name() == "emblem-ok-symbolic");
-    assert(((!) summary).get_text().contains("ready to sync to your other devices"));
+    assert(((!) summary).get_text().contains("Check the sync status"));
     assert(((!) repository).get_text() == "github.com/HolderTeam/runbook");
     assert(((!) remote).get_text() == "git@github.com:HolderTeam/runbook.git");
 

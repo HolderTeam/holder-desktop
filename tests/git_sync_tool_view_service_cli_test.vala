@@ -6,7 +6,7 @@ namespace HolderLinuxTests {
 // nothing depends on POSIX shell scripts or a redirected HOME: they run on every platform. (The shim
 // based tests in git_sync_tool_view_cli_test.vala cover the real service's subprocess handling.)
 private const string GFC_AUTHENTICATED =
-    "GitHub CLI authenticated as `octocat`. Use the automatic button above to create repo, set remote, and push.";
+    "GitHub CLI authenticated as `octocat`. Automatic setup verifies GitHub's SSH identity, configures the repository, and uploads your cards.";
 private const string GFC_UNAUTHENTICATED =
     "GitHub CLI detected, but not authenticated. Run `gh auth login` in a terminal to enable automation.";
 private const string GFC_NOT_DETECTED = "GitHub CLI not detected";
