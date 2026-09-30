@@ -210,6 +210,22 @@ private void test_detect_github_cli_state_authenticated() {
     assert(wait_for_condition(() => done));
 }
 
+private void test_detect_github_cli_state_empty_login_is_not_ready() {
+    var service = new ScriptedGitSyncService();
+    service.script({"gh", "auth", "status", "-h", "github.com"}, 0, "ok");
+    service.script({"gh", "api", "user", "-q", ".login"}, 0, " \r\n");
+    bool done = false;
+    service.detect_github_cli_state.begin((obj, res) => {
+        var state = service.detect_github_cli_state.end(res);
+        assert(state.available);
+        assert(!state.authenticated);
+        assert(state.login == "");
+        assert(state.details.contains("empty username"));
+        done = true;
+    });
+    assert(wait_for_condition(() => done));
+}
+
 private void test_check_repository_exists_via_ssh_success() {
     var service = new ScriptedGitSyncService();
     service.script({"git", "ls-remote", "git@github.com:u/r.git"}, 0, "hash");
@@ -258,11 +274,11 @@ private void test_check_repository_exists_via_ssh_keeps_non_empty_error_text() {
 private void test_create_private_repo_and_verify_prefers_check_error_when_create_output_empty() {
     var service = new ScriptedGitSyncService();
     service.script(
-        {"gh", "repo", "create", "u/r", "--private", "--disable-issues", "--disable-wiki", "--confirm"},
+        {"gh", "repo", "create", "u/r", "--private", "--disable-issues", "--disable-wiki"},
         0,
         ""
     );
-    service.script({"git", "ls-remote", "git@github.com:u/r.git"}, 2, "permission denied");
+    service.script({"gh", "repo", "view", "u/r", "--json", "nameWithOwner"}, 2, "permission denied");
 
     bool done = false;
     service.create_private_repo_and_verify.begin("u", "r", (obj, res) => {
@@ -279,11 +295,11 @@ private void test_create_private_repo_and_verify_prefers_check_error_when_create
 private void test_create_private_repo_and_verify_keeps_create_output() {
     var service = new ScriptedGitSyncService();
     service.script(
-        {"gh", "repo", "create", "u/r", "--private", "--disable-issues", "--disable-wiki", "--confirm"},
+        {"gh", "repo", "create", "u/r", "--private", "--disable-issues", "--disable-wiki"},
         1,
         "create failed"
     );
-    service.script({"git", "ls-remote", "git@github.com:u/r.git"}, 2, "permission denied");
+    service.script({"gh", "repo", "view", "u/r", "--json", "nameWithOwner"}, 2, "permission denied");
 
     bool done = false;
     service.create_private_repo_and_verify.begin("u", "r", (obj, res) => {
@@ -294,6 +310,46 @@ private void test_create_private_repo_and_verify_keeps_create_output() {
         done = true;
     });
 
+    assert(wait_for_condition(() => done));
+}
+
+private void test_create_private_repo_and_verify_reuses_existing_repository() {
+    var service = new ScriptedGitSyncService();
+    service.script(
+        {"gh", "repo", "create", "u/r", "--private", "--disable-issues", "--disable-wiki"},
+        1, "GraphQL: Name already exists on this account (createRepository)"
+    );
+    service.script({"gh", "repo", "view", "u/r", "--json", "nameWithOwner"},
+                   0, "{\"nameWithOwner\":\"u/r\"}");
+    bool done = false;
+    service.create_private_repo_and_verify.begin("u", "r", (obj, res) => {
+        var result = service.create_private_repo_and_verify.end(res);
+        assert(!result.created_ok);
+        assert(result.exists);
+        assert(result.details == "");
+        assert(service.command_keys.size == 2);
+        done = true;
+    });
+    assert(wait_for_condition(() => done));
+}
+
+private void test_create_private_repo_and_verify_reports_verification_failure_after_creation() {
+    var service = new ScriptedGitSyncService();
+    service.script(
+        {"gh", "repo", "create", "u/r", "--private", "--disable-issues", "--disable-wiki"},
+        0, "https://github.com/u/r"
+    );
+    service.script({"gh", "repo", "view", "u/r", "--json", "nameWithOwner"},
+                   1, "connection failed");
+    bool done = false;
+    service.create_private_repo_and_verify.begin("u", "r", (obj, res) => {
+        var result = service.create_private_repo_and_verify.end(res);
+        assert(result.created_ok);
+        assert(!result.exists);
+        assert(result.details.contains("connection failed"));
+        assert(!result.details.contains("https://github.com"));
+        done = true;
+    });
     assert(wait_for_condition(() => done));
 }
 
@@ -428,6 +484,8 @@ int main(string[] args) {
                   test_detect_github_cli_state_login_failure);
     Test.add_func("/git_sync_service/detect_github_cli_state_authenticated",
                   test_detect_github_cli_state_authenticated);
+    Test.add_func("/git_sync_service/detect_github_cli_state_empty_login_is_not_ready",
+                  test_detect_github_cli_state_empty_login_is_not_ready);
     Test.add_func("/git_sync_service/check_repository_exists_via_ssh_success",
                   test_check_repository_exists_via_ssh_success);
     Test.add_func("/git_sync_service/check_repository_exists_via_ssh_default_error_text",
@@ -438,6 +496,10 @@ int main(string[] args) {
                   test_create_private_repo_and_verify_prefers_check_error_when_create_output_empty);
     Test.add_func("/git_sync_service/create_private_repo_and_verify_keeps_create_output",
                   test_create_private_repo_and_verify_keeps_create_output);
+    Test.add_func("/git_sync_service/create_private_repo_and_verify_reuses_existing_repository",
+                  test_create_private_repo_and_verify_reuses_existing_repository);
+    Test.add_func("/git_sync_service/create_private_repo_and_verify_reports_verification_failure_after_creation",
+                  test_create_private_repo_and_verify_reports_verification_failure_after_creation);
     Test.add_func("/git_sync_service/probe_github_ssh_returns_output",
                   test_probe_github_ssh_returns_output);
     Test.add_func("/git_sync_service/generate_ssh_key_invokes_expected_command",

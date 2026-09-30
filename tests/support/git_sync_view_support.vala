@@ -638,9 +638,19 @@ gh)
     echo "$HOLDER_FAKE_GH_LOGIN"
     exit 0 ;;
   repo)
-    if [ "$HOLDER_FAKE_GH_CREATE" = "ok" ]; then echo "created"; exit 0; fi
-    if [ -n "$HOLDER_FAKE_GH_CREATE_OUTPUT" ]; then echo "$HOLDER_FAKE_GH_CREATE_OUTPUT"; fi
-    exit 1 ;;
+    case "$2" in
+    create)
+      if [ "$HOLDER_FAKE_GH_CREATE" = "ok" ]; then echo "created"; exit 0; fi
+      if [ -n "$HOLDER_FAKE_GH_CREATE_OUTPUT" ]; then echo "$HOLDER_FAKE_GH_CREATE_OUTPUT"; fi
+      exit 1 ;;
+    view)
+      if [ "$HOLDER_FAKE_GH_VIEW" = "ok" ]; then
+        printf '{"nameWithOwner":"%s"}\n' "$3"
+        exit 0
+      fi
+      if [ -n "$HOLDER_FAKE_GH_VIEW_OUTPUT" ]; then echo "$HOLDER_FAKE_GH_VIEW_OUTPUT"; fi
+      exit 1 ;;
+    esac ;;
   esac ;;
 git)
   if [ "$1" = "ls-remote" ]; then
@@ -726,6 +736,8 @@ exit 0
         set_env("HOLDER_FAKE_GH_LOGIN", "octocat");
         set_env("HOLDER_FAKE_GH_CREATE", "ok");
         set_env("HOLDER_FAKE_GH_CREATE_OUTPUT", "");
+        set_env("HOLDER_FAKE_GH_VIEW", "ok");
+        set_env("HOLDER_FAKE_GH_VIEW_OUTPUT", "");
         set_env("HOLDER_FAKE_GIT_LSREMOTE", "ok");
         set_env("HOLDER_FAKE_GIT_OUTPUT", "");
         set_env("HOLDER_FAKE_SSH_PROBE", "ok");

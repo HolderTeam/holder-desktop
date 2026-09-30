@@ -352,7 +352,7 @@ public class GitSyncToolView : Object, IToolShellAdapter {
         card.append(title_row);
 
         var configured_summary = new Gtk.Label(
-            "Your cards are safely stored in a remote repository, ready to sync to your other devices and share when you choose."
+            "A remote repository is configured. Check the sync status below to confirm your cards have been uploaded."
         ) { xalign = 0.0f };
         configured_summary.set_name("git-configured-summary");
         configured_summary.set_wrap(true);

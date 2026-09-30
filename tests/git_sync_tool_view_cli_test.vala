@@ -8,7 +8,7 @@ namespace HolderLinuxTests {
 private const string GSC_KEY_SETTING = "git-github-username";
 private const string GSC_NOT_DETECTED = "GitHub CLI not detected";
 private const string GSC_AUTHENTICATED =
-    "GitHub CLI authenticated as `octocat`. Use the automatic button above to create repo, set remote, and push.";
+    "GitHub CLI authenticated as `octocat`. Automatic setup verifies GitHub's SSH identity, configures the repository, and uploads your cards.";
 private const string GSC_REMOTE = "git@github.com:octocat/runbook.git";
 private const string GSC_PUSH_INTRO =
     "We'll now save this remote and push your cards.\nRemote: git@github.com:octocat/runbook.git";
@@ -162,7 +162,7 @@ private void gsc_test_automatic_setup_creates_the_repo_saves_the_remote_and_push
     h.api.stall_next_push = true;
     automatic.clicked();
 
-    // gh and git ran; the flow is now waiting on the backend push.
+    // gh created and verified the repository; the flow now waits on the backend push.
     assert(wait_for_condition(() => h.api.has_stalled_push(), 8000));
     assert(!automatic.get_sensitive());
     assert(!shortcut.get_sensitive());
@@ -183,7 +183,8 @@ private void gsc_test_automatic_setup_creates_the_repo_saves_the_remote_and_push
     assert(h.state_page() == "configured");
     assert(h.named_label("git-configured-remote").get_text() == "git@github.com:octocat/Runbook-Project.git");
     assert(GitSyncViewEnv.ran("gh repo create octocat/Runbook-Project --private"));
-    assert(GitSyncViewEnv.ran("git ls-remote git@github.com:octocat/Runbook-Project.git"));
+    assert(GitSyncViewEnv.ran("gh repo view octocat/Runbook-Project --json nameWithOwner"));
+    assert(!GitSyncViewEnv.ran("git ls-remote"));
 }
 
 private void gsc_test_automatic_setup_reuses_a_repo_that_already_exists() {
@@ -204,7 +205,7 @@ private void gsc_test_automatic_setup_reports_a_repo_that_cannot_be_created() {
     if (!gsc_prepare(out maybe_settings)) return;
     GitSyncViewEnv.set_env("HOLDER_FAKE_GH_CREATE", "fail");
     GitSyncViewEnv.set_env("HOLDER_FAKE_GH_CREATE_OUTPUT", "permission denied");
-    GitSyncViewEnv.set_env("HOLDER_FAKE_GIT_LSREMOTE", "fail");
+    GitSyncViewEnv.set_env("HOLDER_FAKE_GH_VIEW", "fail");
     var h = gsc_detected((!) maybe_settings);
     var automatic = h.setup_button("Use GitHub CLI (Automatic)");
     automatic.clicked();
@@ -225,12 +226,12 @@ private void gsc_test_automatic_setup_explains_an_unreachable_repo_when_gh_says_
     Settings? maybe_settings;
     if (!gsc_prepare(out maybe_settings)) return;
     GitSyncViewEnv.set_env("HOLDER_FAKE_GH_CREATE", "fail");
-    GitSyncViewEnv.set_env("HOLDER_FAKE_GIT_LSREMOTE", "fail");
+    GitSyncViewEnv.set_env("HOLDER_FAKE_GH_VIEW", "fail");
+    GitSyncViewEnv.set_env("HOLDER_FAKE_GH_VIEW_OUTPUT", "Repository not found.");
     var h = gsc_detected((!) maybe_settings);
     h.setup_button("Use GitHub CLI (Automatic)").clicked();
 
-    var details = "Could not verify git@github.com:octocat/Runbook-Project.git via SSH. " +
-                  "Repository not reachable over SSH.";
+    var details = "Could not verify octocat/Runbook-Project on GitHub. Repository not found.";
     assert(h.wait_for_error("GitHub CLI setup failed|" + details));
     assert(h.cli_status().get_text() == "GitHub CLI setup failed: " + details);
 }
@@ -330,6 +331,7 @@ private void gsc_test_creating_the_repository_with_the_cli_moves_to_the_push_pag
     assert(h.repo_status().get_text() == "Repository created with GitHub CLI and verified.");
     assert(h.push_intro().get_text() == GSC_PUSH_INTRO);
     assert(GitSyncViewEnv.ran("gh repo create octocat/runbook --private"));
+    assert(GitSyncViewEnv.ran("gh repo view octocat/runbook --json nameWithOwner"));
     assert(h.create_repo_cli_button().get_sensitive());
     assert(h.errors.size == 0);
 }
@@ -352,7 +354,7 @@ private void gsc_test_a_failed_repository_creation_is_reported() {
     if (!gsc_prepare(out maybe_settings)) return;
     GitSyncViewEnv.set_env("HOLDER_FAKE_GH_CREATE", "fail");
     GitSyncViewEnv.set_env("HOLDER_FAKE_GH_CREATE_OUTPUT", "no permission");
-    GitSyncViewEnv.set_env("HOLDER_FAKE_GIT_LSREMOTE", "fail");
+    GitSyncViewEnv.set_env("HOLDER_FAKE_GH_VIEW", "fail");
     var h = gsc_detected((!) maybe_settings);
     h.main_stack().set_visible_child_name("guided-part3");
     h.repo_name_entry().set_text("runbook");
