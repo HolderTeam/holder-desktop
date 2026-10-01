@@ -31,11 +31,21 @@ private class SaveFixture : Object {
     }
 
     public void load_card() {
-        controller.reload_everything.begin();
-        assert(wait_for_condition(() => controller.get_current_project() != null));
+        bool reload_done = false;
+        controller.reload_everything.begin((obj, res) => {
+            controller.reload_everything.end(res);
+            reload_done = true;
+        });
+        assert(wait_for_condition(() => reload_done));
+        assert(controller.get_current_project() != null);
         harness.card_selection.set_selected_index(0);
-        controller.load_card_by_id.begin("c1");
-        assert(wait_for_condition(() => controller.get_current_card() != null));
+        bool load_done = false;
+        controller.load_card_by_id.begin("c1", true, (obj, res) => {
+            controller.load_card_by_id.end(res);
+            load_done = true;
+        });
+        assert(wait_for_condition(() => load_done));
+        assert(controller.get_current_card() != null);
     }
 
     public void type(string text) {
