@@ -4,6 +4,7 @@ set -euo pipefail
 BUILD_DIR="${BUILD_DIR:-build-win}"
 MODE="${1:-test}"
 MESON_SETUP_ARGS=(
+  --buildtype="${MESON_BUILD_TYPE:-debug}"
   -Dterminal=true
 )
 
