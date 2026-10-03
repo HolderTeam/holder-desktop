@@ -6,12 +6,20 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: Meson configuration for the artifact
+        type: choice
+        options: [debug, debugoptimized, release]
+        default: debug
 
 permissions:
   contents: read
 
 jobs:
   build:
+    env:
+      MESON_BUILD_TYPE: ${{ inputs.build_type || 'debug' }}
     runs-on: macos-15
 
     steps:
@@ -45,6 +53,7 @@ jobs:
           set -euo pipefail
 
           meson setup build-macos \
+            --buildtype="$MESON_BUILD_TYPE" \
             --prefix=/
           meson compile -C build-macos
           meson test -C build-macos --print-errorlogs
@@ -58,6 +67,11 @@ jobs:
           mkdir -p "${stage_dir}"
 
           DESTDIR="${stage_dir}" meson install -C build-macos
+
+          mkdir -p "${stage_dir}/release"
+          printf '{"commit":"%s","build_type":"%s","version":"%s"}\n' \
+            "$(git rev-parse HEAD)" "$MESON_BUILD_TYPE" "$(tr -d '[:space:]' < VERSION)" \
+            > "${stage_dir}/release/holder-desktop-build.json"
 
           (
             cd "${stage_dir}"
@@ -84,7 +98,7 @@ jobs:
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v7
         with:
-          name: holder-desktop-macos
+          name: holder-desktop-macos${{ inputs.build_type == 'release' && '-release' || '' }}
           path: out/artifacts/macos-desktop/**
           if-no-files-found: error
           retention-days: 7

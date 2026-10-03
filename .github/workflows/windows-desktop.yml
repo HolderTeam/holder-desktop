@@ -6,12 +6,20 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: Meson configuration for the artifact
+        type: choice
+        options: [debug, debugoptimized, release]
+        default: debug
 
 permissions:
   contents: read
 
 jobs:
   build:
+    env:
+      MESON_BUILD_TYPE: ${{ inputs.build_type || 'debug' }}
     runs-on: windows-latest
 
     defaults:
@@ -171,6 +179,11 @@ jobs:
 
           copy_msys2_dll_deps
 
+          mkdir -p "${stage_dir}/release"
+          printf '{"commit":"%s","build_type":"%s","version":"%s"}\n' \
+            "$(git rev-parse HEAD)" "$MESON_BUILD_TYPE" "$(tr -d '[:space:]' < VERSION)" \
+            > "${stage_dir}/release/holder-desktop-build.json"
+
           (
             cd "${stage_dir}"
             find . -type f \
@@ -223,7 +236,7 @@ jobs:
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v7
         with:
-          name: holder-desktop-windows
+          name: holder-desktop-windows${{ inputs.build_type == 'release' && '-release' || '' }}
           path: out/artifacts/windows-desktop/**
           if-no-files-found: error
           retention-days: 7
