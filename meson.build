@@ -2206,6 +2206,7 @@ backend_ensure_test_exe = executable(
     '--target-glib=2.70',
   ],
   c_args: vala_generated_c_args,
+  link_with: [command_capture_lib],
   install: false,
 )
 

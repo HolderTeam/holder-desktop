@@ -44,6 +44,23 @@ static gchar *find_command(const gchar *name) {
 /* GLib's GUI spawn helper redirects CRT descriptors but some Windows tools
  * read Win32 standard handles instead. Supply explicit handles for those tools.
  * The caller runs this blocking capture on a worker thread. */
+/* The directory this program was started from, or NULL if it cannot be found (and always off
+ * Windows, where /proc or the platform has its own way). Free with g_free. */
+gchar *holder_windows_program_directory(void) {
+#ifdef G_OS_WIN32
+    wchar_t path[32768];
+    DWORD length = GetModuleFileNameW(NULL, path, G_N_ELEMENTS(path));
+    if (length == 0 || length >= G_N_ELEMENTS(path)) return NULL;
+    gchar *full = g_utf16_to_utf8((const gunichar2 *)path, (glong)length, NULL, NULL, NULL);
+    if (full == NULL) return NULL;
+    gchar *directory = g_path_get_dirname(full);
+    g_free(full);
+    return directory;
+#else
+    return NULL;
+#endif
+}
+
 gchar *holder_windows_capture_command(gchar **argv, gint *exit_code, GError **error) {
 #ifdef G_OS_WIN32
     gchar *executable = find_command(argv[0]);
@@ -94,15 +111,32 @@ gchar *holder_windows_capture_command(gchar **argv, gint *exit_code, GError **er
                         CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT, NULL, NULL,
                         &startup.StartupInfo, &process)) goto failed;
     CloseHandle(write_pipe); write_pipe = NULL;
+    /* Read until the program has exited and what it wrote is drained, not until the pipe closes:
+     * a program that starts a long-lived child, as holderctl does when it starts the daemon, can
+     * leave that child holding the pipe's write end, and waiting for it to close would wait for
+     * the child to exit. The exit is checked before the drain so output written before it is
+     * not missed. */
     gchar buffer[4096];
     DWORD count;
+    gboolean exited = FALSE;
     for (;;) {
-        if (!ReadFile(read_pipe, buffer, sizeof buffer, &count, NULL)) {
+        if (!exited && WaitForSingleObject(process.hProcess, 0) == WAIT_OBJECT_0) exited = TRUE;
+        DWORD available = 0;
+        if (!PeekNamedPipe(read_pipe, NULL, 0, NULL, &available, NULL)) {
             if (GetLastError() != ERROR_BROKEN_PIPE) goto failed;
-            break;
+            break; /* every writer has closed its end */
         }
-        if (count == 0) break;
-        g_string_append_len(output, buffer, count);
+        if (available > 0) {
+            DWORD wanted = available < sizeof buffer ? available : (DWORD)sizeof buffer;
+            if (!ReadFile(read_pipe, buffer, wanted, &count, NULL)) {
+                if (GetLastError() != ERROR_BROKEN_PIPE) goto failed;
+                break;
+            }
+            g_string_append_len(output, buffer, count);
+            continue;
+        }
+        if (exited) break;
+        WaitForSingleObject(process.hProcess, 20);
     }
     if (WaitForSingleObject(process.hProcess, INFINITE) != WAIT_OBJECT_0) goto failed;
     DWORD status;

@@ -1,5 +1,18 @@
 namespace HolderLinux {
 
+// Runs a program with no console window and returns its standard output and error together. GLib's
+// spawn functions show a console window for a console program run from a GUI program on Windows,
+// and this does not. It returns when the program exits, whether or not a child it started is still
+// holding its output open (the daemon that holderctl starts is exactly that).
+[CCode (cname = "holder_windows_capture_async", finish_name = "holder_windows_capture_finish")]
+private extern static async string capture_hidden_command(
+    [CCode (array_length = false, array_null_terminated = true)] string[] argv,
+    out int exit_code
+) throws Error;
+
+[CCode (cname = "holder_windows_program_directory")]
+private extern static string? windows_program_directory();
+
 // Makes sure a compatible daemon is running by running `holderctl ensure`, which knows how to
 // start one on each platform and reports through one JSON object and its exit status
 // (daemon/docs/ensure.md in holder-framework). A daemon started this way stops itself after
@@ -57,6 +70,9 @@ public class BackendEnsure : Object, IBackendStarter {
 
     // The directory this program runs from, or null if the system cannot say.
     public static string? program_directory() {
+        if (Path.DIR_SEPARATOR_S == "\\") {
+            return windows_program_directory();
+        }
         try {
             return Path.get_dirname(FileUtils.read_link("/proc/self/exe"));
         } catch (FileError e) {
@@ -109,11 +125,19 @@ public class BackendEnsure : Object, IBackendStarter {
 
     public async EnsureOutcome ensure() throws Error {
         var command = build_command(holderctl_path, DAEMON_API_MIN, DAEMON_API_MAX_EXCLUSIVE, IDLE_EXIT_SECONDS);
-        var process = new Subprocess.newv(command, SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_PIPE);
         string? out_text = null;
         string? err_text = null;
-        yield process.communicate_utf8_async(null, null, out out_text, out err_text);
-        var status = process.get_if_exited() ? process.get_exit_status() : -1;
+        int status = -1;
+        if (Path.DIR_SEPARATOR_S == "\\") {
+            // Standard output and error arrive together, which parse_result copes with: the JSON
+            // object is on one of them, and an options error prints only that.
+            out_text = yield capture_hidden_command(command, out status);
+            err_text = "";
+        } else {
+            var process = new Subprocess.newv(command, SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_PIPE);
+            yield process.communicate_utf8_async(null, null, out out_text, out err_text);
+            status = process.get_if_exited() ? process.get_exit_status() : -1;
+        }
         var outcome = parse_result(out_text ?? "", err_text ?? "", status);
         var details = "%s (exit status %d)".printf(string.joinv(" ", command), status);
         var stderr_text = (err_text ?? "").strip();

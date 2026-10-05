@@ -469,12 +469,12 @@ public class MainWindow : Adw.ApplicationWindow {
         }
 
         // The app asks holderctl to start the daemon (so it stops itself when the app goes
-        // away) and holds an event stream open so the daemon knows it is in use. Only Linux so
-        // far: the other platforms are still started by their launcher.
+        // away) and holds an event stream open so the daemon knows it is in use. Linux and Windows;
+        // macOS is still started by its launcher.
         controller.debug_log_requested.connect((line) => {
             log_debug_line(line);
         });
-        if (PLATFORM == "linux") {
+        if (PLATFORM == "linux" || PLATFORM == "windows") {
             var holderctl = BackendEnsure.locate_holderctl_for_this_program();
             if (holderctl != null) {
                 log_debug_line("BACKEND_ENSURE using %s".printf((string) holderctl));

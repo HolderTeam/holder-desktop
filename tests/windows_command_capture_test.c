@@ -1,9 +1,12 @@
 #include <gio/gio.h>
 #include <glib/gstdio.h>
 #include <windows.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 gchar *holder_windows_capture_command(gchar **argv, gint *exit_code, GError **error);
+gchar *holder_windows_program_directory(void);
 void holder_windows_capture_async(gchar **argv, GAsyncReadyCallback callback, gpointer data);
 gchar *holder_windows_capture_finish(GAsyncResult *result, gint *exit_code, GError **error);
 
@@ -22,6 +25,33 @@ static void captured(GObject *source, GAsyncResult *result, gpointer data) {
 }
 
 int main(int argc, char **argv) {
+    if (argc == 3 && strcmp(argv[1], "--sleeper") == 0) {
+        Sleep((DWORD)atoi(argv[2]));
+        return 0;
+    }
+    if (argc == 2 && strcmp(argv[1], "--leaky-child") == 0) {
+        /* Start a long-lived descendant that inherits our standard handles, as a daemon started
+         * by a command-line tool can, then finish at once. */
+        STARTUPINFOW startup = { sizeof startup };
+        startup.dwFlags = STARTF_USESTDHANDLES;
+        startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+        startup.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+        startup.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+        wchar_t path[MAX_PATH];
+        if (GetModuleFileNameW(NULL, path, MAX_PATH) == 0) return 6;
+        wchar_t command[MAX_PATH + 32];
+        _snwprintf(command, sizeof command / sizeof command[0], L"\"%ls\" --sleeper 6000", path);
+        PROCESS_INFORMATION process = { 0 };
+        if (!CreateProcessW(path, command, NULL, NULL, TRUE,
+                            DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, NULL, NULL, &startup, &process)) {
+            return 5;
+        }
+        CloseHandle(process.hThread);
+        CloseHandle(process.hProcess);
+        DWORD count;
+        if (!WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), "started", 7, &count, NULL)) return 7;
+        return 0;
+    }
     if (argc == 3 && strcmp(argv[1], "--child") == 0) {
         DWORD count;
         if (!WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), argv[2], strlen(argv[2]), &count, NULL)) return 2;
@@ -40,6 +70,40 @@ int main(int argc, char **argv) {
     g_main_loop_run(state.loop);
     g_main_loop_unref(state.loop);
     if (!state.passed) return 1;
+
+    /* A program that leaves a long-lived child holding the pipe must not make the capture wait for
+     * that child: the child lives for six seconds, the capture must return well before. */
+    {
+        gchar *leaky[] = { argv[0], "--leaky-child", NULL };
+        GError *leaky_error = NULL;
+        gint leaky_status = -1;
+        gint64 started = g_get_monotonic_time();
+        gchar *leaky_output = holder_windows_capture_command(leaky, &leaky_status, &leaky_error);
+        gint64 elapsed_ms = (g_get_monotonic_time() - started) / 1000;
+        gboolean leaky_ok = leaky_error == NULL && leaky_status == 0 && leaky_output != NULL &&
+            strcmp(leaky_output, "started") == 0 && elapsed_ms < 3000;
+        g_clear_error(&leaky_error);
+        g_free(leaky_output);
+        if (!leaky_ok) return 8;
+    }
+
+    /* The program directory is where this executable lives. */
+    {
+        gchar *directory = holder_windows_program_directory();
+        gchar *expected = g_path_get_dirname(argv[0]);
+        gchar *absolute = g_canonicalize_filename(expected, NULL);
+        gboolean directory_ok = FALSE;
+        if (directory != NULL) {
+            /* Windows accepts either slash; compare with one kind, ignoring case. */
+            g_strdelimit(directory, "/", '\\');
+            g_strdelimit(absolute, "/", '\\');
+            directory_ok = g_ascii_strcasecmp(directory, absolute) == 0;
+        }
+        g_free(directory);
+        g_free(expected);
+        g_free(absolute);
+        if (!directory_ok) return 9;
+    }
 
     /* A source launch's PATH can exclude the native CLI installation. Use a
      * disposable standard install directory containing this test executable. */
