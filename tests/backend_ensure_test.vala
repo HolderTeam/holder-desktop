@@ -31,7 +31,7 @@ private string make_temp_dir() {
 
 private void test_prefers_holderctl_beside_the_program() {
     var dir = make_temp_dir();
-    var beside = Path.build_filename(dir, "holderctl");
+    var beside = Path.build_filename(dir, HolderLinux.BackendEnsure.program_file_name());
     try {
         FileUtils.set_contents(beside, "#!/bin/sh\n");
         FileUtils.chmod(beside, 0755);

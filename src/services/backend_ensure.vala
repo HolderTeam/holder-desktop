@@ -33,10 +33,15 @@ public class BackendEnsure : Object, IBackendStarter {
         return command;
     }
 
+    // Windows only treats files with an executable extension as programs.
+    public static string program_file_name() {
+        return Path.DIR_SEPARATOR_S == "\\" ? "holderctl.exe" : "holderctl";
+    }
+
     // Finds holderctl beside the running program (where the packages install both), then on PATH.
     public static string? locate_holderctl(string? program_dir, string? on_path) {
         if (program_dir != null) {
-            var beside = Path.build_filename((!) program_dir, "holderctl");
+            var beside = Path.build_filename((!) program_dir, program_file_name());
             if (FileUtils.test(beside, FileTest.IS_EXECUTABLE)) {
                 return beside;
             }
