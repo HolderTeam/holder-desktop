@@ -81,11 +81,20 @@ public class PresenceStream : Object, IPresence {
             retry_delay_ms = RETRY_MIN_MS;
             var lines = new DataInputStream((!) held);
             lines.set_newline_type(DataStreamNewlineType.LF);
+            bool received_anything = false;
             while (true) {
                 size_t length = 0;
                 var line = yield lines.read_line_async(Priority.DEFAULT, token, out length);
                 if (line == null) {
                     break;
+                }
+                // Once per connection, so the debug panel shows that data is flowing without
+                // a line for every heartbeat.
+                if (!received_anything && line != "") {
+                    received_anything = true;
+                    debug_log_requested(line.has_prefix(":")
+                        ? "PRESENCE receiving heartbeats"
+                        : "PRESENCE receiving events");
                 }
             }
         } catch (Error e) {

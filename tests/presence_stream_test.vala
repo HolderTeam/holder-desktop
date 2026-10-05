@@ -168,6 +168,52 @@ private void test_logs_what_it_is_doing_for_the_debug_panel() {
     f.presence.stop();
 }
 
+private int count_lines(string[] log, string fragment) {
+    int count = 0;
+    foreach (var line in log) {
+        if (line.contains(fragment)) {
+            count++;
+        }
+    }
+    return count;
+}
+
+private void test_logs_once_when_heartbeats_arrive() {
+    var f = new Fixture();
+    f.transport.enqueue_stream(200, ": heartbeat\n\n: heartbeat\n\n: heartbeat\n\n");
+
+    f.presence.start();
+
+    assert(wait_for_condition(() => f.scheduler.pending_one_shots() == 1));
+    assert(count_lines(f.log, "PRESENCE receiving heartbeats") == 1);
+    assert(count_lines(f.log, "PRESENCE receiving events") == 0);
+    f.presence.stop();
+}
+
+private void test_logs_once_when_events_arrive() {
+    var f = new Fixture();
+    f.transport.enqueue_stream(200, "event: ready\ndata: {}\n\nevent: card.changed\ndata: {}\n\n");
+
+    f.presence.start();
+
+    assert(wait_for_condition(() => f.scheduler.pending_one_shots() == 1));
+    assert(count_lines(f.log, "PRESENCE receiving events") == 1);
+    assert(count_lines(f.log, "PRESENCE receiving heartbeats") == 0);
+    f.presence.stop();
+}
+
+private void test_logs_nothing_about_data_when_the_stream_is_empty() {
+    var f = new Fixture();
+    f.transport.enqueue_stream(200, "");
+
+    f.presence.start();
+
+    assert(wait_for_condition(() => f.scheduler.pending_one_shots() == 1));
+    assert(count_lines(f.log, "PRESENCE connected") == 1);
+    assert(count_lines(f.log, "PRESENCE receiving") == 0);
+    f.presence.stop();
+}
+
 private void test_logs_why_a_connection_failed() {
     var f = new Fixture();
     f.transport.enqueue_stream_throw("connection refused");
@@ -191,6 +237,9 @@ public static int main(string[] args) {
     Test.add_func("/presence_stream/start_twice_connects_once", test_start_twice_connects_once);
 
     Test.add_func("/presence_stream/logs_what_it_is_doing", test_logs_what_it_is_doing_for_the_debug_panel);
+    Test.add_func("/presence_stream/logs_once_when_heartbeats_arrive", test_logs_once_when_heartbeats_arrive);
+    Test.add_func("/presence_stream/logs_once_when_events_arrive", test_logs_once_when_events_arrive);
+    Test.add_func("/presence_stream/logs_nothing_for_an_empty_stream", test_logs_nothing_about_data_when_the_stream_is_empty);
     Test.add_func("/presence_stream/logs_why_a_connection_failed", test_logs_why_a_connection_failed);
 
     return Test.run();

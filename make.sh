@@ -136,8 +136,12 @@ run_app() {
   install_dev_desktop_assets "${app_id}"
   # Running from a source tree: use the holderctl built beside it in holder-framework, unless one
   # is named already, so the app can start the backend itself.
-  local sibling_ctl="${PWD}/../holder-framework/daemon/build/holderctl"
-  if [[ -z "${HOLDER_CTL:-}" && -x "${sibling_ctl}" ]]; then
+  local sibling_ctl=""
+  local sibling_dir
+  if sibling_dir="$(cd "${PWD}/../holder-framework/daemon/build" 2>/dev/null && pwd -P)"; then
+    sibling_ctl="${sibling_dir}/holderctl"
+  fi
+  if [[ -z "${HOLDER_CTL:-}" && -n "${sibling_ctl}" && -x "${sibling_ctl}" ]]; then
     export HOLDER_CTL="${sibling_ctl}"
     echo "Using ${HOLDER_CTL} to start the backend (set HOLDER_CTL to use another)."
   fi
