@@ -72,6 +72,23 @@ The desktop app expects `holderd` to already be running. For local macOS develop
 start the backend from `daemon/` in the `holder-framework` repository first, or run a staged `.app` bundle that
 contains the backend and launcher.
 
+## How the app finds its backend
+
+On Linux the app runs `holderctl ensure` itself at startup (the `holderctl` installed beside it, or on
+`PATH`). It starts the backend if none is running, passes the daemon API range from
+`compatibility/daemon-api.json`, and shows "Starting Holder..." meanwhile or the reason it failed. A backend
+started this way is given `--idle-exit 60`, so it stops by itself about a minute after the app goes away.
+An already-running backend, such as the systemd service on Ubuntu, is left as it is.
+
+While it runs the app holds the backend's `GET /events` stream open. The backend counts an open event stream
+as "a client is here" and does not idle out under it; the app reconnects with a growing delay, and looks the
+backend up again each time, if the connection drops. Nothing is read from the stream yet.
+
+When running from a source tree, set `HOLDER_CTL` to a built `holderctl`; `./make.sh run` does this itself when
+`../holder-framework/daemon/build/holderctl` exists. The Debug tool says what was used or why the step was skipped.
+
+Windows and macOS still start the backend through their launcher for now.
+
 Run the fast headless-safe test suite from this directory:
 
 ```bash

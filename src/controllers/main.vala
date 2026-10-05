@@ -16,6 +16,10 @@ public class MainController : Object, IAiRunContext {
     internal IHolderApi? api;
     internal IApiFactory api_factory;
     internal IServerDiscovery server_discovery;
+    // Set by the window. Without a starter the app only looks for a daemon that is already
+    // running; without presence it does not tell the daemon it is there.
+    internal IBackendStarter? backend_starter = null;
+    internal IPresence? presence = null;
     internal IClock clock;
     internal IScheduler scheduler;
     internal EditorDraftState editor_draft_state;
@@ -43,7 +47,20 @@ public class MainController : Object, IAiRunContext {
     internal IExplorerStateSink? explorer_state_sink;
     // LCOV_EXCL_STOP
 
+    // Lines for the debug panel.
+    public signal void debug_log_requested(string line);
     public signal void status_changed(string text);
+
+    // The window is closing for good. Lets the backend know, so it can stop sooner if nothing
+    // else is using it.
+    public void leave_backend() {
+        var presence = this.presence;
+        if (presence != null) {
+            debug_log_requested("PRESENCE saying goodbye");
+            ((!) presence).leave(1500);
+        }
+    }
+
     public signal void editor_state_changed(string text, bool editable);
     public signal void validated_tag_occurrences_changed(CardTagOccurrence[] occurrences);
     public signal void editor_save_state_changed(string text);

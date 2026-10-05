@@ -236,6 +236,238 @@ private void test_bootstrap_discovery_failure_updates_editor_state() {
     assert(wait_for_condition(() => saw_status && saw_not_found));
 }
 
+private class FakeBackendStarter : Object, HolderLinux.IBackendStarter {
+    public int calls = 0;
+    public bool succeed = true;
+    public bool throw_error = false;
+    public string failure_message = "the daemon could not be started";
+
+    public async HolderLinux.EnsureOutcome ensure() throws Error {
+        calls++;
+        if (throw_error) {
+            throw new IOError.FAILED(failure_message);
+        }
+        return new HolderLinux.EnsureOutcome(succeed, succeed ? "started" : "failed", succeed ? "" : failure_message);
+    }
+}
+
+private class FakePresence : Object, HolderLinux.IPresence {
+    public int starts = 0;
+    public int stops = 0;
+
+    public void start() {
+        starts++;
+    }
+
+    public void stop() {
+        stops++;
+    }
+
+    public int leaves = 0;
+    public uint last_leave_timeout_ms = 0;
+
+    public void leave(uint timeout_ms) {
+        leaves++;
+        last_leave_timeout_ms = timeout_ms;
+    }
+}
+
+private void test_bootstrap_starts_the_backend_first() {
+    var api = new MainControllerFakeApi();
+    var starter = new FakeBackendStarter();
+    var controller = make_controller(api, new TestScheduler(), new FakeClock(),
+                                     new MutableTextProvider(), new MutableTextProvider(),
+                                     new FakeServerDiscovery(), null);
+    controller.backend_starter = starter;
+    string[] statuses = {};
+    controller.status_changed.connect((text) => {
+        statuses += text;
+    });
+    bool got_ready = false;
+    controller.api_client_ready.connect((client) => {
+        got_ready = true;
+    });
+
+    controller.bootstrap.begin();
+
+    assert(wait_for_condition(() => got_ready));
+    assert(starter.calls == 1);
+    assert(statuses[0] == "Starting Holder...");
+}
+
+private void test_bootstrap_logs_the_backend_steps_for_the_debug_panel() {
+    var api = new MainControllerFakeApi();
+    var presence = new FakePresence();
+    var controller = make_controller(api, new TestScheduler(), new FakeClock(),
+                                     new MutableTextProvider(), new MutableTextProvider(),
+                                     new FakeServerDiscovery(), null);
+    controller.backend_starter = new FakeBackendStarter();
+    controller.presence = presence;
+    string[] lines = {};
+    controller.debug_log_requested.connect((line) => {
+        lines += line;
+    });
+    bool got_refresh = false;
+    controller.ai_status_refresh_requested.connect(() => {
+        got_refresh = true;
+    });
+
+    controller.bootstrap.begin();
+
+    assert(wait_for_condition(() => got_refresh));
+    assert(lines.length >= 3);
+    assert(lines[0] == "BACKEND_ENSURE running holderctl ensure");
+    assert(lines[1].has_prefix("BACKEND_ENSURE started"));
+    assert(lines[2] == "PRESENCE starting the /events stream");
+}
+
+private void test_bootstrap_says_in_the_log_when_no_starter_is_available() {
+    var api = new MainControllerFakeApi();
+    var controller = make_controller(api, new TestScheduler(), new FakeClock(),
+                                     new MutableTextProvider(), new MutableTextProvider(),
+                                     new FakeServerDiscovery(), null);
+    string[] lines = {};
+    controller.debug_log_requested.connect((line) => {
+        lines += line;
+    });
+    bool got_refresh = false;
+    controller.ai_status_refresh_requested.connect(() => {
+        got_refresh = true;
+    });
+
+    controller.bootstrap.begin();
+
+    assert(wait_for_condition(() => got_refresh));
+    assert(lines[0].has_prefix("BACKEND_ENSURE skipped"));
+    assert(lines[lines.length - 1] == "PRESENCE not started: no presence stream");
+}
+
+private void test_bootstrap_stops_when_the_backend_cannot_start() {
+    var api = new MainControllerFakeApi();
+    var starter = new FakeBackendStarter();
+    starter.succeed = false;
+    var presence = new FakePresence();
+    var controller = make_controller(api, new TestScheduler(), new FakeClock(),
+                                     new MutableTextProvider(), new MutableTextProvider(),
+                                     new FakeServerDiscovery(), null);
+    controller.backend_starter = starter;
+    controller.presence = presence;
+    bool saw_page = false;
+    string error_details = "";
+    controller.editor_state_changed.connect((text, editable) => {
+        if (text.contains("Holder Could Not Start") && text.contains("the daemon could not be started")) {
+            saw_page = true;
+        }
+    });
+    controller.error_reported.connect((title, details) => {
+        if (title == "Holder could not start") {
+            error_details = details;
+        }
+    });
+
+    controller.bootstrap.begin();
+
+    assert(wait_for_condition(() => saw_page && error_details != ""));
+    assert(error_details == "the daemon could not be started");
+    assert(api.factory_create_calls == 0);
+    assert(presence.starts == 0);
+}
+
+private void test_bootstrap_stops_when_starting_the_backend_throws() {
+    var api = new MainControllerFakeApi();
+    var starter = new FakeBackendStarter();
+    starter.throw_error = true;
+    starter.failure_message = "cannot run holderctl";
+    var controller = make_controller(api, new TestScheduler(), new FakeClock(),
+                                     new MutableTextProvider(), new MutableTextProvider(),
+                                     new FakeServerDiscovery(), null);
+    controller.backend_starter = starter;
+    string error_details = "";
+    controller.error_reported.connect((title, details) => {
+        if (title == "Holder could not start") {
+            error_details = details;
+        }
+    });
+
+    controller.bootstrap.begin();
+
+    assert(wait_for_condition(() => error_details != ""));
+    assert(error_details == "cannot run holderctl");
+    assert(api.factory_create_calls == 0);
+}
+
+private void test_leaving_the_backend_tells_presence_and_logs_it() {
+    var presence = new FakePresence();
+    var controller = make_controller(new MainControllerFakeApi(), new TestScheduler(), new FakeClock(),
+                                     new MutableTextProvider(), new MutableTextProvider(),
+                                     new FakeServerDiscovery(), null);
+    controller.presence = presence;
+    string[] lines = {};
+    controller.debug_log_requested.connect((line) => {
+        lines += line;
+    });
+
+    controller.leave_backend();
+
+    assert(presence.leaves == 1);
+    assert(presence.last_leave_timeout_ms == 1500);
+    assert(lines.length == 1 && lines[0] == "PRESENCE saying goodbye");
+}
+
+private void test_leaving_the_backend_without_presence_does_nothing() {
+    var controller = make_controller(new MainControllerFakeApi(), new TestScheduler(), new FakeClock(),
+                                     new MutableTextProvider(), new MutableTextProvider(),
+                                     new FakeServerDiscovery(), null);
+    string[] lines = {};
+    controller.debug_log_requested.connect((line) => {
+        lines += line;
+    });
+
+    controller.leave_backend();
+
+    assert(lines.length == 0);
+}
+
+private void test_bootstrap_starts_presence_once_connected() {
+    var api = new MainControllerFakeApi();
+    var presence = new FakePresence();
+    var controller = make_controller(api, new TestScheduler(), new FakeClock(),
+                                     new MutableTextProvider(), new MutableTextProvider(),
+                                     new FakeServerDiscovery(), null);
+    controller.presence = presence;
+    bool got_refresh = false;
+    controller.ai_status_refresh_requested.connect(() => {
+        got_refresh = true;
+    });
+
+    controller.bootstrap.begin();
+
+    assert(wait_for_condition(() => got_refresh));
+    assert(presence.starts == 1);
+}
+
+private void test_bootstrap_does_not_start_presence_without_a_daemon() {
+    var api = new MainControllerFakeApi();
+    var discovery = new FakeServerDiscovery();
+    discovery.should_fail = true;
+    var presence = new FakePresence();
+    var controller = make_controller(api, new TestScheduler(), new FakeClock(),
+                                     new MutableTextProvider(), new MutableTextProvider(),
+                                     discovery, null);
+    controller.presence = presence;
+    bool saw_not_found = false;
+    controller.editor_state_changed.connect((text, editable) => {
+        if (text.contains("Holder Not Found")) {
+            saw_not_found = true;
+        }
+    });
+
+    controller.bootstrap.begin();
+
+    assert(wait_for_condition(() => saw_not_found));
+    assert(presence.starts == 0);
+}
+
 private void test_bootstrap_health_failure_emits_error() {
     var api = new MainControllerFakeApi();
     api.fail_health = true;
@@ -3015,6 +3247,42 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/bootstrap_health_failure_emits_error",
         test_bootstrap_health_failure_emits_error
+    );
+    Test.add_func(
+        "/main_controller/leaving_the_backend_tells_presence",
+        test_leaving_the_backend_tells_presence_and_logs_it
+    );
+    Test.add_func(
+        "/main_controller/leaving_the_backend_without_presence",
+        test_leaving_the_backend_without_presence_does_nothing
+    );
+    Test.add_func(
+        "/main_controller/bootstrap_logs_the_backend_steps",
+        test_bootstrap_logs_the_backend_steps_for_the_debug_panel
+    );
+    Test.add_func(
+        "/main_controller/bootstrap_logs_when_no_starter_is_available",
+        test_bootstrap_says_in_the_log_when_no_starter_is_available
+    );
+    Test.add_func(
+        "/main_controller/bootstrap_starts_the_backend_first",
+        test_bootstrap_starts_the_backend_first
+    );
+    Test.add_func(
+        "/main_controller/bootstrap_stops_when_the_backend_cannot_start",
+        test_bootstrap_stops_when_the_backend_cannot_start
+    );
+    Test.add_func(
+        "/main_controller/bootstrap_stops_when_starting_the_backend_throws",
+        test_bootstrap_stops_when_starting_the_backend_throws
+    );
+    Test.add_func(
+        "/main_controller/bootstrap_starts_presence_once_connected",
+        test_bootstrap_starts_presence_once_connected
+    );
+    Test.add_func(
+        "/main_controller/bootstrap_does_not_start_presence_without_a_daemon",
+        test_bootstrap_does_not_start_presence_without_a_daemon
     );
     Test.add_func(
         "/main_controller/create_card_error_emits_error",

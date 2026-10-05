@@ -468,6 +468,39 @@ public class MainWindow : Adw.ApplicationWindow {
             maximize();
         }
 
+        // The app asks holderctl to start the daemon (so it stops itself when the app goes
+        // away) and holds an event stream open so the daemon knows it is in use. Linux and Windows;
+        // macOS is still started by its launcher.
+        controller.debug_log_requested.connect((line) => {
+            log_debug_line(line);
+        });
+        if (PLATFORM == "linux" || PLATFORM == "windows") {
+            var holderctl = BackendEnsure.locate_holderctl_for_this_program();
+            if (holderctl != null) {
+                log_debug_line("BACKEND_ENSURE using %s".printf((string) holderctl));
+                controller.backend_starter = new BackendEnsure((!) holderctl);
+            } else {
+                // Not an error: a daemon started by hand, as when running from a build directory,
+                // still works.
+                var override_path = Environment.get_variable("HOLDER_CTL");
+                log_debug_line("BACKEND_ENSURE skipped: holderctl not found beside %s or on PATH%s".printf(
+                    BackendEnsure.program_directory() ?? "(unknown program directory)",
+                    override_path != null
+                        ? ", and HOLDER_CTL=%s is not an executable".printf((!) override_path)
+                        : " (HOLDER_CTL can name one)"));
+            }
+        } else {
+            log_debug_line("BACKEND_ENSURE skipped: not done on %s yet".printf(PLATFORM));
+        }
+        var presence_stream = new PresenceStream(
+            new SoupApiHttpTransport(),
+            new FileServerDiscovery(),
+            new MainLoopScheduler()
+        );
+        presence_stream.debug_log_requested.connect((line) => {
+            log_debug_line(line);
+        });
+        controller.presence = presence_stream;
         controller.bootstrap.begin();
         queue_update_check();
     }
@@ -897,7 +930,11 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal bool on_window_close_requested() {
         persist_window_state();
-        return close_guard.request_close() == WindowCloseDecision.BLOCK;
+        var decision = close_guard.request_close();
+        if (decision != WindowCloseDecision.BLOCK) {
+            controller.leave_backend();
+        }
+        return decision == WindowCloseDecision.BLOCK;
     }
 
     private void show_unsafe_close_dialog(string details) {

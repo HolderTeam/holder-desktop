@@ -134,6 +134,17 @@ run_app() {
     runtime_data_dirs="$(brew --prefix)/share:${runtime_data_dirs}"
   fi
   install_dev_desktop_assets "${app_id}"
+  # Running from a source tree: use the holderctl built beside it in holder-framework, unless one
+  # is named already, so the app can start the backend itself.
+  local sibling_ctl=""
+  local sibling_dir
+  if sibling_dir="$(cd "${PWD}/../holder-framework/daemon/build" 2>/dev/null && pwd -P)"; then
+    sibling_ctl="${sibling_dir}/holderctl"
+  fi
+  if [[ -z "${HOLDER_CTL:-}" && -n "${sibling_ctl}" && -x "${sibling_ctl}" ]]; then
+    export HOLDER_CTL="${sibling_ctl}"
+    echo "Using ${HOLDER_CTL} to start the backend (set HOLDER_CTL to use another)."
+  fi
   HOLDER_DESKTOP_APPLICATION_ID="${app_id}" \
     GSETTINGS_SCHEMA_DIR="${PWD}/${BUILD_DIR}/data" \
     XDG_DATA_DIRS="${PWD}/data:${runtime_data_dirs}" \
