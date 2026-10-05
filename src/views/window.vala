@@ -930,7 +930,11 @@ public class MainWindow : Adw.ApplicationWindow {
 
     internal bool on_window_close_requested() {
         persist_window_state();
-        return close_guard.request_close() == WindowCloseDecision.BLOCK;
+        var decision = close_guard.request_close();
+        if (decision != WindowCloseDecision.BLOCK) {
+            controller.leave_backend();
+        }
+        return decision == WindowCloseDecision.BLOCK;
     }
 
     private void show_unsafe_close_dialog(string details) {

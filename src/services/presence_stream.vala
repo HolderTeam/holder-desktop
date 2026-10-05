@@ -17,6 +17,7 @@ public class PresenceStream : Object, IPresence {
     private uint retry_source = 0;
     private uint retry_delay_ms = RETRY_MIN_MS;
     private bool active = false;
+    private bool left = false;
 
     public bool is_connected { get; private set; default = false; }
 
@@ -50,6 +51,59 @@ public class PresenceStream : Object, IPresence {
             retry_source = 0;
         }
         set_connected(false);
+    }
+
+    // The app is closing. Tells the backend (POST /bye) so a backend started to stop itself when
+    // unused can stop within seconds instead of waiting out its idle period, then lets go of the
+    // stream. It is only a hint: the backend keeps running if anything else is using it, and a
+    // backend that does not know the request, or cannot be reached, is simply left to its idle
+    // period. This runs while the process is exiting, so it waits for the answer in a nested main
+    // loop, for at most timeout_ms.
+    public void leave(uint timeout_ms) {
+        if (left) {
+            return;
+        }
+        left = true;
+
+        var loop = new MainLoop();
+        bool finished = false;
+        bool timed_out = false;
+        send_goodbye.begin((obj, res) => {
+            send_goodbye.end(res);
+            finished = true;
+            if (loop.is_running()) {
+                loop.quit();
+            }
+        });
+        uint timeout_id = 0;
+        if (!finished) {
+            timeout_id = Timeout.add(timeout_ms, () => {
+                timed_out = true;
+                timeout_id = 0;
+                loop.quit();
+                return Source.REMOVE;
+            });
+            loop.run();
+        }
+        if (timeout_id != 0) {
+            Source.remove(timeout_id);
+        }
+        if (timed_out) {
+            debug_log_requested("PRESENCE goodbye got no answer within %u ms".printf(timeout_ms));
+        }
+        stop();
+    }
+
+    private async void send_goodbye() {
+        try {
+            var info = discovery.discover_server();
+            var message = new Soup.Message("POST", info.base_url() + "/bye");
+            message.request_headers.append("Authorization", "Bearer %s".printf(info.auth_token));
+            var response = yield transport.send_and_read(message);
+            debug_log_requested("PRESENCE goodbye sent (HTTP %u)".printf(response.status));
+        } catch (Error e) {
+            debug_log_requested("PRESENCE goodbye not sent: %s".printf(e.message));
+        }
     }
 
     // One connection, from connecting to the stream ending, then schedules the next attempt.

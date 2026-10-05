@@ -18,6 +18,22 @@ private class FakeServerDiscovery : Object, HolderLinux.IServerDiscovery {
     }
 }
 
+// A backend that accepts the request and then never answers.
+private class HangingTransport : Object, HolderLinux.IApiHttpTransport {
+    public async HolderLinux.ApiHttpBytesResponse send_and_read(Soup.Message message) throws Error {
+        Timeout.add(5000, () => {
+            send_and_read.callback();
+            return Source.REMOVE;
+        });
+        yield;
+        throw new IOError.TIMED_OUT("never answered");
+    }
+
+    public async HolderLinux.ApiHttpStreamResponse send(Soup.Message message) throws Error {
+        throw new IOError.FAILED("not used");
+    }
+}
+
 private class Fixture : Object {
     public FakeApiHttpTransport transport = new FakeApiHttpTransport();
     public FakeServerDiscovery discovery = new FakeServerDiscovery();
@@ -242,6 +258,88 @@ private void test_logs_nothing_about_data_when_the_stream_is_empty() {
     f.presence.stop();
 }
 
+private void test_leaving_posts_a_goodbye_with_the_bearer_token() {
+    var f = new Fixture();
+    f.transport.enqueue_read(200, "{\"ok\":true}");
+
+    f.presence.leave(1000);
+
+    assert(f.transport.last_method == "POST");
+    assert(f.transport.last_uri == "http://127.0.0.1:8080/bye");
+    assert(f.transport.last_auth == "Bearer token");
+    assert(log_has(f.log, "PRESENCE goodbye sent (HTTP 200)"));
+}
+
+private void test_leaving_lets_go_of_the_stream_and_cancels_retries() {
+    var f = new Fixture();
+    f.transport.enqueue_stream_throw("refused");
+    f.transport.enqueue_read(200, "{\"ok\":true}");
+    f.presence.start();
+    assert(wait_for_condition(() => f.scheduler.pending_one_shots() == 1));
+
+    f.presence.leave(1000);
+
+    assert(f.scheduler.pending_one_shots() == 0);
+    assert(!f.presence.is_connected);
+}
+
+private void test_leaving_swallows_a_failure() {
+    var f = new Fixture();
+    f.transport.enqueue_read_throw("connection refused");
+
+    f.presence.leave(1000);
+
+    assert(log_has(f.log, "PRESENCE goodbye not sent: connection refused"));
+}
+
+private void test_leaving_swallows_an_old_backend_that_does_not_know_it() {
+    var f = new Fixture();
+    f.transport.enqueue_read(404, "{\"ok\":false}");
+
+    f.presence.leave(1000);
+
+    assert(log_has(f.log, "PRESENCE goodbye sent (HTTP 404)"));
+}
+
+private void test_leaving_without_a_daemon_does_not_fail() {
+    var f = new Fixture();
+    f.discovery.should_fail = true;
+
+    f.presence.leave(1000);
+
+    assert(log_has(f.log, "PRESENCE goodbye not sent: discovery failed"));
+}
+
+private void test_leaving_gives_up_when_the_backend_does_not_answer() {
+    var transport = new HangingTransport();
+    var discovery = new FakeServerDiscovery();
+    var scheduler = new TestScheduler();
+    var presence = new HolderLinux.PresenceStream(transport, discovery, scheduler);
+    string[] log = {};
+    presence.debug_log_requested.connect((line) => {
+        log += line;
+    });
+
+    var started = get_monotonic_time();
+    presence.leave(150);
+    var elapsed_ms = (get_monotonic_time() - started) / 1000;
+
+    assert(elapsed_ms >= 100);
+    assert(elapsed_ms < 2000);
+    assert(log_has(log, "PRESENCE goodbye got no answer within 150 ms"));
+}
+
+private void test_leaving_twice_says_goodbye_once() {
+    var f = new Fixture();
+    f.transport.enqueue_read(200, "{\"ok\":true}");
+    f.transport.enqueue_read(200, "{\"ok\":true}");
+
+    f.presence.leave(1000);
+    f.presence.leave(1000);
+
+    assert(count_lines(f.log, "PRESENCE goodbye sent") == 1);
+}
+
 private void test_logs_why_a_connection_failed() {
     var f = new Fixture();
     f.transport.enqueue_stream_throw("connection refused");
@@ -270,6 +368,13 @@ public static int main(string[] args) {
     Test.add_func("/presence_stream/logs_events_and_heartbeats_separately", test_logs_events_and_heartbeats_separately_each_once);
     Test.add_func("/presence_stream/logs_again_on_a_new_connection", test_logs_again_on_a_new_connection);
     Test.add_func("/presence_stream/logs_nothing_for_an_empty_stream", test_logs_nothing_about_data_when_the_stream_is_empty);
+    Test.add_func("/presence_stream/leaving_posts_a_goodbye", test_leaving_posts_a_goodbye_with_the_bearer_token);
+    Test.add_func("/presence_stream/leaving_lets_go_of_the_stream", test_leaving_lets_go_of_the_stream_and_cancels_retries);
+    Test.add_func("/presence_stream/leaving_swallows_a_failure", test_leaving_swallows_a_failure);
+    Test.add_func("/presence_stream/leaving_swallows_an_old_backend", test_leaving_swallows_an_old_backend_that_does_not_know_it);
+    Test.add_func("/presence_stream/leaving_without_a_daemon", test_leaving_without_a_daemon_does_not_fail);
+    Test.add_func("/presence_stream/leaving_gives_up_without_an_answer", test_leaving_gives_up_when_the_backend_does_not_answer);
+    Test.add_func("/presence_stream/leaving_twice_says_goodbye_once", test_leaving_twice_says_goodbye_once);
     Test.add_func("/presence_stream/logs_why_a_connection_failed", test_logs_why_a_connection_failed);
 
     return Test.run();

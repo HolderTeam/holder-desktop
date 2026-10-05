@@ -249,6 +249,9 @@ public interface IBackendStarter : Object {
 public interface IPresence : Object {
     public abstract void start();
     public abstract void stop();
+    // The app is closing: say goodbye to the backend, waiting at most timeout_ms, then let go.
+    // Never fails; the backend copes without it.
+    public abstract void leave(uint timeout_ms);
 }
 
 public interface IClock : Object {

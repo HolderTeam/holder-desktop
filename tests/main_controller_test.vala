@@ -262,6 +262,14 @@ private class FakePresence : Object, HolderLinux.IPresence {
     public void stop() {
         stops++;
     }
+
+    public int leaves = 0;
+    public uint last_leave_timeout_ms = 0;
+
+    public void leave(uint timeout_ms) {
+        leaves++;
+        last_leave_timeout_ms = timeout_ms;
+    }
 }
 
 private void test_bootstrap_starts_the_backend_first() {
@@ -386,6 +394,38 @@ private void test_bootstrap_stops_when_starting_the_backend_throws() {
     assert(wait_for_condition(() => error_details != ""));
     assert(error_details == "cannot run holderctl");
     assert(api.factory_create_calls == 0);
+}
+
+private void test_leaving_the_backend_tells_presence_and_logs_it() {
+    var presence = new FakePresence();
+    var controller = make_controller(new MainControllerFakeApi(), new TestScheduler(), new FakeClock(),
+                                     new MutableTextProvider(), new MutableTextProvider(),
+                                     new FakeServerDiscovery(), null);
+    controller.presence = presence;
+    string[] lines = {};
+    controller.debug_log_requested.connect((line) => {
+        lines += line;
+    });
+
+    controller.leave_backend();
+
+    assert(presence.leaves == 1);
+    assert(presence.last_leave_timeout_ms == 1500);
+    assert(lines.length == 1 && lines[0] == "PRESENCE saying goodbye");
+}
+
+private void test_leaving_the_backend_without_presence_does_nothing() {
+    var controller = make_controller(new MainControllerFakeApi(), new TestScheduler(), new FakeClock(),
+                                     new MutableTextProvider(), new MutableTextProvider(),
+                                     new FakeServerDiscovery(), null);
+    string[] lines = {};
+    controller.debug_log_requested.connect((line) => {
+        lines += line;
+    });
+
+    controller.leave_backend();
+
+    assert(lines.length == 0);
 }
 
 private void test_bootstrap_starts_presence_once_connected() {
@@ -3207,6 +3247,14 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/bootstrap_health_failure_emits_error",
         test_bootstrap_health_failure_emits_error
+    );
+    Test.add_func(
+        "/main_controller/leaving_the_backend_tells_presence",
+        test_leaving_the_backend_tells_presence_and_logs_it
+    );
+    Test.add_func(
+        "/main_controller/leaving_the_backend_without_presence",
+        test_leaving_the_backend_without_presence_does_nothing
     );
     Test.add_func(
         "/main_controller/bootstrap_logs_the_backend_steps",

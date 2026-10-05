@@ -50,6 +50,17 @@ public class MainController : Object, IAiRunContext {
     // Lines for the debug panel.
     public signal void debug_log_requested(string line);
     public signal void status_changed(string text);
+
+    // The window is closing for good. Lets the backend know, so it can stop sooner if nothing
+    // else is using it.
+    public void leave_backend() {
+        var presence = this.presence;
+        if (presence != null) {
+            debug_log_requested("PRESENCE saying goodbye");
+            ((!) presence).leave(1500);
+        }
+    }
+
     public signal void editor_state_changed(string text, bool editable);
     public signal void validated_tag_occurrences_changed(CardTagOccurrence[] occurrences);
     public signal void editor_save_state_changed(string text);
