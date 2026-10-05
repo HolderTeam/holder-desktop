@@ -123,7 +123,8 @@ private void test_falls_back_to_the_exit_status_with_nothing_else() {
 
 private string write_fake_holderctl(string script_body) {
     var dir = make_temp_dir();
-    var path = Path.build_filename(dir, "holderctl");
+    // Windows only treats files with an executable extension as programs.
+    var path = Path.build_filename(dir, HolderLinux.BackendEnsure.program_file_name());
     try {
         FileUtils.set_contents(path, "#!/bin/sh\n" + script_body);
         FileUtils.chmod(path, 0755);
