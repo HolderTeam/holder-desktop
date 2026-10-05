@@ -49,14 +49,18 @@ public class BackendEnsure : Object, IBackendStarter {
         return on_path;
     }
 
-    public static string? locate_holderctl_for_this_program() {
-        string? program_dir = null;
+    // The directory this program runs from, or null if the system cannot say.
+    public static string? program_directory() {
         try {
-            program_dir = Path.get_dirname(FileUtils.read_link("/proc/self/exe"));
+            return Path.get_dirname(FileUtils.read_link("/proc/self/exe"));
         } catch (FileError e) {
             debug("Cannot tell where this program is installed: %s", e.message);
+            return null;
         }
-        return locate_holderctl(program_dir, Environment.find_program_in_path("holderctl"));
+    }
+
+    public static string? locate_holderctl_for_this_program() {
+        return locate_holderctl(program_directory(), Environment.find_program_in_path("holderctl"));
     }
 
     // Reads the single JSON object `holderctl ensure --json` prints. Invalid options leave
@@ -100,7 +104,13 @@ public class BackendEnsure : Object, IBackendStarter {
         string? err_text = null;
         yield process.communicate_utf8_async(null, null, out out_text, out err_text);
         var status = process.get_if_exited() ? process.get_exit_status() : -1;
-        return parse_result(out_text ?? "", err_text ?? "", status);
+        var outcome = parse_result(out_text ?? "", err_text ?? "", status);
+        var details = "%s (exit status %d)".printf(string.joinv(" ", command), status);
+        var stderr_text = (err_text ?? "").strip();
+        if (stderr_text != "") {
+            details += "; stderr: " + stderr_text;
+        }
+        return new EnsureOutcome(outcome.ok, outcome.state, outcome.message, details);
     }
 }
 

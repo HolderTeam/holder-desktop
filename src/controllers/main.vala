@@ -47,6 +47,8 @@ public class MainController : Object, IAiRunContext {
     internal IExplorerStateSink? explorer_state_sink;
     // LCOV_EXCL_STOP
 
+    // Lines for the debug panel.
+    public signal void debug_log_requested(string line);
     public signal void status_changed(string text);
     public signal void editor_state_changed(string text, bool editable);
     public signal void validated_tag_occurrences_changed(CardTagOccurrence[] occurrences);

@@ -287,6 +287,53 @@ private void test_bootstrap_starts_the_backend_first() {
     assert(statuses[0] == "Starting Holder...");
 }
 
+private void test_bootstrap_logs_the_backend_steps_for_the_debug_panel() {
+    var api = new MainControllerFakeApi();
+    var presence = new FakePresence();
+    var controller = make_controller(api, new TestScheduler(), new FakeClock(),
+                                     new MutableTextProvider(), new MutableTextProvider(),
+                                     new FakeServerDiscovery(), null);
+    controller.backend_starter = new FakeBackendStarter();
+    controller.presence = presence;
+    string[] lines = {};
+    controller.debug_log_requested.connect((line) => {
+        lines += line;
+    });
+    bool got_refresh = false;
+    controller.ai_status_refresh_requested.connect(() => {
+        got_refresh = true;
+    });
+
+    controller.bootstrap.begin();
+
+    assert(wait_for_condition(() => got_refresh));
+    assert(lines.length >= 3);
+    assert(lines[0] == "BACKEND_ENSURE running holderctl ensure");
+    assert(lines[1].has_prefix("BACKEND_ENSURE started"));
+    assert(lines[2] == "PRESENCE starting the /events stream");
+}
+
+private void test_bootstrap_says_in_the_log_when_no_starter_is_available() {
+    var api = new MainControllerFakeApi();
+    var controller = make_controller(api, new TestScheduler(), new FakeClock(),
+                                     new MutableTextProvider(), new MutableTextProvider(),
+                                     new FakeServerDiscovery(), null);
+    string[] lines = {};
+    controller.debug_log_requested.connect((line) => {
+        lines += line;
+    });
+    bool got_refresh = false;
+    controller.ai_status_refresh_requested.connect(() => {
+        got_refresh = true;
+    });
+
+    controller.bootstrap.begin();
+
+    assert(wait_for_condition(() => got_refresh));
+    assert(lines[0].has_prefix("BACKEND_ENSURE skipped"));
+    assert(lines[lines.length - 1] == "PRESENCE not started: no presence stream");
+}
+
 private void test_bootstrap_stops_when_the_backend_cannot_start() {
     var api = new MainControllerFakeApi();
     var starter = new FakeBackendStarter();
@@ -3160,6 +3207,14 @@ int main(string[] args) {
     Test.add_func(
         "/main_controller/bootstrap_health_failure_emits_error",
         test_bootstrap_health_failure_emits_error
+    );
+    Test.add_func(
+        "/main_controller/bootstrap_logs_the_backend_steps",
+        test_bootstrap_logs_the_backend_steps_for_the_debug_panel
+    );
+    Test.add_func(
+        "/main_controller/bootstrap_logs_when_no_starter_is_available",
+        test_bootstrap_says_in_the_log_when_no_starter_is_available
     );
     Test.add_func(
         "/main_controller/bootstrap_starts_the_backend_first",

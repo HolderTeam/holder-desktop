@@ -23,11 +23,15 @@ private class Fixture : Object {
     public FakeServerDiscovery discovery = new FakeServerDiscovery();
     public TestScheduler scheduler = new TestScheduler();
     public HolderLinux.PresenceStream presence;
+    public string[] log = {};
     public int changes = 0;
     public bool last_connected = false;
 
     public Fixture() {
         presence = new HolderLinux.PresenceStream(transport, discovery, scheduler);
+        presence.debug_log_requested.connect((line) => {
+            log += line;
+        });
         presence.connection_changed.connect((connected) => {
             changes++;
             last_connected = connected;
@@ -142,6 +146,38 @@ private void test_start_twice_connects_once() {
     f.presence.stop();
 }
 
+private bool log_has(string[] log, string fragment) {
+    foreach (var line in log) {
+        if (line.contains(fragment)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+private void test_logs_what_it_is_doing_for_the_debug_panel() {
+    var f = new Fixture();
+    f.transport.enqueue_stream(200, "event: ready\ndata: {}\n\n");
+
+    f.presence.start();
+
+    assert(wait_for_condition(() => f.scheduler.pending_one_shots() == 1));
+    assert(log_has(f.log, "PRESENCE connecting to http://127.0.0.1:8080/events"));
+    assert(log_has(f.log, "PRESENCE connected (HTTP 200)"));
+    assert(log_has(f.log, "PRESENCE reconnecting in 1000 ms"));
+    f.presence.stop();
+}
+
+private void test_logs_why_a_connection_failed() {
+    var f = new Fixture();
+    f.transport.enqueue_stream_throw("connection refused");
+    f.presence.start();
+
+    assert(wait_for_condition(() => f.scheduler.pending_one_shots() == 1));
+    assert(log_has(f.log, "PRESENCE stream ended: connection refused"));
+    f.presence.stop();
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -153,6 +189,9 @@ public static int main(string[] args) {
     Test.add_func("/presence_stream/missing_daemon_is_retried", test_a_missing_daemon_is_retried);
     Test.add_func("/presence_stream/stop_cancels_the_retry", test_stop_cancels_the_retry_and_nothing_follows);
     Test.add_func("/presence_stream/start_twice_connects_once", test_start_twice_connects_once);
+
+    Test.add_func("/presence_stream/logs_what_it_is_doing", test_logs_what_it_is_doing_for_the_debug_panel);
+    Test.add_func("/presence_stream/logs_why_a_connection_failed", test_logs_why_a_connection_failed);
 
     return Test.run();
 }

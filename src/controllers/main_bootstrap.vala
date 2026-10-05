@@ -12,18 +12,24 @@ internal class MainBootstrapController : Object {
     private async bool start_backend() {
         var starter = owner.backend_starter;
         if (starter == null) {
+            owner.debug_log_requested(
+                "BACKEND_ENSURE skipped: no backend starter; using a daemon that is already running");
             return true;
         }
         owner.status_changed("Starting Holder...");
         owner.editor_state_changed("# Starting Holder\n\nStarting the local backend...", false);
+        owner.debug_log_requested("BACKEND_ENSURE running holderctl ensure");
         string failure;
         try {
             var outcome = yield ((!) starter).ensure();
+            owner.debug_log_requested("BACKEND_ENSURE %s: %s".printf(
+                outcome.state, outcome.details != "" ? outcome.details : "no details"));
             if (outcome.ok) {
                 return true;
             }
             failure = outcome.message;
         } catch (Error e) {
+            owner.debug_log_requested("BACKEND_ENSURE could not run holderctl: %s".printf(e.message));
             failure = e.message;
         }
         owner.status_changed("Holder could not start");
@@ -112,7 +118,10 @@ internal class MainBootstrapController : Object {
         owner.status_changed("Connected to %s:%d (API %s)".printf(info.bind, info.port, info.api_version));
         var presence = owner.presence;
         if (presence != null) {
+            owner.debug_log_requested("PRESENCE starting the /events stream");
             ((!) presence).start();
+        } else {
+            owner.debug_log_requested("PRESENCE not started: no presence stream");
         }
         yield owner.ensure_first_project();
         yield owner.reload_everything();

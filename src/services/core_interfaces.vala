@@ -232,9 +232,11 @@ public class EnsureOutcome : Object {
     // "running" (already up), "started" (this call started it) or "failed".
     public string state { get; construct; }
     public string message { get; construct; }
+    // What was run and how it ended, for the debug log.
+    public string details { get; construct; }
 
-    public EnsureOutcome(bool ok, string state, string message) {
-        Object(ok: ok, state: state, message: message);
+    public EnsureOutcome(bool ok, string state, string message, string details = "") {
+        Object(ok: ok, state: state, message: message, details: details);
     }
 }
 

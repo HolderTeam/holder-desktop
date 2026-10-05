@@ -99,6 +99,60 @@ private void test_falls_back_to_the_exit_status_with_nothing_else() {
     assert(outcome.message.contains("7"));
 }
 
+private string write_fake_holderctl(string script_body) {
+    var dir = make_temp_dir();
+    var path = Path.build_filename(dir, "holderctl");
+    try {
+        FileUtils.set_contents(path, "#!/bin/sh\n" + script_body);
+        FileUtils.chmod(path, 0755);
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+    return path;
+}
+
+private void test_ensure_runs_holderctl_and_reports_how_it_went() {
+    if (Path.DIR_SEPARATOR_S == "\\") {
+        return;
+    }
+    var path = write_fake_holderctl("echo '{\"ok\":true,\"state\":\"started\"}'\n");
+    HolderLinux.EnsureOutcome? outcome = null;
+    new HolderLinux.BackendEnsure(path).ensure.begin((obj, res) => {
+        try {
+            outcome = ((HolderLinux.BackendEnsure) obj).ensure.end(res);
+        } catch (Error e) {
+            assert_not_reached();
+        }
+    });
+    assert(wait_for_condition(() => outcome != null));
+    assert(((!) outcome).ok);
+    assert(((!) outcome).state == "started");
+    var details = ((!) outcome).details;
+    assert(details.contains(path + " ensure --json"));
+    assert(details.contains("--idle-exit 60"));
+    assert(details.contains("(exit status 0)"));
+}
+
+private void test_ensure_reports_a_failing_holderctl_with_its_standard_error() {
+    if (Path.DIR_SEPARATOR_S == "\\") {
+        return;
+    }
+    var path = write_fake_holderctl("echo 'no such unit' >&2\nexit 12\n");
+    HolderLinux.EnsureOutcome? outcome = null;
+    new HolderLinux.BackendEnsure(path).ensure.begin((obj, res) => {
+        try {
+            outcome = ((HolderLinux.BackendEnsure) obj).ensure.end(res);
+        } catch (Error e) {
+            assert_not_reached();
+        }
+    });
+    assert(wait_for_condition(() => outcome != null));
+    assert(!((!) outcome).ok);
+    assert(((!) outcome).message == "no such unit");
+    assert(((!) outcome).details.contains("(exit status 12)"));
+    assert(((!) outcome).details.contains("stderr: no such unit"));
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -113,6 +167,9 @@ public static int main(string[] args) {
     Test.add_func("/backend_ensure/nonzero_exit_is_not_success", test_a_nonzero_exit_is_never_a_success);
     Test.add_func("/backend_ensure/falls_back_to_stderr", test_falls_back_to_standard_error_without_json);
     Test.add_func("/backend_ensure/falls_back_to_exit_status", test_falls_back_to_the_exit_status_with_nothing_else);
+
+    Test.add_func("/backend_ensure/runs_holderctl_and_reports", test_ensure_runs_holderctl_and_reports_how_it_went);
+    Test.add_func("/backend_ensure/reports_a_failing_holderctl", test_ensure_reports_a_failing_holderctl_with_its_standard_error);
 
     return Test.run();
 }

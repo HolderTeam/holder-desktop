@@ -21,6 +21,8 @@ public class PresenceStream : Object, IPresence {
     public bool is_connected { get; private set; default = false; }
 
     public signal void connection_changed(bool connected);
+    // Lines for the debug panel.
+    public signal void debug_log_requested(string line);
 
     public PresenceStream(IApiHttpTransport transport, IServerDiscovery discovery, IScheduler scheduler) {
         this.transport = transport;
@@ -59,6 +61,7 @@ public class PresenceStream : Object, IPresence {
         InputStream? held = null;
         try {
             var info = discovery.discover_server();
+            debug_log_requested("PRESENCE connecting to %s/events".printf(info.base_url()));
             var message = new Soup.Message("GET", info.base_url() + "/events");
             message.request_headers.append("Authorization", "Bearer %s".printf(info.auth_token));
             message.request_headers.append("Accept", "text/event-stream");
@@ -73,6 +76,7 @@ public class PresenceStream : Object, IPresence {
                 throw new ApiError.HTTP("HTTP %u for GET /events".printf(response.status));
             }
 
+            debug_log_requested("PRESENCE connected (HTTP %u)".printf(response.status));
             set_connected(true);
             retry_delay_ms = RETRY_MIN_MS;
             var lines = new DataInputStream((!) held);
@@ -86,6 +90,9 @@ public class PresenceStream : Object, IPresence {
             }
         } catch (Error e) {
             debug("Presence stream ended: %s", e.message);
+            if (!((!) token).is_cancelled()) {
+                debug_log_requested("PRESENCE stream ended: %s".printf(e.message));
+            }
         }
         close_quietly(held);
 
@@ -98,6 +105,7 @@ public class PresenceStream : Object, IPresence {
 
     private void schedule_retry() {
         var delay = retry_delay_ms;
+        debug_log_requested("PRESENCE reconnecting in %u ms".printf(delay));
         retry_delay_ms = uint.min(retry_delay_ms * 2, RETRY_MAX_MS);
         retry_source = scheduler.schedule_once(delay, () => {
             retry_source = 0;
