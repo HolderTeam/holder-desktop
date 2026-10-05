@@ -7,7 +7,40 @@ internal class MainBootstrapController : Object {
         this.owner = owner;
     }
 
+    // Starts the daemon when none is running. Returns false, after telling the user why, when it
+    // cannot be started.
+    private async bool start_backend() {
+        var starter = owner.backend_starter;
+        if (starter == null) {
+            return true;
+        }
+        owner.status_changed("Starting Holder...");
+        owner.editor_state_changed("# Starting Holder\n\nStarting the local backend...", false);
+        string failure;
+        try {
+            var outcome = yield ((!) starter).ensure();
+            if (outcome.ok) {
+                return true;
+            }
+            failure = outcome.message;
+        } catch (Error e) {
+            failure = e.message;
+        }
+        owner.status_changed("Holder could not start");
+        owner.editor_state_changed(
+            "# Holder Could Not Start\n\n" +
+            "The local backend could not be started.\n\n" +
+            failure,
+            false
+        );
+        owner.error_reported("Holder could not start", failure);
+        return false;
+    }
+
     public async void bootstrap() {
+        if (!(yield start_backend())) {
+            return;
+        }
         owner.status_changed("Discovering local server...");
         owner.editor_state_changed("# Loading\n\nDiscovering local server...", false);
 
@@ -77,6 +110,10 @@ internal class MainBootstrapController : Object {
         // LCOV_EXCL_STOP
 
         owner.status_changed("Connected to %s:%d (API %s)".printf(info.bind, info.port, info.api_version));
+        var presence = owner.presence;
+        if (presence != null) {
+            ((!) presence).start();
+        }
         yield owner.ensure_first_project();
         yield owner.reload_everything();
         owner.ai_status_refresh_requested();

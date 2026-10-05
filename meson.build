@@ -40,6 +40,17 @@ config_data = configuration_data()
 config_data.set('HOLDER_VERSION', meson.project_version())
 config_data.set('HOLDER_PLATFORM', host_machine.system())
 
+# The daemon API range this app supports, from the same file the release publishes.
+daemon_api_range = run_command(
+  find_program('python3'),
+  '-c',
+  'import json,sys; r=json.load(open(sys.argv[1]))["daemon_api"]; print(r["minimum"], r["maximum_exclusive"])',
+  files('compatibility/daemon-api.json'),
+  check: true,
+).stdout().strip().split(' ')
+config_data.set('DAEMON_API_MIN', daemon_api_range[0])
+config_data.set('DAEMON_API_MAX_EXCLUSIVE', daemon_api_range[1])
+
 holder_config = configure_file(
   input: 'src/config.vala.in',
   output: 'config.vala',
@@ -320,6 +331,8 @@ sources = [
   'src/controllers/markdown_resource_images.vala',
   'src/controllers/editor_spellcheck.vala',
   'src/services/discovery.vala',
+  'src/services/presence_stream.vala',
+  'src/services/backend_ensure.vala',
   'src/services/recovery_service.vala',
   'src/services/http_transport.vala',
   'src/services/parsers/common.vala',
@@ -2085,6 +2098,118 @@ api_client_ai_stream_test_exe = executable(
 )
 
 test('holder-linux-api-client-ai-stream-tests', api_client_ai_stream_test_exe)
+
+presence_stream_test_exe = executable(
+  'holder-linux-presence-stream-tests',
+  [
+    holder_config,
+    'tests/support/test_utils.vala',
+    'tests/support/api_client_fakes.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/http_transport.vala',
+    'src/services/parsers/common.vala',
+    'src/services/parsers/health.vala',
+    'src/services/parsers/projects.vala',
+    'src/services/parsers/cards.vala',
+    'src/services/parsers/resources.vala',
+    'src/services/parsers/trash.vala',
+    'src/services/parsers/search.vala',
+    'src/services/parsers/ai.vala',
+    'src/services/parsers/git.vala',
+    'src/services/api_client/core.vala',
+    'src/services/api_client/transport.vala',
+    'src/services/api_client/ai_stream.vala',
+    'src/services/api_client/health.vala',
+    'src/services/api_client/projects.vala',
+    'src/services/api_client/cards.vala',
+    'src/services/api_client/resources.vala',
+    'src/services/api_client/trash.vala',
+    'src/services/api_client/search.vala',
+    'src/services/api_client/ai.vala',
+    'src/services/api_client/git.vala',
+    'src/services/presence_stream.vala',
+    'tests/presence_stream_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  c_args: vala_generated_c_args,
+  install: false,
+)
+
+test('holder-linux-presence-stream-tests', presence_stream_test_exe)
+
+backend_ensure_test_exe = executable(
+  'holder-linux-backend-ensure-tests',
+  [
+    holder_config,
+    'tests/support/test_utils.vala',
+    'tests/support/api_client_fakes.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/http_transport.vala',
+    'src/services/parsers/common.vala',
+    'src/services/parsers/health.vala',
+    'src/services/parsers/projects.vala',
+    'src/services/parsers/cards.vala',
+    'src/services/parsers/resources.vala',
+    'src/services/parsers/trash.vala',
+    'src/services/parsers/search.vala',
+    'src/services/parsers/ai.vala',
+    'src/services/parsers/git.vala',
+    'src/services/api_client/core.vala',
+    'src/services/api_client/transport.vala',
+    'src/services/api_client/ai_stream.vala',
+    'src/services/api_client/health.vala',
+    'src/services/api_client/projects.vala',
+    'src/services/api_client/cards.vala',
+    'src/services/api_client/resources.vala',
+    'src/services/api_client/trash.vala',
+    'src/services/api_client/search.vala',
+    'src/services/api_client/ai.vala',
+    'src/services/api_client/git.vala',
+    'src/services/backend_ensure.vala',
+    'tests/backend_ensure_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  c_args: vala_generated_c_args,
+  install: false,
+)
+
+test('holder-linux-backend-ensure-tests', backend_ensure_test_exe)
 
 api_client_transport_test_exe = executable(
   'holder-linux-api-client-transport-tests',

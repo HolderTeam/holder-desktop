@@ -201,6 +201,20 @@ public class MainWindow : Adw.ApplicationWindow {
             null,
             settings
         );
+        // The app asks holderctl to start the daemon (so it stops itself when the app goes
+        // away) and holds an event stream open so the daemon knows it is in use. Only Linux so
+        // far: the other platforms are still started by their launcher.
+        if (PLATFORM == "linux") {
+            var holderctl = BackendEnsure.locate_holderctl_for_this_program();
+            if (holderctl != null) {
+                controller.backend_starter = new BackendEnsure((!) holderctl);
+            }
+        }
+        controller.presence = new PresenceStream(
+            new SoupApiHttpTransport(),
+            new FileServerDiscovery(),
+            new MainLoopScheduler()
+        );
         activity_log_controller = new ActivityLogController(activity_log_store, controller);
         activity_feedback = new WindowActivityFeedback(
             workspace,

@@ -1,4 +1,7 @@
 namespace HolderLinux {
     public const string VERSION = "@HOLDER_VERSION@";
     public const string PLATFORM = "@HOLDER_PLATFORM@";
+    // The daemon API versions this app supports (compatibility/daemon-api.json).
+    public const string DAEMON_API_MIN = "@DAEMON_API_MIN@";
+    public const string DAEMON_API_MAX_EXCLUSIVE = "@DAEMON_API_MAX_EXCLUSIVE@";
 }

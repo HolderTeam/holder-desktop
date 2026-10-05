@@ -1,0 +1,120 @@
+using GLib;
+
+namespace HolderLinuxTests {
+
+private void test_builds_the_command_with_the_api_range_and_idle_exit() {
+    var command = HolderLinux.BackendEnsure.build_command("/usr/bin/holderctl", "0.1", "0.2", 60);
+    string[] expected = {
+        "/usr/bin/holderctl", "ensure", "--json",
+        "--api-min", "0.1", "--api-max-exclusive", "0.2", "--idle-exit", "60"
+    };
+    assert(command.length == expected.length);
+    for (int i = 0; i < expected.length; i++) {
+        assert(command[i] == expected[i]);
+    }
+}
+
+private void test_leaves_out_an_empty_api_bound() {
+    var command = HolderLinux.BackendEnsure.build_command("holderctl", "", "", 30);
+    assert(command.length == 5);
+    assert(command[3] == "--idle-exit");
+    assert(command[4] == "30");
+}
+
+private string make_temp_dir() {
+    try {
+        return DirUtils.make_tmp("holder-ensure-XXXXXX");
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+}
+
+private void test_prefers_holderctl_beside_the_program() {
+    var dir = make_temp_dir();
+    var beside = Path.build_filename(dir, "holderctl");
+    try {
+        FileUtils.set_contents(beside, "#!/bin/sh\n");
+        FileUtils.chmod(beside, 0755);
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+
+    assert(HolderLinux.BackendEnsure.locate_holderctl(dir, "/elsewhere/holderctl") == beside);
+    FileUtils.remove(beside);
+    DirUtils.remove(dir);
+}
+
+private void test_falls_back_to_path_then_to_nothing() {
+    var empty = make_temp_dir();
+    assert(HolderLinux.BackendEnsure.locate_holderctl(empty, "/usr/bin/holderctl") == "/usr/bin/holderctl");
+    assert(HolderLinux.BackendEnsure.locate_holderctl(null, "/usr/bin/holderctl") == "/usr/bin/holderctl");
+    assert(HolderLinux.BackendEnsure.locate_holderctl(empty, null) == null);
+    DirUtils.remove(empty);
+}
+
+private void test_parses_a_started_daemon() {
+    var outcome = HolderLinux.BackendEnsure.parse_result(
+        "{\"ok\":true,\"state\":\"started\",\"exit_code\":0}", "", 0);
+    assert(outcome.ok);
+    assert(outcome.state == "started");
+}
+
+private void test_parses_an_already_running_daemon() {
+    var outcome = HolderLinux.BackendEnsure.parse_result(
+        "{\"ok\":true,\"state\":\"running\",\"mode\":\"existing\"}", "", 0);
+    assert(outcome.ok);
+    assert(outcome.state == "running");
+}
+
+private void test_reports_the_error_message_on_failure() {
+    var outcome = HolderLinux.BackendEnsure.parse_result(
+        "{\"ok\":false,\"state\":\"failed\",\"error\":{\"code\":\"api_incompatible\","
+        + "\"message\":\"the daemon API version 0.1 is older than the minimum supported 99\"}}",
+        "", 10);
+    assert(!outcome.ok);
+    assert(outcome.state == "failed");
+    assert(outcome.message.contains("older than the minimum"));
+}
+
+private void test_a_failure_without_a_message_still_says_something() {
+    var outcome = HolderLinux.BackendEnsure.parse_result("{\"ok\":false,\"state\":\"failed\"}", "", 12);
+    assert(!outcome.ok);
+    assert(outcome.message.contains("12"));
+}
+
+private void test_a_nonzero_exit_is_never_a_success() {
+    var outcome = HolderLinux.BackendEnsure.parse_result("{\"ok\":true,\"state\":\"running\"}", "", 3);
+    assert(!outcome.ok);
+}
+
+private void test_falls_back_to_standard_error_without_json() {
+    var outcome = HolderLinux.BackendEnsure.parse_result("", "Invalid --idle-exit value\n", 2);
+    assert(!outcome.ok);
+    assert(outcome.message == "Invalid --idle-exit value");
+}
+
+private void test_falls_back_to_the_exit_status_with_nothing_else() {
+    var outcome = HolderLinux.BackendEnsure.parse_result("not json", "", 7);
+    assert(!outcome.ok);
+    assert(outcome.message.contains("7"));
+}
+
+public static int main(string[] args) {
+    Test.init(ref args);
+
+    Test.add_func("/backend_ensure/builds_the_command", test_builds_the_command_with_the_api_range_and_idle_exit);
+    Test.add_func("/backend_ensure/leaves_out_empty_bounds", test_leaves_out_an_empty_api_bound);
+    Test.add_func("/backend_ensure/prefers_holderctl_beside_the_program", test_prefers_holderctl_beside_the_program);
+    Test.add_func("/backend_ensure/falls_back_to_path", test_falls_back_to_path_then_to_nothing);
+    Test.add_func("/backend_ensure/parses_started", test_parses_a_started_daemon);
+    Test.add_func("/backend_ensure/parses_running", test_parses_an_already_running_daemon);
+    Test.add_func("/backend_ensure/reports_the_error_message", test_reports_the_error_message_on_failure);
+    Test.add_func("/backend_ensure/failure_without_message", test_a_failure_without_a_message_still_says_something);
+    Test.add_func("/backend_ensure/nonzero_exit_is_not_success", test_a_nonzero_exit_is_never_a_success);
+    Test.add_func("/backend_ensure/falls_back_to_stderr", test_falls_back_to_standard_error_without_json);
+    Test.add_func("/backend_ensure/falls_back_to_exit_status", test_falls_back_to_the_exit_status_with_nothing_else);
+
+    return Test.run();
+}
+
+}

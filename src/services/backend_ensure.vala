@@ -1,0 +1,102 @@
+namespace HolderLinux {
+
+// Makes sure a compatible daemon is running by running `holderctl ensure`, which knows how to
+// start one on each platform and reports through one JSON object and its exit status
+// (daemon/docs/ensure.md in holder-framework). A daemon started this way stops itself after
+// IDLE_EXIT_SECONDS without a client; an already-running daemon, such as the Linux systemd
+// service, is left as it is.
+public class BackendEnsure : Object, IBackendStarter {
+    // Long enough to ride out a restart of the window or a dropped event stream.
+    public const int IDLE_EXIT_SECONDS = 60;
+
+    private string holderctl_path;
+
+    public BackendEnsure(string holderctl_path) {
+        this.holderctl_path = holderctl_path;
+    }
+
+    public static string[] build_command(string holderctl_path,
+                                         string api_min,
+                                         string api_max_exclusive,
+                                         int idle_exit_seconds) {
+        string[] command = { holderctl_path, "ensure", "--json" };
+        if (api_min != "") {
+            command += "--api-min";
+            command += api_min;
+        }
+        if (api_max_exclusive != "") {
+            command += "--api-max-exclusive";
+            command += api_max_exclusive;
+        }
+        command += "--idle-exit";
+        command += idle_exit_seconds.to_string();
+        return command;
+    }
+
+    // Finds holderctl beside the running program (where the packages install both), then on PATH.
+    public static string? locate_holderctl(string? program_dir, string? on_path) {
+        if (program_dir != null) {
+            var beside = Path.build_filename((!) program_dir, "holderctl");
+            if (FileUtils.test(beside, FileTest.IS_EXECUTABLE)) {
+                return beside;
+            }
+        }
+        return on_path;
+    }
+
+    public static string? locate_holderctl_for_this_program() {
+        string? program_dir = null;
+        try {
+            program_dir = Path.get_dirname(FileUtils.read_link("/proc/self/exe"));
+        } catch (FileError e) {
+            debug("Cannot tell where this program is installed: %s", e.message);
+        }
+        return locate_holderctl(program_dir, Environment.find_program_in_path("holderctl"));
+    }
+
+    // Reads the single JSON object `holderctl ensure --json` prints. Invalid options leave
+    // standard output empty and put the error on standard error, so the exit status and standard
+    // error are the fallback.
+    public static EnsureOutcome parse_result(string stdout_text, string stderr_text, int exit_status) {
+        var parser = new Json.Parser();
+        try {
+            parser.load_from_data(stdout_text);
+            var root = parser.get_root();
+            if (root != null && ((!) root).get_node_type() == Json.NodeType.OBJECT) {
+                var object = ((!) root).get_object();
+                var ok = object.has_member("ok") && object.get_boolean_member("ok");
+                var state = object.has_member("state") ? object.get_string_member("state") : "failed";
+                var message = "";
+                if (object.has_member("error")) {
+                    var error = object.get_object_member("error");
+                    if (error.has_member("message")) {
+                        message = error.get_string_member("message");
+                    }
+                }
+                if (!ok && message == "") {
+                    message = "holderctl ensure failed (exit status %d)".printf(exit_status);
+                }
+                return new EnsureOutcome(ok && exit_status == 0, state, message);
+            }
+        } catch (Error e) {
+            debug("holderctl ensure printed no usable JSON: %s", e.message);
+        }
+        var detail = stderr_text.strip();
+        if (detail == "") {
+            detail = "holderctl ensure exited with status %d".printf(exit_status);
+        }
+        return new EnsureOutcome(false, "failed", detail);
+    }
+
+    public async EnsureOutcome ensure() throws Error {
+        var command = build_command(holderctl_path, DAEMON_API_MIN, DAEMON_API_MAX_EXCLUSIVE, IDLE_EXIT_SECONDS);
+        var process = new Subprocess.newv(command, SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_PIPE);
+        string? out_text = null;
+        string? err_text = null;
+        yield process.communicate_utf8_async(null, null, out out_text, out err_text);
+        var status = process.get_if_exited() ? process.get_exit_status() : -1;
+        return parse_result(out_text ?? "", err_text ?? "", status);
+    }
+}
+
+}

@@ -16,6 +16,10 @@ public class MainController : Object, IAiRunContext {
     internal IHolderApi? api;
     internal IApiFactory api_factory;
     internal IServerDiscovery server_discovery;
+    // Set by the window. Without a starter the app only looks for a daemon that is already
+    // running; without presence it does not tell the daemon it is there.
+    internal IBackendStarter? backend_starter = null;
+    internal IPresence? presence = null;
     internal IClock clock;
     internal IScheduler scheduler;
     internal EditorDraftState editor_draft_state;

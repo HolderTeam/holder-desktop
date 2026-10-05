@@ -227,6 +227,28 @@ public interface IServerDiscovery : Object {
     public abstract string holder_info_path();
 }
 
+public class EnsureOutcome : Object {
+    public bool ok { get; construct; }
+    // "running" (already up), "started" (this call started it) or "failed".
+    public string state { get; construct; }
+    public string message { get; construct; }
+
+    public EnsureOutcome(bool ok, string state, string message) {
+        Object(ok: ok, state: state, message: message);
+    }
+}
+
+// Makes sure a compatible daemon is running, starting one if needed.
+public interface IBackendStarter : Object {
+    public abstract async EnsureOutcome ensure() throws Error;
+}
+
+// Tells the daemon this app is here, for as long as it is started.
+public interface IPresence : Object {
+    public abstract void start();
+    public abstract void stop();
+}
+
 public interface IClock : Object {
     public abstract int64 now_epoch_seconds();
 }
