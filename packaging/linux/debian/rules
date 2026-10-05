@@ -12,8 +12,8 @@ override_dh_auto_test:
 
 override_dh_auto_install:
 	dh_auto_install
-	sed -i 's/^Exec=holder-desktop$$/Exec=holder/' debian/tmp/usr/share/applications/team.holder.Holder.desktop
-	grep -qx 'Exec=holder' debian/tmp/usr/share/applications/team.holder.Holder.desktop
+	# The app starts its own backend (holderctl ensure), so the menu entry runs it directly.
+	grep -qx 'Exec=holder-desktop' debian/tmp/usr/share/applications/team.holder.Holder.desktop
 
 %:
 	dh $@ --buildsystem=meson

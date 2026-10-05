@@ -1,5 +1,4 @@
 usr/bin/holder-desktop
-packaging/linux/holder usr/bin
 usr/share/applications/team.holder.Holder.desktop
 usr/share/glib-2.0/schemas/team.holder.Holder.gschema.xml
 usr/share/gtksourceview-5/language-specs/holder-markdown.lang
