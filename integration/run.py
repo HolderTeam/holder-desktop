@@ -153,7 +153,7 @@ class Runner:
     def run_with_isolated_backend(self, command: list[str], env: dict[str, str]) -> None:
         self.require_cmd("mktemp", "Install coreutils from your package manager.")
         holder_dir = Path(
-            os.environ.get("HOLDER_DIR", str(self.repo_root.parent / "holder-daemon"))
+            os.environ.get("HOLDER_DIR", str(self.repo_root.parent / "holder-framework" / "daemon"))
         ).resolve()
         holder_backend_bin = Path(
             os.environ.get("HOLDER_BACKEND_BIN", str(holder_dir / "build" / "holderd"))

@@ -69,7 +69,7 @@ To run the frontend directly:
 ```
 
 The desktop app expects `holderd` to already be running. For local macOS development, build and
-start the backend from the `holder-daemon` repository first, or run a staged `.app` bundle that
+start the backend from `daemon/` in the `holder-framework` repository first, or run a staged `.app` bundle that
 contains the backend and launcher.
 
 Run the fast headless-safe test suite from this directory:
