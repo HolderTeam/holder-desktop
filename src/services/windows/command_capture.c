@@ -1,5 +1,12 @@
 #include <gio/gio.h>
 
+#ifdef __APPLE__
+#include <limits.h>
+#include <mach-o/dyld.h>
+#include <stdint.h>
+#include <stdlib.h>
+#endif
+
 #ifdef G_OS_WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -44,6 +51,27 @@ static gchar *find_command(const gchar *name) {
 /* GLib's GUI spawn helper redirects CRT descriptors but some Windows tools
  * read Win32 standard handles instead. Supply explicit handles for those tools.
  * The caller runs this blocking capture on a worker thread. */
+/* The directory this program runs from on macOS, with links resolved, or NULL if it cannot be found
+ * (and always off macOS). Free with g_free. */
+gchar *holder_macos_program_directory(void) {
+#ifdef __APPLE__
+    uint32_t size = 0;
+    _NSGetExecutablePath(NULL, &size); /* reports the length needed */
+    gchar *buffer = g_malloc0((gsize)size + 1);
+    if (_NSGetExecutablePath(buffer, &size) != 0) {
+        g_free(buffer);
+        return NULL;
+    }
+    char resolved[PATH_MAX];
+    gchar *directory = realpath(buffer, resolved) != NULL ? g_path_get_dirname(resolved)
+                                                           : g_path_get_dirname(buffer);
+    g_free(buffer);
+    return directory;
+#else
+    return NULL;
+#endif
+}
+
 /* The directory this program was started from, or NULL if it cannot be found (and always off
  * Windows, where /proc or the platform has its own way). Free with g_free. */
 gchar *holder_windows_program_directory(void) {

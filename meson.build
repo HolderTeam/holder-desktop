@@ -333,6 +333,7 @@ sources = [
   'src/services/discovery.vala',
   'src/services/presence_stream.vala',
   'src/services/backend_ensure.vala',
+  'src/services/bundle_environment.vala',
   'src/services/recovery_service.vala',
   'src/services/http_transport.vala',
   'src/services/parsers/common.vala',
@@ -2211,6 +2212,63 @@ backend_ensure_test_exe = executable(
 )
 
 test('holder-linux-backend-ensure-tests', backend_ensure_test_exe)
+
+bundle_environment_test_exe = executable(
+  'holder-linux-bundle-environment-tests',
+  [
+    holder_config,
+    'tests/support/test_utils.vala',
+    'tests/support/api_client_fakes.vala',
+    'src/models/server.vala',
+    'src/models/project.vala',
+    'src/models/card.vala',
+    'src/models/flowboard.vala',
+    'src/models/ai.vala',
+    'src/models/git.vala',
+    'src/models/recovery.vala',
+    'src/models/card_context.vala',
+    'src/models/activity_details.vala',
+    'src/models/nudges.vala',
+    'src/services/core_interfaces.vala',
+    'src/services/http_transport.vala',
+    'src/services/parsers/common.vala',
+    'src/services/parsers/health.vala',
+    'src/services/parsers/projects.vala',
+    'src/services/parsers/cards.vala',
+    'src/services/parsers/resources.vala',
+    'src/services/parsers/trash.vala',
+    'src/services/parsers/search.vala',
+    'src/services/parsers/ai.vala',
+    'src/services/parsers/git.vala',
+    'src/services/api_client/core.vala',
+    'src/services/api_client/transport.vala',
+    'src/services/api_client/ai_stream.vala',
+    'src/services/api_client/health.vala',
+    'src/services/api_client/projects.vala',
+    'src/services/api_client/cards.vala',
+    'src/services/api_client/resources.vala',
+    'src/services/api_client/trash.vala',
+    'src/services/api_client/search.vala',
+    'src/services/api_client/ai.vala',
+    'src/services/api_client/git.vala',
+    'src/services/bundle_environment.vala',
+    'tests/bundle_environment_test.vala',
+  ],
+  dependencies: [
+    dependency('gio-2.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('libsoup-3.0'),
+  ],
+  vala_args: [
+    '--target-glib=2.70',
+  ],
+  c_args: vala_generated_c_args,
+  link_with: [command_capture_lib],
+  install: false,
+)
+
+test('holder-linux-bundle-environment-tests', bundle_environment_test_exe)
 
 api_client_transport_test_exe = executable(
   'holder-linux-api-client-transport-tests',

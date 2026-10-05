@@ -47,6 +47,11 @@ public int main(string[] args) {
         forwarded.add(arg);
     }
 
+    // In a macOS app bundle GTK has to be told where its runtime is, before GTK starts.
+    if (HolderLinux.PLATFORM == "darwin") {
+        HolderLinux.BundleEnvironment.configure(HolderLinux.BackendEnsure.program_directory());
+    }
+
     var app = new HolderLinux.App(width, height);
     int status = app.run(forwarded.to_array());
     return app.startup_failed ? 1 : status;

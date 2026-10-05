@@ -469,12 +469,12 @@ public class MainWindow : Adw.ApplicationWindow {
         }
 
         // The app asks holderctl to start the daemon (so it stops itself when the app goes
-        // away) and holds an event stream open so the daemon knows it is in use. Linux and Windows;
-        // macOS is still started by its launcher.
+        // away) and holds an event stream open so the daemon knows it is in use. Where a launcher
+        // still starts the backend first (macOS today), ensure simply finds it running.
         controller.debug_log_requested.connect((line) => {
             log_debug_line(line);
         });
-        if (PLATFORM == "linux" || PLATFORM == "windows") {
+        if (PLATFORM == "linux" || PLATFORM == "windows" || PLATFORM == "darwin") {
             var holderctl = BackendEnsure.locate_holderctl_for_this_program();
             if (holderctl != null) {
                 log_debug_line("BACKEND_ENSURE using %s".printf((string) holderctl));

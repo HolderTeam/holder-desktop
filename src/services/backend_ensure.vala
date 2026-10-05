@@ -13,6 +13,9 @@ private extern static async string capture_hidden_command(
 [CCode (cname = "holder_windows_program_directory")]
 private extern static string? windows_program_directory();
 
+[CCode (cname = "holder_macos_program_directory")]
+private extern static string? macos_program_directory();
+
 // Makes sure a compatible daemon is running by running `holderctl ensure`, which knows how to
 // start one on each platform and reports through one JSON object and its exit status
 // (daemon/docs/ensure.md in holder-framework). A daemon started this way stops itself after
@@ -72,6 +75,9 @@ public class BackendEnsure : Object, IBackendStarter {
     public static string? program_directory() {
         if (Path.DIR_SEPARATOR_S == "\\") {
             return windows_program_directory();
+        }
+        if (PLATFORM == "darwin") {
+            return macos_program_directory();
         }
         try {
             return Path.get_dirname(FileUtils.read_link("/proc/self/exe"));
