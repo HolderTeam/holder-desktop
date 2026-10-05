@@ -202,6 +202,34 @@ private void test_logs_once_when_events_arrive() {
     f.presence.stop();
 }
 
+private void test_logs_events_and_heartbeats_separately_each_once() {
+    var f = new Fixture();
+    f.transport.enqueue_stream(
+        200,
+        "event: ready\ndata: {}\n\n: heartbeat\n\nevent: card.changed\ndata: {}\n\n: heartbeat\n\n");
+
+    f.presence.start();
+
+    assert(wait_for_condition(() => f.scheduler.pending_one_shots() == 1));
+    assert(count_lines(f.log, "PRESENCE receiving events") == 1);
+    assert(count_lines(f.log, "PRESENCE receiving heartbeats") == 1);
+    f.presence.stop();
+}
+
+private void test_logs_again_on_a_new_connection() {
+    var f = new Fixture();
+    f.transport.enqueue_stream(200, "event: ready\ndata: {}\n\n: heartbeat\n\n");
+    f.transport.enqueue_stream(200, "event: ready\ndata: {}\n\n: heartbeat\n\n");
+
+    f.presence.start();
+    assert(wait_for_condition(() => f.scheduler.pending_with_delay(1000) == 1));
+    f.scheduler.run_due(1000);
+    assert(wait_for_condition(() => count_lines(f.log, "PRESENCE receiving heartbeats") == 2));
+
+    assert(count_lines(f.log, "PRESENCE receiving events") == 2);
+    f.presence.stop();
+}
+
 private void test_logs_nothing_about_data_when_the_stream_is_empty() {
     var f = new Fixture();
     f.transport.enqueue_stream(200, "");
@@ -239,6 +267,8 @@ public static int main(string[] args) {
     Test.add_func("/presence_stream/logs_what_it_is_doing", test_logs_what_it_is_doing_for_the_debug_panel);
     Test.add_func("/presence_stream/logs_once_when_heartbeats_arrive", test_logs_once_when_heartbeats_arrive);
     Test.add_func("/presence_stream/logs_once_when_events_arrive", test_logs_once_when_events_arrive);
+    Test.add_func("/presence_stream/logs_events_and_heartbeats_separately", test_logs_events_and_heartbeats_separately_each_once);
+    Test.add_func("/presence_stream/logs_again_on_a_new_connection", test_logs_again_on_a_new_connection);
     Test.add_func("/presence_stream/logs_nothing_for_an_empty_stream", test_logs_nothing_about_data_when_the_stream_is_empty);
     Test.add_func("/presence_stream/logs_why_a_connection_failed", test_logs_why_a_connection_failed);
 

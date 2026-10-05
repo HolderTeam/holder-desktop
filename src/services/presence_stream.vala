@@ -81,20 +81,26 @@ public class PresenceStream : Object, IPresence {
             retry_delay_ms = RETRY_MIN_MS;
             var lines = new DataInputStream((!) held);
             lines.set_newline_type(DataStreamNewlineType.LF);
-            bool received_anything = false;
+            // The first event and the first heartbeat are each logged once per connection, so
+            // the debug panel shows that heartbeats keep arriving (the daemon sends one every
+            // 15 seconds) without a line for each. The stream opens with a ready event, so an
+            // event line alone says nothing about heartbeats.
+            bool saw_event = false;
+            bool saw_heartbeat = false;
             while (true) {
                 size_t length = 0;
                 var line = yield lines.read_line_async(Priority.DEFAULT, token, out length);
                 if (line == null) {
                     break;
                 }
-                // Once per connection, so the debug panel shows that data is flowing without
-                // a line for every heartbeat.
-                if (!received_anything && line != "") {
-                    received_anything = true;
-                    debug_log_requested(line.has_prefix(":")
-                        ? "PRESENCE receiving heartbeats"
-                        : "PRESENCE receiving events");
+                if (line.has_prefix(":")) {
+                    if (!saw_heartbeat) {
+                        saw_heartbeat = true;
+                        debug_log_requested("PRESENCE receiving heartbeats");
+                    }
+                } else if (line != "" && !saw_event) {
+                    saw_event = true;
+                    debug_log_requested("PRESENCE receiving events");
                 }
             }
         } catch (Error e) {
