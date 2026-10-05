@@ -482,8 +482,12 @@ public class MainWindow : Adw.ApplicationWindow {
             } else {
                 // Not an error: a daemon started by hand, as when running from a build directory,
                 // still works.
-                log_debug_line("BACKEND_ENSURE skipped: holderctl not found beside %s or on PATH".printf(
-                    BackendEnsure.program_directory() ?? "(unknown program directory)"));
+                var override_path = Environment.get_variable("HOLDER_CTL");
+                log_debug_line("BACKEND_ENSURE skipped: holderctl not found beside %s or on PATH%s".printf(
+                    BackendEnsure.program_directory() ?? "(unknown program directory)",
+                    override_path != null
+                        ? ", and HOLDER_CTL=%s is not an executable".printf((!) override_path)
+                        : " (HOLDER_CTL can name one)"));
             }
         } else {
             log_debug_line("BACKEND_ENSURE skipped: not done on %s yet".printf(PLATFORM));

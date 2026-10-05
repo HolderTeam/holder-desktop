@@ -44,6 +44,28 @@ private void test_prefers_holderctl_beside_the_program() {
     DirUtils.remove(dir);
 }
 
+private void test_an_executable_override_wins() {
+    var dir = make_temp_dir();
+    var beside = Path.build_filename(dir, HolderLinux.BackendEnsure.program_file_name());
+    var override_ctl = write_fake_holderctl("exit 0\n");
+    try {
+        FileUtils.set_contents(beside, "#!/bin/sh\n");
+        FileUtils.chmod(beside, 0755);
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+
+    assert(HolderLinux.BackendEnsure.locate_holderctl(dir, "/usr/bin/holderctl", override_ctl) == override_ctl);
+}
+
+private void test_an_override_that_is_not_executable_is_ignored() {
+    var empty = make_temp_dir();
+
+    assert(HolderLinux.BackendEnsure.locate_holderctl(empty, "/usr/bin/holderctl", "/no/such/holderctl")
+           == "/usr/bin/holderctl");
+    assert(HolderLinux.BackendEnsure.locate_holderctl(empty, null, "") == null);
+}
+
 private void test_falls_back_to_path_then_to_nothing() {
     var empty = make_temp_dir();
     assert(HolderLinux.BackendEnsure.locate_holderctl(empty, "/usr/bin/holderctl") == "/usr/bin/holderctl");
@@ -159,6 +181,8 @@ public static int main(string[] args) {
     Test.add_func("/backend_ensure/builds_the_command", test_builds_the_command_with_the_api_range_and_idle_exit);
     Test.add_func("/backend_ensure/leaves_out_empty_bounds", test_leaves_out_an_empty_api_bound);
     Test.add_func("/backend_ensure/prefers_holderctl_beside_the_program", test_prefers_holderctl_beside_the_program);
+    Test.add_func("/backend_ensure/override_wins", test_an_executable_override_wins);
+    Test.add_func("/backend_ensure/bad_override_is_ignored", test_an_override_that_is_not_executable_is_ignored);
     Test.add_func("/backend_ensure/falls_back_to_path", test_falls_back_to_path_then_to_nothing);
     Test.add_func("/backend_ensure/parses_started", test_parses_a_started_daemon);
     Test.add_func("/backend_ensure/parses_running", test_parses_an_already_running_daemon);

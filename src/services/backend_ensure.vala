@@ -38,8 +38,14 @@ public class BackendEnsure : Object, IBackendStarter {
         return Path.DIR_SEPARATOR_S == "\\" ? "holderctl.exe" : "holderctl";
     }
 
-    // Finds holderctl beside the running program (where the packages install both), then on PATH.
-    public static string? locate_holderctl(string? program_dir, string? on_path) {
+    // Finds holderctl: the HOLDER_CTL override when it names an executable (for running from a
+    // source tree), then beside the running program (where the packages install both), then on
+    // PATH.
+    public static string? locate_holderctl(string? program_dir, string? on_path, string? override_path = null) {
+        if (override_path != null && (!) override_path != ""
+            && FileUtils.test((!) override_path, FileTest.IS_EXECUTABLE)) {
+            return override_path;
+        }
         if (program_dir != null) {
             var beside = Path.build_filename((!) program_dir, program_file_name());
             if (FileUtils.test(beside, FileTest.IS_EXECUTABLE)) {
@@ -60,7 +66,11 @@ public class BackendEnsure : Object, IBackendStarter {
     }
 
     public static string? locate_holderctl_for_this_program() {
-        return locate_holderctl(program_directory(), Environment.find_program_in_path("holderctl"));
+        return locate_holderctl(
+            program_directory(),
+            Environment.find_program_in_path("holderctl"),
+            Environment.get_variable("HOLDER_CTL")
+        );
     }
 
     // Reads the single JSON object `holderctl ensure --json` prints. Invalid options leave
