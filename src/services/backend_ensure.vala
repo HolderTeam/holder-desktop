@@ -55,8 +55,8 @@ public class BackendEnsure : Object, IBackendStarter {
     }
 
     // Finds holderctl: the HOLDER_CTL override when it names an executable (for running from a
-    // source tree), then beside the running program (where the packages install both), then on
-    // PATH.
+    // source tree), then beside the running program (where the packages install both), then in a
+    // macOS bundle's Contents/Resources/bin when the program is Contents/MacOS/*, then on PATH.
     public static string? locate_holderctl(string? program_dir, string? on_path, string? override_path = null) {
         if (override_path != null && (!) override_path != ""
             && FileUtils.test((!) override_path, FileTest.IS_EXECUTABLE)) {
@@ -66,6 +66,15 @@ public class BackendEnsure : Object, IBackendStarter {
             var beside = Path.build_filename((!) program_dir, program_file_name());
             if (FileUtils.test(beside, FileTest.IS_EXECUTABLE)) {
                 return beside;
+            }
+            // A macOS app bundle whose main executable is the desktop (Contents/MacOS) keeps
+            // holderctl with the other tools, in Contents/Resources/bin.
+            var contents = Path.get_dirname((!) program_dir);
+            if (Path.get_basename((!) program_dir) == "MacOS" && Path.get_basename(contents) == "Contents") {
+                var in_bundle = Path.build_filename(contents, "Resources", "bin", program_file_name());
+                if (FileUtils.test(in_bundle, FileTest.IS_EXECUTABLE)) {
+                    return in_bundle;
+                }
             }
         }
         return on_path;
