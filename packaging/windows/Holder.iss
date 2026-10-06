@@ -30,11 +30,14 @@ SetupLogging=yes
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
-Name: "addtopath"; Description: "Add Holder command-line tools to PATH"; GroupDescription: "Command-line integration:"; Flags: checkedonce
+Name: "addtopath"; Description: "Add the Holder command-line tools (holderctl, holderd) to PATH"; GroupDescription: "Command-line integration:"
 
 [Files]
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "packaging\windows\Holder.ico"; DestDir: "{app}"; Flags: ignoreversion
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}\cli"
 
 [InstallDelete]
 ; Older installs shipped Holder.exe, a launcher that started the backend and then the app. The app starts
@@ -69,6 +72,14 @@ function SendMessageTimeout(
 ): Longint;
 external 'SendMessageTimeoutW@user32.dll stdcall';
 
+// The command-line tools go on PATH through small launchers in {app}\cli, not by putting {app}\bin
+// on PATH: bin holds the GTK runtime and the daemon's DLLs, and every program that looks up a DLL by
+// name would find Holder's copies. An earlier installer did put bin on PATH; that entry is removed.
+function HolderCliDir(): string;
+begin
+  Result := ExpandConstant('{app}\cli');
+end;
+
 function HolderBinDir(): string;
 begin
   Result := ExpandConstant('{app}\bin');
@@ -94,13 +105,12 @@ begin
   );
 end;
 
-procedure AddHolderToUserPath();
+// The path is written back as REG_EXPAND_SZ so entries such as %USERPROFILE%\bin keep expanding.
+procedure AddPathEntry(Entry: string);
 var
   CurrentPath: string;
   NewPath: string;
-  Entry: string;
 begin
-  Entry := HolderBinDir();
   if not RegQueryStringValue(HKCU, EnvironmentKey, PathValueName, CurrentPath) then
     CurrentPath := '';
 
@@ -112,16 +122,13 @@ begin
   else
     NewPath := CurrentPath + ';' + Entry;
 
-  RegWriteStringValue(HKCU, EnvironmentKey, PathValueName, NewPath);
-  NotifyEnvironmentChanged();
+  RegWriteExpandStringValue(HKCU, EnvironmentKey, PathValueName, NewPath);
 end;
 
-procedure RemoveHolderFromUserPath();
+procedure RemovePathEntry(Entry: string);
 var
   CurrentPath: string;
-  Entry: string;
 begin
-  Entry := HolderBinDir();
   if not RegQueryStringValue(HKCU, EnvironmentKey, PathValueName, CurrentPath) then
     exit;
 
@@ -140,18 +147,40 @@ begin
   if (Length(CurrentPath) > 0) and (Copy(CurrentPath, Length(CurrentPath), 1) = ';') then
     Delete(CurrentPath, Length(CurrentPath), 1);
 
-  RegWriteStringValue(HKCU, EnvironmentKey, PathValueName, CurrentPath);
-  NotifyEnvironmentChanged();
+  RegWriteExpandStringValue(HKCU, EnvironmentKey, PathValueName, CurrentPath);
+end;
+
+procedure WriteLauncher(Name: string);
+begin
+  SaveStringToFile(
+    HolderCliDir() + '\' + Name + '.cmd',
+    '@echo off' + #13#10 + '"%~dp0..\bin\' + Name + '.exe" %*' + #13#10,
+    False
+  );
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if (CurStep = ssPostInstall) and WizardIsTaskSelected('addtopath') then
-    AddHolderToUserPath();
+  if CurStep = ssPostInstall then
+  begin
+    ForceDirectories(HolderCliDir());
+    WriteLauncher('holderctl');
+    WriteLauncher('holderd');
+
+    // An older installer put bin on PATH. Take that out whether or not the tools are added now.
+    RemovePathEntry(HolderBinDir());
+    if WizardIsTaskSelected('addtopath') then
+      AddPathEntry(HolderCliDir());
+    NotifyEnvironmentChanged();
+  end;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
-    RemoveHolderFromUserPath();
+  begin
+    RemovePathEntry(HolderCliDir());
+    RemovePathEntry(HolderBinDir());
+    NotifyEnvironmentChanged();
+  end;
 end;
