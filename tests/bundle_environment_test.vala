@@ -114,6 +114,30 @@ private void test_an_empty_value_counts_as_unset() {
     assert(names_variable(plan, "DICPATH"));
 }
 
+[CCode (cname = "chdir", cheader_filename = "unistd.h")]
+private extern int test_chdir(string path);
+
+private void test_configuring_a_bundle_enters_its_resources_directory() {
+    var original = Environment.get_current_dir();
+    var resources = make_resources(make_temp_dir());
+
+    HolderLinux.BundleEnvironment.configure(Path.build_filename(resources, "bin"));
+    var after = Environment.get_current_dir();
+    test_chdir(original);
+
+    // The pixbuf loader cache lists its modules relative to Contents/Resources.
+    assert(after.has_suffix("Holder.app/Contents/Resources"));
+}
+
+private void test_configuring_outside_a_bundle_leaves_the_directory_alone() {
+    var original = Environment.get_current_dir();
+    var plain = make_temp_dir();
+
+    HolderLinux.BundleEnvironment.configure(plain);
+
+    assert(Environment.get_current_dir() == original);
+}
+
 public static int main(string[] args) {
     Test.init(ref args);
 
@@ -124,6 +148,8 @@ public static int main(string[] args) {
     Test.add_func("/bundle_environment/plans_the_launchers_variables", test_plans_the_variables_the_launcher_used_to_set);
     Test.add_func("/bundle_environment/does_not_override", test_does_not_override_what_the_launcher_already_set);
     Test.add_func("/bundle_environment/empty_is_unset", test_an_empty_value_counts_as_unset);
+    Test.add_func("/bundle_environment/enters_resources", test_configuring_a_bundle_enters_its_resources_directory);
+    Test.add_func("/bundle_environment/leaves_directory_outside_a_bundle", test_configuring_outside_a_bundle_leaves_the_directory_alone);
 
     return Test.run();
 }
