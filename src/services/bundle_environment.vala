@@ -2,6 +2,9 @@ namespace HolderLinux {
 
 public delegate string? VariableLookup(string name);
 
+[CCode (cname = "chdir", cheader_filename = "unistd.h")]
+private extern int change_directory(string path);
+
 // The GTK runtime of a macOS app bundle lives inside the bundle, and GTK has to be told where. The
 // launcher used to set these variables just before starting the desktop; the desktop now does it
 // itself, so it can be the program a bundle starts. Nothing happens outside a bundle, and a
@@ -60,8 +63,8 @@ public class BundleEnvironment : Object {
         return steps;
     }
 
-    // Sets the variables for the bundle the program runs from, if it runs from one. Call it before
-    // GTK starts: some of its libraries read these early.
+    // Sets the variables for the bundle the program runs from, if it runs from one, and enters its
+    // Contents/Resources directory. Call it before GTK starts: some of its libraries read these early.
     public static void configure(string? program_dir) {
         var root = runtime_root(program_dir);
         if (root == null) {
@@ -70,6 +73,14 @@ public class BundleEnvironment : Object {
         var steps = plan((!) root, (name) => Environment.get_variable(name));
         for (int i = 0; i + 1 < steps.length; i += 2) {
             Environment.set_variable(steps[i], steps[i + 1], false);
+        }
+
+        // The loader cache for gdk-pixbuf lists its modules relative to Contents/Resources, which
+        // resolves against the working directory, and a bundle opened from Finder starts in /. The
+        // launcher this replaces always changed into Contents/Resources before starting the app, so
+        // the modules (GIF, SVG, BMP, ICO and other formats GTK does not decode itself) kept working.
+        if (change_directory((!) root) != 0) {
+            warning("Could not enter %s; image formats that need a gdk-pixbuf module may not load", (!) root);
         }
     }
 }
