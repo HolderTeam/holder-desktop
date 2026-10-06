@@ -30,7 +30,7 @@ SetupLogging=yes
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
-Name: "addtoolstopath"; Description: "Add the Holder command-line tools (holderctl, holderd) to PATH"; GroupDescription: "Command-line integration:"
+Name: "addtopath"; Description: "Add the Holder command-line tools (holderctl, holderd) to PATH"; GroupDescription: "Command-line integration:"
 
 [Files]
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -169,7 +169,7 @@ begin
 
     // An older installer put bin on PATH. Take that out whether or not the tools are added now.
     RemovePathEntry(HolderBinDir());
-    if WizardIsTaskSelected('addtoolstopath') then
+    if WizardIsTaskSelected('addtopath') then
       AddPathEntry(HolderCliDir());
     NotifyEnvironmentChanged();
   end;
