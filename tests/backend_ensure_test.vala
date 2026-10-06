@@ -66,6 +66,57 @@ private void test_an_override_that_is_not_executable_is_ignored() {
     assert(HolderLinux.BackendEnsure.locate_holderctl(empty, null, "") == null);
 }
 
+// A directory laid out like a macOS app bundle, with holderctl in Contents/Resources/bin.
+private string make_bundle_with_holderctl(string base_dir) {
+    var contents = Path.build_filename(base_dir, "Holder.app", "Contents");
+    DirUtils.create_with_parents(Path.build_filename(contents, "MacOS"), 0755);
+    DirUtils.create_with_parents(Path.build_filename(contents, "Resources", "bin"), 0755);
+    var holderctl = Path.build_filename(contents, "Resources", "bin", HolderLinux.BackendEnsure.program_file_name());
+    try {
+        FileUtils.set_contents(holderctl, "#!/bin/sh\n");
+        FileUtils.chmod(holderctl, 0755);
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+    return contents;
+}
+
+private void test_finds_holderctl_in_the_bundle_when_the_desktop_is_the_main_executable() {
+    var contents = make_bundle_with_holderctl(make_temp_dir());
+    var holderctl = Path.build_filename(contents, "Resources", "bin", HolderLinux.BackendEnsure.program_file_name());
+
+    var found = HolderLinux.BackendEnsure.locate_holderctl(Path.build_filename(contents, "MacOS"), "/usr/bin/holderctl");
+
+    assert(found == holderctl);
+}
+
+private void test_prefers_holderctl_beside_the_program_over_the_bundle() {
+    var contents = make_bundle_with_holderctl(make_temp_dir());
+    var macos_dir = Path.build_filename(contents, "MacOS");
+    var beside = Path.build_filename(macos_dir, HolderLinux.BackendEnsure.program_file_name());
+    try {
+        FileUtils.set_contents(beside, "#!/bin/sh\n");
+        FileUtils.chmod(beside, 0755);
+    } catch (FileError e) {
+        assert_not_reached();
+    }
+
+    assert(HolderLinux.BackendEnsure.locate_holderctl(macos_dir, null) == beside);
+}
+
+private void test_the_bundle_is_only_searched_from_contents_macos() {
+    var contents = make_bundle_with_holderctl(make_temp_dir());
+    var elsewhere = Path.build_filename(Path.get_dirname(contents), "SomewhereElse");
+    DirUtils.create_with_parents(elsewhere, 0755);
+
+    assert(HolderLinux.BackendEnsure.locate_holderctl(elsewhere, null) == null);
+    // Not inside a Contents directory at all.
+    var plain = make_temp_dir();
+    var macos_lookalike = Path.build_filename(plain, "MacOS");
+    DirUtils.create_with_parents(macos_lookalike, 0755);
+    assert(HolderLinux.BackendEnsure.locate_holderctl(macos_lookalike, null) == null);
+}
+
 private void test_falls_back_to_path_then_to_nothing() {
     var empty = make_temp_dir();
     assert(HolderLinux.BackendEnsure.locate_holderctl(empty, "/usr/bin/holderctl") == "/usr/bin/holderctl");
@@ -184,6 +235,9 @@ public static int main(string[] args) {
     Test.add_func("/backend_ensure/prefers_holderctl_beside_the_program", test_prefers_holderctl_beside_the_program);
     Test.add_func("/backend_ensure/override_wins", test_an_executable_override_wins);
     Test.add_func("/backend_ensure/bad_override_is_ignored", test_an_override_that_is_not_executable_is_ignored);
+    Test.add_func("/backend_ensure/finds_holderctl_in_the_bundle", test_finds_holderctl_in_the_bundle_when_the_desktop_is_the_main_executable);
+    Test.add_func("/backend_ensure/beside_wins_over_the_bundle", test_prefers_holderctl_beside_the_program_over_the_bundle);
+    Test.add_func("/backend_ensure/bundle_only_from_contents_macos", test_the_bundle_is_only_searched_from_contents_macos);
     Test.add_func("/backend_ensure/falls_back_to_path", test_falls_back_to_path_then_to_nothing);
     Test.add_func("/backend_ensure/parses_started", test_parses_a_started_daemon);
     Test.add_func("/backend_ensure/parses_running", test_parses_an_already_running_daemon);
