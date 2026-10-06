@@ -36,14 +36,19 @@ Name: "addtopath"; Description: "Add Holder command-line tools to PATH"; GroupDe
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "packaging\windows\Holder.ico"; DestDir: "{app}"; Flags: ignoreversion
 
+[InstallDelete]
+; Older installs shipped Holder.exe, a launcher that started the backend and then the app. The app starts
+; its own backend now, so a Holder.exe left behind by an upgrade is removed.
+Type: files; Name: "{app}\Holder.exe"
+
 [Icons]
-Name: "{group}\Holder"; Filename: "{app}\Holder.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Holder.ico"
+Name: "{group}\Holder"; Filename: "{app}\bin\holder-desktop.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Holder.ico"
 Name: "{group}\Holder Backend"; Filename: "{app}\bin\holderd.exe"; WorkingDir: "{app}\bin"; IconFilename: "{app}\Holder.ico"
 Name: "{group}\Uninstall Holder"; Filename: "{uninstallexe}"
-Name: "{userdesktop}\Holder"; Filename: "{app}\Holder.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Holder.ico"; Tasks: desktopicon
+Name: "{userdesktop}\Holder"; Filename: "{app}\bin\holder-desktop.exe"; WorkingDir: "{app}"; IconFilename: "{app}\Holder.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\Holder.exe"; Description: "Launch Holder"; Flags: nowait postinstall skipifsilent unchecked
+Filename: "{app}\bin\holder-desktop.exe"; WorkingDir: "{app}"; Description: "Launch Holder"; Flags: nowait postinstall skipifsilent unchecked
 
 [Code]
 const
