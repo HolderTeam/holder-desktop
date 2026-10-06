@@ -125,8 +125,9 @@ private void test_configuring_a_bundle_enters_its_resources_directory() {
     var after = Environment.get_current_dir();
     test_chdir(original);
 
-    // The pixbuf loader cache lists its modules relative to Contents/Resources.
-    assert(after.has_suffix("Holder.app/Contents/Resources"));
+    // The pixbuf loader cache lists its modules relative to Contents/Resources. The expected suffix is
+    // built with the platform's separator: the test also runs on Windows.
+    assert(after.has_suffix(Path.build_filename("Holder.app", "Contents", "Resources")));
 }
 
 private void test_configuring_outside_a_bundle_leaves_the_directory_alone() {
