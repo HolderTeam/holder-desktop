@@ -1612,6 +1612,28 @@ private void test_move_card_to_start_and_to_end_accept_null_and_parent_scope() {
     assert(ok_end);
 }
 
+private void test_move_card_body_omits_absent_parent() {
+    foreach (var intent in new string[] { "to_start", "to_end" }) {
+        foreach (var parent in new string?[] { null, "", "  " }) {
+            var body = HolderLinux.ApiClientCardsEndpoints.build_move_card_body_text(
+                "proj-1", intent, null, parent
+            );
+            assert(body.contains("\"intent\":\"%s\"".printf(intent)));
+            assert(!body.contains("parent_card_id"));
+        }
+        var scoped = HolderLinux.ApiClientCardsEndpoints.build_move_card_body_text(
+            "proj-1", intent, null, "parent-1"
+        );
+        assert(scoped.contains("\"parent_card_id\":\"parent-1\""));
+    }
+
+    var into = HolderLinux.ApiClientCardsEndpoints.build_move_card_body_text(
+        "proj-1", "into", "target-1", "parent-1"
+    );
+    assert(into.contains("\"target_card_id\":\"target-1\""));
+    assert(!into.contains("parent_card_id"));
+}
+
 private void test_move_card_missing_data_is_protocol_error() {
     var transport = new FakeApiHttpTransport();
     transport.enqueue_read(200, "{\"ok\":true}");
@@ -2909,6 +2931,8 @@ int main(string[] args) {
                   test_move_card_posts_move_endpoint);
     Test.add_func("/api_client/move_card_to_start_and_to_end_accept_null_and_parent_scope",
                   test_move_card_to_start_and_to_end_accept_null_and_parent_scope);
+    Test.add_func("/api_client/move_card_body_omits_absent_parent",
+                  test_move_card_body_omits_absent_parent);
     Test.add_func("/api_client/move_card_missing_data_is_protocol_error",
                   test_move_card_missing_data_is_protocol_error);
     Test.add_func("/api_client/move_card_missing_required_fields_is_protocol_error",
